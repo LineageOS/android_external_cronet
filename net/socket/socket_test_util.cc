@@ -8,6 +8,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <algorithm>
 #include <memory>
 #include <string>
 #include <utility>
@@ -20,9 +21,9 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "net/base/address_family.h"
@@ -458,7 +459,7 @@ MockRead SequencedSocketData::OnRead() {
         run_until_paused_run_loop_->Quit();
       return MockRead(SYNCHRONOUS, ERR_IO_PENDING);
     }
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&SequencedSocketData::OnReadComplete,
                                   weak_factory_.GetWeakPtr()));
     CHECK_NE(IoState::kCompleting, write_state_);
@@ -518,7 +519,7 @@ MockWriteResult SequencedSocketData::OnWrite(const std::string& data) {
     }
 
     NET_TRACE(1, " *** ") << "Posting task to complete write";
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&SequencedSocketData::OnWriteComplete,
                                   weak_factory_.GetWeakPtr()));
     CHECK_NE(IoState::kCompleting, read_state_);
@@ -636,7 +637,7 @@ void SequencedSocketData::MaybePostReadCompleteTask() {
 
   NET_TRACE(1, " ****** ") << "Posting task to complete read: "
                            << sequence_number_;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&SequencedSocketData::OnReadComplete,
                                 weak_factory_.GetWeakPtr()));
   CHECK_NE(IoState::kCompleting, write_state_);
@@ -663,7 +664,7 @@ void SequencedSocketData::MaybePostWriteCompleteTask() {
 
   NET_TRACE(1, " ****** ") << "Posting task to complete write: "
                            << sequence_number_;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&SequencedSocketData::OnWriteComplete,
                                 weak_factory_.GetWeakPtr()));
   CHECK_NE(IoState::kCompleting, read_state_);
@@ -796,9 +797,12 @@ std::unique_ptr<SSLClientSocket> MockClientSocketFactory::CreateSSLClientSocket(
     const SSLConfig& ssl_config) {
   SSLSocketDataProvider* next_ssl_data = mock_ssl_data_.GetNext();
   if (next_ssl_data->next_protos_expected_in_ssl_config.has_value()) {
-    EXPECT_TRUE(base::ranges::equal(
-        next_ssl_data->next_protos_expected_in_ssl_config.value(),
-        ssl_config.alpn_protos));
+    EXPECT_EQ(next_ssl_data->next_protos_expected_in_ssl_config.value().size(),
+              ssl_config.alpn_protos.size());
+    EXPECT_TRUE(std::equal(
+        next_ssl_data->next_protos_expected_in_ssl_config.value().begin(),
+        next_ssl_data->next_protos_expected_in_ssl_config.value().end(),
+        ssl_config.alpn_protos.begin()));
   }
 
   // The protocol version used is a combination of the per-socket SSLConfig and
@@ -913,7 +917,7 @@ MockClientSocket::~MockClientSocket() = default;
 
 void MockClientSocket::RunCallbackAsync(CompletionOnceCallback callback,
                                         int result) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&MockClientSocket::RunCallback, weak_factory_.GetWeakPtr(),
                      std::move(callback), result));
@@ -1451,9 +1455,9 @@ void MockSSLClientSocket::GetSSLCertRequestInfo(
   }
 }
 
-int MockSSLClientSocket::ExportKeyingMaterial(base::StringPiece label,
+int MockSSLClientSocket::ExportKeyingMaterial(const base::StringPiece& label,
                                               bool has_context,
-                                              base::StringPiece context,
+                                              const base::StringPiece& context,
                                               unsigned char* out,
                                               unsigned int outlen) {
   memset(out, 'A', outlen);
@@ -1466,7 +1470,7 @@ std::vector<uint8_t> MockSSLClientSocket::GetECHRetryConfigs() {
 
 void MockSSLClientSocket::RunCallbackAsync(CompletionOnceCallback callback,
                                            int result) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&MockSSLClientSocket::RunCallback,
                      weak_factory_.GetWeakPtr(), std::move(callback), result));
@@ -1781,7 +1785,7 @@ int MockUDPClientSocket::CompleteRead() {
 
 void MockUDPClientSocket::RunCallbackAsync(CompletionOnceCallback callback,
                                            int result) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&MockUDPClientSocket::RunCallback,
                      weak_factory_.GetWeakPtr(), std::move(callback), result));

@@ -37,11 +37,8 @@ bool ProcessIterator::IncludeEntry() {
 
 NamedProcessIterator::NamedProcessIterator(
     const FilePath::StringType& executable_name,
-    const ProcessFilter* filter,
-    bool use_prefix_match)
-    : ProcessIterator(filter),
-      executable_name_(executable_name),
-      use_prefix_match_(use_prefix_match) {
+    const ProcessFilter* filter) : ProcessIterator(filter),
+                                   executable_name_(executable_name) {
 #if BUILDFLAG(IS_ANDROID)
   // On Android, the process name contains only the last 15 characters, which
   // is in file /proc/<pid>/stat, the string between open parenthesis and close

@@ -48,18 +48,31 @@ PartitionAlloc-Everywhere and must be `true` as a prerequisite for
 enabling PA-E.
 ***
 
-### `use_partition_alloc_as_malloc`
+### `use_allocator`
 
-Does nothing special when value is `false`. Enables
-[PartitionAlloc-Everywhere (PA-E)][pae-public-doc] when value is `true`.
+Does nothing special when value is `"none"`. Enables
+[PartitionAlloc-Everywhere (PA-E)][pae-public-doc] when value is
+`"partition"`.
 
 *** note
 * While "everywhere" (in "PartitionAlloc-Everywhere") tautologically
   includes Blink where PartitionAlloc originated, setting
-  `use_partition_alloc_as_malloc = false` does not disable PA usage in Blink,
-  which invokes PA explicitly (not via malloc).
-* `use_partition_alloc_as_malloc = true` must not be confused
+  `use_allocator = "none"` does not disable PA usage in Blink.
+* `use_allocator = "partition"` internally sets
+  `use_partition_alloc_as_malloc = true`, which must not be confused
   with `use_partition_alloc` (see above).
+***
+
+### `use_backup_ref_ptr`
+
+Specifies `BackupRefPtr` as the implementation for `base::raw_ptr<T>`
+when `true`. See the [MiraclePtr documentation][miracleptr-doc].
+
+*** aside
+BRP requires support from PartitionAlloc, so `use_backup_ref_ptr` also
+compiles the relevant code into PA. However, this arg does _not_ govern
+whether or not BRP is actually enabled at runtime - that functionality
+is controlled by a Finch flag.
 ***
 
 ## Note: Component Builds

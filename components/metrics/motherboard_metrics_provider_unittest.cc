@@ -4,11 +4,6 @@
 
 #include "components/metrics/motherboard_metrics_provider.h"
 
-#include <utility>
-
-#include "base/bind.h"
-#include "base/test/bind.h"
-#include "base/test/task_environment.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/metrics_proto/system_profile.pb.h"
 
@@ -24,9 +19,6 @@ class TestMotherboardMetricsProvider : public MotherboardMetricsProvider {
       const TestMotherboardMetricsProvider&) = delete;
 
   ~TestMotherboardMetricsProvider() override = default;
-
- private:
-  base::test::TaskEnvironment task_environment_;
 };
 
 }  // namespace
@@ -34,10 +26,6 @@ class TestMotherboardMetricsProvider : public MotherboardMetricsProvider {
 TEST(MotherboardMetricsProviderTest, ProvideSystemProfileMetrics) {
   TestMotherboardMetricsProvider provider;
   SystemProfileProto system_profile;
-
-  base::RunLoop run_loop;
-  provider.AsyncInit(run_loop.QuitClosure());
-  run_loop.Run();
 
   provider.ProvideSystemProfileMetrics(&system_profile);
 

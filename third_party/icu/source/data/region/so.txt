@@ -304,9 +304,8 @@ so{
     Countries%variant{
         CD{"Jamhuuriyadda Dimuqaadiga Kongo"}
         CG{"Jamhuuriyadda Kongo"}
-        CI{"Côte d’Ivoire"}
+        CI{"Aayforikoost"}
         CZ{"Jamhuuriyadda Jek"}
-        NZ{"Aotearoa New Zealand"}
         SZ{"Iswaasilaan"}
         TL{"Bariga Timor"}
     }

@@ -10,7 +10,6 @@
 #include <limits>
 
 #include "base/callback_helpers.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "build/build_config.h"
 
@@ -30,6 +29,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/system/sys_info.h"
 #include "base/task/thread_pool/thread_pool_instance.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "net/base/net_errors.h"
@@ -256,8 +256,8 @@ void SimpleBackendImpl::Init(CompletionOnceCallback completion_callback) {
       base::MakeRefCounted<net::PrioritizedTaskRunner>(kWorkerPoolTaskTraits);
 
   index_ = std::make_unique<SimpleIndex>(
-      base::SequencedTaskRunner::GetCurrentDefault(), cleanup_tracker_.get(),
-      this, GetCacheType(),
+      base::SequencedTaskRunnerHandle::Get(), cleanup_tracker_.get(), this,
+      GetCacheType(),
       std::make_unique<SimpleIndexFile>(
           index_task_runner, file_operations_factory_, GetCacheType(), path_));
   index_->ExecuteWhenReady(

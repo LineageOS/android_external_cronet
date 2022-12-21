@@ -156,8 +156,7 @@ struct __has_rebind_other<_Tp, _Up, __void_t<typename _Tp::template rebind<_Up>:
 
 template <class _Tp, class _Up, bool = __has_rebind_other<_Tp, _Up>::value>
 struct __allocator_traits_rebind {
-  static_assert(__has_rebind_other<_Tp, _Up>::value, "This allocator has to implement rebind");
-  using type _LIBCPP_NODEBUG = typename _Tp::template rebind<_Up>::other;
+    using type _LIBCPP_NODEBUG = typename _Tp::template rebind<_Up>::other;
 };
 template <template <class, class...> class _Alloc, class _Tp, class ..._Args, class _Up>
 struct __allocator_traits_rebind<_Alloc<_Tp, _Args...>, _Up, true> {

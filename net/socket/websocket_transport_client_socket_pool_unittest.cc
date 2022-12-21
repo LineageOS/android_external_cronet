@@ -17,6 +17,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "net/base/features.h"
 #include "net/base/ip_endpoint.h"
@@ -70,7 +71,7 @@ IPAddress ParseIP(const std::string& ip) {
 void RunLoopForTimePeriod(base::TimeDelta period) {
   base::RunLoop run_loop;
   base::OnceClosure quit_closure(run_loop.QuitClosure());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE, std::move(quit_closure), period);
   run_loop.Run();
 }

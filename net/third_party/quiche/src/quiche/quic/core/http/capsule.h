@@ -22,9 +22,8 @@ namespace quic {
 
 enum class CapsuleType : uint64_t {
   // Casing in this enum matches the IETF specifications.
-  DATAGRAM = 0x00,             // RFC 9297.
   LEGACY_DATAGRAM = 0xff37a0,  // draft-ietf-masque-h3-datagram-04.
-  LEGACY_DATAGRAM_WITHOUT_CONTEXT =
+  DATAGRAM_WITHOUT_CONTEXT =
       0xff37a5,  // draft-ietf-masque-h3-datagram-05 to -08.
   CLOSE_WEBTRANSPORT_SESSION = 0x2843,
   // draft-ietf-masque-connect-ip-03.
@@ -37,22 +36,15 @@ QUIC_EXPORT_PRIVATE std::string CapsuleTypeToString(CapsuleType capsule_type);
 QUIC_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& os,
                                              const CapsuleType& capsule_type);
 
-struct QUIC_EXPORT_PRIVATE DatagramCapsule {
-  absl::string_view http_datagram_payload;
-  std::string ToString() const;
-};
 struct QUIC_EXPORT_PRIVATE LegacyDatagramCapsule {
   absl::string_view http_datagram_payload;
-  std::string ToString() const;
 };
-struct QUIC_EXPORT_PRIVATE LegacyDatagramWithoutContextCapsule {
+struct QUIC_EXPORT_PRIVATE DatagramWithoutContextCapsule {
   absl::string_view http_datagram_payload;
-  std::string ToString() const;
 };
 struct QUIC_EXPORT_PRIVATE CloseWebTransportSessionCapsule {
   WebTransportSessionError error_code;
   absl::string_view error_message;
-  std::string ToString() const;
 };
 struct QUIC_EXPORT_PRIVATE PrefixWithId {
   uint64_t request_id;
@@ -68,31 +60,26 @@ struct QUIC_EXPORT_PRIVATE IpAddressRange {
 struct QUIC_EXPORT_PRIVATE AddressAssignCapsule {
   std::vector<PrefixWithId> assigned_addresses;
   bool operator==(const AddressAssignCapsule& other) const;
-  std::string ToString() const;
 };
 struct QUIC_EXPORT_PRIVATE AddressRequestCapsule {
   std::vector<PrefixWithId> requested_addresses;
   bool operator==(const AddressRequestCapsule& other) const;
-  std::string ToString() const;
 };
 struct QUIC_EXPORT_PRIVATE RouteAdvertisementCapsule {
   std::vector<IpAddressRange> ip_address_ranges;
   bool operator==(const RouteAdvertisementCapsule& other) const;
-  std::string ToString() const;
 };
 
-// Capsule from RFC 9297.
+// Capsule from draft-ietf-masque-h3-datagram.
 // IMPORTANT NOTE: Capsule does not own any of the absl::string_view memory it
 // points to. Strings saved into a capsule must outlive the capsule object. Any
 // code that sees a capsule in a callback needs to either process it immediately
 // or perform its own deep copy.
 class QUIC_EXPORT_PRIVATE Capsule {
  public:
-  static Capsule Datagram(
-      absl::string_view http_datagram_payload = absl::string_view());
   static Capsule LegacyDatagram(
       absl::string_view http_datagram_payload = absl::string_view());
-  static Capsule LegacyDatagramWithoutContext(
+  static Capsule DatagramWithoutContext(
       absl::string_view http_datagram_payload = absl::string_view());
   static Capsule CloseWebTransportSession(
       WebTransportSessionError error_code = 0,
@@ -116,14 +103,6 @@ class QUIC_EXPORT_PRIVATE Capsule {
                                                       const Capsule& capsule);
 
   CapsuleType capsule_type() const { return capsule_type_; }
-  DatagramCapsule& datagram_capsule() {
-    QUICHE_DCHECK_EQ(capsule_type_, CapsuleType::DATAGRAM);
-    return datagram_capsule_;
-  }
-  const DatagramCapsule& datagram_capsule() const {
-    QUICHE_DCHECK_EQ(capsule_type_, CapsuleType::DATAGRAM);
-    return datagram_capsule_;
-  }
   LegacyDatagramCapsule& legacy_datagram_capsule() {
     QUICHE_DCHECK_EQ(capsule_type_, CapsuleType::LEGACY_DATAGRAM);
     return legacy_datagram_capsule_;
@@ -132,17 +111,14 @@ class QUIC_EXPORT_PRIVATE Capsule {
     QUICHE_DCHECK_EQ(capsule_type_, CapsuleType::LEGACY_DATAGRAM);
     return legacy_datagram_capsule_;
   }
-  LegacyDatagramWithoutContextCapsule&
-  legacy_datagram_without_context_capsule() {
-    QUICHE_DCHECK_EQ(capsule_type_,
-                     CapsuleType::LEGACY_DATAGRAM_WITHOUT_CONTEXT);
-    return legacy_datagram_without_context_capsule_;
+  DatagramWithoutContextCapsule& datagram_without_context_capsule() {
+    QUICHE_DCHECK_EQ(capsule_type_, CapsuleType::DATAGRAM_WITHOUT_CONTEXT);
+    return datagram_without_context_capsule_;
   }
-  const LegacyDatagramWithoutContextCapsule&
-  legacy_datagram_without_context_capsule() const {
-    QUICHE_DCHECK_EQ(capsule_type_,
-                     CapsuleType::LEGACY_DATAGRAM_WITHOUT_CONTEXT);
-    return legacy_datagram_without_context_capsule_;
+  const DatagramWithoutContextCapsule& datagram_without_context_capsule()
+      const {
+    QUICHE_DCHECK_EQ(capsule_type_, CapsuleType::DATAGRAM_WITHOUT_CONTEXT);
+    return datagram_without_context_capsule_;
   }
   CloseWebTransportSessionCapsule& close_web_transport_session_capsule() {
     QUICHE_DCHECK_EQ(capsule_type_, CapsuleType::CLOSE_WEBTRANSPORT_SESSION);
@@ -178,10 +154,8 @@ class QUIC_EXPORT_PRIVATE Capsule {
     return *route_advertisement_capsule_;
   }
   absl::string_view& unknown_capsule_data() {
-    QUICHE_DCHECK(capsule_type_ != CapsuleType::DATAGRAM &&
-                  capsule_type_ != CapsuleType::LEGACY_DATAGRAM &&
-                  capsule_type_ !=
-                      CapsuleType::LEGACY_DATAGRAM_WITHOUT_CONTEXT &&
+    QUICHE_DCHECK(capsule_type_ != CapsuleType::LEGACY_DATAGRAM &&
+                  capsule_type_ != CapsuleType::DATAGRAM_WITHOUT_CONTEXT &&
                   capsule_type_ != CapsuleType::CLOSE_WEBTRANSPORT_SESSION &&
                   capsule_type_ != CapsuleType::ADDRESS_REQUEST &&
                   capsule_type_ != CapsuleType::ADDRESS_ASSIGN &&
@@ -190,10 +164,8 @@ class QUIC_EXPORT_PRIVATE Capsule {
     return unknown_capsule_data_;
   }
   const absl::string_view& unknown_capsule_data() const {
-    QUICHE_DCHECK(capsule_type_ != CapsuleType::DATAGRAM &&
-                  capsule_type_ != CapsuleType::LEGACY_DATAGRAM &&
-                  capsule_type_ !=
-                      CapsuleType::LEGACY_DATAGRAM_WITHOUT_CONTEXT &&
+    QUICHE_DCHECK(capsule_type_ != CapsuleType::LEGACY_DATAGRAM &&
+                  capsule_type_ != CapsuleType::DATAGRAM_WITHOUT_CONTEXT &&
                   capsule_type_ != CapsuleType::CLOSE_WEBTRANSPORT_SESSION &&
                   capsule_type_ != CapsuleType::ADDRESS_REQUEST &&
                   capsule_type_ != CapsuleType::ADDRESS_ASSIGN &&
@@ -206,10 +178,8 @@ class QUIC_EXPORT_PRIVATE Capsule {
   void Free();
   CapsuleType capsule_type_;
   union {
-    DatagramCapsule datagram_capsule_;
     LegacyDatagramCapsule legacy_datagram_capsule_;
-    LegacyDatagramWithoutContextCapsule
-        legacy_datagram_without_context_capsule_;
+    DatagramWithoutContextCapsule datagram_without_context_capsule_;
     CloseWebTransportSessionCapsule close_web_transport_session_capsule_;
     AddressRequestCapsule* address_request_capsule_;
     AddressAssignCapsule* address_assign_capsule_;

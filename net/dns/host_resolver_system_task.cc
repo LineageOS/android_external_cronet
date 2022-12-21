@@ -6,14 +6,10 @@
 
 #include <memory>
 
-#include "base/dcheck_is_on.h"
 #include "base/functional/bind.h"
 #include "base/functional/callback.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/no_destructor.h"
-#include "base/sequence_checker.h"
-#include "base/sequence_checker_impl.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_blocking_call.h"
@@ -65,7 +61,7 @@ scoped_refptr<base::TaskRunner>& GetSystemDnsResolutionTaskRunnerOverride() {
 void PostSystemDnsResolutionTaskAndReply(
     base::OnceCallback<int(AddressList* addrlist, int* os_error)>
         system_dns_resolution_callback,
-    SystemDnsResultsCallback results_cb) {
+    HostResolverSystemTask::SystemDnsResultsCallback results_cb) {
   auto addr_list = std::make_unique<net::AddressList>();
   net::AddressList* addr_list_ptr = addr_list.get();
   auto os_error = std::make_unique<int>();
@@ -74,7 +70,7 @@ void PostSystemDnsResolutionTaskAndReply(
   // This callback owns |addr_list| and |os_error| and just calls |results_cb|
   // with the results.
   auto call_with_results_cb = base::BindOnce(
-      [](SystemDnsResultsCallback results_cb,
+      [](HostResolverSystemTask::SystemDnsResultsCallback results_cb,
          std::unique_ptr<net::AddressList> addr_list,
          std::unique_ptr<int> os_error, int net_error) {
         std::move(results_cb).Run(std::move(*addr_list), *os_error, net_error);
@@ -147,39 +143,7 @@ base::Value NetLogHostResolverSystemTaskFailedParams(uint32_t attempt_number,
   return base::Value(std::move(dict));
 }
 
-using SystemDnsResolverOverrideCallback =
-    base::RepeatingCallback<void(const absl::optional<std::string>& host,
-                                 AddressFamily address_family,
-                                 HostResolverFlags host_resolver_flags,
-                                 SystemDnsResultsCallback results_cb,
-                                 handles::NetworkHandle network)>;
-
-SystemDnsResolverOverrideCallback& GetSystemDnsResolverOverride() {
-  static base::NoDestructor<SystemDnsResolverOverrideCallback> dns_override;
-
-#if DCHECK_IS_ON()
-  if (*dns_override) {
-    // This should only be called on the main thread, so DCHECK that it is.
-    // However, in unittests this may be called on different task environments
-    // in the same process so only bother sequence checking if an override
-    // exists.
-    static base::NoDestructor<base::SequenceCheckerImpl> sequence_checker;
-    base::ScopedValidateSequenceChecker scoped_validated_sequence_checker(
-        *sequence_checker);
-  }
-#endif
-
-  return *dns_override;
-}
-
 }  // namespace
-
-void SetSystemDnsResolverOverride(
-    SystemDnsResolverOverrideCallback dns_override) {
-  // TODO(crbug.com/1312224): for now, only allow this override to be set once.
-  DCHECK(!GetSystemDnsResolverOverride());
-  GetSystemDnsResolverOverride() = std::move(dns_override);
-}
 
 HostResolverSystemTask::Params::Params(
     scoped_refptr<HostResolverProc> resolver_proc,
@@ -206,7 +170,8 @@ std::unique_ptr<HostResolverSystemTask> HostResolverSystemTask::Create(
     const NetLogWithSource& job_net_log,
     handles::NetworkHandle network) {
   return std::make_unique<HostResolverSystemTask>(
-      hostname, address_family, flags, params, job_net_log, network);
+      base::PassKey<HostResolverSystemTask>(), hostname, address_family, flags,
+      params, job_net_log, network);
 }
 
 // static
@@ -218,10 +183,12 @@ HostResolverSystemTask::CreateForOwnHostname(
     const NetLogWithSource& job_net_log,
     handles::NetworkHandle network) {
   return std::make_unique<HostResolverSystemTask>(
-      absl::nullopt, address_family, flags, params, job_net_log, network);
+      base::PassKey<HostResolverSystemTask>(), absl::nullopt, address_family,
+      flags, params, job_net_log, network);
 }
 
 HostResolverSystemTask::HostResolverSystemTask(
+    base::PassKey<HostResolverSystemTask>,
     absl::optional<std::string> hostname,
     AddressFamily address_family,
     HostResolverFlags flags,
@@ -271,22 +238,13 @@ void HostResolverSystemTask::StartLookupAttempt() {
   DCHECK(!was_completed());
   ++attempt_number_;
 
-  auto lookup_complete_cb =
+  base::OnceCallback<int(AddressList * addrlist, int* os_error)> resolve_cb =
+      base::BindOnce(&ResolveOnWorkerThread, params_.resolver_proc, hostname_,
+                     address_family_, flags_, network_);
+  PostSystemDnsResolutionTaskAndReply(
+      std::move(resolve_cb),
       base::BindOnce(&HostResolverSystemTask::OnLookupComplete,
-                     weak_ptr_factory_.GetWeakPtr(), attempt_number_);
-
-  // If a hook has been installed, call it instead of posting a resolution task
-  // to a worker thread.
-  if (GetSystemDnsResolverOverride()) {
-    GetSystemDnsResolverOverride().Run(hostname_, address_family_, flags_,
-                                       std::move(lookup_complete_cb), network_);
-  } else {
-    base::OnceCallback<int(AddressList * addrlist, int* os_error)> resolve_cb =
-        base::BindOnce(&ResolveOnWorkerThread, params_.resolver_proc, hostname_,
-                       address_family_, flags_, network_);
-    PostSystemDnsResolutionTaskAndReply(std::move(resolve_cb),
-                                        std::move(lookup_complete_cb));
-  }
+                     weak_ptr_factory_.GetWeakPtr(), attempt_number_));
 
   net_log_.AddEventWithIntParams(
       NetLogEventType::HOST_RESOLVER_MANAGER_ATTEMPT_STARTED, "attempt_number",
@@ -298,7 +256,7 @@ void HostResolverSystemTask::StartLookupAttempt() {
   // Use a WeakPtr to avoid keeping the HostResolverSystemTask alive after
   // completion or cancellation.
   if (attempt_number_ <= params_.max_retry_attempts) {
-    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&HostResolverSystemTask::StartLookupAttempt,
                        weak_ptr_factory_.GetWeakPtr()),

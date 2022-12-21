@@ -3331,14 +3331,17 @@ TEST_F(QuicPacketCreatorMultiplePacketsTest, PacketTransmissionType) {
 TEST_F(QuicPacketCreatorMultiplePacketsTest, TestConnectionIdLength) {
   QuicFramerPeer::SetPerspective(&framer_, Perspective::IS_SERVER);
   creator_.SetServerConnectionIdLength(0);
-  EXPECT_EQ(0, creator_.GetDestinationConnectionIdLength());
+  EXPECT_EQ(PACKET_0BYTE_CONNECTION_ID,
+            creator_.GetDestinationConnectionIdLength());
 
   for (size_t i = 1; i < 10; i++) {
     creator_.SetServerConnectionIdLength(i);
     if (framer_.version().HasIetfInvariantHeader()) {
-      EXPECT_EQ(0, creator_.GetDestinationConnectionIdLength());
+      EXPECT_EQ(PACKET_0BYTE_CONNECTION_ID,
+                creator_.GetDestinationConnectionIdLength());
     } else {
-      EXPECT_EQ(8, creator_.GetDestinationConnectionIdLength());
+      EXPECT_EQ(PACKET_8BYTE_CONNECTION_ID,
+                creator_.GetDestinationConnectionIdLength());
     }
   }
 }
@@ -3885,7 +3888,7 @@ TEST_F(QuicPacketCreatorMultiplePacketsTest, ExtraPaddingNeeded) {
   ASSERT_FALSE(packets_[0].nonretransmittable_frames.empty());
   QuicFrame padding = packets_[0].nonretransmittable_frames[0];
   // Verify stream frame expansion is excluded.
-  EXPECT_EQ(3, padding.padding_frame.num_padding_bytes);
+  padding.padding_frame.num_padding_bytes = 3;
 }
 
 TEST_F(QuicPacketCreatorMultiplePacketsTest,

@@ -24,7 +24,7 @@ namespace pmr {
 
 // memory_resource
 
-memory_resource::~memory_resource() = default;
+//memory_resource::~memory_resource() {}
 
 // new_delete_resource()
 

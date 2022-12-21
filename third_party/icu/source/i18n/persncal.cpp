@@ -119,7 +119,7 @@ UBool PersianCalendar::isLeapYear(int32_t year)
  * from the Persian epoch, origin 0.
  */
 int32_t PersianCalendar::yearStart(int32_t year) {
-    return handleComputeMonthStart(year,0,false);
+    return handleComputeMonthStart(year,0,FALSE);
 }
     
 /**
@@ -130,7 +130,7 @@ int32_t PersianCalendar::yearStart(int32_t year) {
  * @param year  The Persian month, 0-based
  */
 int32_t PersianCalendar::monthStart(int32_t year, int32_t month) const {
-    return handleComputeMonthStart(year,month,true);
+    return handleComputeMonthStart(year,month,TRUE);
 }
     
 //----------------------------------------------------------------------
@@ -238,12 +238,12 @@ PersianCalendar::inDaylightTime(UErrorCode& status) const
 {
     // copied from GregorianCalendar
     if (U_FAILURE(status) || !getTimeZone().useDaylightTime()) 
-        return false;
+        return FALSE;
 
     // Force an update of the state of the Calendar.
     ((PersianCalendar*)this)->complete(status); // cast away const
 
-    return (UBool)(U_SUCCESS(status) ? (internalGet(UCAL_DST_OFFSET) != 0) : false);
+    return (UBool)(U_SUCCESS(status) ? (internalGet(UCAL_DST_OFFSET) != 0) : FALSE);
 }
 
 // default century
@@ -254,7 +254,7 @@ static icu::UInitOnce  gSystemDefaultCenturyInit        {};
 
 UBool PersianCalendar::haveDefaultCentury() const
 {
-    return true;
+    return TRUE;
 }
 
 static void U_CALLCONV initializeSystemDefaultCentury() {

@@ -14,9 +14,9 @@ namespace spdy {
 
 // Allocates large blocks of memory, and doles them out in smaller chunks.
 // Not thread-safe.
-class QUICHE_EXPORT SpdySimpleArena {
+class QUICHE_EXPORT_PRIVATE SpdySimpleArena {
  public:
-  class QUICHE_EXPORT Status {
+  class QUICHE_EXPORT_PRIVATE Status {
    private:
     friend class SpdySimpleArena;
     size_t bytes_allocated_;
@@ -52,7 +52,7 @@ class QUICHE_EXPORT SpdySimpleArena {
   Status status() const { return status_; }
 
  private:
-  struct QUICHE_EXPORT Block {
+  struct QUICHE_EXPORT_PRIVATE Block {
     std::unique_ptr<char[]> data;
     size_t size = 0;
     size_t used = 0;

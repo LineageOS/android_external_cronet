@@ -11,8 +11,8 @@
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
 #include "base/strings/strcat.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/scoped_feature_list.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
 #include "build/build_config.h"
 #include "net/base/features.h"
@@ -184,7 +184,7 @@ class QuicChromiumClientSessionTest
             DatagramSocket::DEFAULT_BIND, NetLog::Get(), NetLogSource());
     socket->Connect(kIpEndPoint);
     QuicChromiumPacketWriter* writer = new net::QuicChromiumPacketWriter(
-        socket.get(), base::SingleThreadTaskRunner::GetCurrentDefault().get());
+        socket.get(), base::ThreadTaskRunnerHandle::Get().get());
     quic::QuicConnection* connection = new quic::QuicConnection(
         quic::QuicUtils::CreateRandomConnectionId(&random_),
         quic::QuicSocketAddress(), ToQuicSocketAddress(kIpEndPoint), &helper_,
@@ -212,7 +212,7 @@ class QuicChromiumClientSessionTest
         "CONNECTION_UNKNOWN", base::TimeTicks::Now(), base::TimeTicks::Now(),
         std::make_unique<quic::QuicClientPushPromiseIndex>(),
         &test_push_delegate_, base::DefaultTickClock::GetInstance(),
-        base::SingleThreadTaskRunner::GetCurrentDefault().get(),
+        base::ThreadTaskRunnerHandle::Get().get(),
         /*socket_performance_watcher=*/nullptr, NetLog::Get());
     if (connectivity_monitor_) {
       connectivity_monitor_->SetInitialDefaultNetwork(default_network_);
@@ -256,7 +256,7 @@ class QuicChromiumClientSessionTest
       DatagramClientSocket* socket,
       QuicChromiumClientSession* session) const {
     auto writer = std::make_unique<QuicChromiumPacketWriter>(
-        socket, base::SingleThreadTaskRunner::GetCurrentDefault().get());
+        socket, base::ThreadTaskRunnerHandle::Get().get());
     writer->set_delegate(session);
     return writer;
   }
@@ -2069,8 +2069,9 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocketMaxReaders) {
   socket_data_.reset();
   int packet_num = 1;
   int peer_packet_num = 1;
-  quic::QuicConnectionId next_cid = quic::QuicUtils::CreateRandomConnectionId(
-      quiche::QuicheRandom::GetInstance());
+  quic::QuicConnectionId next_cid =
+      quic::QuicUtils::CreateReplacementConnectionId(
+          quic::QuicUtils::CreateRandomConnectionId(&random_));
   uint64_t next_cid_sequence_number = 1u;
   if (VersionUsesHttp3(version_.transport_version)) {
     quic_data.AddWrite(SYNCHRONOUS,
@@ -2115,8 +2116,7 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocketMaxReaders) {
           ASYNC, client_maker_.MakeRetireConnectionIdPacket(
                      packet_num++, /*include_version=*/false,
                      /*sequence_number=*/next_cid_sequence_number - 1));
-      next_cid = quic::QuicUtils::CreateRandomConnectionId(
-          quiche::QuicheRandom::GetInstance());
+      next_cid = quic::QuicUtils::CreateReplacementConnectionId(next_cid);
       ++next_cid_sequence_number;
       quic_data2.AddRead(
           ASYNC, server_maker_.MakeNewConnectionIdPacket(

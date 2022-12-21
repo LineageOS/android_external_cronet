@@ -782,9 +782,7 @@ PKCS12* d2i_PKCS12_bio(BIO *bio, PKCS12 **out_p12) {
   }
 
   for (;;) {
-    size_t max_read = buf->length - used;
-    int n = BIO_read(bio, &buf->data[used],
-                     max_read > INT_MAX ? INT_MAX : (int)max_read);
+    int n = BIO_read(bio, &buf->data[used], buf->length - used);
     if (n < 0) {
       if (used == 0) {
         goto out;

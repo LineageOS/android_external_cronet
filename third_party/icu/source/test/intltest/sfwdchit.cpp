@@ -30,11 +30,11 @@ SimpleFwdCharIterator::SimpleFwdCharIterator(const UnicodeString& s) {
     fLen = s.length();
     fStart = new UChar[fLen];
     if(fStart == NULL) {
-        fBogus = true;
+        fBogus = TRUE;
     } else {
         fEnd = fStart+fLen;
         fCurrent = fStart;
-        fBogus = false;
+        fBogus = FALSE;
         s.extract(0, fLen, fStart);          
     }
     
@@ -47,20 +47,20 @@ SimpleFwdCharIterator::SimpleFwdCharIterator(UChar *s, int32_t len, UBool adopt)
 
     fLen = len==-1 ? u_strlen(s) : len;
 
-    if(adopt == false) {
+    if(adopt == FALSE) {
         fStart = new UChar[fLen];
         if(fStart == NULL) {
-            fBogus = true;
+            fBogus = TRUE;
         } else {
             uprv_memcpy(fStart, s, fLen);
             fEnd = fStart+fLen;
             fCurrent = fStart;
-            fBogus = false;
+            fBogus = FALSE;
         }
-    } else { // adopt = true
+    } else { // adopt = TRUE
         fCurrent = fStart = s;
         fEnd = fStart + fLen;
-        fBogus = false;
+        fBogus = FALSE;
     }
 
 }

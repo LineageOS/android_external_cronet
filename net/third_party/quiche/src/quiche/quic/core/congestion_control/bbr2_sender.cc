@@ -176,7 +176,7 @@ void Bbr2Sender::ApplyConnectionOptions(
     params_.probe_up_dont_exit_if_no_queue_ = true;
   }
   if (ContainsQuicTag(connection_options, kB203)) {
-    params_.probe_up_ignore_inflight_hi = false;
+    params_.probe_up_ignore_inflight_hi = true;
   }
   if (ContainsQuicTag(connection_options, kB204)) {
     model_.SetReduceExtraAckedOnBandwidthIncrease(true);
@@ -187,6 +187,7 @@ void Bbr2Sender::ApplyConnectionOptions(
   if (ContainsQuicTag(connection_options, kB207)) {
     params_.exit_startup_on_persistent_queue = true;
   }
+
   if (ContainsQuicTag(connection_options, kBBRA)) {
     model_.SetStartNewAggregationEpochAfterFullRound(true);
   }
@@ -196,20 +197,9 @@ void Bbr2Sender::ApplyConnectionOptions(
   if (ContainsQuicTag(connection_options, kBBQ0)) {
     params_.probe_up_includes_acks_after_cwnd_limited = true;
   }
+
   if (ContainsQuicTag(connection_options, kB206)) {
     params_.startup_full_loss_count = params_.probe_bw_full_loss_count;
-  }
-  if (ContainsQuicTag(connection_options, kBBPD)) {
-    // Derived constant to ensure fairness.
-    params_.probe_bw_probe_down_pacing_gain = 0.91;
-  }
-  if (GetQuicReloadableFlag(quic_bbr2_simplify_inflight_hi) &&
-      ContainsQuicTag(connection_options, kBBHI)) {
-    QUIC_RELOADABLE_FLAG_COUNT(quic_bbr2_simplify_inflight_hi);
-    params_.probe_up_simplify_inflight_hi = true;
-    // Simplify inflight_hi is intended as an alternative to ignoring it,
-    // so ensure we're not ignoring it.
-    params_.probe_up_ignore_inflight_hi = false;
   }
 }
 

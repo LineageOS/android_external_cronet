@@ -52,10 +52,11 @@ enum class HpackEntryType {
 };
 
 // Returns the name of the enum member.
-QUICHE_EXPORT std::string HpackEntryTypeToString(HpackEntryType v);
+QUICHE_EXPORT_PRIVATE std::string HpackEntryTypeToString(HpackEntryType v);
 
 // Inserts the name of the enum member into |out|.
-QUICHE_EXPORT std::ostream& operator<<(std::ostream& out, HpackEntryType v);
+QUICHE_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& out,
+                                               HpackEntryType v);
 
 }  // namespace http2
 

@@ -28,9 +28,9 @@
 #include "base/ranges/algorithm.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/elapsed_timer.h"
 #include "base/timer/timer.h"
 #include "base/values.h"
@@ -214,15 +214,20 @@ class DnsUDPAttempt : public DnsAttempt {
     DCHECK_EQ(STATE_NONE, next_state_);
     callback_ = std::move(callback);
     start_time_ = base::TimeTicks::Now();
-    next_state_ = STATE_CONNECT_COMPLETE;
+    next_state_ = STATE_SEND_QUERY;
 
-    int rv = socket_->ConnectAsync(
-        server_,
-        base::BindOnce(&DnsUDPAttempt::OnIOComplete, base::Unretained(this)));
-    if (rv == ERR_IO_PENDING) {
-      return rv;
+    int rv = socket_->Connect(server_);
+    if (rv != OK) {
+      DVLOG(1) << "Failed to connect socket: " << rv;
+      udp_tracker_->RecordConnectionError(rv);
+      return ERR_CONNECTION_REFUSED;
     }
-    return DoLoop(rv);
+
+    IPEndPoint local_address;
+    if (socket_->GetLocalAddress(&local_address) == OK)
+      udp_tracker_->RecordQuery(local_address.port(), query_->id());
+
+    return DoLoop(OK);
   }
 
   const DnsQuery* GetQuery() const override { return query_.get(); }
@@ -246,7 +251,6 @@ class DnsUDPAttempt : public DnsAttempt {
 
  private:
   enum State {
-    STATE_CONNECT_COMPLETE,
     STATE_SEND_QUERY,
     STATE_SEND_QUERY_COMPLETE,
     STATE_READ_RESPONSE,
@@ -261,11 +265,8 @@ class DnsUDPAttempt : public DnsAttempt {
       State state = next_state_;
       next_state_ = STATE_NONE;
       switch (state) {
-        case STATE_CONNECT_COMPLETE:
-          rv = DoConnectComplete(rv);
-          break;
         case STATE_SEND_QUERY:
-          rv = DoSendQuery(rv);
+          rv = DoSendQuery();
           break;
         case STATE_SEND_QUERY_COMPLETE:
           rv = DoSendQueryComplete(rv);
@@ -288,23 +289,7 @@ class DnsUDPAttempt : public DnsAttempt {
     return rv;
   }
 
-  int DoConnectComplete(int rv) {
-    if (rv != OK) {
-      DVLOG(1) << "Failed to connect socket: " << rv;
-      udp_tracker_->RecordConnectionError(rv);
-      return ERR_CONNECTION_REFUSED;
-    }
-    next_state_ = STATE_SEND_QUERY;
-    IPEndPoint local_address;
-    if (socket_->GetLocalAddress(&local_address) == OK)
-      udp_tracker_->RecordQuery(local_address.port(), query_->id());
-    return OK;
-  }
-
-  int DoSendQuery(int rv) {
-    DCHECK_NE(ERR_IO_PENDING, rv);
-    if (rv < 0)
-      return rv;
+  int DoSendQuery() {
     next_state_ = STATE_SEND_QUERY_COMPLETE;
     return socket_->Write(
         query_->io_buffer(), query_->io_buffer()->size(),
@@ -474,7 +459,7 @@ class DnsHTTPAttempt : public DnsAttempt, public URLRequest::Delegate {
     callback_ = std::move(callback);
     // Start the request asynchronously to avoid reentrancy in
     // the network stack.
-    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+    base::SequencedTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&DnsHTTPAttempt::StartAsync,
                                   weak_factory_.GetWeakPtr()));
     return ERR_IO_PENDING;
@@ -569,7 +554,7 @@ class DnsHTTPAttempt : public DnsAttempt, public URLRequest::Delegate {
       } else {
         // Else, trigger OnReadCompleted asynchronously to avoid starving the IO
         // thread in case the URLRequest can provide data synchronously.
-        base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        base::SequencedTaskRunnerHandle::Get()->PostTask(
             FROM_HERE, base::BindOnce(&DnsHTTPAttempt::OnReadCompleted,
                                       weak_factory_.GetWeakPtr(),
                                       request_.get(), read_result));
@@ -1016,7 +1001,7 @@ class DnsOverHttpsProbeRunner : public DnsProbeRunner {
     DCHECK(probe_stats);
     DCHECK(probe_stats->backoff_entry);
     probe_stats->backoff_entry->InformOfRequest(false /* success */);
-    base::SequencedTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::SequencedTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&DnsOverHttpsProbeRunner::ContinueProbe,
                        weak_ptr_factory_.GetWeakPtr(), doh_server_index,
@@ -1177,7 +1162,7 @@ class DnsTransactionImpl : public DnsTransaction,
       // Clear all other non-completed attempts. They are no longer needed and
       // they may interfere with this posted result.
       ClearAttempts(result.attempt);
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(&DnsTransactionImpl::DoCallback, AsWeakPtr(), result));
     }
@@ -1195,7 +1180,7 @@ class DnsTransactionImpl : public DnsTransaction,
         : rv(rv), attempt(attempt) {}
 
     int rv;
-    raw_ptr<const DnsAttempt> attempt;
+    const DnsAttempt* attempt;
   };
 
   // Used in UMA (DNS.AttemptType). Do not renumber or remove values.
@@ -1511,6 +1496,8 @@ class DnsTransactionImpl : public DnsTransaction,
   // Resolves the result of a DnsAttempt until a terminal result is reached
   // or it will complete asynchronously (ERR_IO_PENDING).
   AttemptResult ProcessAttemptResult(AttemptResult result) {
+    DCHECK(!callback_.is_null());
+
     while (result.rv != ERR_IO_PENDING) {
       LogResponse(result.attempt);
 

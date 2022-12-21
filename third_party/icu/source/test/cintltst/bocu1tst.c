@@ -30,8 +30,6 @@
 *   ### links in design doc to here and to ucnvbocu.c
 */
 
-#include <stdbool.h>
-
 #include "unicode/utypes.h"
 #include "unicode/ustring.h"
 #include "unicode/ucnv.h"
@@ -207,7 +205,7 @@ bocu1TrailToByte[BOCU1_TRAIL_CONTROLS_COUNT]={
  * what we need here.
  * This macro adjust the results so that the modulo-value m is always >=0.
  *
- * For positive n, the if() condition is always false.
+ * For positive n, the if() condition is always FALSE.
  *
  * @param n Number to be split into quotient and rest.
  *          Will be modified to contain the quotient.

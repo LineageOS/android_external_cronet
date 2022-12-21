@@ -325,10 +325,5 @@ ThreadGroup::GetScopedWindowsThreadEnvironment(WorkerEnvironment environment) {
 }
 #endif
 
-// static
-bool ThreadGroup::CurrentThreadHasGroup() {
-  return GetCurrentThreadGroup() != nullptr;
-}
-
 }  // namespace internal
 }  // namespace base

@@ -7,7 +7,7 @@
 
 #include <vector>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 
 namespace base {
 class FilePath;

@@ -14,6 +14,7 @@
 #include "base/supports_user_data.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/host_port_pair.h"
 #include "net/cert/cert_verifier.h"
 #include "net/cert/ct_policy_enforcer.h"
@@ -162,7 +163,7 @@ int TestDelegate::OnConnected(URLRequest* request,
   transports_.push_back(info);
 
   if (on_connected_run_callback_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), on_connected_result_));
     return net::ERR_IO_PENDING;
   }

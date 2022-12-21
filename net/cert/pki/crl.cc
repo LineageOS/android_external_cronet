@@ -5,6 +5,7 @@
 #include "net/cert/pki/crl.h"
 
 #include "base/stl_util.h"
+#include "base/types/optional_util.h"
 #include "net/cert/pki/cert_errors.h"
 #include "net/cert/pki/revocation_util.h"
 #include "net/cert/pki/signature_algorithm.h"
@@ -404,7 +405,8 @@ CRLRevocationStatus CheckCRL(std::string_view raw_crl,
   // TODO(https://crbug.com/749276): Check the signature algorithm against
   // policy.
   absl::optional<SignatureAlgorithm> signature_algorithm =
-      ParseSignatureAlgorithm(signature_algorithm_tlv);
+      ParseSignatureAlgorithm(signature_algorithm_tlv,
+                              /*errors=*/nullptr);
   if (!signature_algorithm) {
     return CRLRevocationStatus::UNKNOWN;
   }
@@ -412,7 +414,8 @@ CRLRevocationStatus CheckCRL(std::string_view raw_crl,
   //    This field MUST contain the same algorithm identifier as the
   //    signature field in the sequence tbsCertList (Section 5.1.2.2).
   absl::optional<SignatureAlgorithm> tbs_alg =
-      ParseSignatureAlgorithm(tbs_cert_list.signature_algorithm_tlv);
+      ParseSignatureAlgorithm(tbs_cert_list.signature_algorithm_tlv,
+                              /*errors=*/nullptr);
   if (!tbs_alg || *signature_algorithm != *tbs_alg) {
     return CRLRevocationStatus::UNKNOWN;
   }
@@ -420,9 +423,7 @@ CRLRevocationStatus CheckCRL(std::string_view raw_crl,
   // Check CRL dates. Roughly corresponds to 6.3.3 (a) (1) but does not attempt
   // to update the CRL if it is out of date.
   if (!CheckRevocationDateValid(tbs_cert_list.this_update,
-                                tbs_cert_list.next_update.has_value()
-                                    ? &tbs_cert_list.next_update.value()
-                                    : nullptr,
+                                base::OptionalToPtr(tbs_cert_list.next_update),
                                 verify_time, max_age)) {
     return CRLRevocationStatus::UNKNOWN;
   }

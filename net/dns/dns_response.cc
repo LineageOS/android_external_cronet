@@ -541,7 +541,7 @@ bool DnsResponse::WriteHeader(base::BigEndianWriter* writer,
 
 bool DnsResponse::WriteQuestion(base::BigEndianWriter* writer,
                                 const DnsQuery& query) {
-  base::StringPiece question = query.question();
+  const base::StringPiece& question = query.question();
   return writer->WriteBytes(question.data(), question.size());
 }
 

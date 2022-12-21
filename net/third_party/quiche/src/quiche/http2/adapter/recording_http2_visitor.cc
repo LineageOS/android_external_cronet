@@ -80,9 +80,8 @@ bool RecordingHttp2Visitor::OnDataForStream(Http2StreamId stream_id,
   return true;
 }
 
-bool RecordingHttp2Visitor::OnEndStream(Http2StreamId stream_id) {
+void RecordingHttp2Visitor::OnEndStream(Http2StreamId stream_id) {
   events_.push_back(absl::StrFormat("OnEndStream %d", stream_id));
-  return true;
 }
 
 void RecordingHttp2Visitor::OnRstStream(Http2StreamId stream_id,

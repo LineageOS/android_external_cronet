@@ -69,10 +69,7 @@ class UnsentLogStore : public LogStore {
 
   struct LogInfo {
     LogInfo();
-
-    LogInfo(const LogInfo&) = delete;
-    LogInfo& operator=(const LogInfo&) = delete;
-
+    LogInfo(const LogInfo& other);
     ~LogInfo();
 
     // Initializes the members based on uncompressed |log_data|,
@@ -82,16 +79,10 @@ class UnsentLogStore : public LogStore {
     // will be compressed and stored in |compressed_log_data|. |log_timestamp|
     // is stored as is. |log_metadata| is any optional metadata that will be
     // attached to the log.
-    // TODO(crbug/1052796): Make this a ctor instead.
-    void Init(const std::string& log_data,
+    // |metrics| is the parent's metrics_ object, and should not be held.
+    void Init(UnsentLogStoreMetrics* metrics,
+              const std::string& log_data,
               const std::string& log_timestamp,
-              const std::string& signing_key,
-              const LogMetadata& log_metadata);
-
-    // Same as above, but the |timestamp| field will be filled with the current
-    // time.
-    // TODO(crbug/1052796): Make this a ctor instead.
-    void Init(const std::string& log_data,
               const std::string& signing_key,
               const LogMetadata& log_metadata);
 
@@ -127,20 +118,9 @@ class UnsentLogStore : public LogStore {
   void TrimAndPersistUnsentLogs(bool overwrite_in_memory_store) override;
   void LoadPersistedUnsentLogs() override;
 
-  // Adds a log to the list. |log_metadata| refers to metadata associated with
-  // the log. Before being stored, the data will be compressed, and a hash and
-  // signature will be computed.
-  // TODO(crbug/1052796): Remove this function, and use StoreLogInfo()
-  // everywhere instead.
+  // Adds a UMA log to the list. |log_metadata| refers to metadata associated
+  // with the log.
   void StoreLog(const std::string& log_data, const LogMetadata& log_metadata);
-
-  // Adds a log to the list, represented by a LogInfo object. This is useful
-  // if the LogInfo instance needs to be created outside the main thread
-  // (since creating a LogInfo from log data requires heavy work). Note that we
-  // also pass the size of the log data before being compressed. This is simply
-  // for calculating and emitting some metrics, and is otherwise unused.
-  void StoreLogInfo(std::unique_ptr<LogInfo> log_info,
-                    size_t uncompressed_log_size);
 
   // Gets log data at the given index in the list.
   const std::string& GetLogAtIndex(size_t index);
@@ -162,9 +142,6 @@ class UnsentLogStore : public LogStore {
 
   // The number of elements currently stored.
   size_t size() const { return list_.size(); }
-
-  // The signing key used to compute the signature for a log.
-  const std::string& signing_key() const { return signing_key_; }
 
   // Returns |logs_event_manager_|.
   MetricsLogsEventManager* GetLogsEventManagerForTesting() const {
@@ -193,7 +170,7 @@ class UnsentLogStore : public LogStore {
   void RecordMetaDataMetrics();
 
   // Wrapper functions for the notify functions of |logs_event_manager_|.
-  void NotifyLogCreated(const LogInfo& info);
+  void NotifyLogCreated(LogInfo& info);
   void NotifyLogsCreated(base::span<std::unique_ptr<LogInfo>> logs);
   void NotifyLogEvent(MetricsLogsEventManager::LogEvent event,
                       base::StringPiece log_hash,

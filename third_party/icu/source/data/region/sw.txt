@@ -306,7 +306,6 @@ sw{
         CG{"Jamhuri ya Kongo"}
         CI{"Ivory Coast"}
         CZ{"Jamhuri ya Cheki"}
-        NZ{"Aotearoa Nyuzilandi"}
         SZ{"Uswazi"}
         TL{"Timor ya Mashariki"}
     }

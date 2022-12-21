@@ -775,10 +775,6 @@ void ThreadCache::PurgeInternal() {
   PurgeInternalHelper<true>();
 }
 
-void ThreadCache::ResetPerThreadAllocationStatsForTesting() {
-  thread_alloc_stats_ = {};
-}
-
 template <bool crash_on_corruption>
 void ThreadCache::PurgeInternalHelper() {
   should_purge_.store(false, std::memory_order_relaxed);

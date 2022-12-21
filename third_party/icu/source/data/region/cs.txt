@@ -308,7 +308,6 @@ cs{
         CG{"Kongo (republika)"}
         CI{"Côte d’Ivoire"}
         CZ{"Česká republika"}
-        NZ{"Aotearoa – Nový Zéland"}
         SZ{"Svazijsko"}
         TL{"Timor-Leste"}
     }

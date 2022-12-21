@@ -18,7 +18,7 @@ namespace test {
 class PriorityUpdatePayloadDecoderPeer;
 }  // namespace test
 
-class QUICHE_EXPORT PriorityUpdatePayloadDecoder {
+class QUICHE_EXPORT_PRIVATE PriorityUpdatePayloadDecoder {
  public:
   // States during decoding of a PRIORITY_UPDATE frame.
   enum class PayloadState {

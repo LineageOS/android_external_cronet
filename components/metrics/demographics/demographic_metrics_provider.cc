@@ -89,8 +89,7 @@ DemographicMetricsProvider::ProvideSyncedUserNoisedBirthYearAndGender() {
 
   UserDemographicsResult demographics_result =
       GetUserNoisedBirthYearAndGenderFromPrefs(
-          profile_client_->GetNetworkTime(), profile_client_->GetLocalState(),
-          profile_client_->GetProfilePrefs());
+          profile_client_->GetNetworkTime(), profile_client_->GetPrefService());
   LogUserDemographicsStatusInHistogram(demographics_result.status());
 
   if (demographics_result.IsSuccess())

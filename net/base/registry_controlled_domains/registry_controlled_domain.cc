@@ -339,7 +339,8 @@ bool SameDomainOrHost(base::StringPiece host1,
     return true;
 
   // Check for a domain and registry match.
-  base::StringPiece domain1 = GetDomainAndRegistryAsStringPiece(host1, filter);
+  const base::StringPiece& domain1 =
+      GetDomainAndRegistryAsStringPiece(host1, filter);
   return !domain1.empty() &&
          (domain1 == GetDomainAndRegistryAsStringPiece(host2, filter));
 }

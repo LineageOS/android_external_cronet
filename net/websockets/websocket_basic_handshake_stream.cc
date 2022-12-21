@@ -78,7 +78,7 @@ std::string GenerateHandshakeChallenge() {
 }
 
 GetHeaderResult GetSingleHeaderValue(const HttpResponseHeaders* headers,
-                                     base::StringPiece name,
+                                     const base::StringPiece& name,
                                      std::string* value) {
   size_t iter = 0;
   size_t num_values = 0;

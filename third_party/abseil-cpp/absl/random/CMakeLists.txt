@@ -569,7 +569,7 @@ absl_cc_library(
     ${ABSL_DEFAULT_COPTS}
   LINKOPTS
     ${ABSL_DEFAULT_LINKOPTS}
-    $<$<BOOL:${MINGW}>:-lbcrypt>
+    $<$<BOOL:${MINGW}>:"bcrypt">
   DEPS
     absl::core_headers
     absl::optional

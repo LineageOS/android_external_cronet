@@ -18,8 +18,6 @@
 // void * do_allocate(size_t size, size_t align)
 // void   do_deallocate(void*, size_t, size_t)
 
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
-
 #include <experimental/memory_resource>
 #include <type_traits>
 #include <memory>

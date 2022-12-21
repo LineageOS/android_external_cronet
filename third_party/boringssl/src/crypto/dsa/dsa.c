@@ -217,14 +217,16 @@ int DSA_generate_parameters_ex(DSA *dsa, unsigned bits, const uint8_t *seed_in,
   BIGNUM *g = NULL, *q = NULL, *p = NULL;
   BN_MONT_CTX *mont = NULL;
   int k, n = 0, m = 0;
+  unsigned i;
   int counter = 0;
   int r = 0;
   BN_CTX *ctx = NULL;
   unsigned int h = 2;
+  unsigned qsize;
   const EVP_MD *evpmd;
 
   evpmd = (bits >= 2048) ? EVP_sha256() : EVP_sha1();
-  size_t qsize = EVP_MD_size(evpmd);
+  qsize = EVP_MD_size(evpmd);
 
   if (bits < 512) {
     bits = 512;
@@ -233,10 +235,10 @@ int DSA_generate_parameters_ex(DSA *dsa, unsigned bits, const uint8_t *seed_in,
   bits = (bits + 63) / 64 * 64;
 
   if (seed_in != NULL) {
-    if (seed_len < qsize) {
+    if (seed_len < (size_t)qsize) {
       return 0;
     }
-    if (seed_len > qsize) {
+    if (seed_len > (size_t)qsize) {
       // Only consume as much seed as is expected.
       seed_len = qsize;
     }
@@ -282,7 +284,7 @@ int DSA_generate_parameters_ex(DSA *dsa, unsigned bits, const uint8_t *seed_in,
       OPENSSL_memcpy(buf, seed, qsize);
       OPENSSL_memcpy(buf2, seed, qsize);
       // precompute "SEED + 1" for step 7:
-      for (size_t i = qsize - 1; i < qsize; i--) {
+      for (i = qsize - 1; i < qsize; i--) {
         buf[i]++;
         if (buf[i] != 0) {
           break;
@@ -294,7 +296,7 @@ int DSA_generate_parameters_ex(DSA *dsa, unsigned bits, const uint8_t *seed_in,
           !EVP_Digest(buf, qsize, buf2, NULL, evpmd, NULL)) {
         goto err;
       }
-      for (size_t i = 0; i < qsize; i++) {
+      for (i = 0; i < qsize; i++) {
         md[i] ^= buf2[i];
       }
 
@@ -338,7 +340,7 @@ int DSA_generate_parameters_ex(DSA *dsa, unsigned bits, const uint8_t *seed_in,
       // now 'buf' contains "SEED + offset - 1"
       for (k = 0; k <= n; k++) {
         // obtain "SEED + offset + k" by incrementing:
-        for (size_t i = qsize - 1; i < qsize; i--) {
+        for (i = qsize - 1; i < qsize; i--) {
           buf[i]++;
           if (buf[i] != 0) {
             break;

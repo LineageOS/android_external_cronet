@@ -379,8 +379,9 @@ bool QuicPacketCreator::HasRoomForMessageFrame(QuicByteCount length) {
 
 // static
 size_t QuicPacketCreator::StreamFramePacketOverhead(
-    QuicTransportVersion version, uint8_t destination_connection_id_length,
-    uint8_t source_connection_id_length, bool include_version,
+    QuicTransportVersion version,
+    QuicConnectionIdLength destination_connection_id_length,
+    QuicConnectionIdLength source_connection_id_length, bool include_version,
     bool include_diversification_nonce,
     QuicPacketNumberLength packet_number_length,
     quiche::QuicheVariableLengthIntegerLength retry_token_length_length,
@@ -1206,22 +1207,25 @@ QuicConnectionIdIncluded QuicPacketCreator::GetSourceConnectionIdIncluded()
   return CONNECTION_ID_ABSENT;
 }
 
-uint8_t QuicPacketCreator::GetDestinationConnectionIdLength() const {
+QuicConnectionIdLength QuicPacketCreator::GetDestinationConnectionIdLength()
+    const {
   QUICHE_DCHECK(QuicUtils::IsConnectionIdValidForVersion(server_connection_id_,
                                                          transport_version()))
       << ENDPOINT;
   return GetDestinationConnectionIdIncluded() == CONNECTION_ID_PRESENT
-             ? GetDestinationConnectionId().length()
-             : 0;
+             ? static_cast<QuicConnectionIdLength>(
+                   GetDestinationConnectionId().length())
+             : PACKET_0BYTE_CONNECTION_ID;
 }
 
-uint8_t QuicPacketCreator::GetSourceConnectionIdLength() const {
+QuicConnectionIdLength QuicPacketCreator::GetSourceConnectionIdLength() const {
   QUICHE_DCHECK(QuicUtils::IsConnectionIdValidForVersion(server_connection_id_,
                                                          transport_version()))
       << ENDPOINT;
   return GetSourceConnectionIdIncluded() == CONNECTION_ID_PRESENT
-             ? GetSourceConnectionId().length()
-             : 0;
+             ? static_cast<QuicConnectionIdLength>(
+                   GetSourceConnectionId().length())
+             : PACKET_0BYTE_CONNECTION_ID;
 }
 
 QuicPacketNumberLength QuicPacketCreator::GetPacketNumberLength() const {
@@ -1881,8 +1885,9 @@ void QuicPacketCreator::MaybeAddPadding() {
     return;
   }
 
-  if (packet_.fate == COALESCE) {
-    // Do not add full padding if the packet is going to be coalesced.
+  if (packet_.fate == COALESCE || packet_.fate == LEGACY_VERSION_ENCAPSULATE) {
+    // Do not add full padding if the packet is going to be coalesced or
+    // encapsulated.
     needs_full_padding_ = false;
   }
 

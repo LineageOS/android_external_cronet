@@ -19,6 +19,7 @@
 
 #include <memory_resource>
 #include <cassert>
+#include <cstdlib>
 #include <new>
 #include <type_traits>
 
@@ -38,11 +39,11 @@ int main(int, char**) {
     ASSERT_SAME_TYPE(decltype(a.destroy((destroyable*)nullptr)), void);
   }
   {
-    alignas(destroyable) char buffer[sizeof(destroyable)];
-    destroyable* ptr = ::new (buffer) destroyable();
+    destroyable* ptr = ::new (std::malloc(sizeof(destroyable))) destroyable();
     assert(count == 1);
     A{}.destroy(ptr);
     assert(count == 0);
+    std::free(ptr);
   }
 
   return 0;

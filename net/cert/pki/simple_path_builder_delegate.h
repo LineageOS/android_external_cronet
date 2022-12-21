@@ -55,9 +55,6 @@ class NET_EXPORT SimplePathBuilderDelegate : public CertPathBuilderDelegate {
   void CheckPathAfterVerification(const CertPathBuilder& path_builder,
                                   CertPathBuilderResultPath* path) override;
 
-  // No-op implementation.
-  bool IsDeadlineExpired() override;
-
  private:
   const size_t min_rsa_modulus_length_bits_;
   const DigestPolicy digest_policy_;

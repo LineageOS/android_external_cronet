@@ -6,7 +6,6 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/memory/raw_ref.h"
 #include "base/sequence_checker_impl.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/test/task_environment.h"
@@ -42,14 +41,14 @@ class SequenceRestrictionChecker {
 
   ~SequenceRestrictionChecker() {
     EXPECT_TRUE(checker_.CalledOnValidSequence());
-    *set_on_destroy_ = true;
+    set_on_destroy_ = true;
   }
 
   void Run() { EXPECT_TRUE(checker_.CalledOnValidSequence()); }
 
  private:
   SequenceCheckerImpl checker_;
-  const raw_ref<bool> set_on_destroy_;
+  bool& set_on_destroy_;
 };
 
 }  // namespace

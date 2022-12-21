@@ -12,7 +12,6 @@
 #include "base/containers/flat_set.h"
 #include "base/functional/function_ref.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/ranges/algorithm.h"
 #include "base/timer/elapsed_timer.h"
 #include "base/types/optional_util.h"
 #include "net/base/schemeful_site.h"
@@ -77,36 +76,22 @@ SamePartyContext::Type ContextTypeFromBool(bool is_same_party) {
 GlobalFirstPartySets::GlobalFirstPartySets() = default;
 
 GlobalFirstPartySets::GlobalFirstPartySets(
-    base::Version public_sets_version,
     base::flat_map<SchemefulSite, FirstPartySetEntry> entries,
     base::flat_map<SchemefulSite, SchemefulSite> aliases)
-    : GlobalFirstPartySets(
-          public_sets_version,
-          public_sets_version.IsValid()
-              ? std::move(entries)
-              : base::flat_map<SchemefulSite, FirstPartySetEntry>(),
-          public_sets_version.IsValid()
-              ? std::move(aliases)
-              : base::flat_map<SchemefulSite, SchemefulSite>(),
-          FirstPartySetsContextConfig()) {}
+    : GlobalFirstPartySets(std::move(entries),
+                           std::move(aliases),
+                           FirstPartySetsContextConfig()) {}
 
 GlobalFirstPartySets::GlobalFirstPartySets(
-    base::Version public_sets_version,
     base::flat_map<SchemefulSite, FirstPartySetEntry> entries,
     base::flat_map<SchemefulSite, SchemefulSite> aliases,
     FirstPartySetsContextConfig manual_config)
-    : public_sets_version_(std::move(public_sets_version)),
-      entries_(std::move(entries)),
+    : entries_(std::move(entries)),
       aliases_(std::move(aliases)),
       manual_config_(std::move(manual_config)) {
-  if (public_sets_version_.IsValid()) {
-    DCHECK(base::ranges::all_of(aliases_, [&](const auto& pair) {
-      return entries_.contains(pair.second);
-    }));
-  } else {
-    DCHECK(entries_.empty());
-    DCHECK(aliases_.empty());
-  }
+  // `aliases_` can only be nonempty if `entries_` is also nonempty.
+  if (!aliases_.empty())
+    DCHECK(!entries_.empty());
 }
 
 GlobalFirstPartySets::GlobalFirstPartySets(GlobalFirstPartySets&&) = default;
@@ -116,9 +101,8 @@ GlobalFirstPartySets& GlobalFirstPartySets::operator=(GlobalFirstPartySets&&) =
 GlobalFirstPartySets::~GlobalFirstPartySets() = default;
 
 bool GlobalFirstPartySets::operator==(const GlobalFirstPartySets& other) const {
-  return std::tie(public_sets_version_, entries_, aliases_, manual_config_) ==
-         std::tie(other.public_sets_version_, other.entries_, other.aliases_,
-                  other.manual_config_);
+  return std::tie(entries_, aliases_, manual_config_) ==
+         std::tie(other.entries_, other.aliases_, other.manual_config_);
 }
 
 bool GlobalFirstPartySets::operator!=(const GlobalFirstPartySets& other) const {
@@ -126,8 +110,7 @@ bool GlobalFirstPartySets::operator!=(const GlobalFirstPartySets& other) const {
 }
 
 GlobalFirstPartySets GlobalFirstPartySets::Clone() const {
-  return GlobalFirstPartySets(public_sets_version_, entries_, aliases_,
-                              manual_config_.Clone());
+  return GlobalFirstPartySets(entries_, aliases_, manual_config_.Clone());
 }
 
 absl::optional<FirstPartySetEntry> GlobalFirstPartySets::FindEntry(
@@ -239,25 +222,12 @@ void GlobalFirstPartySets::ApplyManuallySpecifiedSet(
   // replacement enterprise policy sets.
   manual_config_ = ComputeConfig(
       /*replacement_sets=*/{manual_entries}, /*addition_sets=*/{});
-}
-
-void GlobalFirstPartySets::UnsafeSetManualConfig(
-    FirstPartySetsContextConfig manual_config) {
-  DCHECK(manual_config_.empty());
-  manual_config_ = std::move(manual_config);
+  manual_sets_ = manual_entries;
 }
 
 FirstPartySetsContextConfig GlobalFirstPartySets::ComputeConfig(
     const std::vector<SingleSet>& replacement_sets,
     const std::vector<SingleSet>& addition_sets) const {
-  if (base::ranges::all_of(replacement_sets,
-                           [](const SingleSet& set) { return set.empty(); }) &&
-      base::ranges::all_of(addition_sets,
-                           [](const SingleSet& set) { return set.empty(); })) {
-    // Nothing to do.
-    return FirstPartySetsContextConfig();
-  }
-
   // Maps a site to its new entry if it has one.
   std::vector<std::pair<SchemefulSite, absl::optional<FirstPartySetEntry>>>
       site_to_entry;
@@ -291,12 +261,13 @@ FirstPartySetsContextConfig GlobalFirstPartySets::ComputeConfig(
   for (const auto& [member, set_entry] : flattened_replacements) {
     if (member == set_entry.primary())
       continue;
-    if (const auto existing_entry = FindEntry(member, /*config=*/nullptr);
-        existing_entry.has_value() && existing_entry->primary() != member &&
-        !addition_intersected_owners.contains(existing_entry->primary()) &&
-        !flattened_additions.contains(existing_entry->primary()) &&
-        !flattened_replacements.contains(existing_entry->primary())) {
-      potential_singletons[existing_entry->primary()].insert(member);
+    if (auto existing_entry = FindEntry(member, /*config=*/nullptr);
+        existing_entry.has_value() && existing_entry->primary() != member) {
+      if (!addition_intersected_owners.contains(existing_entry->primary()) &&
+          !flattened_additions.contains(existing_entry->primary()) &&
+          !flattened_replacements.contains(existing_entry->primary())) {
+        potential_singletons[existing_entry->primary()].insert(member);
+      }
     }
   }
 
@@ -313,53 +284,42 @@ FirstPartySetsContextConfig GlobalFirstPartySets::ComputeConfig(
     }
   }
 
-  if (!addition_intersected_owners.empty() || !potential_singletons.empty() ||
-      !replaced_existing_owners.empty()) {
-    // Find out which potential singletons are actually singletons; delete
-    // members whose owners left; and reparent the sets that intersected with
-    // an addition set.
-    // Note: use a null config here, to avoid taking unrelated policy sets into
-    // account.
-    ForEachEffectiveSetEntry(
-        /*config=*/nullptr,
-        [&](const SchemefulSite& member, const FirstPartySetEntry& set_entry) {
-          // Reparent all sites in any intersecting addition sets.
-          if (const auto entry =
-                  addition_intersected_owners.find(set_entry.primary());
-              entry != addition_intersected_owners.end() &&
-              !flattened_replacements.contains(member)) {
-            site_to_entry.emplace_back(
-                member, FirstPartySetEntry(entry->second.primary(),
-                                           member == entry->second.primary()
-                                               ? SiteType::kPrimary
-                                               : SiteType::kAssociated,
-                                           absl::nullopt));
-          }
-          if (member == set_entry.primary())
-            return true;
-          // Remove non-singletons from the potential list.
-          if (const auto entry = potential_singletons.find(set_entry.primary());
-              entry != potential_singletons.end() &&
-              !entry->second.contains(member)) {
-            // This owner lost members, but it still has at least one
-            // (`member`), so it's not a singleton.
-            potential_singletons.erase(entry);
-          }
-          // Remove members from sets whose owner left.
-          if (replaced_existing_owners.contains(set_entry.primary()) &&
-              !flattened_replacements.contains(member) &&
-              !addition_intersected_owners.contains(set_entry.primary())) {
-            site_to_entry.emplace_back(member, absl::nullopt);
-          }
-
-          return true;
-        });
-
-    // Any owner remaining in `potential_singleton` is a real singleton, so
-    // delete it:
-    for (const auto& [owner, members] : potential_singletons) {
-      site_to_entry.emplace_back(owner, absl::nullopt);
+  // Find out which potential singletons are actually singletons; delete
+  // members whose owners left; and reparent the sets that intersected with
+  // an addition set.
+  for (const auto& [member, set_entry] : entries_) {
+    // Reparent all sites in any intersecting addition sets.
+    if (auto entry = addition_intersected_owners.find(set_entry.primary());
+        entry != addition_intersected_owners.end() &&
+        !flattened_replacements.contains(member)) {
+      site_to_entry.emplace_back(
+          member, FirstPartySetEntry(entry->second.primary(),
+                                     member == entry->second.primary()
+                                         ? SiteType::kPrimary
+                                         : SiteType::kAssociated,
+                                     absl::nullopt));
     }
+    if (member == set_entry.primary())
+      continue;
+    // Remove non-singletons from the potential list.
+    if (auto entry = potential_singletons.find(set_entry.primary());
+        entry != potential_singletons.end() &&
+        !entry->second.contains(member)) {
+      // This owner lost members, but it still has at least one (`member`),
+      // so it's not a singleton.
+      potential_singletons.erase(entry);
+    }
+    // Remove members from sets whose owner left.
+    if (replaced_existing_owners.contains(set_entry.primary()) &&
+        !flattened_replacements.contains(member) &&
+        !addition_intersected_owners.contains(set_entry.primary())) {
+      site_to_entry.emplace_back(member, absl::nullopt);
+    }
+  }
+  // Any owner remaining in `potential_singleton` is a real singleton, so delete
+  // it:
+  for (auto& [owner, members] : potential_singletons) {
+    site_to_entry.emplace_back(owner, absl::nullopt);
   }
 
   // For every public alias that would now refer to a site in the overlay, which
@@ -378,18 +338,11 @@ std::vector<base::flat_map<SchemefulSite, FirstPartySetEntry>>
 GlobalFirstPartySets::NormalizeAdditionSets(
     const std::vector<base::flat_map<SchemefulSite, FirstPartySetEntry>>&
         addition_sets) const {
-  if (base::ranges::all_of(addition_sets,
-                           [](const SingleSet& set) { return set.empty(); })) {
-    // Nothing to do.
-    return {};
-  }
-
   // Find all the addition sets that intersect with any given public set.
   base::flat_map<SchemefulSite, base::flat_set<size_t>> addition_set_overlaps;
   for (size_t set_idx = 0; set_idx < addition_sets.size(); set_idx++) {
     for (const auto& site_and_entry : addition_sets[set_idx]) {
-      if (const auto entry =
-              FindEntry(site_and_entry.first, /*config=*/nullptr);
+      if (auto entry = FindEntry(site_and_entry.first, /*config=*/nullptr);
           entry.has_value()) {
         addition_set_overlaps[entry->primary()].insert(set_idx);
       }
@@ -398,8 +351,7 @@ GlobalFirstPartySets::NormalizeAdditionSets(
 
   // Union together all transitively-overlapping addition sets.
   AdditionOverlapsUnionFind union_finder(addition_sets.size());
-  for (const auto& [public_site, addition_set_indices] :
-       addition_set_overlaps) {
+  for (auto& [public_site, addition_set_indices] : addition_set_overlaps) {
     for (size_t representative : addition_set_indices) {
       union_finder.Union(*addition_set_indices.begin(), representative);
     }
@@ -407,7 +359,7 @@ GlobalFirstPartySets::NormalizeAdditionSets(
 
   // Now build the new addition sets, with all transitive overlaps eliminated.
   std::vector<SingleSet> normalized_additions;
-  for (const auto& [rep, children] : union_finder.SetsMapping()) {
+  for (auto& [rep, children] : union_finder.SetsMapping()) {
     SingleSet normalized = addition_sets[rep];
     const SchemefulSite& rep_primary =
         addition_sets[rep].begin()->second.primary();
@@ -443,57 +395,6 @@ bool GlobalFirstPartySets::ForEachPublicSetEntry(
   return true;
 }
 
-bool GlobalFirstPartySets::ForEachManualConfigEntry(
-    base::FunctionRef<bool(const SchemefulSite&,
-                           const absl::optional<FirstPartySetEntry>&)> f)
-    const {
-  return manual_config_.ForEachCustomizationEntry(f);
-}
-
-bool GlobalFirstPartySets::ForEachEffectiveSetEntry(
-    const FirstPartySetsContextConfig& config,
-    base::FunctionRef<bool(const SchemefulSite&, const FirstPartySetEntry&)> f)
-    const {
-  return ForEachEffectiveSetEntry(&config, f);
-}
-
-bool GlobalFirstPartySets::ForEachEffectiveSetEntry(
-    const FirstPartySetsContextConfig* config,
-    base::FunctionRef<bool(const SchemefulSite&, const FirstPartySetEntry&)> f)
-    const {
-  // Policy sets have highest precedence:
-  if (config != nullptr) {
-    if (!config->ForEachCustomizationEntry(
-            [&](const SchemefulSite& site,
-                const absl::optional<FirstPartySetEntry>& maybe_entry) {
-              if (maybe_entry.has_value())
-                return f(site, *maybe_entry);
-              return true;
-            })) {
-      return false;
-    }
-  }
-
-  // Then the manual set:
-  if (!manual_config_.ForEachCustomizationEntry(
-          [&](const SchemefulSite& site,
-              const absl::optional<FirstPartySetEntry>& maybe_entry) {
-            if (maybe_entry.has_value() && (!config || !config->Contains(site)))
-              return f(site, *maybe_entry);
-            return true;
-          })) {
-    return false;
-  }
-
-  // Finally, the public sets.
-  return ForEachPublicSetEntry([&](const SchemefulSite& site,
-                                   const FirstPartySetEntry& entry) {
-    if ((!config || !config->Contains(site)) && !manual_config_.Contains(site))
-      return f(site, entry);
-    return true;
-  });
-}
-
 std::ostream& operator<<(std::ostream& os, const GlobalFirstPartySets& sets) {
   os << "{entries = {";
   for (const auto& [site, entry] : sets.entries()) {
@@ -503,14 +404,6 @@ std::ostream& operator<<(std::ostream& os, const GlobalFirstPartySets& sets) {
   for (const auto& [alias, canonical] : sets.aliases()) {
     os << "{" << alias.Serialize() << ": " << canonical.Serialize() << "}, ";
   }
-  os << "}, manual_config = {";
-  sets.manual_config().ForEachCustomizationEntry(
-      [&](const net::SchemefulSite& site,
-          const absl::optional<net::FirstPartySetEntry>& maybe_entry) {
-        os << "{" << site.Serialize() << ": ";
-        maybe_entry.has_value() ? os << maybe_entry.value() : os << "nullopt";
-        return true;
-      });
   os << "}}";
   return os;
 }

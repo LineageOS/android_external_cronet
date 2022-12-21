@@ -4,7 +4,6 @@
 
 #include "base/profiler/stack_sampler.h"
 
-#include "base/memory/ptr_util.h"
 #include "base/profiler/profiler_buildflags.h"
 #include "build/build_config.h"
 
@@ -13,6 +12,7 @@
 #include "base/check.h"
 #include "base/profiler/frame_pointer_unwinder.h"
 #include "base/profiler/stack_copier_suspend.h"
+#include "base/profiler/stack_sampler_impl.h"
 #include "base/profiler/suspendable_thread_delegate_mac.h"
 #endif
 
@@ -41,11 +41,11 @@ std::unique_ptr<StackSampler> StackSampler::Create(
     StackSamplerTestDelegate* test_delegate) {
   DCHECK(!core_unwinders_factory);
 #if BUILDFLAG(IOS_STACK_PROFILER_ENABLED)
-  return base::WrapUnique(new StackSampler(
+  return std::make_unique<StackSamplerImpl>(
       std::make_unique<StackCopierSuspend>(
           std::make_unique<SuspendableThreadDelegateMac>(thread_token)),
       BindOnce(&CreateUnwinders), module_cache,
-      std::move(record_sample_callback), test_delegate));
+      std::move(record_sample_callback), test_delegate);
 #else
   return nullptr;
 #endif

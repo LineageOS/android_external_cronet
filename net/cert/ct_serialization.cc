@@ -376,7 +376,8 @@ bool EncodeSignedCertificateTimestamp(
   return true;
 }
 
-bool EncodeSCTListForTesting(base::StringPiece sct, std::string* output) {
+bool EncodeSCTListForTesting(const base::StringPiece& sct,
+                             std::string* output) {
   bssl::ScopedCBB encoded_sct, output_cbb;
   CBB encoded_sct_child, output_child;
   if (!CBB_init(encoded_sct.get(), 64) || !CBB_init(output_cbb.get(), 64) ||

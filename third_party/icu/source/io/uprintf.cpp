@@ -50,7 +50,7 @@ static UBool U_CALLCONV uprintf_cleanup(void)
         gStdOut = NULL;
     }
     gStdOutInitOnce.reset();
-    return true;
+    return TRUE;
 }
 
 static void U_CALLCONV u_stdout_init() {

@@ -429,8 +429,4 @@ inline void DoNotOptimize(Tp const& value) {
 #define TEST_NO_UNIQUE_ADDRESS
 #endif
 
-#ifdef _LIBCPP_SHORT_WCHAR
-#  define TEST_SHORT_WCHAR
-#endif
-
 #endif // SUPPORT_TEST_MACROS_HPP

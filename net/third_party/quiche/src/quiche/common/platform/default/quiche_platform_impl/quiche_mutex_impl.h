@@ -19,7 +19,7 @@
 namespace quiche {
 
 // A class wrapping a non-reentrant mutex.
-class ABSL_LOCKABLE QUICHE_EXPORT QuicheLockImpl {
+class ABSL_LOCKABLE QUICHE_EXPORT_PRIVATE QuicheLockImpl {
  public:
   QuicheLockImpl() = default;
   QuicheLockImpl(const QuicheLockImpl&) = delete;
@@ -47,7 +47,7 @@ class ABSL_LOCKABLE QUICHE_EXPORT QuicheLockImpl {
 
 // A Notification allows threads to receive notification of a single occurrence
 // of a single event.
-class QUICHE_EXPORT QuicheNotificationImpl {
+class QUICHE_EXPORT_PRIVATE QuicheNotificationImpl {
  public:
   QuicheNotificationImpl() = default;
   QuicheNotificationImpl(const QuicheNotificationImpl&) = delete;

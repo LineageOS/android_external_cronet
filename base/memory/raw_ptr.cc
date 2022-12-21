@@ -7,23 +7,25 @@
 
 #include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/dangling_raw_ptr_checks.h"
+#include "base/process/process.h"
 
 // USE_BACKUP_REF_PTR implies USE_PARTITION_ALLOC, needed for code under
 // allocator/partition_allocator/ to be built.
 #if BUILDFLAG(USE_BACKUP_REF_PTR)
 
 #include "base/allocator/partition_allocator/partition_alloc.h"
-#include "base/allocator/partition_allocator/partition_alloc_base/check.h"
 #include "base/allocator/partition_allocator/partition_ref_count.h"
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/allocator/partition_allocator/reservation_offset_table.h"
+#include "base/check.h"
+#include "base/dcheck_is_on.h"
 
 namespace base::internal {
 
 template <bool AllowDangling>
 void BackupRefPtrImpl<AllowDangling>::AcquireInternal(uintptr_t address) {
-#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-  PA_BASE_CHECK(partition_alloc::IsManagedByPartitionAllocBRPPool(address));
+#if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
+  CHECK(partition_alloc::IsManagedByPartitionAllocBRPPool(address));
 #endif
   uintptr_t slot_start =
       partition_alloc::PartitionAllocGetSlotStartInBRPPool(address);
@@ -36,8 +38,8 @@ void BackupRefPtrImpl<AllowDangling>::AcquireInternal(uintptr_t address) {
 
 template <bool AllowDangling>
 void BackupRefPtrImpl<AllowDangling>::ReleaseInternal(uintptr_t address) {
-#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-  PA_BASE_CHECK(partition_alloc::IsManagedByPartitionAllocBRPPool(address));
+#if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
+  CHECK(partition_alloc::IsManagedByPartitionAllocBRPPool(address));
 #endif
   uintptr_t slot_start =
       partition_alloc::PartitionAllocGetSlotStartInBRPPool(address);
@@ -67,8 +69,8 @@ void BackupRefPtrImpl<AllowDangling>::ReportIfDanglingInternal(
 
 template <bool AllowDangling>
 bool BackupRefPtrImpl<AllowDangling>::IsPointeeAlive(uintptr_t address) {
-#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-  PA_BASE_CHECK(partition_alloc::IsManagedByPartitionAllocBRPPool(address));
+#if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
+  CHECK(partition_alloc::IsManagedByPartitionAllocBRPPool(address));
 #endif
   uintptr_t slot_start =
       partition_alloc::PartitionAllocGetSlotStartInBRPPool(address);
@@ -97,21 +99,19 @@ bool BackupRefPtrImpl<AllowDangling>::IsValidUnsignedDelta(
 template struct BackupRefPtrImpl</*AllowDangling=*/false>;
 template struct BackupRefPtrImpl</*AllowDangling=*/true>;
 
-#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
+#if DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
 void CheckThatAddressIsntWithinFirstPartitionPage(uintptr_t address) {
   if (partition_alloc::internal::IsManagedByDirectMap(address)) {
     uintptr_t reservation_start =
         partition_alloc::internal::GetDirectMapReservationStart(address);
-    PA_BASE_CHECK(address - reservation_start >=
-                  partition_alloc::PartitionPageSize());
+    CHECK(address - reservation_start >= partition_alloc::PartitionPageSize());
   } else {
-    PA_BASE_CHECK(partition_alloc::internal::IsManagedByNormalBuckets(address));
-    PA_BASE_CHECK(address % partition_alloc::kSuperPageSize >=
-                  partition_alloc::PartitionPageSize());
+    CHECK(partition_alloc::internal::IsManagedByNormalBuckets(address));
+    CHECK(address % partition_alloc::kSuperPageSize >=
+          partition_alloc::PartitionPageSize());
   }
 }
-#endif  // BUILDFLAG(PA_DCHECK_IS_ON) ||
-        // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
+#endif  // DCHECK_IS_ON() || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
 
 }  // namespace base::internal
 
@@ -121,7 +121,6 @@ void CheckThatAddressIsntWithinFirstPartitionPage(uintptr_t address) {
 #include "base/debug/alias.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr_asan_service.h"
-#include "base/process/process.h"
 
 namespace base::internal {
 

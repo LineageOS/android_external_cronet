@@ -34,7 +34,8 @@
 // // FieldTrialList.
 // scoped_refptr<base::FieldTrial> trial(
 //     base::FieldTrialList::FactoryGetFieldTrial(
-//         "MemoryExperiment", 1000, "StandardMem", entropy_provider);
+//         "MemoryExperiment", 1000, "StandardMem",
+//          base::FieldTrialList::GetEntropyProviderForSessionRandomization());
 //
 // trial->AppendGroup("HighMem", 20);  // 2% in HighMem group.
 // trial->AppendGroup("LowMem", 20);   // 2% in LowMem group.
@@ -306,6 +307,10 @@ class BASE_EXPORT FieldTrial : public RefCounted<FieldTrial> {
   // status.
   void FinalizeGroupChoice();
 
+  // Implements FinalizeGroupChoice() with the added flexibility of being
+  // deadlock-free if |is_locked| is true and the caller is holding a lock.
+  void FinalizeGroupChoiceImpl(bool is_locked);
+
   // Returns the trial name and selected group name for this field trial via
   // the output parameter |active_group|, but only if the group has already
   // been chosen and has been externally observed via |group()| and the trial
@@ -565,6 +570,10 @@ class BASE_EXPORT FieldTrialList {
   // running when this is invoked).
   static void RemoveObserver(Observer* observer);
 
+  // Grabs the lock if necessary and adds the field trial to the allocator. This
+  // should only be called from FinalizeGroupChoice().
+  static void OnGroupFinalized(bool is_locked, FieldTrial* field_trial);
+
   // Notify all observers that a group has been finalized for |field_trial|.
   static void NotifyFieldTrialGroupSelection(FieldTrial* field_trial);
 
@@ -597,6 +606,10 @@ class BASE_EXPORT FieldTrialList {
   static std::vector<const FieldTrial::FieldTrialEntry*>
   GetAllFieldTrialsFromPersistentAllocator(
       PersistentMemoryAllocator const& allocator);
+
+  // Returns an entropy-provider that can be used for session randomized trials.
+  static const FieldTrial::EntropyProvider&
+  GetEntropyProviderForSessionRandomization();
 
   // Returns a pointer to the global instance. This is exposed so that it can
   // be used in a DCHECK in FeatureList and ScopedFeatureList test-only logic

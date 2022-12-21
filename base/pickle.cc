@@ -91,9 +91,9 @@ bool PickleIterator::ReadLong(long* result) {
   int64_t result_int64 = 0;
   if (!ReadBuiltinType(&result_int64))
     return false;
-  if (!IsValueInRangeForNumericType<long>(result_int64))
-    return false;
-  *result = static_cast<long>(result_int64);
+  // CHECK if the cast truncates the value so that we know to change this IPC
+  // parameter to use int64_t.
+  *result = base::checked_cast<long>(result_int64);
   return true;
 }
 

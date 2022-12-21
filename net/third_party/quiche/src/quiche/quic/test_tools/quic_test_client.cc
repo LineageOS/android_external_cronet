@@ -217,6 +217,8 @@ MockableQuicClient::MockableQuicClient(
                                                                    this),
           std::make_unique<RecordingProofVerifier>(std::move(proof_verifier)),
           std::move(session_cache)),
+      override_server_connection_id_(EmptyQuicConnectionId()),
+      server_connection_id_overridden_(false),
       override_client_connection_id_(EmptyQuicConnectionId()),
       client_connection_id_overridden_(false) {}
 
@@ -236,6 +238,28 @@ const MockableQuicClientDefaultNetworkHelper*
 MockableQuicClient::mockable_network_helper() const {
   return static_cast<const MockableQuicClientDefaultNetworkHelper*>(
       default_network_helper());
+}
+
+QuicConnectionId MockableQuicClient::GenerateNewConnectionId() {
+  if (server_connection_id_overridden_) {
+    return override_server_connection_id_;
+  }
+  if (override_server_connection_id_length_ >= 0) {
+    return QuicUtils::CreateRandomConnectionId(
+        override_server_connection_id_length_);
+  }
+  return QuicDefaultClient::GenerateNewConnectionId();
+}
+
+void MockableQuicClient::UseConnectionId(
+    QuicConnectionId server_connection_id) {
+  server_connection_id_overridden_ = true;
+  override_server_connection_id_ = server_connection_id;
+}
+
+void MockableQuicClient::UseConnectionIdLength(
+    int server_connection_id_length) {
+  override_server_connection_id_length_ = server_connection_id_length;
 }
 
 QuicConnectionId MockableQuicClient::GetClientConnectionId() {
@@ -767,13 +791,12 @@ void QuicTestClient::UseWriter(QuicPacketWriterWrapper* writer) {
 
 void QuicTestClient::UseConnectionId(QuicConnectionId server_connection_id) {
   QUICHE_DCHECK(!connected());
-  client_->set_server_connection_id_override(server_connection_id);
+  client_->UseConnectionId(server_connection_id);
 }
 
-void QuicTestClient::UseConnectionIdLength(
-    uint8_t server_connection_id_length) {
+void QuicTestClient::UseConnectionIdLength(int server_connection_id_length) {
   QUICHE_DCHECK(!connected());
-  client_->set_server_connection_id_length(server_connection_id_length);
+  client_->UseConnectionIdLength(server_connection_id_length);
 }
 
 void QuicTestClient::UseClientConnectionId(
@@ -783,7 +806,7 @@ void QuicTestClient::UseClientConnectionId(
 }
 
 void QuicTestClient::UseClientConnectionIdLength(
-    uint8_t client_connection_id_length) {
+    int client_connection_id_length) {
   QUICHE_DCHECK(!connected());
   client_->UseClientConnectionIdLength(client_connection_id_length);
 }

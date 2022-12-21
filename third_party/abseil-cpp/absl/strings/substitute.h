@@ -55,8 +55,6 @@
 //   * bool (Printed as "true" or "false")
 //   * pointer types other than char* (Printed as "0x<lower case hex string>",
 //     except that null is printed as "NULL")
-//   * user-defined types via the `AbslStringify()` customization point. See the
-//     documentation for `absl::StrCat` for an explanation on how to use this.
 //
 // If an invalid format string is provided, Substitute returns an empty string
 // and SubstituteAndAppend does not change the provided output string.
@@ -81,7 +79,6 @@
 #include "absl/base/port.h"
 #include "absl/strings/ascii.h"
 #include "absl/strings/escaping.h"
-#include "absl/strings/internal/stringify_sink.h"
 #include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_split.h"
@@ -105,14 +102,14 @@ class Arg {
   // Overloads for string-y things
   //
   // Explicitly overload `const char*` so the compiler doesn't cast to `bool`.
-  Arg(const char* value)  // NOLINT(google-explicit-constructor)
+  Arg(const char* value)  // NOLINT(runtime/explicit)
       : piece_(absl::NullSafeStringView(value)) {}
   template <typename Allocator>
   Arg(  // NOLINT
       const std::basic_string<char, std::char_traits<char>, Allocator>&
           value) noexcept
       : piece_(value) {}
-  Arg(absl::string_view value)  // NOLINT(google-explicit-constructor)
+  Arg(absl::string_view value)  // NOLINT(runtime/explicit)
       : piece_(value) {}
 
   // Overloads for primitives
@@ -122,7 +119,7 @@ class Arg {
   // probably using them as 8-bit integers and would probably prefer an integer
   // representation. However, we can't really know, so we make the caller decide
   // what to do.
-  Arg(char value)  // NOLINT(google-explicit-constructor)
+  Arg(char value)  // NOLINT(runtime/explicit)
       : piece_(scratch_, 1) {
     scratch_[0] = value;
   }
@@ -136,12 +133,12 @@ class Arg {
                static_cast<size_t>(
                    numbers_internal::FastIntToBuffer(value, scratch_) -
                    scratch_)) {}
-  Arg(int value)  // NOLINT(google-explicit-constructor)
+  Arg(int value)  // NOLINT(runtime/explicit)
       : piece_(scratch_,
                static_cast<size_t>(
                    numbers_internal::FastIntToBuffer(value, scratch_) -
                    scratch_)) {}
-  Arg(unsigned int value)  // NOLINT(google-explicit-constructor)
+  Arg(unsigned int value)  // NOLINT(runtime/explicit)
       : piece_(scratch_,
                static_cast<size_t>(
                    numbers_internal::FastIntToBuffer(value, scratch_) -
@@ -166,23 +163,17 @@ class Arg {
                static_cast<size_t>(
                    numbers_internal::FastIntToBuffer(value, scratch_) -
                    scratch_)) {}
-  Arg(float value)  // NOLINT(google-explicit-constructor)
+  Arg(float value)  // NOLINT(runtime/explicit)
       : piece_(scratch_, numbers_internal::SixDigitsToBuffer(value, scratch_)) {
   }
-  Arg(double value)  // NOLINT(google-explicit-constructor)
+  Arg(double value)  // NOLINT(runtime/explicit)
       : piece_(scratch_, numbers_internal::SixDigitsToBuffer(value, scratch_)) {
   }
-  Arg(bool value)  // NOLINT(google-explicit-constructor)
+  Arg(bool value)  // NOLINT(runtime/explicit)
       : piece_(value ? "true" : "false") {}
 
-  template <typename T, typename = typename std::enable_if<
-                            strings_internal::HasAbslStringify<T>::value>::type>
-  Arg(  // NOLINT(google-explicit-constructor)
-      const T& v, strings_internal::StringifySink&& sink = {})
-      : piece_(strings_internal::ExtractStringification(sink, v)) {}
-
-  Arg(Hex hex);  // NOLINT(google-explicit-constructor)
-  Arg(Dec dec);  // NOLINT(google-explicit-constructor)
+  Arg(Hex hex);  // NOLINT(runtime/explicit)
+  Arg(Dec dec);  // NOLINT(runtime/explicit)
 
   // vector<bool>::reference and const_reference require special help to convert
   // to `Arg` because it requires two user defined conversions.
@@ -197,7 +188,7 @@ class Arg {
 
   // `void*` values, with the exception of `char*`, are printed as
   // "0x<hex value>". However, in the case of `nullptr`, "NULL" is printed.
-  Arg(const void* value);  // NOLINT(google-explicit-constructor)
+  Arg(const void* value);  // NOLINT(runtime/explicit)
 
   // Normal enums are already handled by the integer formatters.
   // This overload matches only scoped enums.

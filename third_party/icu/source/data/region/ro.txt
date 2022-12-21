@@ -307,9 +307,7 @@ ro{
         CG{"Congo (Republica)"}
         CI{"Coasta de Fildeș"}
         CZ{"Republica Cehă"}
-        NZ{"Aotearoa Noua Zeelandă"}
         SZ{"Swaziland"}
         TL{"Timorul de Est"}
-        TR{"Türkiye"}
     }
 }

@@ -11,6 +11,7 @@
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/net_errors.h"
 
 namespace net {
@@ -118,7 +119,7 @@ void WebSocketEndpointLockManager::UnlockEndpointAfterDelay(
   DVLOG(3) << "Delaying " << unlock_delay_.InMilliseconds()
            << "ms before unlocking endpoint " << endpoint.ToString();
   ++pending_unlock_count_;
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+  base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
       FROM_HERE,
       base::BindOnce(&WebSocketEndpointLockManager::DelayedUnlockEndpoint,
                      weak_factory_.GetWeakPtr(), endpoint),

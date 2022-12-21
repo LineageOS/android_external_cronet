@@ -1,7 +1,6 @@
 #include "quiche/http2/core/http2_trace_logging.h"
 
 #include <cstdint>
-#include <memory>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -193,7 +192,7 @@ spdy::SpdyHeadersHandlerInterface* Http2TraceLogger::OnHeaderFrameStart(
       wrapped_->OnHeaderFrameStart(stream_id);
   if (is_enabled_()) {
     recording_headers_handler_ =
-        std::make_unique<spdy::RecordingHeadersHandler>(result);
+        absl::make_unique<spdy::RecordingHeadersHandler>(result);
     result = recording_headers_handler_.get();
   } else {
     recording_headers_handler_ = nullptr;

@@ -29,7 +29,8 @@ public class ApkAssets {
         AssetFileDescriptor afd = null;
         try {
             Context context = ContextUtils.getApplicationContext();
-            if (!TextUtils.isEmpty(splitName) && BundleUtils.isIsolatedSplitInstalled(splitName)) {
+            if (!TextUtils.isEmpty(splitName)
+                    && BundleUtils.isIsolatedSplitInstalled(context, splitName)) {
                 context = BundleUtils.createIsolatedSplitContext(context, splitName);
             }
             AssetManager manager = context.getAssets();

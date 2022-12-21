@@ -5,6 +5,8 @@
 import("//build/config/android/rules.gni")
 import("//testing/test.gni")
 
+_registration_header = "$target_gen_dir/sample_jni_registration.h"
+
 generate_jni("jni_sample_header") {
   sources = [
     "java/src/org/chromium/example/jni_generator/SampleForAnnotationProcessor.java",
@@ -49,7 +51,10 @@ source_set("jni_sample_native_side") {
 }
 
 shared_library("jni_sample_lib") {
-  sources = [ "sample_entry_point.cc" ]
+  sources = [
+    "sample_entry_point.cc",
+    _registration_header,
+  ]
 
   deps = [
     ":jni_sample_native_side",
@@ -63,7 +68,7 @@ android_apk("sample_jni_apk") {
   android_manifest = "AndroidManifest.xml"
   deps = [ ":jni_sample_java" ]
   shared_libraries = [ ":jni_sample_lib" ]
-  manual_jni_registration = true
+  jni_registration_header = _registration_header
 }
 
 # Serves to test that generated bindings compile properly.

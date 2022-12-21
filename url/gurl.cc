@@ -331,15 +331,6 @@ GURL GURL::GetWithoutFilename() const {
   return Resolve(".");
 }
 
-GURL GURL::GetWithoutRef() const {
-  if (!has_ref())
-    return GURL(*this);
-
-  Replacements replacements;
-  replacements.ClearRef();
-  return ReplaceComponents(replacements);
-}
-
 bool GURL::IsStandard() const {
   return url::IsStandard(spec_.data(), parsed_.scheme);
 }
@@ -411,9 +402,9 @@ std::string GURL::ExtractFileName() const {
 }
 
 base::StringPiece GURL::PathForRequestPiece() const {
-  DCHECK(parsed_.path.is_nonempty())
+  DCHECK(parsed_.path.len > 0)
       << "Canonical path for requests should be non-empty";
-  if (parsed_.ref.is_valid()) {
+  if (parsed_.ref.len >= 0) {
     // Clip off the reference when it exists. The reference starts after the
     // #-sign, so we have to subtract one to also remove it.
     return base::StringPiece(&spec_[parsed_.path.begin],
@@ -455,7 +446,7 @@ base::StringPiece GURL::GetContentPiece() const {
   if (!is_valid_)
     return base::StringPiece();
   url::Component content_component = parsed_.GetContent();
-  if (!SchemeIs(url::kJavaScriptScheme) && parsed_.ref.is_valid())
+  if (!SchemeIs(url::kJavaScriptScheme) && parsed_.ref.len >= 0)
     content_component.len -= parsed_.ref.len + 1;
   return ComponentStringPiece(content_component);
 }

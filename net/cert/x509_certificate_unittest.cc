@@ -922,7 +922,9 @@ TEST(X509CertificateTest, IsSelfSigned) {
 }
 
 TEST(X509CertificateTest, IsIssuedByEncodedWithIntermediates) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CertBuilder::CreateSimpleChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
 
   std::string intermediate_dn = intermediate->GetSubject();
   std::string root_dn = root->GetSubject();

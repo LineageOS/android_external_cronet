@@ -560,11 +560,5 @@ void QuicConnectionPeer::FlushCoalescedPacket(QuicConnection* connection) {
   connection->FlushCoalescedPacket();
 }
 
-// static
-void QuicConnectionPeer::SetInProbeTimeOut(QuicConnection* connection,
-                                           bool value) {
-  connection->in_probe_time_out_ = value;
-}
-
 }  // namespace test
 }  // namespace quic

@@ -37,6 +37,7 @@ enum NativeLibraryObjCStatus {
 };
 struct NativeLibraryStruct {
   NativeLibraryType type;
+  CFBundleRefNum bundle_resource_ref;
   NativeLibraryObjCStatus objc_status;
   union {
     CFBundleRef bundle;

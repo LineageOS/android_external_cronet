@@ -299,7 +299,9 @@ am{
         ZZ{"ያልታወቀ ክልል"}
     }
     Countries%short{
+        GB{"ዩኬ"}
         UN{"የተመ"}
+        US{"ዩ ኤስ"}
     }
     Countries%variant{
         CD{"ኮንጎ (የዲሞክራቲክ ሪፐብሊክ ኮንጎ)"}

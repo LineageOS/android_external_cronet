@@ -59,7 +59,7 @@ pid_t ProcDirSlotToPid(const char* d_name) {
 
 bool ReadProcFile(const FilePath& file, struct psinfo* info) {
   // Synchronously reading files in /proc is safe.
-  ScopedAllowBlocking scoped_allow_blocking;
+  ThreadRestrictions::ScopedAllowIO allow_io;
   int fileId;
   if ((fileId = open(file.value().c_str(), O_RDONLY)) < 0) {
     DPLOG(WARNING) << "Failed to open " << file.MaybeAsASCII();

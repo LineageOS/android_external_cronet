@@ -14,7 +14,7 @@
 
 #include <algorithm>
 
-void f() {
+int main() {
   struct S {
     int i;
 

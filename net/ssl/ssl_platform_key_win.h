@@ -10,10 +10,9 @@
 // Must be after windows.h.
 #include <NCrypt.h>
 
-#include "base/memory/scoped_refptr.h"
+#include "base/memory/ref_counted.h"
 #include "base/win/wincrypt_shim.h"
 #include "crypto/scoped_capi_types.h"
-#include "crypto/scoped_cng_types.h"
 #include "net/base/net_export.h"
 
 namespace net {
@@ -35,10 +34,11 @@ NET_EXPORT_PRIVATE scoped_refptr<SSLPrivateKey> WrapCAPIPrivateKey(
     DWORD key_spec);
 
 // Returns an SSLPrivateKey backed by |key|, which must correspond to
-// |certificate|'s public key, or nullptr on error.
+// |certificate|'s public key, or nullptr on error. Takes ownership of |key| in
+// both cases.
 NET_EXPORT_PRIVATE scoped_refptr<SSLPrivateKey> WrapCNGPrivateKey(
     const X509Certificate* certificate,
-    crypto::ScopedNCryptKey key);
+    NCRYPT_KEY_HANDLE key);
 
 }  // namespace net
 

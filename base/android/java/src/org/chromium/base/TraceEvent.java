@@ -61,7 +61,6 @@ public class TraceEvent implements AutoCloseable {
      * Watches for active ATrace sessions and accordingly enables or disables
      * tracing in Chrome/WebView.
      */
-    @SuppressWarnings("PrivateApi")
     private static class ATrace implements MessageQueue.IdleHandler {
         private static final String TAG = "ATrace";
 

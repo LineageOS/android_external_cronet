@@ -3,7 +3,6 @@
 // found in the LICENSE file.
 
 #include <windows.h>
-
 #include <KnownFolders.h>
 #include <shlobj.h>
 
