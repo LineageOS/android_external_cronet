@@ -8,7 +8,7 @@
 
 #include "base/logging.h"
 #include "base/ranges/algorithm.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "net/base/load_flags.h"
 #include "net/base/net_errors.h"
 #include "net/base/trace_constants.h"

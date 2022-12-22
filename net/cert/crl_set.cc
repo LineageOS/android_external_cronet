@@ -10,7 +10,7 @@
 #include "base/json/json_reader.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "base/values.h"
 #include "crypto/sha2.h"
 #include "net/base/trace_constants.h"
