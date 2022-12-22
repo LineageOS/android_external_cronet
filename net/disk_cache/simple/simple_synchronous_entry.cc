@@ -8,6 +8,7 @@
 #include <cstring>
 #include <functional>
 #include <limits>
+#include <zlib.h>
 
 #include "base/compiler_specific.h"
 #include "base/containers/stack_container.h"
@@ -33,7 +34,6 @@
 #include "net/disk_cache/simple/simple_histogram_enums.h"
 #include "net/disk_cache/simple/simple_histogram_macros.h"
 #include "net/disk_cache/simple/simple_util.h"
-#include "third_party/zlib/zlib.h"
 
 using base::FilePath;
 using base::Time;

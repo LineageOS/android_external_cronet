@@ -5,6 +5,7 @@
 #include "net/disk_cache/simple/simple_version_upgrade.h"
 
 #include <cstring>
+#include <zlib.h>
 
 #include "base/files/file.h"
 #include "base/files/file_enumerator.h"
@@ -16,7 +17,6 @@
 #include "net/disk_cache/disk_cache.h"
 #include "net/disk_cache/simple/simple_backend_version.h"
 #include "net/disk_cache/simple/simple_entry_format_history.h"
-#include "third_party/zlib/zlib.h"
 
 namespace {
 

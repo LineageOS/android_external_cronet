@@ -6,10 +6,10 @@
 
 #include <algorithm>
 #include <vector>
+#include <zlib.h>
 
 #include "base/check_op.h"
 #include "net/base/io_buffer.h"
-#include "third_party/zlib/zlib.h"
 
 namespace net {
 
