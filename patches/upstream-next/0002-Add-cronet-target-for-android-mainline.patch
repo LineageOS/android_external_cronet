@@ -1,0 +1,52 @@
+From 7cb1d71a4899ecbe7b07c6c9c57a948806461553 Mon Sep 17 00:00:00 2001
+From: Motomu Utsumi <motomuman@google.com>
+Date: Thu, 22 Dec 2022 17:55:32 +0900
+Subject: [PATCH] Add cronet target for android mainline
+
+"cronet_package_android" contains unrequired deps for android mainline
+and can not be built in aosp.
+This CL adds "cronet_android_mainline" which has less deps and can be
+built in aosp.
+
+Test: gn desc
+Change-Id: I663f6a4f69b400c27e2e52df64917c119e669e76
+---
+ components/cronet/android/BUILD.gn | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
+index cbdabbc23db19..d6159e409eca8 100644
+--- a/components/cronet/android/BUILD.gn
++++ b/components/cronet/android/BUILD.gn
+@@ -1627,6 +1627,28 @@ if (!is_component_build) {
+     }
+   }
+ 
++  group("cronet_android_mainline") {
++    # Target for android mainline which removed unnecessary deps from
++    # "cronet_package_android"
++
++    # Enforce building with ICU alternatives, crbug.com/611621.
++    # Enforce that arm_use_neon==false when building for ARMv7 by
++    # not including any deps in cronet_package target otherwise.
++    if (use_platform_icu_alternatives &&
++        (!(target_cpu == "arm" && arm_version == 7) || !arm_use_neon)) {
++      deps = [
++        ":cronet_package_copy_native_lib",
++        ":jar_cronet_api_source",
++        ":repackage_api",
++        ":repackage_common",
++        ":repackage_native",
++      ]
++      if (current_cpu == "arm" && arm_version == 7) {
++        deps += [ ":enforce_no_neon" ]
++      }
++    }
++  }
++
+   group("cronet_test_package") {
+     testonly = true
+ 
+-- 
+2.39.0.314.g84b9a713c41-goog
+
