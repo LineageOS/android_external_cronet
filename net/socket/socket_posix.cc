@@ -17,7 +17,7 @@
 #include "base/logging.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/task/current_thread.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
 #include "net/base/io_buffer.h"
 #include "net/base/ip_endpoint.h"

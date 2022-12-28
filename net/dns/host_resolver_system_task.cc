@@ -13,7 +13,7 @@
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/scoped_blocking_call.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "base/types/pass_key.h"
 #include "dns_reloader.h"
 #include "net/base/net_errors.h"
