@@ -4,6 +4,7 @@
 
 #include <string>
 #include <utility>
+#include <zlib.h>
 
 #include "base/bind.h"
 #include "base/callback.h"
@@ -14,7 +15,6 @@
 #include "net/filter/gzip_source_stream.h"
 #include "net/filter/mock_source_stream.h"
 #include "testing/gtest/include/gtest/gtest.h"
-#include "third_party/zlib/zlib.h"
 
 namespace net {
 
