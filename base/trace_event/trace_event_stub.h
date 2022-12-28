@@ -12,6 +12,7 @@
 #include <string>
 
 #include "base/base_export.h"
+#include "base/memory/weak_ptr.h"
 #include "base/strings/string_piece.h"
 #include "base/trace_event/common/trace_event_common.h"
 #include "base/trace_event/memory_allocator_dump_guid.h"
@@ -156,6 +157,29 @@ class BASE_EXPORT MemoryDumpManager {
  public:
   static constexpr const char* const kTraceCategory =
       TRACE_DISABLED_BY_DEFAULT("memory-infra");
+};
+
+class BASE_EXPORT TraceLog {
+ public:
+  class BASE_EXPORT AsyncEnabledStateObserver {
+   public:
+    virtual ~AsyncEnabledStateObserver() = default;
+
+    virtual void OnTraceLogEnabled() = 0;
+    virtual void OnTraceLogDisabled() = 0;
+  };
+
+  static TraceLog* GetInstance() {
+    static TraceLog obj;
+    return &obj;
+  }
+
+  bool IsEnabled() {
+    return false;
+  }
+
+  void AddAsyncEnabledStateObserver(WeakPtr<AsyncEnabledStateObserver>) {}
+  void RemoveAsyncEnabledStateObserver(AsyncEnabledStateObserver*) {}
 };
 
 }  // namespace trace_event
