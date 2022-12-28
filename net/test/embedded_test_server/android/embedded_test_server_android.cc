@@ -10,7 +10,7 @@
 #include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/test/test_support_android.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "net/net_test_jni_headers/EmbeddedTestServerImpl_jni.h"
 
 using base::android::JavaParamRef;

@@ -12,7 +12,7 @@
 #include "base/format_macros.h"
 #include "base/strings/string_util.h"
 #include "base/sys_byteorder.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "net/base/io_buffer.h"
 #include "net/base/sys_addrinfo.h"
 #include "net/log/net_log.h"

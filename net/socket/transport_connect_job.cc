@@ -16,7 +16,7 @@
 #include "base/notreached.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "net/base/features.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/ip_endpoint.h"

@@ -28,7 +28,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "net/base/features.h"
