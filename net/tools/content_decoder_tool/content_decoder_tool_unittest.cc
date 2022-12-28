@@ -8,6 +8,7 @@
 #include <memory>
 #include <ostream>
 #include <utility>
+#include <zlib.h>
 
 #include "base/files/file_util.h"
 #include "base/path_service.h"
@@ -16,7 +17,6 @@
 #include "net/filter/mock_source_stream.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/platform_test.h"
-#include "third_party/zlib/zlib.h"
 
 namespace net {
 

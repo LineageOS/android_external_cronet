@@ -5,6 +5,7 @@
 #include "net/disk_cache/simple/simple_util.h"
 
 #include <limits>
+#include <zlib.h>
 
 #include "base/check_op.h"
 #include "base/files/file_util.h"
@@ -16,7 +17,6 @@
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "net/disk_cache/simple/simple_entry_format.h"
-#include "third_party/zlib/zlib.h"
 
 namespace {
 
