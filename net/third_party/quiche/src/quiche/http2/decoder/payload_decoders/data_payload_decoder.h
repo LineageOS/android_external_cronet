@@ -17,7 +17,7 @@ namespace test {
 class DataPayloadDecoderPeer;
 }  // namespace test
 
-class QUICHE_EXPORT DataPayloadDecoder {
+class QUICHE_EXPORT_PRIVATE DataPayloadDecoder {
  public:
   // States during decoding of a DATA frame.
   enum class PayloadState {

@@ -30,8 +30,6 @@ class BASE_EXPORT MessagePumpDefault : public MessagePump {
       const Delegate::NextWorkInfo& next_work_info) override;
 #if BUILDFLAG(IS_APPLE)
   void SetTimerSlack(TimerSlack timer_slack) override;
-
-  static void InitFeaturesPostFieldTrial();
 #endif
 
  private:

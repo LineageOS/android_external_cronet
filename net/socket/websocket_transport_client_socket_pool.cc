@@ -14,7 +14,7 @@
 #include "base/notreached.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_util.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "net/base/net_errors.h"
 #include "net/log/net_log_event_type.h"
@@ -347,11 +347,10 @@ void WebSocketTransportClientSocketPool::InvokeUserCallbackLater(
     int rv) {
   DCHECK(!pending_callbacks_.count(handle));
   pending_callbacks_.insert(handle);
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&WebSocketTransportClientSocketPool::InvokeUserCallback,
-                     weak_factory_.GetWeakPtr(),
-                     base::UnsafeDanglingUntriaged(handle), std::move(callback),
+                     weak_factory_.GetWeakPtr(), handle, std::move(callback),
                      rv));
 }
 

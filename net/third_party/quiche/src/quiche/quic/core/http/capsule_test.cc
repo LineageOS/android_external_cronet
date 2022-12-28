@@ -68,22 +68,6 @@ class CapsuleTest : public QuicTest {
   CapsuleParser capsule_parser_;
 };
 
-TEST_F(CapsuleTest, DatagramCapsule) {
-  std::string capsule_fragment = absl::HexStringToBytes(
-      "00"                // DATAGRAM capsule type
-      "08"                // capsule length
-      "a1a2a3a4a5a6a7a8"  // HTTP Datagram payload
-  );
-  std::string datagram_payload = absl::HexStringToBytes("a1a2a3a4a5a6a7a8");
-  Capsule expected_capsule = Capsule::Datagram(datagram_payload);
-  {
-    EXPECT_CALL(visitor_, OnCapsule(expected_capsule));
-    ASSERT_TRUE(capsule_parser_.IngestCapsuleFragment(capsule_fragment));
-  }
-  ValidateParserIsEmpty();
-  TestSerialization(expected_capsule, capsule_fragment);
-}
-
 TEST_F(CapsuleTest, LegacyDatagramCapsule) {
   std::string capsule_fragment = absl::HexStringToBytes(
       "80ff37a0"          // LEGACY_DATAGRAM capsule type
@@ -100,15 +84,14 @@ TEST_F(CapsuleTest, LegacyDatagramCapsule) {
   TestSerialization(expected_capsule, capsule_fragment);
 }
 
-TEST_F(CapsuleTest, LegacyDatagramWithoutContextCapsule) {
+TEST_F(CapsuleTest, DatagramWithoutContextCapsule) {
   std::string capsule_fragment = absl::HexStringToBytes(
-      "80ff37a5"          // LEGACY_DATAGRAM_WITHOUT_CONTEXT capsule type
+      "80ff37a5"          // DATAGRAM_WITHOUT_CONTEXT capsule type
       "08"                // capsule length
       "a1a2a3a4a5a6a7a8"  // HTTP Datagram payload
   );
   std::string datagram_payload = absl::HexStringToBytes("a1a2a3a4a5a6a7a8");
-  Capsule expected_capsule =
-      Capsule::LegacyDatagramWithoutContext(datagram_payload);
+  Capsule expected_capsule = Capsule::DatagramWithoutContext(datagram_payload);
   {
     EXPECT_CALL(visitor_, OnCapsule(expected_capsule));
     ASSERT_TRUE(capsule_parser_.IngestCapsuleFragment(capsule_fragment));
@@ -253,12 +236,12 @@ TEST_F(CapsuleTest, RouteAdvertisementCapsule) {
 
 TEST_F(CapsuleTest, UnknownCapsule) {
   std::string capsule_fragment = absl::HexStringToBytes(
-      "17"                // unknown capsule type of 0x17
+      "33"                // unknown capsule type of 0x33
       "08"                // capsule length
       "a1a2a3a4a5a6a7a8"  // unknown capsule data
   );
   std::string unknown_capsule_data = absl::HexStringToBytes("a1a2a3a4a5a6a7a8");
-  Capsule expected_capsule = Capsule::Unknown(0x17, unknown_capsule_data);
+  Capsule expected_capsule = Capsule::Unknown(0x33, unknown_capsule_data);
   {
     EXPECT_CALL(visitor_, OnCapsule(expected_capsule));
     ASSERT_TRUE(capsule_parser_.IngestCapsuleFragment(capsule_fragment));
@@ -269,17 +252,19 @@ TEST_F(CapsuleTest, UnknownCapsule) {
 
 TEST_F(CapsuleTest, TwoCapsules) {
   std::string capsule_fragment = absl::HexStringToBytes(
-      "00"                // DATAGRAM capsule type
+      "80ff37a5"          // DATAGRAM_WITHOUT_CONTEXT capsule type
       "08"                // capsule length
       "a1a2a3a4a5a6a7a8"  // HTTP Datagram payload
-      "00"                // DATAGRAM capsule type
+      "80ff37a5"          // DATAGRAM_WITHOUT_CONTEXT capsule type
       "08"                // capsule length
       "b1b2b3b4b5b6b7b8"  // HTTP Datagram payload
   );
   std::string datagram_payload1 = absl::HexStringToBytes("a1a2a3a4a5a6a7a8");
   std::string datagram_payload2 = absl::HexStringToBytes("b1b2b3b4b5b6b7b8");
-  Capsule expected_capsule1 = Capsule::Datagram(datagram_payload1);
-  Capsule expected_capsule2 = Capsule::Datagram(datagram_payload2);
+  Capsule expected_capsule1 =
+      Capsule::DatagramWithoutContext(datagram_payload1);
+  Capsule expected_capsule2 =
+      Capsule::DatagramWithoutContext(datagram_payload2);
   {
     InSequence s;
     EXPECT_CALL(visitor_, OnCapsule(expected_capsule1));
@@ -291,13 +276,13 @@ TEST_F(CapsuleTest, TwoCapsules) {
 
 TEST_F(CapsuleTest, TwoCapsulesPartialReads) {
   std::string capsule_fragment1 = absl::HexStringToBytes(
-      "00"        // first capsule DATAGRAM capsule type
-      "08"        // first capsule length
+      "80ff37a5"  // first capsule DATAGRAM_WITHOUT_CONTEXT capsule type
+      "08"        // frist capsule length
       "a1a2a3a4"  // first half of HTTP Datagram payload of first capsule
   );
   std::string capsule_fragment2 = absl::HexStringToBytes(
       "a5a6a7a8"  // second half of HTTP Datagram payload 1
-      "00"        // second capsule DATAGRAM capsule type
+      "80ff37a5"  // second capsule DATAGRAM_WITHOUT_CONTEXT capsule type
   );
   std::string capsule_fragment3 = absl::HexStringToBytes(
       "08"                // second capsule length
@@ -306,8 +291,10 @@ TEST_F(CapsuleTest, TwoCapsulesPartialReads) {
   capsule_parser_.ErrorIfThereIsRemainingBufferedData();
   std::string datagram_payload1 = absl::HexStringToBytes("a1a2a3a4a5a6a7a8");
   std::string datagram_payload2 = absl::HexStringToBytes("b1b2b3b4b5b6b7b8");
-  Capsule expected_capsule1 = Capsule::Datagram(datagram_payload1);
-  Capsule expected_capsule2 = Capsule::Datagram(datagram_payload2);
+  Capsule expected_capsule1 =
+      Capsule::DatagramWithoutContext(datagram_payload1);
+  Capsule expected_capsule2 =
+      Capsule::DatagramWithoutContext(datagram_payload2);
   {
     InSequence s;
     EXPECT_CALL(visitor_, OnCapsule(expected_capsule1));
@@ -321,17 +308,19 @@ TEST_F(CapsuleTest, TwoCapsulesPartialReads) {
 
 TEST_F(CapsuleTest, TwoCapsulesOneByteAtATime) {
   std::string capsule_fragment = absl::HexStringToBytes(
-      "00"                // DATAGRAM capsule type
+      "80ff37a5"          // DATAGRAM_WITHOUT_CONTEXT capsule type
       "08"                // capsule length
       "a1a2a3a4a5a6a7a8"  // HTTP Datagram payload
-      "00"                // DATAGRAM capsule type
+      "80ff37a5"          // DATAGRAM_WITHOUT_CONTEXT capsule type
       "08"                // capsule length
       "b1b2b3b4b5b6b7b8"  // HTTP Datagram payload
   );
   std::string datagram_payload1 = absl::HexStringToBytes("a1a2a3a4a5a6a7a8");
   std::string datagram_payload2 = absl::HexStringToBytes("b1b2b3b4b5b6b7b8");
-  Capsule expected_capsule1 = Capsule::Datagram(datagram_payload1);
-  Capsule expected_capsule2 = Capsule::Datagram(datagram_payload2);
+  Capsule expected_capsule1 =
+      Capsule::DatagramWithoutContext(datagram_payload1);
+  Capsule expected_capsule2 =
+      Capsule::DatagramWithoutContext(datagram_payload2);
   for (size_t i = 0; i < capsule_fragment.size(); i++) {
     if (i < capsule_fragment.size() / 2 - 1) {
       EXPECT_CALL(visitor_, OnCapsule(_)).Times(0);
@@ -359,7 +348,7 @@ TEST_F(CapsuleTest, TwoCapsulesOneByteAtATime) {
 
 TEST_F(CapsuleTest, PartialCapsuleThenError) {
   std::string capsule_fragment = absl::HexStringToBytes(
-      "00"        // DATAGRAM capsule type
+      "80ff37a5"  // DATAGRAM_WITHOUT_CONTEXT capsule type
       "08"        // capsule length
       "a1a2a3a4"  // first half of HTTP Datagram payload
   );
@@ -378,7 +367,7 @@ TEST_F(CapsuleTest, PartialCapsuleThenError) {
 
 TEST_F(CapsuleTest, RejectOverlyLongCapsule) {
   std::string capsule_fragment = absl::HexStringToBytes(
-                                     "17"        // unknown capsule type of 0x17
+                                     "33"        // unknown capsule type of 0x33
                                      "80123456"  // capsule length
                                      ) +
                                  std::string(1111111, '?');

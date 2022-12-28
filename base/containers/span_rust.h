@@ -5,10 +5,6 @@
 #ifndef BASE_CONTAINERS_SPAN_RUST_H_
 #define BASE_CONTAINERS_SPAN_RUST_H_
 
-#include "build/rust/rust_buildflags.h"
-
-#if BUILDFLAG(TOOLCHAIN_HAS_RUST)
-
 #include <stdint.h>
 
 #include "base/containers/span.h"
@@ -22,7 +18,5 @@ inline rust::Slice<const uint8_t> SpanToRustSlice(span<const uint8_t> span) {
 }
 
 }  // namespace base
-
-#endif  // BUILDFLAG(TOOLCHAIN_HAS_RUST)
 
 #endif  // BASE_CONTAINERS_SPAN_RUST_H_

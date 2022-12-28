@@ -11,6 +11,7 @@
 #include "base/callback_helpers.h"
 #include "base/location.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/net_errors.h"
 #include "net/dns/public/util.h"
 
@@ -61,7 +62,7 @@ int MockMDnsDatagramServerSocket::HandleRecvLater(
     IPEndPoint* address,
     CompletionOnceCallback callback) {
   int rv = HandleRecvNow(buffer, size, address, base::DoNothing());
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(std::move(callback), rv));
   return ERR_IO_PENDING;
 }

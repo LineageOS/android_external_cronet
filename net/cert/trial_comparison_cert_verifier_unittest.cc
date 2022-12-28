@@ -10,9 +10,9 @@
 
 #include "base/bind.h"
 #include "base/logging.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "build/build_config.h"
 #include "crypto/sha2.h"
 #include "net/base/test_completion_callback.h"
@@ -111,7 +111,7 @@ class FakeCertVerifyProc : public CertVerifyProc {
   FakeCertVerifyProc(const int result_error, const CertVerifyResult& result)
       : result_error_(result_error),
         result_(result),
-        main_task_runner_(base::SequencedTaskRunner::GetCurrentDefault()) {}
+        main_task_runner_(base::SequencedTaskRunnerHandle::Get()) {}
 
   FakeCertVerifyProc(const FakeCertVerifyProc&) = delete;
   FakeCertVerifyProc& operator=(const FakeCertVerifyProc&) = delete;
@@ -1194,40 +1194,44 @@ TEST_F(TrialComparisonCertVerifierTest,
                                         std::move(intermediates));
   ASSERT_TRUE(different_chain);
 
-  CertVerifyResult different_chain_result_no_known_root;
-  different_chain_result_no_known_root.verified_cert = different_chain;
+  CertVerifyResult different_chain_result;
+  different_chain_result.verified_cert = different_chain;
 
-  CertVerifyResult different_chain_result_known_root;
-  different_chain_result_known_root.verified_cert = different_chain;
-  different_chain_result_known_root.is_issued_by_known_root = true;
+  CertVerifyResult nonev_chain_result;
+  nonev_chain_result.verified_cert = cert_chain;
 
-  CertVerifyResult chain_result;
-  chain_result.verified_cert = cert_chain;
-  chain_result.is_issued_by_known_root = true;
+  CertVerifyResult ev_chain_result;
+  ev_chain_result.verified_cert = cert_chain;
+  ev_chain_result.cert_status =
+      CERT_STATUS_IS_EV | CERT_STATUS_REV_CHECKING_ENABLED;
 
   SHA256HashValue root_fingerprint;
   crypto::SHA256HashString(x509_util::CryptoBufferAsStringPiece(
                                cert_chain->intermediate_buffers().back().get()),
                            root_fingerprint.data,
                            sizeof(root_fingerprint.data));
+  // Both policies in the target are EV policies, but only 1.2.6.7 is valid for
+  // the root in cert_chain.
+  ScopedTestEVPolicy scoped_ev_policy_1(EVRootCAMetadata::GetInstance(),
+                                        root_fingerprint, "1.2.6.7");
+  ScopedTestEVPolicy scoped_ev_policy_2(EVRootCAMetadata::GetInstance(),
+                                        SHA256HashValue(), "1.2.3.4");
 
   scoped_refptr<MockCertVerifyProc> verify_proc1 =
       base::MakeRefCounted<MockCertVerifyProc>();
   // Primary verifier returns ok status and different_chain if verifying leaf
-  // alone, but not is_known_root.
+  // alone.
   EXPECT_CALL(*verify_proc1, VerifyInternal(leaf.get(), _, _, _, _, _, _, _, _))
-      .WillOnce(DoAll(SetArgPointee<7>(different_chain_result_no_known_root),
-                      Return(OK)));
-  // Primary verifier returns ok status and different_chain if verifying
-  // cert_chain and with is_known_root..
+      .WillOnce(DoAll(SetArgPointee<7>(different_chain_result), Return(OK)));
+  // Primary verifier returns ok status and nonev_chain_result if verifying
+  // cert_chain.
   EXPECT_CALL(*verify_proc1,
               VerifyInternal(cert_chain.get(), _, _, _, _, _, _, _, _))
-      .WillOnce(DoAll(SetArgPointee<7>(different_chain_result_known_root),
-                      Return(OK)));
+      .WillOnce(DoAll(SetArgPointee<7>(nonev_chain_result), Return(OK)));
 
-  // Trial verifier returns ok status and chain_result.
+  // Trial verifier returns ok status and ev_chain_result.
   scoped_refptr<FakeCertVerifyProc> verify_proc2 =
-      base::MakeRefCounted<FakeCertVerifyProc>(OK, chain_result);
+      base::MakeRefCounted<FakeCertVerifyProc>(OK, ev_chain_result);
 
   std::vector<TrialReportInfo> reports;
   TrialComparisonCertVerifier verifier(
@@ -1256,8 +1260,7 @@ TEST_F(TrialComparisonCertVerifierTest,
   EXPECT_TRUE(reports.empty());
 
   // Primary verifier should be used twice, the second time with the chain
-  // from the trial verifier. Even so, it only should be counted once in
-  // metrics.
+  // from the trial verifier.
   testing::Mock::VerifyAndClear(verify_proc1.get());
   EXPECT_EQ(1, verify_proc2->num_verifications());
   histograms_.ExpectTotalCount("Net.CertVerifier_Job_Latency_TrialPrimary", 1);
@@ -1769,7 +1772,6 @@ TEST_F(TrialComparisonCertVerifierTest, PrimaryRevokedSecondaryOk) {
   EXPECT_EQ(1U, reports.size());
 }
 
-#if defined(PLATFORM_USES_CHROMIUM_EV_METADATA)
 TEST_F(TrialComparisonCertVerifierTest, MultipleEVPolicies) {
   base::FilePath certs_dir =
       GetTestNetDataDirectory()
@@ -1975,7 +1977,6 @@ TEST_F(TrialComparisonCertVerifierTest, MultiplePoliciesOnlyOneIsEV) {
       "Net.CertVerifier_TrialComparisonResult",
       TrialComparisonResult::kBothValidDifferentDetails, 1);
 }
-#endif
 
 TEST_F(TrialComparisonCertVerifierTest, LocallyTrustedLeaf) {
   // Platform verifier verifies the leaf directly.

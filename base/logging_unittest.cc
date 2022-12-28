@@ -38,7 +38,6 @@
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
-
 #include <excpt.h>
 #endif  // BUILDFLAG(IS_WIN)
 

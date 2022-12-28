@@ -15,6 +15,7 @@
 #include "base/notreached.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/ip_address.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/load_timing_info.h"
@@ -205,8 +206,8 @@ class MockTriggerableClientSocket : public TransportClientSocket {
       net::NetLog* net_log) {
     auto socket = std::make_unique<MockTriggerableClientSocket>(
         addrlist, connect_error, net_log);
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, socket->GetConnectCallback());
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                  socket->GetConnectCallback());
     return std::move(socket);
   }
 
@@ -217,7 +218,7 @@ class MockTriggerableClientSocket : public TransportClientSocket {
       net::NetLog* net_log) {
     auto socket = std::make_unique<MockTriggerableClientSocket>(
         addrlist, connect_error, net_log);
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE, socket->GetConnectCallback(), delay);
     return std::move(socket);
   }

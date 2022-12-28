@@ -113,26 +113,34 @@ int TRUST_TOKEN_generate_key(const TRUST_TOKEN_METHOD *method,
                              size_t *out_pub_key_len, size_t max_pub_key_len,
                              uint32_t id) {
   // Prepend the key ID in front of the PMBTokens format.
+  int ret = 0;
   CBB priv_cbb, pub_cbb;
-  CBB_init_fixed(&priv_cbb, out_priv_key, max_priv_key_len);
-  CBB_init_fixed(&pub_cbb, out_pub_key, max_pub_key_len);
-  if (!CBB_add_u32(&priv_cbb, id) ||  //
+  CBB_zero(&priv_cbb);
+  CBB_zero(&pub_cbb);
+  if (!CBB_init_fixed(&priv_cbb, out_priv_key, max_priv_key_len) ||
+      !CBB_init_fixed(&pub_cbb, out_pub_key, max_pub_key_len) ||
+      !CBB_add_u32(&priv_cbb, id) ||
       !CBB_add_u32(&pub_cbb, id)) {
     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_BUFFER_TOO_SMALL);
-    return 0;
+    goto err;
   }
 
   if (!method->generate_key(&priv_cbb, &pub_cbb)) {
-    return 0;
+    goto err;
   }
 
   if (!CBB_finish(&priv_cbb, NULL, out_priv_key_len) ||
       !CBB_finish(&pub_cbb, NULL, out_pub_key_len)) {
     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_BUFFER_TOO_SMALL);
-    return 0;
+    goto err;
   }
 
-  return 1;
+  ret = 1;
+
+err:
+  CBB_cleanup(&priv_cbb);
+  CBB_cleanup(&pub_cbb);
+  return ret;
 }
 
 int TRUST_TOKEN_derive_key_from_secret(
@@ -141,27 +149,35 @@ int TRUST_TOKEN_derive_key_from_secret(
     size_t *out_pub_key_len, size_t max_pub_key_len, uint32_t id,
     const uint8_t *secret, size_t secret_len) {
   // Prepend the key ID in front of the PMBTokens format.
+  int ret = 0;
   CBB priv_cbb, pub_cbb;
-  CBB_init_fixed(&priv_cbb, out_priv_key, max_priv_key_len);
-  CBB_init_fixed(&pub_cbb, out_pub_key, max_pub_key_len);
-  if (!CBB_add_u32(&priv_cbb, id) ||  //
+  CBB_zero(&priv_cbb);
+  CBB_zero(&pub_cbb);
+  if (!CBB_init_fixed(&priv_cbb, out_priv_key, max_priv_key_len) ||
+      !CBB_init_fixed(&pub_cbb, out_pub_key, max_pub_key_len) ||
+      !CBB_add_u32(&priv_cbb, id) ||
       !CBB_add_u32(&pub_cbb, id)) {
     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_BUFFER_TOO_SMALL);
-    return 0;
+    goto err;
   }
 
   if (!method->derive_key_from_secret(&priv_cbb, &pub_cbb, secret,
                                         secret_len)) {
-    return 0;
+    goto err;
   }
 
   if (!CBB_finish(&priv_cbb, NULL, out_priv_key_len) ||
       !CBB_finish(&pub_cbb, NULL, out_pub_key_len)) {
     OPENSSL_PUT_ERROR(TRUST_TOKEN, TRUST_TOKEN_R_BUFFER_TOO_SMALL);
-    return 0;
+    goto err;
   }
 
-  return 1;
+  ret = 1;
+
+err:
+  CBB_cleanup(&priv_cbb);
+  CBB_cleanup(&pub_cbb);
+  return ret;
 }
 
 TRUST_TOKEN_CLIENT *TRUST_TOKEN_CLIENT_new(const TRUST_TOKEN_METHOD *method,
@@ -612,21 +628,22 @@ err:
 static int add_cbor_int_with_type(CBB *cbb, uint8_t major_type,
                                   uint64_t value) {
   if (value <= 23) {
-    return CBB_add_u8(cbb, (uint8_t)value | major_type);
+    return CBB_add_u8(cbb, value | major_type);
   }
   if (value <= 0xff) {
-    return CBB_add_u8(cbb, 0x18 | major_type) &&
-           CBB_add_u8(cbb, (uint8_t)value);
+    return CBB_add_u8(cbb, 0x18 | major_type) && CBB_add_u8(cbb, value);
   }
   if (value <= 0xffff) {
-    return CBB_add_u8(cbb, 0x19 | major_type) &&
-           CBB_add_u16(cbb, (uint16_t)value);
+    return CBB_add_u8(cbb, 0x19 | major_type) && CBB_add_u16(cbb, value);
   }
   if (value <= 0xffffffff) {
-    return CBB_add_u8(cbb, 0x1a | major_type) &&
-           CBB_add_u32(cbb, (uint32_t)value);
+    return CBB_add_u8(cbb, 0x1a | major_type) && CBB_add_u32(cbb, value);
   }
-  return CBB_add_u8(cbb, 0x1b | major_type) && CBB_add_u64(cbb, value);
+  if (value <= 0xffffffffffffffff) {
+    return CBB_add_u8(cbb, 0x1b | major_type) && CBB_add_u64(cbb, value);
+  }
+
+  return 0;
 }
 
 // https://tools.ietf.org/html/rfc7049#section-2.1

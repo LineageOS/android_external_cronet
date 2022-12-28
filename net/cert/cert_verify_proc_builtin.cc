@@ -54,7 +54,7 @@ constexpr base::TimeDelta kPerAttemptMinVerificationTimeLimit =
 
 DEFINE_CERT_ERROR_ID(kPathLacksEVPolicy, "Path does not have an EV policy");
 
-const void* const kResultDebugDataKey = &kResultDebugDataKey;
+const void* kResultDebugDataKey = &kResultDebugDataKey;
 
 base::Value NetLogCertParams(const CRYPTO_BUFFER* cert_handle,
                              const CertErrors& errors) {
@@ -239,8 +239,7 @@ class PathBuilderDelegateImpl : public SimplePathBuilderDelegate {
                           const CertVerifyProcTrustStore* trust_store,
                           base::StringPiece stapled_leaf_ocsp_response,
                           const EVRootCAMetadata* ev_metadata,
-                          bool* checked_revocation_for_some_path,
-                          base::TimeTicks deadline)
+                          bool* checked_revocation_for_some_path)
       : SimplePathBuilderDelegate(1024, digest_policy),
         crl_set_(crl_set),
         net_fetcher_(net_fetcher),
@@ -249,8 +248,7 @@ class PathBuilderDelegateImpl : public SimplePathBuilderDelegate {
         trust_store_(trust_store),
         stapled_leaf_ocsp_response_(stapled_leaf_ocsp_response),
         ev_metadata_(ev_metadata),
-        checked_revocation_for_some_path_(checked_revocation_for_some_path),
-        deadline_(deadline) {}
+        checked_revocation_for_some_path_(checked_revocation_for_some_path) {}
 
   // This is called for each built chain, including ones which failed. It is
   // responsible for adding errors to the built chain if it is not acceptable.
@@ -301,8 +299,8 @@ class PathBuilderDelegateImpl : public SimplePathBuilderDelegate {
     // respective certificates, so |errors->ContainsHighSeverityErrors()| will
     // reflect the revocation status of the chain after this call.
     CheckValidatedChainRevocation(
-        path->certs, policy, deadline_, stapled_leaf_ocsp_response_,
-        net_fetcher_, &path->errors,
+        path->certs, policy, path_builder.deadline(),
+        stapled_leaf_ocsp_response_, net_fetcher_, &path->errors,
         &PathBuilderDelegateDataImpl::GetOrCreate(path)
              ->stapled_ocsp_verify_result);
   }
@@ -364,10 +362,6 @@ class PathBuilderDelegateImpl : public SimplePathBuilderDelegate {
     return false;
   }
 
-  bool IsDeadlineExpired() override {
-    return !deadline_.is_null() && base::TimeTicks::Now() > deadline_;
-  }
-
   // The CRLSet may be null.
   raw_ptr<const CRLSet> crl_set_;
   raw_ptr<CertNetFetcher> net_fetcher_;
@@ -377,7 +371,6 @@ class PathBuilderDelegateImpl : public SimplePathBuilderDelegate {
   const base::StringPiece stapled_leaf_ocsp_response_;
   raw_ptr<const EVRootCAMetadata> ev_metadata_;
   raw_ptr<bool> checked_revocation_for_some_path_;
-  base::TimeTicks deadline_;
 };
 
 class CertVerifyProcBuiltin : public CertVerifyProc {
@@ -576,7 +569,7 @@ CertPathBuilder::Result TryBuildPath(
 
   PathBuilderDelegateImpl path_builder_delegate(
       crl_set, net_fetcher, verification_type, digest_policy, flags,
-      trust_store, ocsp_response, ev_metadata, checked_revocation, deadline);
+      trust_store, ocsp_response, ev_metadata, checked_revocation);
 
   // Initialize the path builder.
   CertPathBuilder path_builder(
@@ -600,6 +593,7 @@ CertPathBuilder::Result TryBuildPath(
   }
 
   path_builder.SetIterationLimit(kPathBuilderIterationLimit);
+  path_builder.SetDeadline(deadline);
 
   return path_builder.Run();
 }

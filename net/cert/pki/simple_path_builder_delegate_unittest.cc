@@ -37,9 +37,10 @@ void ReadTestCase(const char* file_name,
 
   ASSERT_TRUE(ReadTestDataFromPemFile(path, mappings));
 
+  CertErrors algorithm_errors;
   absl::optional<SignatureAlgorithm> sigalg_opt =
-      ParseSignatureAlgorithm(der::Input(&algorithm_str));
-  ASSERT_TRUE(sigalg_opt);
+      ParseSignatureAlgorithm(der::Input(&algorithm_str), &algorithm_errors);
+  ASSERT_TRUE(sigalg_opt) << algorithm_errors.ToDebugString();
   *signature_algorithm = *sigalg_opt;
 
   ASSERT_TRUE(ParsePublicKey(der::Input(&public_key_str), public_key));

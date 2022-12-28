@@ -22,6 +22,7 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/tick_clock.h"
 #include "base/trace_event/memory_usage_estimator.h"
 #include "base/values.h"
@@ -680,7 +681,7 @@ void QuicChromiumClientSession::StreamRequest::OnRequestCompleteFailure(
   // This method is called even when the request completes synchronously.
   if (callback_) {
     // Avoid re-entrancy if the callback calls into the session.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&QuicChromiumClientSession::StreamRequest::DoCallback,
                        weak_factory_.GetWeakPtr(), rv));
@@ -1031,7 +1032,7 @@ QuicChromiumClientSession::~QuicChromiumClientSession() {
   // This is referenced by the parent class's destructor, so have to delete it
   // asynchronously, unfortunately. Don't use DeleteSoon, since that leaks if
   // the task is not run, which is often the case in tests.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce([](std::unique_ptr<quic::QuicClientPushPromiseIndex>
                             push_promise_index) {},
@@ -1134,6 +1135,10 @@ QuicChromiumClientSession::~QuicChromiumClientSession() {
 
 void QuicChromiumClientSession::Initialize() {
   set_max_inbound_header_list_size(kQuicMaxHeaderListSize);
+  if (config()->HasClientRequestedIndependentOption(
+          quic::kQLVE, quic::Perspective::IS_CLIENT)) {
+    connection()->EnableLegacyVersionEncapsulation(session_key_.host());
+  }
   quic::QuicSpdyClientSessionBase::Initialize();
 }
 
@@ -1847,21 +1852,15 @@ void QuicChromiumClientSession::OnConnectionClosed(
         "Net.QuicMultiPort.NumMultiPortFailureWhenPathNotDegrading",
         multi_port_stats
             ->num_multi_port_probe_failures_when_path_not_degrading);
-    size_t total_multi_port_probe_failures =
-        multi_port_stats
-            ->num_multi_port_probe_failures_when_path_not_degrading +
-        multi_port_stats->num_multi_port_probe_failures_when_path_degrading;
-    uint64_t srtt_ms =
-        multi_port_stats->rtt_stats.smoothed_rtt().ToMilliseconds();
-    if (multi_port_stats->num_path_degrading > 0 &&
-        total_multi_port_probe_failures > 0 && srtt_ms > 0) {
+    if (multi_port_stats->num_path_degrading > 0) {
       base::UmaHistogramSparse(
           "Net.QuicMultiPort.AltPortRttWhenPathDegradingVsGeneral",
           static_cast<int>(
               multi_port_stats->rtt_stats_when_default_path_degrading
                   .smoothed_rtt()
                   .ToMilliseconds() *
-              100 / srtt_ms));
+              100 /
+              multi_port_stats->rtt_stats.smoothed_rtt().ToMilliseconds()));
       UMA_HISTOGRAM_COUNTS_1000(
           "Net.QuicMultiPort.NumMultiPortFailureWhenPathDegrading",
           multi_port_stats->num_multi_port_probe_failures_when_path_degrading);
@@ -1870,7 +1869,11 @@ void QuicChromiumClientSession::OnConnectionClosed(
           static_cast<int>(
               multi_port_stats
                   ->num_multi_port_probe_failures_when_path_degrading *
-              100 / total_multi_port_probe_failures));
+              100 /
+              (multi_port_stats
+                   ->num_multi_port_probe_failures_when_path_not_degrading +
+               multi_port_stats
+                   ->num_multi_port_probe_failures_when_path_degrading)));
     }
   }
 
@@ -3006,40 +3009,6 @@ ProbingResult QuicChromiumClientSession::MaybeStartProbing(
   }
 
   return StartProbing(network, peer_address);
-}
-
-std::unique_ptr<quic::QuicPathValidationContext>
-QuicChromiumClientSession::CreateContextForMultiPortPath() {
-  if (!connection()->connection_migration_use_new_cid()) {
-    return nullptr;
-  }
-
-  // Create and configure socket on default network
-  std::unique_ptr<DatagramClientSocket> probing_socket =
-      stream_factory_->CreateSocket(net_log_.net_log(), net_log_.source());
-  if (stream_factory_->ConfigureSocket(
-          probing_socket.get(), ToIPEndPoint(peer_address()), default_network_,
-          session_key_.socket_tag()) != OK) {
-    return nullptr;
-  }
-
-  // Create new packet writer and reader on the probing socket.
-  auto probing_writer = std::make_unique<QuicChromiumPacketWriter>(
-      probing_socket.get(), task_runner_);
-  auto probing_reader = std::make_unique<QuicChromiumPacketReader>(
-      probing_socket.get(), clock_, this, yield_after_packets_,
-      yield_after_duration_, net_log_);
-
-  probing_reader->StartReading();
-  path_validation_writer_delegate_.set_network(default_network_);
-  path_validation_writer_delegate_.set_peer_address(peer_address());
-  probing_writer->set_delegate(&path_validation_writer_delegate_);
-  IPEndPoint local_address;
-  probing_socket->GetLocalAddress(&local_address);
-  return std::make_unique<QuicChromiumPathValidationContext>(
-      ToQuicSocketAddress(local_address), peer_address(), default_network_,
-      std::move(probing_socket), std::move(probing_writer),
-      std::move(probing_reader));
 }
 
 ProbingResult QuicChromiumClientSession::StartProbing(

@@ -1220,7 +1220,14 @@ class TimeOverride {
 // static
 Time TimeOverride::now_time_;
 
-TEST_F(TimeTest, NowOverride) {
+#if BUILDFLAG(IS_FUCHSIA)
+// TODO(https://crbug.com/1060357): Enable when RTC flake is fixed.
+#define MAYBE_NowOverride DISABLED_NowOverride
+#else
+#define MAYBE_NowOverride NowOverride
+#endif
+
+TEST_F(TimeTest, MAYBE_NowOverride) {
   TimeOverride::now_time_ = Time::UnixEpoch();
 
   // Choose a reference time that we know to be in the past but close to now.

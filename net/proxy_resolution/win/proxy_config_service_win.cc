@@ -49,7 +49,7 @@ ProxyConfigServiceWin::~ProxyConfigServiceWin() {
   NetworkChangeNotifier::RemoveNetworkChangeObserver(this);
   // The registry functions below will end up going to disk.  TODO: Do this on
   // another thread to avoid slowing the current thread.  http://crbug.com/61453
-  base::ScopedAllowBlocking scoped_allow_blocking;
+  base::ThreadRestrictions::ScopedAllowIO allow_io;
   keys_to_watch_.clear();
 }
 
@@ -81,7 +81,7 @@ void ProxyConfigServiceWin::StartWatchingRegistryForChanges() {
 
   // The registry functions below will end up going to disk.  Do this on another
   // thread to avoid slowing the current thread.  http://crbug.com/61453
-  base::ScopedAllowBlocking scoped_allow_blocking;
+  base::ThreadRestrictions::ScopedAllowIO allow_io;
 
   // There are a number of different places where proxy settings can live
   // in the registry. In some cases it appears in a binary value, in other

@@ -360,8 +360,7 @@ class QUIC_EXPORT_PRIVATE QuicSession
 
   // Returns mutable config for this session. Returned config is owned
   // by QuicSession.
-  QuicConfig* config() { return &config_; }
-  const QuicConfig* config() const { return &config_; }
+  QuicConfig* config();
 
   // Returns true if the stream existed previously and has been closed.
   // Returns false if the stream is still active or if the stream has
@@ -1007,9 +1006,6 @@ class QUIC_EXPORT_PRIVATE QuicSession
   // This indicates a liveness testing is in progress, and push back the
   // creation of new outgoing bidirectional streams.
   bool liveness_testing_in_progress_;
-
-  const bool delay_setting_stateless_reset_token_ =
-      GetQuicReloadableFlag(quic_delay_setting_stateless_reset_token);
 };
 
 }  // namespace quic

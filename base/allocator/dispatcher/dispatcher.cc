@@ -106,12 +106,6 @@ size_t GetSizeEstimateFn(const AllocatorDispatch* self,
   return self->next->get_size_estimate_function(self->next, address, context);
 }
 
-bool ClaimedAddressFn(const AllocatorDispatch* self,
-                      void* address,
-                      void* context) {
-  return self->next->claimed_address_function(self->next, address, context);
-}
-
 unsigned BatchMallocFn(const AllocatorDispatch* self,
                        size_t size,
                        void** results,
@@ -145,13 +139,6 @@ void FreeDefiniteSizeFn(const AllocatorDispatch* self,
                         void* context) {
   PoissonAllocationSampler::RecordFree(address);
   self->next->free_definite_size_function(self->next, address, size, context);
-}
-
-void TryFreeDefaultFn(const AllocatorDispatch* self,
-                      void* address,
-                      void* context) {
-  PoissonAllocationSampler::RecordFree(address);
-  self->next->try_free_default_function(self->next, address, context);
 }
 
 static void* AlignedMallocFn(const AllocatorDispatch* self,
@@ -199,11 +186,9 @@ AllocatorDispatch g_allocator_dispatch = {&AllocFn,
                                           &ReallocFn,
                                           &FreeFn,
                                           &GetSizeEstimateFn,
-                                          &ClaimedAddressFn,
                                           &BatchMallocFn,
                                           &BatchFreeFn,
                                           &FreeDefiniteSizeFn,
-                                          &TryFreeDefaultFn,
                                           &AlignedMallocFn,
                                           &AlignedReallocFn,
                                           &AlignedFreeFn,

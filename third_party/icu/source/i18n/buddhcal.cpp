@@ -138,7 +138,7 @@ static icu::UInitOnce gBCInitOnce {};
 
 UBool BuddhistCalendar::haveDefaultCentury() const
 {
-    return true;
+    return TRUE;
 }
 
 static void U_CALLCONV

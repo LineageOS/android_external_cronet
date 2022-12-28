@@ -4,8 +4,6 @@
 
 #include "quiche/quic/core/quic_framer.h"
 
-#include <sys/types.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <limits>
@@ -313,7 +311,7 @@ size_t TruncatedErrorStringSize(const absl::string_view& error) {
   return kMaxErrorStringLength;
 }
 
-uint8_t GetConnectionIdLengthValue(uint8_t length) {
+uint8_t GetConnectionIdLengthValue(QuicConnectionIdLength length) {
   if (length == 0) {
     return 0;
   }
@@ -345,8 +343,10 @@ bool AppendIetfConnectionIds(bool version_flag, bool use_length_prefix,
   }
 
   // Compute connection ID length byte.
-  uint8_t dcil = GetConnectionIdLengthValue(destination_connection_id.length());
-  uint8_t scil = GetConnectionIdLengthValue(source_connection_id.length());
+  uint8_t dcil = GetConnectionIdLengthValue(
+      static_cast<QuicConnectionIdLength>(destination_connection_id.length()));
+  uint8_t scil = GetConnectionIdLengthValue(
+      static_cast<QuicConnectionIdLength>(source_connection_id.length()));
   uint8_t connection_id_length = dcil << 4 | scil;
 
   return writer->WriteUInt8(connection_id_length) &&
@@ -1811,9 +1811,9 @@ bool QuicFramer::ProcessIetfDataPacket(QuicDataReader* encrypted_reader,
         !IsValidFullPacketNumber(full_packet_number, version())) {
       if (IsIetfStatelessResetPacket(*header)) {
         // This is a stateless reset packet.
-        QuicIetfStatelessResetPacket reset_packet(
+        QuicIetfStatelessResetPacket packet(
             *header, header->possible_stateless_reset_token);
-        visitor_->OnAuthenticatedIetfStatelessResetPacket(reset_packet);
+        visitor_->OnAuthenticatedIetfStatelessResetPacket(packet);
         return true;
       }
       if (hp_removal_failed) {
@@ -1880,9 +1880,9 @@ bool QuicFramer::ProcessIetfDataPacket(QuicDataReader* encrypted_reader,
                       &decrypted_level)) {
     if (IsIetfStatelessResetPacket(*header)) {
       // This is a stateless reset packet.
-      QuicIetfStatelessResetPacket reset_packet(
+      QuicIetfStatelessResetPacket packet(
           *header, header->possible_stateless_reset_token);
-      visitor_->OnAuthenticatedIetfStatelessResetPacket(reset_packet);
+      visitor_->OnAuthenticatedIetfStatelessResetPacket(packet);
       return true;
     }
     const EncryptionLevel decryption_level = GetEncryptionLevel(*header);
@@ -4390,8 +4390,8 @@ bool QuicFramer::ProcessMessageFrame(QuicDataReader* reader,
 // static
 absl::string_view QuicFramer::GetAssociatedDataFromEncryptedPacket(
     QuicTransportVersion version, const QuicEncryptedPacket& encrypted,
-    uint8_t destination_connection_id_length,
-    uint8_t source_connection_id_length, bool includes_version,
+    QuicConnectionIdLength destination_connection_id_length,
+    QuicConnectionIdLength source_connection_id_length, bool includes_version,
     bool includes_diversification_nonce,
     QuicPacketNumberLength packet_number_length,
     quiche::QuicheVariableLengthIntegerLength retry_token_length_length,
@@ -4664,10 +4664,10 @@ bool QuicFramer::ApplyHeaderProtection(EncryptionLevel level, char* buffer,
   // Apply the rest of the mask to the packet number.
   for (size_t i = 0; i < last_written_packet_number_length_; ++i) {
     uint8_t buffer_byte;
-    uint8_t pn_mask_byte;
-    if (!mask_reader.ReadUInt8(&pn_mask_byte) ||
+    uint8_t mask_byte;
+    if (!mask_reader.ReadUInt8(&mask_byte) ||
         !buffer_reader.ReadUInt8(&buffer_byte) ||
-        !buffer_writer.WriteUInt8(buffer_byte ^ pn_mask_byte)) {
+        !buffer_writer.WriteUInt8(buffer_byte ^ mask_byte)) {
       return false;
     }
   }
@@ -4743,10 +4743,10 @@ bool QuicFramer::RemoveHeaderProtection(QuicDataReader* reader,
   // Read the (protected) packet number from the reader and unmask the packet
   // number.
   for (size_t i = 0; i < header->packet_number_length; ++i) {
-    uint8_t protected_pn_byte, pn_mask_byte;
-    if (!mask_reader.ReadUInt8(&pn_mask_byte) ||
+    uint8_t protected_pn_byte, mask_byte;
+    if (!mask_reader.ReadUInt8(&mask_byte) ||
         !reader->ReadUInt8(&protected_pn_byte) ||
-        !pn_writer.WriteUInt8(protected_pn_byte ^ pn_mask_byte)) {
+        !pn_writer.WriteUInt8(protected_pn_byte ^ mask_byte)) {
       QUIC_DVLOG(1) << "Failed to unmask packet number";
       return false;
     }
@@ -5055,9 +5055,9 @@ bool QuicFramer::DecryptPayload(size_t udp_packet_length,
         alternative_decrypter_level_ = NUM_ENCRYPTION_LEVELS;
       } else {
         // Switch the alternative decrypter so that we use it first next time.
-        EncryptionLevel alt_level = alternative_decrypter_level_;
+        EncryptionLevel level = alternative_decrypter_level_;
         alternative_decrypter_level_ = decrypter_level_;
-        decrypter_level_ = alt_level;
+        decrypter_level_ = level;
       }
     }
   }
@@ -6865,36 +6865,6 @@ QuicErrorCode QuicFramer::ParsePublicHeaderDispatcher(
 }
 
 // static
-QuicErrorCode QuicFramer::ParsePublicHeaderDispatcherShortHeaderLengthUnknown(
-    const QuicEncryptedPacket& packet, PacketHeaderFormat* format,
-    QuicLongHeaderType* long_packet_type, bool* version_present,
-    bool* has_length_prefix, QuicVersionLabel* version_label,
-    ParsedQuicVersion* parsed_version,
-    QuicConnectionId* destination_connection_id,
-    QuicConnectionId* source_connection_id,
-    absl::optional<absl::string_view>* retry_token, std::string* detailed_error,
-    ConnectionIdGeneratorInterface& generator) {
-  QuicDataReader reader(packet.data(), packet.length());
-  // Get the first two bytes.
-  if (reader.BytesRemaining() < 2) {
-    *detailed_error = "Unable to read first two bytes.";
-    return QUIC_INVALID_PACKET_HEADER;
-  }
-  uint8_t two_bytes[2];
-  reader.ReadBytes(two_bytes, 2);
-  uint8_t expected_destination_connection_id_length =
-      (!QuicUtils::IsIetfPacketHeader(two_bytes[0]) ||
-       two_bytes[0] & FLAGS_LONG_HEADER)
-          ? 0
-          : generator.ConnectionIdLength(two_bytes[1]);
-  return ParsePublicHeaderDispatcher(
-      packet, expected_destination_connection_id_length, format,
-      long_packet_type, version_present, has_length_prefix, version_label,
-      parsed_version, destination_connection_id, source_connection_id,
-      retry_token, detailed_error);
-}
-
-// static
 QuicErrorCode QuicFramer::ParsePublicHeaderGoogleQuic(
     QuicDataReader* reader, uint8_t* first_byte, PacketHeaderFormat* format,
     bool* version_present, QuicVersionLabel* version_label,
@@ -7053,6 +7023,8 @@ QuicErrorCode QuicFramer::ParsePublicHeader(
   *format = GetIetfPacketHeaderFormat(*first_byte);
 
   if (*format == IETF_QUIC_SHORT_HEADER_PACKET) {
+    // Read destination connection ID using
+    // expected_destination_connection_id_length to determine its length.
     if (!reader->ReadConnectionId(destination_connection_id,
                                   expected_destination_connection_id_length)) {
       *detailed_error = "Unable to read destination connection ID.";

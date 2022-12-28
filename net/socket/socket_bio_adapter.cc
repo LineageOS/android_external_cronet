@@ -12,7 +12,7 @@
 #include "base/check_op.h"
 #include "base/location.h"
 #include "base/notreached.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/socket/socket.h"
@@ -261,7 +261,7 @@ int SocketBIOAdapter::BIOWrite(const char* in, int len) {
   // reentrancy by deferring it to a later event loop iteration.
   if (write_error_ != OK && write_error_ != ERR_IO_PENDING &&
       read_result_ == ERR_IO_PENDING) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&SocketBIOAdapter::CallOnReadReady,
                                   weak_factory_.GetWeakPtr()));
   }

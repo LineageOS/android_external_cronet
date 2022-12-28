@@ -198,6 +198,10 @@ void TestingPrefStore::SetBlockAsyncRead(bool block_async_read) {
     NotifyInitializationCompleted();
 }
 
+void TestingPrefStore::ClearMutableValues() {
+  NOTIMPLEMENTED();
+}
+
 void TestingPrefStore::OnStoreDeletionFromDisk() {}
 
 void TestingPrefStore::set_read_only(bool read_only) {

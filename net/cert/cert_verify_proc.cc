@@ -382,9 +382,9 @@ bool AreSHA1IntermediatesAllowed() {
   }
 
   absl::optional<SignatureAlgorithm> cert_algorithm =
-      ParseSignatureAlgorithm(der::Input(cert_algorithm_sequence));
+      ParseSignatureAlgorithm(der::Input(cert_algorithm_sequence), nullptr);
   absl::optional<SignatureAlgorithm> tbs_algorithm =
-      ParseSignatureAlgorithm(der::Input(tbs_algorithm_sequence));
+      ParseSignatureAlgorithm(der::Input(tbs_algorithm_sequence), nullptr);
   if (!cert_algorithm || !tbs_algorithm || *cert_algorithm != *tbs_algorithm) {
     return false;
   }

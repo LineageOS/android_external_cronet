@@ -21,7 +21,7 @@
 namespace quiche {
 
 // A class representing a non-reentrant mutex in QUIC.
-class QUICHE_LOCKABLE QUICHE_EXPORT QuicheMutex {
+class QUICHE_LOCKABLE QUICHE_EXPORT_PRIVATE QuicheMutex {
  public:
   QuicheMutex() = default;
   QuicheMutex(const QuicheMutex&) = delete;
@@ -50,7 +50,7 @@ class QUICHE_LOCKABLE QUICHE_EXPORT QuicheMutex {
 
 // A helper class that acquires the given QuicheMutex shared lock while the
 // QuicheReaderMutexLock is in scope.
-class QUICHE_SCOPED_LOCKABLE QUICHE_EXPORT QuicheReaderMutexLock {
+class QUICHE_SCOPED_LOCKABLE QUICHE_EXPORT_PRIVATE QuicheReaderMutexLock {
  public:
   explicit QuicheReaderMutexLock(QuicheMutex* lock)
       QUICHE_SHARED_LOCK_FUNCTION(lock);
@@ -65,7 +65,7 @@ class QUICHE_SCOPED_LOCKABLE QUICHE_EXPORT QuicheReaderMutexLock {
 
 // A helper class that acquires the given QuicheMutex exclusive lock while the
 // QuicheWriterMutexLock is in scope.
-class QUICHE_SCOPED_LOCKABLE QUICHE_EXPORT QuicheWriterMutexLock {
+class QUICHE_SCOPED_LOCKABLE QUICHE_EXPORT_PRIVATE QuicheWriterMutexLock {
  public:
   explicit QuicheWriterMutexLock(QuicheMutex* lock)
       QUICHE_EXCLUSIVE_LOCK_FUNCTION(lock);
@@ -80,7 +80,7 @@ class QUICHE_SCOPED_LOCKABLE QUICHE_EXPORT QuicheWriterMutexLock {
 
 // A Notification allows threads to receive notification of a single occurrence
 // of a single event.
-class QUICHE_EXPORT QuicheNotification {
+class QUICHE_EXPORT_PRIVATE QuicheNotification {
  public:
   QuicheNotification() = default;
   QuicheNotification(const QuicheNotification&) = delete;

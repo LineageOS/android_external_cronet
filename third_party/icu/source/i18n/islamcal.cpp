@@ -67,7 +67,7 @@ static UBool calendar_islamic_cleanup(void) {
         delete gIslamicCalendarAstro;
         gIslamicCalendarAstro = NULL;
     }
-    return true;
+    return TRUE;
 }
 U_CDECL_END
 
@@ -697,12 +697,12 @@ IslamicCalendar::inDaylightTime(UErrorCode& status) const
 {
     // copied from GregorianCalendar
     if (U_FAILURE(status) || !getTimeZone().useDaylightTime()) 
-        return false;
+        return FALSE;
 
     // Force an update of the state of the Calendar.
     ((IslamicCalendar*)this)->complete(status); // cast away const
 
-    return (UBool)(U_SUCCESS(status) ? (internalGet(UCAL_DST_OFFSET) != 0) : false);
+    return (UBool)(U_SUCCESS(status) ? (internalGet(UCAL_DST_OFFSET) != 0) : FALSE);
 }
 
 /**
@@ -717,7 +717,7 @@ static icu::UInitOnce  gSystemDefaultCenturyInit        {};
 
 UBool IslamicCalendar::haveDefaultCentury() const
 {
-    return true;
+    return TRUE;
 }
 
 UDate IslamicCalendar::defaultCenturyStart() const

@@ -9,6 +9,7 @@
 
 #include "base/base_export.h"
 #include "base/memory/scoped_refptr.h"
+#include "base/threading/thread_id_name_manager.h"
 #include "base/threading/thread_local_storage.h"
 
 namespace base {
@@ -16,7 +17,8 @@ class DeferredSequencedTaskRunner;
 
 namespace tracing {
 
-class BASE_EXPORT PerfettoPlatform : public perfetto::Platform {
+class BASE_EXPORT PerfettoPlatform : public perfetto::Platform,
+                                     ThreadIdNameManager::Observer {
  public:
   // Specifies the type of task runner used by Perfetto.
   // TODO(skyostil): Move all scenarios to use the default task runner to
@@ -41,6 +43,9 @@ class BASE_EXPORT PerfettoPlatform : public perfetto::Platform {
   std::unique_ptr<perfetto::base::TaskRunner> CreateTaskRunner(
       const CreateTaskRunnerArgs&) override;
   std::string GetCurrentProcessName() override;
+
+  // ThreadIdNameManager::Observer implementation.
+  void OnThreadNameChanged(const char* name) override;
 
  private:
   const TaskRunnerType task_runner_type_;

@@ -25,7 +25,7 @@ namespace quiche {
 // 4. Handles BoringSSL HPKE context setup and bookkeeping.
 
 // This class is immutable (except moves) and thus trivially thread-safe.
-class QUICHE_EXPORT ObliviousHttpClient {
+class QUICHE_EXPORT_PRIVATE ObliviousHttpClient {
  public:
   static absl::StatusOr<ObliviousHttpClient> Create(
       absl::string_view hpke_public_key,
@@ -54,14 +54,14 @@ class QUICHE_EXPORT ObliviousHttpClient {
   //   auto encrypted_request2 =
   //    ohttp_client_object.CreateObliviousHttpRequest("binary http string 2");
   absl::StatusOr<ObliviousHttpRequest> CreateObliviousHttpRequest(
-      std::string plaintext_data) const;
+      absl::string_view plaintext_data) const;
 
   // After `CreateObliviousHttpRequest` operation, callers on client-side will
   // extract `oblivious_http_request_context` from the returned object
   // `ObliviousHttpRequest` and pass in to this method in order to decrypt the
   // response that's received from Gateway for the given request at hand.
   absl::StatusOr<ObliviousHttpResponse> DecryptObliviousHttpResponse(
-      std::string encrypted_data,
+      absl::string_view encrypted_data,
       ObliviousHttpRequest::Context& oblivious_http_request_context) const;
 
  private:

@@ -16,7 +16,6 @@
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
-
 #include <shellapi.h>
 #include <shlobj.h>
 #endif

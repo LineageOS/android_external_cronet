@@ -16,12 +16,12 @@ namespace quiche {
 // 2. Handles server side decryption of the payload received in HTTP POST body
 // from Relay.
 // https://www.ietf.org/archive/id/draft-ietf-ohai-ohttp-03.html#name-encapsulation-of-requests
-class QUICHE_EXPORT ObliviousHttpRequest {
+class QUICHE_EXPORT_PRIVATE ObliviousHttpRequest {
  public:
   // Holds the HPKE related data received from request. This context is created
   // during request processing, and subsequently passed into response handling
   // in `ObliviousHttpResponse`.
-  class QUICHE_EXPORT Context {
+  class Context {
    public:
     ~Context() = default;
 
@@ -60,12 +60,12 @@ class QUICHE_EXPORT ObliviousHttpRequest {
   // On success, returns obj that callers will use to `EncapsulateAndSerialize`
   // OHttp request.
   static absl::StatusOr<ObliviousHttpRequest> CreateClientObliviousRequest(
-      std::string plaintext_payload, absl::string_view hpke_public_key,
+      absl::string_view plaintext_payload, absl::string_view hpke_public_key,
       const ObliviousHttpHeaderKeyConfig& ohttp_key_config);
 
   // Same as above but accepts a random number seed for testing.
   static absl::StatusOr<ObliviousHttpRequest> CreateClientWithSeedForTesting(
-      std::string plaintext_payload, absl::string_view hpke_public_key,
+      absl::string_view plaintext_payload, absl::string_view hpke_public_key,
       const ObliviousHttpHeaderKeyConfig& ohttp_key_config,
       absl::string_view seed);
 
@@ -104,7 +104,7 @@ class QUICHE_EXPORT ObliviousHttpRequest {
       std::string req_ciphertext, std::string req_plaintext);
 
   static absl::StatusOr<ObliviousHttpRequest> EncapsulateWithSeed(
-      std::string plaintext_payload, absl::string_view hpke_public_key,
+      absl::string_view plaintext_payload, absl::string_view hpke_public_key,
       const ObliviousHttpHeaderKeyConfig& ohttp_key_config,
       absl::string_view seed);
 

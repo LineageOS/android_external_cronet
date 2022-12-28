@@ -14,10 +14,9 @@
 #include "base/rand_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/synchronization/lock.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "net/base/auth.h"
-#include "net/base/io_buffer.h"
 #include "net/base/load_flags.h"
 #include "net/base/load_timing_info.h"
 #include "net/base/net_errors.h"
@@ -46,6 +45,9 @@
 #include "net/url_request/url_request_redirect_job.h"
 #include "url/gurl.h"
 #include "url/origin.h"
+
+using base::Time;
+using std::string;
 
 namespace net {
 
@@ -222,8 +224,8 @@ bool URLRequest::has_upload() const {
   return upload_data_stream_.get() != nullptr;
 }
 
-void URLRequest::SetExtraRequestHeaderByName(base::StringPiece name,
-                                             base::StringPiece value,
+void URLRequest::SetExtraRequestHeaderByName(const string& name,
+                                             const string& value,
                                              bool overwrite) {
   DCHECK(!is_pending_ || is_redirecting_);
   if (overwrite) {
@@ -233,7 +235,7 @@ void URLRequest::SetExtraRequestHeaderByName(base::StringPiece name,
   }
 }
 
-void URLRequest::RemoveRequestHeaderByName(base::StringPiece name) {
+void URLRequest::RemoveRequestHeaderByName(const string& name) {
   DCHECK(!is_pending_ || is_redirecting_);
   extra_request_headers_.RemoveHeader(name);
 }
@@ -316,8 +318,9 @@ base::Value URLRequest::GetStateAsValue() const {
   return base::Value(std::move(dict));
 }
 
-void URLRequest::LogBlockedBy(base::StringPiece blocked_by) {
-  DCHECK(!blocked_by.empty());
+void URLRequest::LogBlockedBy(const char* blocked_by) {
+  DCHECK(blocked_by);
+  DCHECK_GT(strlen(blocked_by), 0u);
 
   // Only log information to NetLog during startup and certain deferring calls
   // to delegates.  For all reads but the first, do nothing.
@@ -325,14 +328,14 @@ void URLRequest::LogBlockedBy(base::StringPiece blocked_by) {
     return;
 
   LogUnblocked();
-  blocked_by_ = std::string(blocked_by);
+  blocked_by_ = blocked_by;
   use_blocked_by_as_load_param_ = false;
 
   net_log_.BeginEventWithStringParams(NetLogEventType::DELEGATE_INFO,
                                       "delegate_blocked_by", blocked_by_);
 }
 
-void URLRequest::LogAndReportBlockedBy(base::StringPiece source) {
+void URLRequest::LogAndReportBlockedBy(const char* source) {
   LogBlockedBy(source);
   use_blocked_by_as_load_param_ = true;
 }
@@ -364,8 +367,8 @@ UploadProgress URLRequest::GetUploadProgress() const {
   return UploadProgress();
 }
 
-void URLRequest::GetResponseHeaderByName(base::StringPiece name,
-                                         std::string* value) const {
+void URLRequest::GetResponseHeaderByName(const string& name,
+                                         string* value) const {
   DCHECK(value);
   if (response_info_.headers.get()) {
     response_info_.headers->GetNormalizedHeader(name, value);
@@ -405,12 +408,12 @@ bool URLRequest::GetTransactionRemoteEndpoint(IPEndPoint* endpoint) const {
   return job_->GetTransactionRemoteEndpoint(endpoint);
 }
 
-void URLRequest::GetMimeType(std::string* mime_type) const {
+void URLRequest::GetMimeType(string* mime_type) const {
   DCHECK(job_.get());
   job_->GetMimeType(mime_type);
 }
 
-void URLRequest::GetCharset(std::string* charset) const {
+void URLRequest::GetCharset(string* charset) const {
   DCHECK(job_.get());
   job_->GetCharset(charset);
 }
@@ -496,9 +499,9 @@ void URLRequest::set_initiator(const absl::optional<url::Origin>& initiator) {
   initiator_ = initiator;
 }
 
-void URLRequest::set_method(base::StringPiece method) {
+void URLRequest::set_method(const std::string& method) {
   DCHECK(!is_pending_);
-  method_ = std::string(method);
+  method_ = method;
 }
 
 #if BUILDFLAG(ENABLE_REPORTING)
@@ -508,13 +511,13 @@ void URLRequest::set_reporting_upload_depth(int reporting_upload_depth) {
 }
 #endif
 
-void URLRequest::SetReferrer(base::StringPiece referrer) {
+void URLRequest::SetReferrer(const std::string& referrer) {
   DCHECK(!is_pending_);
   GURL referrer_url(referrer);
   if (referrer_url.is_valid()) {
     referrer_ = referrer_url.GetAsReferrer().spec();
   } else {
-    referrer_ = std::string(referrer);
+    referrer_ = referrer;
   }
 }
 
@@ -592,7 +595,7 @@ URLRequest::URLRequest(const GURL& url,
       creation_time_(base::TimeTicks::Now()),
       traffic_annotation_(traffic_annotation) {
   // Sanity check out environment.
-  DCHECK(base::SingleThreadTaskRunner::HasCurrentDefault());
+  DCHECK(base::ThreadTaskRunnerHandle::IsSet());
 
   context->url_requests()->insert(this);
   net_log_.BeginEvent(NetLogEventType::REQUEST_ALIVE, [&] {
@@ -660,6 +663,7 @@ void URLRequest::StartJob(std::unique_ptr<URLRequestJob> job) {
 
   maybe_sent_cookies_.clear();
   maybe_stored_cookies_.clear();
+  has_partitioned_cookie_ = false;
 
   GURL referrer_url(referrer_);
   bool same_origin_for_metrics;
@@ -778,9 +782,6 @@ int URLRequest::Read(IOBuffer* dest, int dest_size) {
     return OK;
   }
 
-  // Caller should provide a buffer.
-  DCHECK(dest && dest->data());
-
   int rv = job_->Read(dest, dest_size);
   if (rv == ERR_IO_PENDING) {
     set_status(ERR_IO_PENDING);
@@ -867,6 +868,7 @@ void URLRequest::FollowDeferredRedirect(
 
   maybe_sent_cookies_.clear();
   maybe_stored_cookies_.clear();
+  has_partitioned_cookie_ = false;
 
   status_ = ERR_IO_PENDING;
   job_->FollowDeferredRedirect(removed_headers, modified_headers);
@@ -878,6 +880,7 @@ void URLRequest::SetAuth(const AuthCredentials& credentials) {
 
   maybe_sent_cookies_.clear();
   maybe_stored_cookies_.clear();
+  has_partitioned_cookie_ = false;
 
   status_ = ERR_IO_PENDING;
   job_->SetAuth(credentials);

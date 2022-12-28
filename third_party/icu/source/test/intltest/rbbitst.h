@@ -95,7 +95,6 @@ public:
     void TestBug13590();
     void TestLSTMThai();
     void TestLSTMBurmese();
-    void TestRandomAccess();
 
 #if U_ENABLE_TRACING
     void TestTraceCreateCharacter();
@@ -143,7 +142,7 @@ private:
      *  Unicode boundary specifications.
      *  @param testCase the test data string.
      *  @param fileName the Unicode test data file name.
-     *  @return false if the test case should be run, true if it should be skipped.
+     *  @return FALSE if the test case should be run, TRUE if it should be skipped.
      */
     UBool testCaseIsKnownIssue(const UnicodeString &testCase, const char *fileName);
 

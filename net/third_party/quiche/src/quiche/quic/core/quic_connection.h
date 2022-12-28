@@ -1167,6 +1167,10 @@ class QUIC_EXPORT_PRIVATE QuicConnection
 
   virtual void OnUserAgentIdKnown(const std::string& user_agent_id);
 
+  // Enables Legacy Version Encapsulation using |server_name| as SNI.
+  // Can only be set if this is a client connection.
+  void EnableLegacyVersionEncapsulation(const std::string& server_name);
+
   // If now is close to idle timeout, returns true and sends a connectivity
   // probing packet to test the connection for liveness. Otherwise, returns
   // false.
@@ -1263,8 +1267,6 @@ class QUIC_EXPORT_PRIVATE QuicConnection
     context_.bug_listener.swap(bug_listener);
   }
 
-  bool in_probe_time_out() const { return in_probe_time_out_; }
-
   // Ensures the network blackhole delay is longer than path degrading delay.
   static QuicTime::Delta CalculateNetworkBlackholeDelay(
       QuicTime::Delta blackhole_delay, QuicTime::Delta path_degrading_delay,
@@ -1284,7 +1286,7 @@ class QUIC_EXPORT_PRIVATE QuicConnection
   void StartEffectivePeerMigration(AddressChangeType type);
 
   // Called when a effective peer address migration is validated.
-  virtual void OnEffectivePeerMigrationValidated(bool is_migration_linkable);
+  virtual void OnEffectivePeerMigrationValidated();
 
   // Get the effective peer address from the packet being processed. For proxied
   // connections, effective peer address is the address of the endpoint behind
@@ -1539,7 +1541,7 @@ class QUIC_EXPORT_PRIVATE QuicConnection
     QuicConnection* connection_;
   };
 
-  // A class which sets and clears in_probe_time_out_ when entering
+  // A class which sets and clears in_on_retransmission_time_out_ when entering
   // and exiting OnRetransmissionTimeout, respectively.
   class QUIC_EXPORT_PRIVATE ScopedRetransmissionTimeoutIndicator {
    public:
@@ -1635,6 +1637,9 @@ class QUIC_EXPORT_PRIVATE QuicConnection
   // Returns nullptr if the frame is valid or an error string if it was invalid.
   const char* ValidateStopWaitingFrame(
       const QuicStopWaitingFrame& stop_waiting);
+
+  // Sends a version negotiation packet to the peer.
+  void SendVersionNegotiationPacket(bool ietf_quic, bool has_length_prefix);
 
   // Clears any accumulated frames from the last received packet.
   void ClearLastFrames();
@@ -1817,6 +1822,13 @@ class QUIC_EXPORT_PRIVATE QuicConnection
   // Returns string which contains undecryptable packets information.
   std::string UndecryptablePacketsInfo() const;
 
+  // Sets the max packet length on the packet creator if needed.
+  void MaybeUpdatePacketCreatorMaxPacketLengthAndPadding();
+
+  // Sets internal state to enable or disable Legacy Version Encapsulation.
+  void MaybeActivateLegacyVersionEncapsulation();
+  void MaybeDisactivateLegacyVersionEncapsulation();
+
   // For Google Quic, if the current packet is connectivity probing packet, call
   // session OnPacketReceived() which eventually sends connectivity probing
   // response on server side. And no-op on client side. And for both Google Quic
@@ -1883,7 +1895,7 @@ class QUIC_EXPORT_PRIVATE QuicConnection
   // Return true if framer should continue processing the packet.
   bool OnPathChallengeFrameInternal(const QuicPathChallengeFrame& frame);
 
-  std::unique_ptr<QuicSelfIssuedConnectionIdManager>
+  virtual std::unique_ptr<QuicSelfIssuedConnectionIdManager>
   MakeSelfIssuedConnectionIdManager();
 
   // Called on peer IP change or restoring to previous address to reset
@@ -2211,6 +2223,13 @@ class QUIC_EXPORT_PRIVATE QuicConnection
   const bool default_enable_5rto_blackhole_detection_ =
       GetQuicReloadableFlag(quic_default_enable_5rto_blackhole_detection2);
 
+  // Whether the Legacy Version Encapsulation feature is enabled.
+  bool legacy_version_encapsulation_enabled_ = false;
+  // Whether we are in the middle of sending a packet using Legacy Version
+  // Encapsulation.
+  bool legacy_version_encapsulation_in_progress_ = false;
+  // SNI to send when using Legacy Version Encapsulation.
+  std::string legacy_version_encapsulation_sni_;
   // True if next packet is intended to consume remaining space in the
   // coalescer.
   bool fill_coalesced_packet_ = false;
@@ -2243,7 +2262,7 @@ class QUIC_EXPORT_PRIVATE QuicConnection
   bool have_decrypted_first_one_rtt_packet_ = false;
 
   // True if we are currently processing OnRetransmissionTimeout.
-  bool in_probe_time_out_ = false;
+  bool in_on_retransmission_time_out_ = false;
 
   QuicPathValidator path_validator_;
 

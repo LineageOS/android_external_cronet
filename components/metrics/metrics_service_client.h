@@ -156,6 +156,10 @@ class MetricsServiceClient {
   // See //components/ukm/observers/ukm_consent_state_observer.h for details.
   virtual bool IsUkmAllowedForAllProfiles();
 
+  // Returns true iff UKM is allowed to capture extensions for all profiles.
+  // See //components/ukm/observers/ukm_consent_state_observer.h for details.
+  virtual bool IsUkmAllowedWithExtensionsForAllProfiles();
+
   // Returns whether UKM notification listeners were attached to all profiles.
   virtual bool AreNotificationListenersEnabledOnAllProfiles();
 

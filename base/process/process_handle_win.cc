@@ -5,7 +5,6 @@
 #include "base/process/process_handle.h"
 
 #include <windows.h>
-
 #include <tlhelp32.h>
 
 #include <ostream>

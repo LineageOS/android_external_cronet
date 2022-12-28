@@ -18,8 +18,6 @@ import org.robolectric.shadows.ShadowLooper;
 import org.chromium.base.Promise.UnhandledRejectionException;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 
-import java.util.function.Function;
-
 /** Unit tests for {@link Promise}. */
 @RunWith(BaseRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)

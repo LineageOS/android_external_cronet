@@ -119,13 +119,6 @@ class InotifyReader {
 #else
   using Watch = int;
 #endif
-
-  // Record of watchers tracked for watch descriptors.
-  struct WatcherEntry {
-    scoped_refptr<SequencedTaskRunner> task_runner;
-    WeakPtr<FilePathWatcherImpl> watcher;
-  };
-
   static constexpr Watch kInvalidWatch = static_cast<Watch>(-1);
   static constexpr Watch kWatchLimitExceeded = static_cast<Watch>(-2);
 
@@ -147,6 +140,12 @@ class InotifyReader {
 
  private:
   friend struct LazyInstanceTraitsBase<InotifyReader>;
+
+  // Record of watchers tracked for watch descriptors.
+  struct WatcherEntry {
+    scoped_refptr<SequencedTaskRunner> task_runner;
+    WeakPtr<FilePathWatcherImpl> watcher;
+  };
 
   InotifyReader();
   // There is no destructor because |g_inotify_reader| is a
@@ -198,8 +197,11 @@ class FilePathWatcherImpl : public FilePathWatcher::PlatformDelegate {
   // would exceed the limit if adding one more.
   bool WouldExceedWatchLimit() const;
 
-  // Returns a WatcherEntry for this, must be called on the original sequence.
-  InotifyReader::WatcherEntry GetWatcherEntry();
+  // Returns the task runner to be used with this.
+  scoped_refptr<SequencedTaskRunner> GetTaskRunner() const;
+
+  // Returns the WeakPtr of this, must be called on the original sequence.
+  WeakPtr<FilePathWatcherImpl> GetWeakPtr() const;
 
  private:
   // Start watching |path| for changes and notify |delegate| on each change.
@@ -363,7 +365,8 @@ InotifyReader::Watch InotifyReader::AddWatch(const FilePath& path,
     return kInvalidWatch;
   const Watch watch = static_cast<Watch>(watch_int);
 
-  watchers_[watch].emplace(std::make_pair(watcher, watcher->GetWatcherEntry()));
+  watchers_[watch].emplace(std::make_pair(
+      watcher, WatcherEntry{watcher->GetTaskRunner(), watcher->GetWeakPtr()}));
 
   return watch;
 }
@@ -554,9 +557,14 @@ bool FilePathWatcherImpl::WouldExceedWatchLimit() const {
   return number_of_inotify_watches >= GetMaxNumberOfInotifyWatches();
 }
 
-InotifyReader::WatcherEntry FilePathWatcherImpl::GetWatcherEntry() {
+scoped_refptr<SequencedTaskRunner> FilePathWatcherImpl::GetTaskRunner() const {
   DCHECK(task_runner()->RunsTasksInCurrentSequence());
-  return {task_runner(), weak_factory_.GetWeakPtr()};
+  return task_runner();
+}
+
+WeakPtr<FilePathWatcherImpl> FilePathWatcherImpl::GetWeakPtr() const {
+  DCHECK(task_runner()->RunsTasksInCurrentSequence());
+  return weak_factory_.GetWeakPtr();
 }
 
 bool FilePathWatcherImpl::Watch(const FilePath& path,

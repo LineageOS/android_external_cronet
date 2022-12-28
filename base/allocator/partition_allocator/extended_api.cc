@@ -87,11 +87,4 @@ void SwapInProcessThreadCacheForTesting(ThreadSafePartitionRoot* root) {
 #endif  // defined(PA_THREAD_CACHE_SUPPORTED)
 }
 
-ThreadAllocStats GetAllocStatsForCurrentThread() {
-  ThreadCache* thread_cache = ThreadCache::Get();
-  if (ThreadCache::IsValid(thread_cache))
-    return thread_cache->thread_alloc_stats();
-  return {};
-}
-
 }  // namespace partition_alloc::internal

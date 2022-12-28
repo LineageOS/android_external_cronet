@@ -117,7 +117,7 @@ int ASN1_get_object(const unsigned char **inp, long *out_len, int *out_tag,
   // signature fields (see b/18228011). Make this only apply to that field,
   // while requiring DER elsewhere. Better yet, it should be limited to an
   // preprocessing step in that part of Android.
-  CBS_ASN1_TAG tag;
+  unsigned tag;
   size_t header_len;
   int indefinite;
   CBS cbs, body;
@@ -271,27 +271,19 @@ ASN1_STRING *ASN1_STRING_dup(const ASN1_STRING *str) {
   return ret;
 }
 
-int ASN1_STRING_set(ASN1_STRING *str, const void *_data, ossl_ssize_t len_s) {
+int ASN1_STRING_set(ASN1_STRING *str, const void *_data, int len) {
+  unsigned char *c;
   const char *data = _data;
-  size_t len;
-  if (len_s < 0) {
+
+  if (len < 0) {
     if (data == NULL) {
       return 0;
+    } else {
+      len = strlen(data);
     }
-    len = strlen(data);
-  } else {
-    len = (size_t)len_s;
   }
-
-  // |ASN1_STRING| cannot represent strings that exceed |int|, and we must
-  // reserve space for a trailing NUL below.
-  if (len > INT_MAX || len + 1 < len) {
-    OPENSSL_PUT_ERROR(ASN1, ERR_R_OVERFLOW);
-    return 0;
-  }
-
-  if (str->length <= (int)len || str->data == NULL) {
-    unsigned char *c = str->data;
+  if ((str->length <= len) || (str->data == NULL)) {
+    c = str->data;
     if (c == NULL) {
       str->data = OPENSSL_malloc(len + 1);
     } else {
@@ -304,13 +296,10 @@ int ASN1_STRING_set(ASN1_STRING *str, const void *_data, ossl_ssize_t len_s) {
       return 0;
     }
   }
-  str->length = (int)len;
+  str->length = len;
   if (data != NULL) {
     OPENSSL_memcpy(str->data, data, len);
-    // Historically, OpenSSL would NUL-terminate most (but not all)
-    // |ASN1_STRING|s, in case anyone accidentally passed |str->data| into a
-    // function expecting a C string. We retain this behavior for compatibility,
-    // but code must not rely on this. See CVE-2021-3712.
+    // an allowance for strings :-)
     str->data[len] = '\0';
   }
   return 1;

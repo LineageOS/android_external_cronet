@@ -15,13 +15,6 @@
 #ifndef _LIBCPP_SUPPORT_XLOCALE_STRTONUM_FALLBACK_H
 #define _LIBCPP_SUPPORT_XLOCALE_STRTONUM_FALLBACK_H
 
-#include <__config>
-#include <stdlib.h>
-
-#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
-#  include <wchar.h>
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -51,7 +44,6 @@ strtoull_l(const char *__nptr, char **__endptr, int __base, locale_t) {
   return ::strtoull(__nptr, __endptr, __base);
 }
 
-#ifndef _LIBCPP_HAS_NO_WIDE_CHARACTERS
 inline _LIBCPP_HIDE_FROM_ABI long long
 wcstoll_l(const wchar_t *__nptr, wchar_t **__endptr, int __base, locale_t) {
   return ::wcstoll(__nptr, __endptr, __base);
@@ -66,7 +58,6 @@ inline _LIBCPP_HIDE_FROM_ABI long double
 wcstold_l(const wchar_t *__nptr, wchar_t **__endptr, locale_t) {
   return ::wcstold(__nptr, __endptr);
 }
-#endif // _LIBCPP_HAS_NO_WIDE_CHARACTERS
 
 #ifdef __cplusplus
 }

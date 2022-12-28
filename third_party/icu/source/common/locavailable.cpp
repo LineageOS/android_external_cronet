@@ -54,7 +54,7 @@ static UBool U_CALLCONV locale_available_cleanup(void)
     availableLocaleListCount = 0;
     gInitOnceLocale.reset();
 
-    return true;
+    return TRUE;
 }
 
 U_CDECL_END
@@ -203,7 +203,7 @@ static UBool U_CALLCONV uloc_cleanup(void) {
         gAvailableLocaleCounts[i] = 0;
     }
     ginstalledLocalesInitOnce.reset();
-    return true;
+    return TRUE;
 }
 
 // Load Installed Locales. This function will be called exactly once

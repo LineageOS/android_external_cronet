@@ -40,14 +40,6 @@ void ExpectDictStringValue(StringPiece expected_value,
       << path;
 }
 
-void ExpectDictValue(const Value::Dict& expected_value,
-                     const Value::Dict& dict,
-                     StringPiece path) {
-  const Value* found_value = dict.FindByDottedPath(path);
-  ASSERT_TRUE(found_value) << path;
-  EXPECT_EQ(*found_value, expected_value) << path;
-}
-
 void ExpectDictValue(const Value& expected_value,
                      const Value::Dict& dict,
                      StringPiece path) {
@@ -278,6 +270,10 @@ Value::List ParseJsonList(StringPiece json) {
   absl::optional<Value> result =
       ParseJsonHelper(json, /*expected_type=*/Value::Type::LIST);
   return result.has_value() ? std::move(*result).TakeList() : Value::List();
+}
+
+std::unique_ptr<Value> ParseJsonDeprecated(StringPiece json) {
+  return Value::ToUniquePtrValue(ParseJson(json));
 }
 
 }  // namespace test

@@ -9,7 +9,6 @@
 #include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/test/task_environment.h"
 #include "base/time/time.h"
@@ -196,6 +195,32 @@ class CertVerifyProcBuiltinTest : public ::testing::Test {
 
   base::test::TaskEnvironment& task_environment() { return task_environment_; }
 
+  void CreateChain(std::unique_ptr<CertBuilder>* out_leaf,
+                   std::unique_ptr<CertBuilder>* out_root) {
+    CertBuilder::CreateSimpleChain(out_leaf, out_root);
+    ASSERT_TRUE(*out_leaf && *out_root);
+    // This test uses MOCK_TIME, so need to set the cert validity dates based
+    // on whatever the mock time happens to start at.
+    base::Time not_before = base::Time::Now() - base::Days(1);
+    base::Time not_after = base::Time::Now() + base::Days(10);
+    (*out_leaf)->SetValidity(not_before, not_after);
+    (*out_root)->SetValidity(not_before, not_after);
+  }
+
+  void CreateChain(std::unique_ptr<CertBuilder>* out_leaf,
+                   std::unique_ptr<CertBuilder>* out_intermediate,
+                   std::unique_ptr<CertBuilder>* out_root) {
+    CertBuilder::CreateSimpleChain(out_leaf, out_intermediate, out_root);
+    ASSERT_TRUE(*out_leaf && *out_intermediate && *out_root);
+    // This test uses MOCK_TIME, so need to set the cert validity dates based
+    // on whatever the mock time happens to start at.
+    base::Time not_before = base::Time::Now() - base::Days(1);
+    base::Time not_after = base::Time::Now() + base::Days(10);
+    (*out_leaf)->SetValidity(not_before, not_after);
+    (*out_intermediate)->SetValidity(not_before, not_after);
+    (*out_root)->SetValidity(not_before, not_after);
+  }
+
   // Creates a CRL issued and signed by |crl_issuer|, marking |revoked_serials|
   // as revoked, and registers it to be served by the test server.
   // Returns the full URL to retrieve the CRL from the test server.
@@ -236,7 +261,9 @@ class CertVerifyProcBuiltinTest : public ::testing::Test {
 };
 
 TEST_F(CertVerifyProcBuiltinTest, SimpleSuccess) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
 
   scoped_refptr<X509Certificate> chain = leaf->GetX509CertificateChain();
   ASSERT_TRUE(chain.get());
@@ -253,7 +280,9 @@ TEST_F(CertVerifyProcBuiltinTest, SimpleSuccess) {
 }
 
 TEST_F(CertVerifyProcBuiltinTest, CRLNotCheckedForKnownRoots) {
-  auto [leaf, root] = CertBuilder::CreateSimpleChain2();
+  std::unique_ptr<CertBuilder> leaf, root;
+  CreateChain(&leaf, &root);
+  ASSERT_TRUE(leaf && root);
 
   EmbeddedTestServer test_server(EmbeddedTestServer::TYPE_HTTP);
   ASSERT_TRUE(test_server.InitializeAndListen());
@@ -303,7 +332,9 @@ TEST_F(CertVerifyProcBuiltinTest, CRLNotCheckedForKnownRoots) {
 // Tests that if the verification deadline is exceeded during revocation
 // checking, additional CRL fetches will not be attempted.
 TEST_F(CertVerifyProcBuiltinTest, RevocationCheckDeadlineCRL) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
 
   const base::TimeDelta timeout_increment =
       CertNetFetcherURLRequest::GetDefaultTimeoutForTesting() +
@@ -337,7 +368,7 @@ TEST_F(CertVerifyProcBuiltinTest, RevocationCheckDeadlineCRL) {
         &test_server::HandlePrefixedRequest, path,
         base::BindRepeating(FailRequestAndFailTest,
                             "additional request made after deadline exceeded",
-                            base::SequencedTaskRunner::GetCurrentDefault())));
+                            base::SequencedTaskRunnerHandle::Get())));
   }
   leaf->SetCrlDistributionPointUrls(crl_urls);
 
@@ -374,7 +405,9 @@ TEST_F(CertVerifyProcBuiltinTest, RevocationCheckDeadlineCRL) {
 // Tests that if the verification deadline is exceeded during revocation
 // checking, additional OCSP fetches will not be attempted.
 TEST_F(CertVerifyProcBuiltinTest, RevocationCheckDeadlineOCSP) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
 
   const base::TimeDelta timeout_increment =
       CertNetFetcherURLRequest::GetDefaultTimeoutForTesting() +
@@ -408,7 +441,7 @@ TEST_F(CertVerifyProcBuiltinTest, RevocationCheckDeadlineOCSP) {
         &test_server::HandlePrefixedRequest, path,
         base::BindRepeating(FailRequestAndFailTest,
                             "additional request made after deadline exceeded",
-                            base::SequencedTaskRunner::GetCurrentDefault())));
+                            base::SequencedTaskRunnerHandle::Get())));
   }
   leaf->SetCaIssuersAndOCSPUrls({}, ocsp_urls);
 
@@ -446,7 +479,9 @@ TEST_F(CertVerifyProcBuiltinTest, RevocationCheckDeadlineOCSP) {
 // Tests that if we're doing EV verification, that no OCSP revocation checking
 // is done.
 TEST_F(CertVerifyProcBuiltinTest, EVNoOCSPRevocationChecks) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
 
   // Add test EV policy to leaf and intermediate.
   static const char kEVTestCertPolicy[] = "1.2.3.4";
@@ -465,7 +500,7 @@ TEST_F(CertVerifyProcBuiltinTest, EVNoOCSPRevocationChecks) {
       &test_server::HandlePrefixedRequest, path,
       base::BindRepeating(FailRequestAndFailTest,
                           "no OCSP requests should be sent",
-                          base::SequencedTaskRunner::GetCurrentDefault())));
+                          base::SequencedTaskRunnerHandle::Get())));
   intermediate->SetCaIssuersAndOCSPUrls({}, ocsp_urls);
   test_server.StartAcceptingConnections();
 
@@ -523,7 +558,9 @@ TEST_F(CertVerifyProcBuiltinTest, EVNoOCSPRevocationChecks) {
 #endif  // defined(PLATFORM_USES_CHROMIUM_EV_METADATA)
 
 TEST_F(CertVerifyProcBuiltinTest, DeadlineExceededDuringSyncGetIssuers) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
 
   BlockingTrustStore trust_store;
   AddTrustStore(&trust_store);
@@ -568,7 +605,9 @@ TEST_F(CertVerifyProcBuiltinTest, DeadlineExceededDuringSyncGetIssuers) {
 }
 
 TEST_F(CertVerifyProcBuiltinTest, DebugData) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
 
   scoped_refptr<X509Certificate> chain = leaf->GetX509CertificateChain();
   ASSERT_TRUE(chain.get());
@@ -634,7 +673,9 @@ std::string InvalidSignatureAlgorithmTLV() {
 }  // namespace
 
 TEST_F(CertVerifyProcBuiltinTest, UnknownSignatureAlgorithmTarget) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
   leaf->SetSignatureAlgorithmTLV(UnknownSignatureAlgorithmTLV());
 
   // Trust the root and build a chain to verify that includes the intermediate.
@@ -657,7 +698,9 @@ TEST_F(CertVerifyProcBuiltinTest, UnknownSignatureAlgorithmTarget) {
 
 TEST_F(CertVerifyProcBuiltinTest,
        UnparsableMismatchedTBSSignatureAlgorithmTarget) {
-  auto [leaf, root] = CertBuilder::CreateSimpleChain2();
+  std::unique_ptr<CertBuilder> leaf, root;
+  CreateChain(&leaf, &root);
+  ASSERT_TRUE(leaf && root);
   // Set only the tbsCertificate signature to an invalid value.
   leaf->SetTBSSignatureAlgorithmTLV(InvalidSignatureAlgorithmTLV());
 
@@ -680,7 +723,9 @@ TEST_F(CertVerifyProcBuiltinTest,
 }
 
 TEST_F(CertVerifyProcBuiltinTest, UnknownSignatureAlgorithmIntermediate) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
   intermediate->SetSignatureAlgorithmTLV(UnknownSignatureAlgorithmTLV());
 
   // Trust the root and build a chain to verify that includes the intermediate.
@@ -703,7 +748,9 @@ TEST_F(CertVerifyProcBuiltinTest, UnknownSignatureAlgorithmIntermediate) {
 
 TEST_F(CertVerifyProcBuiltinTest,
        UnparsableMismatchedTBSSignatureAlgorithmIntermediate) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
   // Set only the tbsCertificate signature to an invalid value.
   intermediate->SetTBSSignatureAlgorithmTLV(InvalidSignatureAlgorithmTLV());
 
@@ -727,7 +774,9 @@ TEST_F(CertVerifyProcBuiltinTest,
 }
 
 TEST_F(CertVerifyProcBuiltinTest, UnknownSignatureAlgorithmRoot) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
   root->SetSignatureAlgorithmTLV(UnknownSignatureAlgorithmTLV());
 
   // Trust the root and build a chain to verify that includes the intermediate.
@@ -760,7 +809,9 @@ TEST_F(CertVerifyProcBuiltinTest, UnknownSignatureAlgorithmRoot) {
 #endif
 TEST_F(CertVerifyProcBuiltinTest,
        MAYBE_UnparsableMismatchedTBSSignatureAlgorithmRoot) {
-  auto [leaf, intermediate, root] = CertBuilder::CreateSimpleChain3();
+  std::unique_ptr<CertBuilder> leaf, intermediate, root;
+  CreateChain(&leaf, &intermediate, &root);
+  ASSERT_TRUE(leaf && intermediate && root);
   // Set only the tbsCertificate signature to an invalid value.
   root->SetTBSSignatureAlgorithmTLV(InvalidSignatureAlgorithmTLV());
 

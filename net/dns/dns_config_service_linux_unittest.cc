@@ -26,6 +26,7 @@
 #include "base/test/metrics/histogram_tester.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_waitable_event.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/ip_address.h"
 #include "net/base/test_completion_callback.h"
 #include "net/dns/dns_config.h"
@@ -222,7 +223,7 @@ class BlockingHelper {
   base::TestWaitableEvent block_event_;
   base::TestWaitableEvent blocker_event_;
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_ =
-      base::SingleThreadTaskRunner::GetCurrentDefault();
+      base::ThreadTaskRunnerHandle::Get();
 };
 
 class TestScopedResState : public ScopedResState {

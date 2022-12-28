@@ -5,9 +5,6 @@
  * Copyright (c) 1999-2013, International Business Machines Corporation and
  * others. All Rights Reserved.
  ********************************************************************/
-
-#include <stdbool.h>
-
 #include "unicode/utypes.h"
 #include "unicode/ustring.h"
 #include "unicode/ctest.h"
@@ -160,7 +157,7 @@ UBool isEuroAware(UConverter* myConv)
     if (U_FAILURE(err))
     {
       log_err("Failure occurred in ucnv_fromUChars euro roundtrip test\n");
-      return false;
+      return FALSE;
     }
     euroBackSize = ucnv_toUChars(myConv,
             euroBack,
@@ -172,17 +169,17 @@ UBool isEuroAware(UConverter* myConv)
     if (U_FAILURE(err))
     {
         log_err("Failure occurred in ucnv_toUChars euro roundtrip test\n");
-        return false;
+        return FALSE;
     }
     if (u_strcmp(euroString, euroBack)) 
     {
         /*      log_err("%s FAILED Euro roundtrip\n", myName);*/
-        return false;
+        return FALSE;
     }
     else 
     {
         /*      log_verbose("%s PASSED Euro roundtrip\n", myName);*/
-        return true;
+        return TRUE;
     }
 
 }

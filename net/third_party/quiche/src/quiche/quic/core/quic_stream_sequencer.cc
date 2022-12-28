@@ -297,18 +297,15 @@ bool QuicStreamSequencer::IsAllDataAvailable() const {
   return NumBytesConsumed() + NumBytesBuffered() >= close_offset_;
 }
 
-std::string QuicStreamSequencer::DebugString() const {
+const std::string QuicStreamSequencer::DebugString() const {
   // clang-format off
-  return absl::StrCat(
-      "QuicStreamSequencer:  bytes buffered: ", NumBytesBuffered(),
-      "\n  bytes consumed: ", NumBytesConsumed(),
-      "\n  first missing byte: ", buffered_frames_.FirstMissingByte(),
-      "\n  next expected byte: ", buffered_frames_.NextExpectedByte(),
-      "\n  received frames: ", buffered_frames_.ReceivedFramesDebugString(),
-      "\n  has bytes to read: ", HasBytesToRead() ? "true" : "false",
-      "\n  frames received: ", num_frames_received(),
-      "\n  close offset bytes: ", close_offset_,
-      "\n  is closed: ", IsClosed() ? "true" : "false");
+  return absl::StrCat("QuicStreamSequencer:",
+                "\n  bytes buffered: ", NumBytesBuffered(),
+                "\n  bytes consumed: ", NumBytesConsumed(),
+                "\n  has bytes to read: ", HasBytesToRead() ? "true" : "false",
+                "\n  frames received: ", num_frames_received(),
+                "\n  close offset bytes: ", close_offset_,
+                "\n  is closed: ", IsClosed() ? "true" : "false");
   // clang-format on
 }
 

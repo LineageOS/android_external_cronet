@@ -11,6 +11,7 @@
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/io_buffer.h"
 #include "net/socket/client_socket_handle.h"
 #include "net/socket/socket.h"
@@ -214,7 +215,7 @@ int WebSocketSpdyStreamAdapter::CopySavedReadDataIntoBuffer() {
   // delayed until all buffered data are read.  PostTask so that Read() can
   // return beforehand.
   if (!stream_ && delegate_ && read_data_.IsEmpty()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&WebSocketSpdyStreamAdapter::CallDelegateOnClose,
                        weak_factory_.GetWeakPtr()));

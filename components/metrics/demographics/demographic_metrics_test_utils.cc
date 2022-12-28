@@ -73,9 +73,9 @@ int GetMaximumEligibleBirthYear(const base::Time& now) {
   return exploded_time.year - kEligibleAge - 1;
 }
 
-int GetNoisedBirthYear(const PrefService* local_state, int raw_birth_year) {
+int GetNoisedBirthYear(const PrefService& pref_service, int raw_birth_year) {
   int birth_year_offset =
-      local_state->GetInteger(kUserDemographicsBirthYearOffsetPrefName);
+      pref_service.GetInteger(kSyncDemographicsBirthYearOffsetPrefName);
   return birth_year_offset + raw_birth_year;
 }
 

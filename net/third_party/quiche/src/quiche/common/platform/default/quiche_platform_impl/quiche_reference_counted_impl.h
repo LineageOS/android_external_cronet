@@ -14,7 +14,7 @@
 
 namespace quiche {
 
-class QUICHE_EXPORT QuicheReferenceCountedImpl {
+class QUICHE_EXPORT_PRIVATE QuicheReferenceCountedImpl {
  public:
   virtual ~QuicheReferenceCountedImpl() { QUICHE_DCHECK_EQ(ref_count_, 0); }
 

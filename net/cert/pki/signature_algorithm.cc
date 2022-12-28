@@ -4,6 +4,8 @@
 
 #include "net/cert/pki/signature_algorithm.h"
 
+#include "net/cert/pki/cert_error_params.h"
+#include "net/cert/pki/cert_errors.h"
 #include "net/der/input.h"
 #include "net/der/parse_values.h"
 #include "net/der/parser.h"
@@ -214,15 +216,13 @@ const uint8_t kOidMgf1[] = {0x2a, 0x86, 0x48, 0x86, 0xf7,
 absl::optional<SignatureAlgorithm> ParseRsaPss(const der::Input& params) {
   der::Parser parser(params);
   der::Parser params_parser;
-  if (!parser.ReadSequence(&params_parser)) {
+  if (!parser.ReadSequence(&params_parser))
     return absl::nullopt;
-  }
 
   // There shouldn't be anything after the sequence (by definition the
   // parameters is a single sequence).
-  if (parser.HasMore()) {
+  if (parser.HasMore())
     return absl::nullopt;
-  }
 
   // The default values for hashAlgorithm, maskGenAlgorithm, and saltLength
   // correspond to SHA-1, which we do not support with RSA-PSS, so treat them as
@@ -266,6 +266,8 @@ absl::optional<SignatureAlgorithm> ParseRsaPss(const der::Input& params) {
 
   return absl::nullopt;
 }
+
+DEFINE_CERT_ERROR_ID(kUnknownSignatureAlgorithm, "Unknown signature algorithm");
 
 }  // namespace
 
@@ -325,12 +327,12 @@ absl::optional<SignatureAlgorithm> ParseRsaPss(const der::Input& params) {
 }
 
 absl::optional<SignatureAlgorithm> ParseSignatureAlgorithm(
-    const der::Input& algorithm_identifier) {
+    const der::Input& algorithm_identifier,
+    CertErrors* errors) {
   der::Input oid;
   der::Input params;
-  if (!ParseAlgorithmIdentifier(algorithm_identifier, &oid, &params)) {
+  if (!ParseAlgorithmIdentifier(algorithm_identifier, &oid, &params))
     return absl::nullopt;
-  }
 
   // TODO(eroman): Each OID is tested for equality in order, which is not
   // particularly efficient.
@@ -376,6 +378,10 @@ absl::optional<SignatureAlgorithm> ParseSignatureAlgorithm(
   }
 
   // Unknown signature algorithm.
+  if (errors) {
+    errors->AddError(kUnknownSignatureAlgorithm,
+                     CreateCertErrorParams2Der("oid", oid, "params", params));
+  }
   return absl::nullopt;
 }
 

@@ -153,9 +153,9 @@ void IntlTestDateFormat::tryDate(UDate theDate)
 
     int32_t dateMatch = 0;
     int32_t stringMatch = 0;
-    UBool dump = false;
+    UBool dump = FALSE;
 #if defined (U_CAL_DEBUG)
-    dump = true;
+    dump = TRUE;
 #endif
     int32_t i;
 
@@ -177,8 +177,8 @@ void IntlTestDateFormat::tryDate(UDate theDate)
         {
             describeTest();
             errln("**** FAIL, locale " + UnicodeString(locID,-1,US_INV) +
-                    ": Parse of " + prettify(string[i-1], false) + " failed.");
-            dump = true;
+                    ": Parse of " + prettify(string[i-1], FALSE) + " failed.");
+            dump = TRUE;
             break;
         }
         fFormat->format(date[i], string[i]);
@@ -189,7 +189,7 @@ void IntlTestDateFormat::tryDate(UDate theDate)
             describeTest();
             errln("**** FAIL, locale " + UnicodeString(locID,-1,US_INV) +
                     ": Date mismatch after match for " + string[i]);
-            dump = true;
+            dump = TRUE;
             break;
         }
         if (stringMatch == 0 && string[i] == string[i-1])
@@ -199,7 +199,7 @@ void IntlTestDateFormat::tryDate(UDate theDate)
             describeTest();
             errln("**** FAIL, locale " + UnicodeString(locID,-1,US_INV) +
                     ": String mismatch after match for " + string[i]);
-            dump = true;
+            dump = TRUE;
             break;
         }
         if (dateMatch > 0 && stringMatch > 0)
@@ -213,7 +213,7 @@ void IntlTestDateFormat::tryDate(UDate theDate)
         describeTest();
         errln((UnicodeString)"**** FAIL: No string and/or date match within " + fLimit
             + " iterations for the Date " + string[0] + "\t(" + theDate + ").");
-        dump = true;
+        dump = TRUE;
     }
 
     if (dump)

@@ -116,14 +116,13 @@ class QUIC_EXPORT_PRIVATE Http3DebugVisitor {
   virtual void OnSettingsFrameResumed(const SettingsFrame& /*frame*/) {}
 };
 
-// Whether HTTP Datagrams are supported on this session and if so which version
-// is currently in use.
+// Whether draft-ietf-masque-h3-datagram is supported on this session and if so
+// which draft is currently in use.
 enum class HttpDatagramSupport : uint8_t {
   kNone,  // HTTP Datagrams are not supported for this session.
   kDraft04,
-  kRfc,
-  kRfcAndDraft04,  // Only used locally for sending, we only negotiate one
-                   // version.
+  kDraft09,
+  kDraft04And09,  // Only used locally for sending, we only negotiate one draft.
 };
 
 QUIC_EXPORT_PRIVATE std::string HttpDatagramSupportToString(

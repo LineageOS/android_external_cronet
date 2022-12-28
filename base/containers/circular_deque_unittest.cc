@@ -4,7 +4,6 @@
 
 #include "base/containers/circular_deque.h"
 
-#include "base/memory/raw_ptr.h"
 #include "base/test/copy_only_int.h"
 #include "base/test/move_only_int.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -42,7 +41,7 @@ class DestructorCounter {
   ~DestructorCounter() { ++(*counter_); }
 
  private:
-  raw_ptr<int> counter_;
+  int* counter_;
 };
 
 }  // namespace

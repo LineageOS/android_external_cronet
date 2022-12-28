@@ -17,6 +17,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/sequenced_task_runner_handle.h"
 #include "net/dns/dns_config_service.h"
 
 namespace net {
@@ -28,7 +29,7 @@ namespace {
 class WrappedObserver {
  public:
   explicit WrappedObserver(SystemDnsConfigChangeNotifier::Observer* observer)
-      : task_runner_(base::SequencedTaskRunner::GetCurrentDefault()),
+      : task_runner_(base::SequencedTaskRunnerHandle::Get()),
         observer_(observer) {}
 
   WrappedObserver(const WrappedObserver&) = delete;

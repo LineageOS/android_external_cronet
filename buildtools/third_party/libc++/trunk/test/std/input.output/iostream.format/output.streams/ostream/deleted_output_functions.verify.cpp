@@ -16,7 +16,7 @@
 
 #include "test_macros.h"
 
-void f() {
+int main() {
   std::ostringstream s;
 
 #ifndef TEST_HAS_NO_WIDE_CHARACTERS

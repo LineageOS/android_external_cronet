@@ -12,76 +12,40 @@ if (use_partition_alloc_as_malloc_default) {
 }
 
 declare_args() {
-  # Whether PartitionAlloc should be available for use or not.
-  # true makes PartitionAlloc linked to the executable or shared library and
-  # makes it available for use. It doesn't mean that the default allocator
-  # is PartitionAlloc, which is governed by |use_partition_alloc_as_malloc|.
-  #
-  # N.B. generally, embedders should look at this GN arg and at the
-  # corresponding buildflag to determine whether to interact with PA
-  # source at all (pulling the component in via GN, including headers,
-  # etc.). There is nothing stopping a lazy embedder from ignoring this
-  # and unconditionally using PA, but such a setup is inadvisable.
-  #
-  # In Chromium, this is set false
-  #
-  # 1.  On Cronet bots, because Cronet doesn't use PartitionAlloc at all,
-  #     and doesn't wish to incur the library size increase (crbug.com/674570).
-  # 2.  On NaCl (through this declaration), where PartitionAlloc doesn't
-  #     build at all.
-  use_partition_alloc = !is_nacl
-}
-
-declare_args() {
-  # PartitionAlloc-Everywhere (PA-E).
-  use_partition_alloc_as_malloc =
-      use_partition_alloc && use_partition_alloc_as_malloc_default
+  # Temporarily move |use_allocator| to partition_alloc.gni, because
+  # some bots use |use_allocator|="none" with
+  # |use_partition_alloc_as_malloc_default|=true. This causes PA_CHECK()
+  # failure at PartitionAllocator::init().
+  # TODO(1151236): Replace |use_allocator|="none" and |use_allocator|=
+  # "partition" with |use_partition_alloc_as_malloc|=false and
+  # |use_partition_alloc_as_malloc|=true, and remove |use_allocator| from
+  # args.gn of all trybots. //base/allocator will look at
+  # |use_partition_alloc_as_malloc| and will generate buildflags.
+  # Memory allocator to use. Set to "none" to use default allocator.
+  use_allocator = _default_allocator
 }
 
 declare_args() {
   use_freeslot_bitmap = false
-
-  # Puts the regular and BRP pools right next to each other, so that we can
-  # check "belongs to one of the two pools" with a single bitmask operation.
-  glue_core_pools = false
-
-  # Introduces pointer compression support in PA.
-  enable_pointer_compression_support = false
 }
 
 declare_args() {
-  # Build support for Use-after-Free protection via BackupRefPtr (BRP) or
-  # MTECheckedPtr. To be effective, these need to be paired with raw_ptr<>.
-  #
-  # These are effective only for memory allocated from PartitionAlloc, so it is
-  # recommended to enable PA-E above, but isn't strictly necessary. Embedders
-  # can create and use PA partitions explicitly.
+  # Set use_backup_ref_ptr true to use BackupRefPtr (BRP) as the implementation
+  # of raw_ptr<T>, and enable PartitionAlloc support for it.
   enable_backup_ref_ptr_support =
-      use_partition_alloc && enable_backup_ref_ptr_support_default
+      enable_backup_ref_ptr_support_default && use_allocator == "partition"
+
   enable_mte_checked_ptr_support =
-      use_partition_alloc && enable_mte_checked_ptr_support_default
+      enable_mte_checked_ptr_support_default && use_allocator == "partition"
 }
 
 assert(!(enable_backup_ref_ptr_support && enable_mte_checked_ptr_support),
        "MTECheckedPtrSupport conflicts with BRPSupport.")
 
-assert(!enable_pointer_compression_support || glue_core_pools,
-       "Pointer compression relies on core pools being contiguous.")
-
 declare_args() {
-  # The supported platforms are supposed to match `_is_brp_supported`, but we
-  # enable the feature on Linux early because it's most widely used for security
-  # research
-  use_asan_backup_ref_ptr = is_asan && (is_win || is_android || is_linux)
+  enable_partition_alloc_as_malloc_support =
+      use_partition_alloc_as_malloc_default && use_allocator == "partition"
 }
-
-# BackupRefPtr and AsanBackupRefPtr are mutually exclusive variants of raw_ptr.
-assert(
-    !enable_backup_ref_ptr_support || !use_asan_backup_ref_ptr,
-    "Both BackupRefPtr and AsanBackupRefPtr can't be enabled at the same time")
-
-assert(!use_asan_backup_ref_ptr || is_asan,
-       "AsanBackupRefPtr requires AddressSanitizer")
 
 declare_args() {
   # - put_ref_count_in_previous_slot: place the ref-count at the end of the
@@ -96,41 +60,12 @@ declare_args() {
 
   enable_backup_ref_ptr_slow_checks =
       enable_backup_ref_ptr_slow_checks_default && enable_backup_ref_ptr_support
-
   enable_dangling_raw_ptr_checks =
       enable_dangling_raw_ptr_checks_default && enable_backup_ref_ptr_support
-
-  # Enables the dangling raw_ptr checks feature for the performance experiment.
-  # Not every dangling pointers have been fixed or annotated yet. To avoid
-  # accounting for the cost of calling the PA's embedder's callbacks when a
-  # dangling pointer has been detected, this simulates the raw_ptr to be
-  # allowed to dangle.
-  #
-  # This flag is temporary, and isn't used by PA embedders, so it doesn't need
-  # to go through build_overrides
-  enable_dangling_raw_ptr_perf_experiment = false
 }
 
 declare_args() {
   enable_shadow_metadata = false
-}
-
-# We want to provide assertions that guard against inconsistent build
-# args, but there is no point in having them fire if we're not building
-# PartitionAlloc at all. If `use_partition_alloc` is false, we jam all
-# related args to `false`. The prime example is NaCl, where
-# PartitionAlloc doesn't build at all.
-if (is_nacl) {
-  assert(!use_partition_alloc, "PartitionAlloc doesn't build on NaCl")
-}
-if (!use_partition_alloc) {
-  use_partition_alloc_as_malloc = false
-  enable_backup_ref_ptr_support = false
-  enable_mte_checked_ptr_support = false
-  put_ref_count_in_previous_slot = false
-  enable_backup_ref_ptr_slow_checks = false
-  enable_dangling_raw_ptr_checks = false
-  enable_dangling_raw_ptr_perf_experiment = false
 }
 
 # put_ref_count_in_previous_slot can only be used if
@@ -149,12 +84,6 @@ assert(enable_backup_ref_ptr_support || !enable_backup_ref_ptr_slow_checks,
 assert(
     enable_backup_ref_ptr_support || !enable_dangling_raw_ptr_checks,
     "Can't enable dangling raw_ptr checks if BackupRefPtr isn't enabled at all")
-
-# To run the dangling raw_ptr detector experiment, the underlying feature must
-# be enabled too.
-assert(
-    enable_dangling_raw_ptr_checks || !enable_dangling_raw_ptr_perf_experiment,
-    "Missing dangling pointer checks feature for its performance experiment")
 
 declare_args() {
   enable_pkeys = is_linux && target_cpu == "x64"

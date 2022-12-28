@@ -11,7 +11,6 @@
 #include <utility>
 
 #include "base/gtest_prod_util.h"
-#include "base/memory/raw_ref.h"
 #include "base/time/time.h"
 
 namespace net {
@@ -97,10 +96,12 @@ class ExpiringCache {
   class Iterator {
    public:
     explicit Iterator(const ExpiringCache& cache)
-        : cache_(cache), it_(cache_->entries_.begin()) {}
+        : cache_(cache),
+          it_(cache_.entries_.begin()) {
+    }
     ~Iterator() = default;
 
-    bool HasNext() const { return it_ != cache_->entries_.end(); }
+    bool HasNext() const { return it_ != cache_.entries_.end(); }
     void Advance() { ++it_; }
 
     const KeyType& key() const { return it_->first; }
@@ -108,7 +109,7 @@ class ExpiringCache {
     const ExpirationType& expiration() const { return it_->second.second; }
 
    private:
-    const raw_ref<const ExpiringCache> cache_;
+    const ExpiringCache& cache_;
 
     // Use a second layer of type indirection, as both EntryMap and
     // EntryMap::const_iterator are dependent types.

@@ -47,7 +47,7 @@ namespace test {
 class Http2FrameDecoderPeer;
 }  // namespace test
 
-class QUICHE_EXPORT Http2FrameDecoder {
+class QUICHE_EXPORT_PRIVATE Http2FrameDecoder {
  public:
   explicit Http2FrameDecoder(Http2FrameDecoderListener* listener);
 
@@ -126,7 +126,8 @@ class QUICHE_EXPORT Http2FrameDecoder {
   };
 
   friend class test::Http2FrameDecoderPeer;
-  QUICHE_EXPORT friend std::ostream& operator<<(std::ostream& out, State v);
+  QUICHE_EXPORT_PRIVATE friend std::ostream& operator<<(std::ostream& out,
+                                                        State v);
 
   DecodeStatus StartDecodingPayload(DecodeBuffer* db);
   DecodeStatus ResumeDecodingPayload(DecodeBuffer* db);

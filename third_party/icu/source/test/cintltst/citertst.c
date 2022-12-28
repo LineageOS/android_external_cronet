@@ -39,7 +39,6 @@
 #include "cstring.h"
 #include "ucol_imp.h"
 #include "uparse.h"
-#include <stdbool.h>
 #include <stdio.h>
 
 extern uint8_t ucol_uprv_getCaseBits(const UChar *, uint32_t, UErrorCode *);
@@ -784,7 +783,7 @@ static void TestMaxExpansion()
     UChar32             unassigned = 0xEFFFD;
     UChar               supplementary[2];
     uint32_t            stringOffset = 0;
-    UBool               isError = false;
+    UBool               isError = FALSE;
     uint32_t            sorder = 0;
     UCollationElements *iter   ;/*= ucol_openElements(coll, &ch, 1, &status);*/
     uint32_t            temporder = 0;

@@ -123,11 +123,17 @@
 #   error "__cpp_lib_allocator_traits_is_always_equal should have the value 201411L in c++20"
 # endif
 
-# ifndef __cpp_lib_constexpr_vector
-#   error "__cpp_lib_constexpr_vector should be defined in c++20"
-# endif
-# if __cpp_lib_constexpr_vector != 201907L
-#   error "__cpp_lib_constexpr_vector should have the value 201907L in c++20"
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_constexpr_vector
+#     error "__cpp_lib_constexpr_vector should be defined in c++20"
+#   endif
+#   if __cpp_lib_constexpr_vector != 201907L
+#     error "__cpp_lib_constexpr_vector should have the value 201907L in c++20"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_constexpr_vector
+#     error "__cpp_lib_constexpr_vector should not be defined because it is unimplemented in libc++!"
+#   endif
 # endif
 
 # ifndef __cpp_lib_erase_if
@@ -164,11 +170,17 @@
 #   error "__cpp_lib_allocator_traits_is_always_equal should have the value 201411L in c++2b"
 # endif
 
-# ifndef __cpp_lib_constexpr_vector
-#   error "__cpp_lib_constexpr_vector should be defined in c++2b"
-# endif
-# if __cpp_lib_constexpr_vector != 201907L
-#   error "__cpp_lib_constexpr_vector should have the value 201907L in c++2b"
+# if !defined(_LIBCPP_VERSION)
+#   ifndef __cpp_lib_constexpr_vector
+#     error "__cpp_lib_constexpr_vector should be defined in c++2b"
+#   endif
+#   if __cpp_lib_constexpr_vector != 201907L
+#     error "__cpp_lib_constexpr_vector should have the value 201907L in c++2b"
+#   endif
+# else // _LIBCPP_VERSION
+#   ifdef __cpp_lib_constexpr_vector
+#     error "__cpp_lib_constexpr_vector should not be defined because it is unimplemented in libc++!"
+#   endif
 # endif
 
 # ifndef __cpp_lib_erase_if

@@ -58,10 +58,14 @@ class NET_EXPORT CookiePartitionKey {
                  : CookiePartitionKey(url);
   }
 
-  // Create a partition key from a network isolation key. Partition key is
-  // derived from the key's top-frame site.
+  // Create a cookie partition key from a request's NetworkIsolationKey.
+  //
+  // `first_party_set_owner_site` should be nullptr if the NetworkIsolationKey's
+  // top-frame site is not in  First-Party Set. Otherwise it should be the owner
+  // site of the top-frame site's set.
   static absl::optional<CookiePartitionKey> FromNetworkIsolationKey(
-      const NetworkIsolationKey& network_isolation_key);
+      const NetworkIsolationKey& network_isolation_key,
+      const SchemefulSite* first_party_set_owner_site = nullptr);
 
   // Create a new CookiePartitionKey from the site of an existing
   // CookiePartitionKey. This should only be used for sites of partition keys

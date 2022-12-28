@@ -1,7 +1,5 @@
 #include "quiche/spdy/core/metadata_extension.h"
 
-#include <memory>
-
 #include "absl/container/flat_hash_map.h"
 #include "absl/functional/bind_front.h"
 #include "absl/strings/str_cat.h"
@@ -31,7 +29,7 @@ class MetadataExtensionTest : public quiche::test::QuicheTest {
   MetadataExtensionTest() : test_buffer_(kBuffer, kBufferSize) {}
 
   void SetUp() override {
-    extension_ = std::make_unique<MetadataVisitor>(
+    extension_ = absl::make_unique<MetadataVisitor>(
         bind_front(&MetadataExtensionTest::OnCompletePayload, this),
         bind_front(&MetadataExtensionTest::OnMetadataSupport, this));
   }

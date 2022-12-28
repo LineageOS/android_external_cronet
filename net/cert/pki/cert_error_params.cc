@@ -6,7 +6,7 @@
 
 #include <memory>
 
-#include "net/cert/pki/string_util.h"
+#include "base/strings/string_number_conversions.h"
 #include "net/der/input.h"
 
 namespace net {
@@ -44,9 +44,7 @@ class CertErrorParams2Der : public CertErrorParams {
                         const std::string& der,
                         std::string* out) {
     *out += name;
-    *out +=
-        ": " + net::string_util::HexEncode(
-                   reinterpret_cast<const uint8_t*>(der.data()), der.size());
+    *out += ": " + base::HexEncode(der.data(), der.size());
   }
 
   const char* name1_;
@@ -66,8 +64,7 @@ class CertErrorParams1SizeT : public CertErrorParams {
   CertErrorParams1SizeT& operator=(const CertErrorParams1SizeT&) = delete;
 
   std::string ToDebugString() const override {
-    return name_ + std::string(": ") +
-           net::string_util::NumberToDecimalString(value_);
+    return name_ + std::string(": ") + base::NumberToString(value_);
   }
 
  private:
@@ -89,9 +86,8 @@ class CertErrorParams2SizeT : public CertErrorParams {
   CertErrorParams2SizeT& operator=(const CertErrorParams2SizeT&) = delete;
 
   std::string ToDebugString() const override {
-    return name1_ + std::string(": ") +
-           net::string_util::NumberToDecimalString(value1_) + "\n" + name2_ +
-           std::string(": ") + net::string_util::NumberToDecimalString(value2_);
+    return name1_ + std::string(": ") + base::NumberToString(value1_) + "\n" +
+           name2_ + std::string(": ") + base::NumberToString(value2_);
   }
 
  private:

@@ -12,7 +12,7 @@
 
 namespace quiche {
 
-class QUICHE_EXPORT ObliviousHttpResponse {
+class QUICHE_EXPORT_PRIVATE ObliviousHttpResponse {
  public:
   // Parse and decrypt the OHttp response using ObliviousHttpContext context obj
   // that was returned from `CreateClientObliviousRequest` method. On success,
@@ -20,7 +20,7 @@ class QUICHE_EXPORT ObliviousHttpResponse {
   // @params: Note that `oblivious_http_request_context` is required to stay
   // alive only for the lifetime of this factory method call.
   static absl::StatusOr<ObliviousHttpResponse> CreateClientObliviousResponse(
-      std::string encrypted_data,
+      absl::string_view encrypted_data,
       ObliviousHttpRequest::Context& oblivious_http_request_context);
 
   // Encrypt the input param `plaintext_payload` and create OHttp response using
@@ -37,7 +37,7 @@ class QUICHE_EXPORT ObliviousHttpResponse {
   // string generation. `quiche_random` is required to stay alive only for the
   // lifetime of this factory method call.
   static absl::StatusOr<ObliviousHttpResponse> CreateServerObliviousResponse(
-      std::string plaintext_payload,
+      absl::string_view plaintext_payload,
       ObliviousHttpRequest::Context& oblivious_http_request_context,
       QuicheRandom* quiche_random = nullptr);
 
@@ -55,9 +55,9 @@ class QUICHE_EXPORT ObliviousHttpResponse {
   // Generic Usecase : server-side calls this method in the context of Response
   // to serialize OHTTP response that will be returned to client-side.
   // Returns serialized OHTTP response bytestring.
-  const std::string& EncapsulateAndSerialize() const;
+  std::string EncapsulateAndSerialize() const;
 
-  const std::string& GetPlaintextData() const;
+  absl::string_view GetPlaintextData() const;
 
  private:
   struct CommonAeadParamsResult {
@@ -72,7 +72,8 @@ class QUICHE_EXPORT ObliviousHttpResponse {
     const std::string aead_nonce;
   };
 
-  explicit ObliviousHttpResponse(std::string encrypted_data,
+  explicit ObliviousHttpResponse(std::string resp_nonce,
+                                 std::string resp_ciphertext,
                                  std::string resp_plaintext);
 
   // Determines AEAD key len(Nk), AEAD nonce len(Nn) based on HPKE context and
@@ -86,7 +87,8 @@ class QUICHE_EXPORT ObliviousHttpResponse {
       ObliviousHttpRequest::Context& oblivious_http_request_context,
       const size_t aead_key_len, const size_t aead_nonce_len,
       const size_t secret_len);
-  std::string encrypted_data_;
+  std::string response_nonce_;
+  std::string response_ciphertext_;
   std::string response_plaintext_;
 };
 

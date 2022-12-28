@@ -15,6 +15,7 @@
 #include "base/feature_list.h"
 #include "base/location.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/features.h"
 #include "net/base/net_errors.h"
 #include "net/disk_cache/disk_cache_test_util.h"
@@ -328,7 +329,7 @@ MockDiskEntry::~MockDiskEntry() = default;
 void MockDiskEntry::CallbackLater(base::OnceClosure callback) {
   if (ignore_callbacks_)
     return StoreAndDeliverCallbacks(true, this, std::move(callback));
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&MockDiskEntry::RunCallback, this, std::move(callback)));
 }
@@ -617,8 +618,7 @@ void MockDiskCache::ReleaseAll() {
 }
 
 void MockDiskCache::CallbackLater(base::OnceClosure callback) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, std::move(callback));
+  base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE, std::move(callback));
 }
 
 bool MockDiskCache::IsDiskEntryDoomed(const std::string& key) {

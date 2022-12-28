@@ -17,14 +17,13 @@
 #include "base/memory/raw_ptr.h"
 #include "base/numerics/safe_math.h"
 #include "base/rand_util.h"
-#include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/sys_byteorder.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "net/base/idempotency.h"
@@ -158,7 +157,6 @@ class DnsSocketData {
 
   ~DnsSocketData() = default;
 
-  void ClearWrites() { writes_.clear(); }
   // All responses must be added before GetProvider.
 
   // Adds pre-built DnsResponse. |tcp_length| will be used in TCP mode only.
@@ -283,8 +281,6 @@ class TestUDPClientSocket : public MockUDPClientSocket {
 
   ~TestUDPClientSocket() override = default;
   int Connect(const IPEndPoint& endpoint) override;
-  int ConnectAsync(const IPEndPoint& address,
-                   CompletionOnceCallback callback) override;
 
  private:
   raw_ptr<TestSocketFactory> factory_;
@@ -345,12 +341,6 @@ class TestSocketFactory : public MockClientSocketFactory {
 int TestUDPClientSocket::Connect(const IPEndPoint& endpoint) {
   factory_->OnConnect(endpoint);
   return MockUDPClientSocket::Connect(endpoint);
-}
-
-int TestUDPClientSocket::ConnectAsync(const IPEndPoint& address,
-                                      CompletionOnceCallback callback) {
-  factory_->OnConnect(address);
-  return MockUDPClientSocket::ConnectAsync(address, std::move(callback));
 }
 
 // Helper class that holds a DnsTransaction and handles OnTransactionComplete.
@@ -522,7 +512,7 @@ class URLRequestMockDohJob : public URLRequestJob, public AsyncSocket {
       on_start_.Run();
     // Start reading asynchronously so that all error reporting and data
     // callbacks happen as they would for network requests.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&URLRequestMockDohJob::StartAsync,
                                   weak_factory_.GetWeakPtr()));
   }
@@ -695,21 +685,6 @@ class DnsTransactionTestBase : public testing::Test {
     socket_data_.push_back(std::move(data));
   }
 
-  void AddQueryAndResponseNoWrite(uint16_t id,
-                                  const char* dotted_name,
-                                  uint16_t qtype,
-                                  IoMode mode,
-                                  Transport transport,
-                                  const OptRecordRdata* opt_rdata = nullptr,
-                                  DnsQuery::PaddingStrategy padding_strategy =
-                                      DnsQuery::PaddingStrategy::NONE) {
-    CHECK(socket_factory_.get());
-    auto data = std::make_unique<DnsSocketData>(
-        id, dotted_name, qtype, mode, transport, opt_rdata, padding_strategy);
-    data->ClearWrites();
-    AddSocketData(std::move(data), true);
-  }
-
   // Add expected query for |dotted_name| and |qtype| with |id| and response
   // taken verbatim from |data| of |data_length| bytes. The transaction id in
   // |data| should equal |id|, unless testing mismatched response.
@@ -852,7 +827,8 @@ class DnsTransactionTestBase : public testing::Test {
         }
       } else if (!server.use_post() && request->method() == "GET") {
         std::string prefix = url_base + "?dns=";
-        auto mispair = base::ranges::mismatch(prefix, request->url().spec());
+        auto mispair = std::mismatch(prefix.begin(), prefix.end(),
+                                     request->url().spec().begin());
         if (mispair.first == prefix.end()) {
           server_found = true;
           socket_factory_->remote_endpoints_.emplace_back(server);
@@ -1109,9 +1085,8 @@ TEST_F(DnsTransactionTest, ConcurrentLookup) {
 }
 
 TEST_F(DnsTransactionTest, CancelLookup) {
-  AddQueryAndResponseNoWrite(0 /* id */, kT0HostName, kT0Qtype, ASYNC,
-                             Transport::UDP, nullptr);
-
+  AddAsyncQueryAndResponse(0 /* id */, kT0HostName, kT0Qtype,
+                           kT0ResponseDatagram, std::size(kT0ResponseDatagram));
   AddAsyncQueryAndResponse(1 /* id */, kT1HostName, kT1Qtype,
                            kT1ResponseDatagram, std::size(kT1ResponseDatagram));
 

@@ -44,11 +44,8 @@
 // an issue if insertion and deletion operations are interleaved with the use of
 // more than one iterator, pointer, or reference simultaneously. For this
 // reason, `insert()` and `erase()` return a valid iterator at the current
-// position (and `extract()` cannot be used in this way). Another important
-// difference is that key-types must be copy-constructible.
-//
-// Another API difference is that btree iterators can be subtracted, and this
-// is faster than using std::distance.
+// position. Another important difference is that key-types must be
+// copy-constructible.
 
 #ifndef ABSL_CONTAINER_BTREE_MAP_H_
 #define ABSL_CONTAINER_BTREE_MAP_H_
@@ -325,8 +322,7 @@ class btree_map
   // btree_map::extract()
   //
   // Extracts the indicated element, erasing it in the process, and returns it
-  // as a C++17-compatible node handle. Any references, pointers, or iterators
-  // are invalidated. Overloads are listed below.
+  // as a C++17-compatible node handle. Overloads are listed below.
   //
   // node_type extract(const_iterator position):
   //

@@ -15,6 +15,7 @@
 #include "base/location.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/upload_data_stream.h"
@@ -581,7 +582,7 @@ void SpdyHttpStream::ResetStream(int error) {
 void SpdyHttpStream::OnRequestBodyReadCompleted(int status) {
   if (status < 0) {
     DCHECK_NE(ERR_IO_PENDING, status);
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&SpdyHttpStream::ResetStream,
                                   weak_factory_.GetWeakPtr(), status));
 
@@ -674,7 +675,7 @@ void SpdyHttpStream::MaybeDoRequestCallback(int rv) {
 void SpdyHttpStream::MaybePostRequestCallback(int rv) {
   CHECK_NE(ERR_IO_PENDING, rv);
   if (request_callback_)
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&SpdyHttpStream::MaybeDoRequestCallback,
                                   weak_factory_.GetWeakPtr(), rv));
 }

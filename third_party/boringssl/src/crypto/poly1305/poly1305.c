@@ -241,6 +241,7 @@ void CRYPTO_poly1305_update(poly1305_state *statep, const uint8_t *in,
 
 void CRYPTO_poly1305_finish(poly1305_state *statep, uint8_t mac[16]) {
   struct poly1305_state_st *state = poly1305_aligned_state(statep);
+  uint64_t f0, f1, f2, f3;
   uint32_t g0, g1, g2, g3, g4;
   uint32_t b, nb;
 
@@ -293,22 +294,22 @@ void CRYPTO_poly1305_finish(poly1305_state *statep, uint8_t mac[16]) {
   state->h3 = (state->h3 & nb) | (g3 & b);
   state->h4 = (state->h4 & nb) | (g4 & b);
 
-  uint64_t f0 = ((state->h0) | (state->h1 << 26)) +
-                (uint64_t)CRYPTO_load_u32_le(&state->key[0]);
-  uint64_t f1 = ((state->h1 >> 6) | (state->h2 << 20)) +
-                (uint64_t)CRYPTO_load_u32_le(&state->key[4]);
-  uint64_t f2 = ((state->h2 >> 12) | (state->h3 << 14)) +
-                (uint64_t)CRYPTO_load_u32_le(&state->key[8]);
-  uint64_t f3 = ((state->h3 >> 18) | (state->h4 << 8)) +
-                (uint64_t)CRYPTO_load_u32_le(&state->key[12]);
+  f0 = ((state->h0) | (state->h1 << 26)) +
+       (uint64_t)CRYPTO_load_u32_le(&state->key[0]);
+  f1 = ((state->h1 >> 6) | (state->h2 << 20)) +
+       (uint64_t)CRYPTO_load_u32_le(&state->key[4]);
+  f2 = ((state->h2 >> 12) | (state->h3 << 14)) +
+       (uint64_t)CRYPTO_load_u32_le(&state->key[8]);
+  f3 = ((state->h3 >> 18) | (state->h4 << 8)) +
+       (uint64_t)CRYPTO_load_u32_le(&state->key[12]);
 
-  CRYPTO_store_u32_le(&mac[0], (uint32_t)f0);
+  CRYPTO_store_u32_le(&mac[0], f0);
   f1 += (f0 >> 32);
-  CRYPTO_store_u32_le(&mac[4], (uint32_t)f1);
+  CRYPTO_store_u32_le(&mac[4], f1);
   f2 += (f1 >> 32);
-  CRYPTO_store_u32_le(&mac[8], (uint32_t)f2);
+  CRYPTO_store_u32_le(&mac[8], f2);
   f3 += (f2 >> 32);
-  CRYPTO_store_u32_le(&mac[12], (uint32_t)f3);
+  CRYPTO_store_u32_le(&mac[12], f3);
 }
 
 #endif  // !BORINGSSL_HAS_UINT128 || !OPENSSL_X86_64

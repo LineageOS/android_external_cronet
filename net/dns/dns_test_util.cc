@@ -17,6 +17,7 @@
 #include "base/strings/strcat.h"
 #include "base/sys_byteorder.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/types/optional_util.h"
 #include "net/base/io_buffer.h"
@@ -500,7 +501,7 @@ class MockDnsTransactionFactory::MockTransaction
     if (delayed_)
       return;
     // Using WeakPtr to cleanly cancel when transaction is destroyed.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&MockTransaction::Finish, AsWeakPtr()));
   }
 
@@ -818,7 +819,7 @@ scoped_refptr<DnsSession> MockDnsClient::BuildSession() {
   // Session not expected to be used for anything that will actually require
   // random numbers.
   auto null_random_callback =
-      base::BindRepeating([](int, int) -> int { base::ImmediateCrash(); });
+      base::BindRepeating([](int, int) -> int { IMMEDIATE_CRASH(); });
 
   return base::MakeRefCounted<DnsSession>(
       effective_config_.value(), null_random_callback, nullptr /* net_log */);

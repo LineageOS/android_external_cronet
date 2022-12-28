@@ -10,6 +10,7 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_restrictions.h"
+#include "base/threading/thread_task_runner_handle.h"
 
 namespace disk_cache {
 
@@ -40,8 +41,7 @@ BackgroundIO::~BackgroundIO() = default;
 // ---------------------------------------------------------------------------
 
 InFlightIO::InFlightIO()
-    : callback_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {
-}
+    : callback_task_runner_(base::ThreadTaskRunnerHandle::Get()) {}
 
 InFlightIO::~InFlightIO() = default;
 
