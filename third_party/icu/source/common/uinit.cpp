@@ -30,7 +30,7 @@ static UInitOnce gICUInitOnce {};
 
 static UBool U_CALLCONV uinit_cleanup() {
     gICUInitOnce.reset();
-    return true;
+    return TRUE;
 }
 
 static void U_CALLCONV

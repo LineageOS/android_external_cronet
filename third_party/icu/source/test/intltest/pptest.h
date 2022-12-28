@@ -30,7 +30,7 @@ public:
     void Test4109023(void);
 
 protected:
-    UBool failure(UErrorCode status, const char* msg, UBool possibleDataError=false);
+    UBool failure(UErrorCode status, const char* msg, UBool possibleDataError=FALSE);
 };
 
 #endif /* #if !UCONFIG_NO_FORMATTING */

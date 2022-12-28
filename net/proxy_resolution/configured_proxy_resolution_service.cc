@@ -19,6 +19,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -641,7 +642,7 @@ class ConfiguredProxyResolutionService::PacFileDeciderPoller {
   void StartPollTimer() {
     DCHECK(!decider_.get());
 
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+    base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
         FROM_HERE,
         base::BindOnce(&PacFileDeciderPoller::DoPoll,
                        weak_factory_.GetWeakPtr()),
@@ -689,7 +690,7 @@ class ConfiguredProxyResolutionService::PacFileDeciderPoller {
       // calling it directly -- this is done to avoid an ugly destruction
       // sequence, since |this| might be destroyed as a result of the
       // notification.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(
               &PacFileDeciderPoller::NotifyProxyResolutionServiceOfChange,

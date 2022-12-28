@@ -19,6 +19,7 @@
 #include "base/task/single_thread_task_runner.h"
 #include "base/test/simple_test_tick_clock.h"
 #include "base/threading/thread_restrictions.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
 #include "net/base/backoff_entry.h"
@@ -182,7 +183,7 @@ class SerialWorkerTest : public TestWithTaskEnvironment {
 
   // test::Test methods
   void SetUp() override {
-    task_runner_ = base::SingleThreadTaskRunner::GetCurrentDefault();
+    task_runner_ = base::ThreadTaskRunnerHandle::Get();
   }
 
   void TearDown() override {

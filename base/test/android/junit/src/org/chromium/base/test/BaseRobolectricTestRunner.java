@@ -12,13 +12,9 @@ import org.robolectric.DefaultTestLifecycle;
 import org.robolectric.TestLifecycle;
 
 import org.chromium.base.ApplicationStatus;
-import org.chromium.base.BundleUtils;
 import org.chromium.base.ContextUtils;
-import org.chromium.base.Flag;
 import org.chromium.base.LifetimeAssert;
 import org.chromium.base.PathUtils;
-import org.chromium.base.library_loader.LibraryLoader;
-import org.chromium.base.library_loader.LibraryProcessType;
 import org.chromium.base.metrics.UmaRecorderHolder;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.DisabledTest;
@@ -38,16 +34,12 @@ public class BaseRobolectricTestRunner extends LocalRobolectricTestRunner {
     public static class BaseTestLifecycle extends DefaultTestLifecycle {
         @Override
         public void beforeTest(Method method) {
-            UmaRecorderHolder.setUpNativeUmaRecorder(false);
-            LibraryLoader.getInstance().setLibraryProcessType(LibraryProcessType.PROCESS_BROWSER);
             ContextUtils.initApplicationContextForTests(
                     ApplicationProvider.getApplicationContext());
             ApplicationStatus.initialize(ApplicationProvider.getApplicationContext());
             UmaRecorderHolder.resetForTesting();
             CommandLineFlags.setUpClass(method.getDeclaringClass());
             CommandLineFlags.setUpMethod(method);
-            BundleUtils.resetForTesting();
-            Flag.resetAllInMemoryCachedValuesForTesting();
             super.beforeTest(method);
         }
 

@@ -144,7 +144,7 @@ static icu::UInitOnce  gSystemDefaultCenturyInit        {};
 
 UBool TaiwanCalendar::haveDefaultCentury() const
 {
-    return true;
+    return TRUE;
 }
 
 static void U_CALLCONV initializeSystemDefaultCentury()

@@ -8,7 +8,6 @@
 #include <cstdint>
 #include <utility>
 
-#include "base/memory/raw_ref.h"
 #include "base/ranges/algorithm.h"
 #include "base/threading/platform_thread.h"
 #include "base/threading/simple_thread.h"
@@ -21,10 +20,10 @@ namespace {
 class ScopedShutdown {
  public:
   ScopedShutdown(OperationsController* controller) : controller_(*controller) {}
-  ~ScopedShutdown() { controller_->ShutdownAndWaitForZeroOperations(); }
+  ~ScopedShutdown() { controller_.ShutdownAndWaitForZeroOperations(); }
 
  private:
-  const raw_ref<OperationsController> controller_;
+  OperationsController& controller_;
 };
 
 TEST(OperationsControllerTest, CanBeDestroyedWithoutWaiting) {
@@ -116,13 +115,13 @@ class TestThread : public SimpleThread {
         started_(*started),
         thread_counter_(*thread_counter) {}
   void Run() override {
-    thread_counter_->fetch_add(1, std::memory_order_relaxed);
+    thread_counter_.fetch_add(1, std::memory_order_relaxed);
     while (true) {
       PlatformThread::YieldCurrentThread();
-      bool was_started = started_->load(std::memory_order_relaxed);
+      bool was_started = started_.load(std::memory_order_relaxed);
       std::vector<OperationsController::OperationToken> tokens;
       for (int i = 0; i < 100; ++i) {
-        tokens.push_back(controller_->TryBeginOperation());
+        tokens.push_back(controller_.TryBeginOperation());
       }
       if (!was_started)
         continue;
@@ -133,9 +132,9 @@ class TestThread : public SimpleThread {
   }
 
  private:
-  const raw_ref<OperationsController> controller_;
-  const raw_ref<std::atomic<bool>> started_;
-  const raw_ref<std::atomic<int32_t>> thread_counter_;
+  OperationsController& controller_;
+  std::atomic<bool>& started_;
+  std::atomic<int32_t>& thread_counter_;
 };
 
 TEST(OperationsControllerTest, BeginsFromMultipleThreads) {

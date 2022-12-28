@@ -48,10 +48,7 @@ class LogFlagsTest : public ::testing::Test {
   absl::FlagSaver flag_saver_;
 };
 
-// This test is disabled because it adds order dependency to the test suite.
-// This order dependency is currently not fixable due to the way the
-// stderrthreshold global value is out of sync with the stderrthreshold flag.
-TEST_F(LogFlagsTest, DISABLED_StderrKnobsDefault) {
+TEST_F(LogFlagsTest, StderrKnobsDefault) {
   EXPECT_EQ(absl::StderrThreshold(), DefaultStderrThreshold());
 }
 

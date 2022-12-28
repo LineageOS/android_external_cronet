@@ -5,8 +5,6 @@
 #ifndef QUICHE_QUIC_CORE_QUIC_PACKETS_H_
 #define QUICHE_QUIC_CORE_QUIC_PACKETS_H_
 
-#include <sys/types.h>
-
 #include <cstddef>
 #include <cstdint>
 #include <memory>
@@ -66,18 +64,18 @@ GetClientConnectionIdIncludedAsSender(const QuicPacketHeader& header,
                                       Perspective perspective);
 
 // Number of connection ID bytes that are actually included over the wire.
-QUIC_EXPORT_PRIVATE uint8_t
+QUIC_EXPORT_PRIVATE QuicConnectionIdLength
 GetIncludedConnectionIdLength(QuicConnectionId connection_id,
                               QuicConnectionIdIncluded connection_id_included);
 
 // Number of destination connection ID bytes that are actually included over the
 // wire for this particular header.
-QUIC_EXPORT_PRIVATE uint8_t
+QUIC_EXPORT_PRIVATE QuicConnectionIdLength
 GetIncludedDestinationConnectionIdLength(const QuicPacketHeader& header);
 
 // Number of source connection ID bytes that are actually included over the
 // wire for this particular header.
-QUIC_EXPORT_PRIVATE uint8_t
+QUIC_EXPORT_PRIVATE QuicConnectionIdLength
 GetIncludedSourceConnectionIdLength(const QuicPacketHeader& header);
 
 // Size in bytes of the data packet header.
@@ -85,8 +83,9 @@ QUIC_EXPORT_PRIVATE size_t GetPacketHeaderSize(QuicTransportVersion version,
                                                const QuicPacketHeader& header);
 
 QUIC_EXPORT_PRIVATE size_t GetPacketHeaderSize(
-    QuicTransportVersion version, uint8_t destination_connection_id_length,
-    uint8_t source_connection_id_length, bool include_version,
+    QuicTransportVersion version,
+    QuicConnectionIdLength destination_connection_id_length,
+    QuicConnectionIdLength source_connection_id_length, bool include_version,
     bool include_diversification_nonce,
     QuicPacketNumberLength packet_number_length,
     quiche::QuicheVariableLengthIntegerLength retry_token_length_length,
@@ -98,8 +97,9 @@ QUIC_EXPORT_PRIVATE size_t GetStartOfEncryptedData(
     QuicTransportVersion version, const QuicPacketHeader& header);
 
 QUIC_EXPORT_PRIVATE size_t GetStartOfEncryptedData(
-    QuicTransportVersion version, uint8_t destination_connection_id_length,
-    uint8_t source_connection_id_length, bool include_version,
+    QuicTransportVersion version,
+    QuicConnectionIdLength destination_connection_id_length,
+    QuicConnectionIdLength source_connection_id_length, bool include_version,
     bool include_diversification_nonce,
     QuicPacketNumberLength packet_number_length,
     quiche::QuicheVariableLengthIntegerLength retry_token_length_length,
@@ -224,8 +224,8 @@ class QUIC_EXPORT_PRIVATE QuicPacket : public QuicData {
  public:
   QuicPacket(
       char* buffer, size_t length, bool owns_buffer,
-      uint8_t destination_connection_id_length,
-      uint8_t source_connection_id_length, bool includes_version,
+      QuicConnectionIdLength destination_connection_id_length,
+      QuicConnectionIdLength source_connection_id_length, bool includes_version,
       bool includes_diversification_nonce,
       QuicPacketNumberLength packet_number_length,
       quiche::QuicheVariableLengthIntegerLength retry_token_length_length,
@@ -243,8 +243,8 @@ class QUIC_EXPORT_PRIVATE QuicPacket : public QuicData {
 
  private:
   char* buffer_;
-  const uint8_t destination_connection_id_length_;
-  const uint8_t source_connection_id_length_;
+  const QuicConnectionIdLength destination_connection_id_length_;
+  const QuicConnectionIdLength source_connection_id_length_;
   const bool includes_version_;
   const bool includes_diversification_nonce_;
   const QuicPacketNumberLength packet_number_length_;

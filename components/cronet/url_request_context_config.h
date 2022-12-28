@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+#include "base/memory/ref_counted.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "net/base/hash_value.h"

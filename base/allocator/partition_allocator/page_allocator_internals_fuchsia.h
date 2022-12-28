@@ -187,8 +187,7 @@ void DecommitSystemPagesInternal(
   if (accessibility_disposition ==
       PageAccessibilityDisposition::kRequireUpdate) {
     SetSystemPagesAccess(address, length,
-                         PageAccessibilityConfiguration(
-                             PageAccessibilityConfiguration::kInaccessible));
+                         PageAccessibilityConfiguration::kInaccessible);
   }
 
   // TODO(https://crbug.com/1022062): Review whether this implementation is
@@ -199,8 +198,7 @@ void DecommitSystemPagesInternal(
 
 void DecommitAndZeroSystemPagesInternal(uintptr_t address, size_t length) {
   SetSystemPagesAccess(address, length,
-                       PageAccessibilityConfiguration(
-                           PageAccessibilityConfiguration::kInaccessible));
+                       PageAccessibilityConfiguration::kInaccessible);
 
   // TODO(https://crbug.com/1022062): this implementation will likely no longer
   // be appropriate once DiscardSystemPagesInternal() migrates to a "lazy"

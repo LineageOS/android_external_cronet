@@ -96,7 +96,7 @@ void MessagePumpEpoll::Run(Delegate* delegate) {
     }
 
     // Process any immediately ready IO event, but don't wait for more yet.
-    const bool processed_events = WaitForEpollEvents(TimeDelta());
+    const bool processed_events = WaitForEpollEvent(TimeDelta());
     if (run_state.should_quit) {
       break;
     }
@@ -119,7 +119,7 @@ void MessagePumpEpoll::Run(Delegate* delegate) {
       timeout = next_work_info.remaining_delay();
     }
     delegate->BeforeWait();
-    WaitForEpollEvents(timeout);
+    WaitForEpollEvent(timeout);
     if (run_state.should_quit) {
       break;
     }
@@ -195,18 +195,13 @@ void MessagePumpEpoll::UnregisterInterest(
   }
 }
 
-bool MessagePumpEpoll::WaitForEpollEvents(TimeDelta timeout) {
+bool MessagePumpEpoll::WaitForEpollEvent(TimeDelta timeout) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-
-  // `timeout` has microsecond resolution, but timeouts accepted by epoll_wait()
-  // are integral milliseconds. Round up to the next millisecond.
-  // TODO(https://crbug.com/1382894): Consider higher-resolution timeouts.
   const int epoll_timeout =
-      timeout.is_max() ? -1
-                       : saturated_cast<int>(timeout.InMillisecondsRoundedUp());
-  epoll_event events[16];
+      timeout.is_max() ? -1 : saturated_cast<int>(timeout.InMilliseconds());
+  epoll_event event;
   const int epoll_result =
-      epoll_wait(epoll_.get(), events, std::size(events), epoll_timeout);
+      epoll_wait(epoll_.get(), &event, /*maxevents=*/1, epoll_timeout);
   if (epoll_result < 0) {
     DPCHECK(errno == EINTR);
     return false;
@@ -216,48 +211,27 @@ bool MessagePumpEpoll::WaitForEpollEvents(TimeDelta timeout) {
     return false;
   }
 
-  const base::span<epoll_event> ready_events(events,
-                                             static_cast<size_t>(epoll_result));
-  for (auto& e : ready_events) {
-    if (e.data.ptr == &wake_event_) {
-      // Wake-up events are always safe to handle immediately. Unlike other
-      // events used by MessagePumpEpoll they also don't point to an
-      // EpollEventEntry, so we handle them separately here.
-      HandleWakeUp();
-      e.data.ptr = nullptr;
-      continue;
-    }
-
-    // To guard against one of the ready events unregistering and thus
-    // invalidating one of the others here, first link each entry to the
-    // corresponding epoll_event returned by epoll_wait(). We do this before
-    // dispatching any events, and the second pass below will only dispatch an
-    // event if its epoll_event data is still valid.
-    auto& entry = EpollEventEntry::FromEpollEvent(e);
-    DCHECK(!entry.active_event);
-    EpollEventEntry::FromEpollEvent(e).active_event = &e;
-  }
-
-  for (auto& e : ready_events) {
-    if (e.data.ptr) {
-      auto& entry = EpollEventEntry::FromEpollEvent(e);
-      entry.active_event = nullptr;
-      OnEpollEvent(entry, e.events);
-    }
-  }
-
+  DPCHECK(epoll_result == 1);
+  OnEpollEvent(event);
   return true;
 }
 
-void MessagePumpEpoll::OnEpollEvent(EpollEventEntry& entry, uint32_t events) {
+void MessagePumpEpoll::OnEpollEvent(const epoll_event& e) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  if (e.data.ptr == &wake_event_) {
+    HandleWakeUp();
+    return;
+  }
 
-  const bool readable = (events & EPOLLIN) != 0;
-  const bool writable = (events & EPOLLOUT) != 0;
+  const bool readable = (e.events & EPOLLIN) != 0;
+  const bool writable = (e.events & EPOLLOUT) != 0;
 
   // Under different circumstances, peer closure may raise both/either EPOLLHUP
   // and/or EPOLLERR. Treat them as equivalent.
-  const bool disconnected = (events & (EPOLLHUP | EPOLLERR)) != 0;
+  const bool disconnected = (e.events & (EPOLLHUP | EPOLLERR)) != 0;
+
+  DCHECK(e.data.ptr);
+  auto& entry = *static_cast<EpollEventEntry*>(e.data.ptr);
 
   // Copy the set of Interests, since interests may be added to or removed from
   // `entry` during the loop below. This copy is inexpensive in practice
@@ -354,12 +328,7 @@ void MessagePumpEpoll::HandleWakeUp() {
 
 MessagePumpEpoll::EpollEventEntry::EpollEventEntry(int fd) : fd(fd) {}
 
-MessagePumpEpoll::EpollEventEntry::~EpollEventEntry() {
-  if (active_event) {
-    DCHECK_EQ(this, active_event->data.ptr);
-    active_event->data.ptr = nullptr;
-  }
-}
+MessagePumpEpoll::EpollEventEntry::~EpollEventEntry() = default;
 
 uint32_t MessagePumpEpoll::EpollEventEntry::ComputeActiveEvents() {
   uint32_t events = 0;

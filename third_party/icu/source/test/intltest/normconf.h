@@ -100,7 +100,7 @@ class NormalizerConformanceTest : public IntlTest {
      * thrown.  If there are too many the extras are ignored.
      *
      * @param buf scratch buffer
-     * @return false upon failure
+     * @return FALSE upon failure
      */
     UBool hexsplit(const char *s, char delimiter,
                    UnicodeString output[], int32_t outputLength);

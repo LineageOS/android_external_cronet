@@ -36,8 +36,7 @@ template <typename CheckObserverPredicate,
 void inline PerformObserverCheck(const std::tuple<ObserverTypes...>& observers,
                                  std::index_sequence<Indices...>,
                                  CheckObserverPredicate check_observer) {
-  ([](bool b) { DCHECK(b); }(check_observer(std::get<Indices>(observers))),
-   ...);
+  ((DCHECK(check_observer(std::get<Indices>(observers)))), ...);
 }
 
 template <typename... ObserverTypes, size_t... Indices>
@@ -202,12 +201,6 @@ struct DispatcherImpl {
     return self->next->get_size_estimate_function(self->next, address, context);
   }
 
-  static bool ClaimedAddressFn(const AllocatorDispatch* self,
-                               void* address,
-                               void* context) {
-    return self->next->claimed_address_function(self->next, address, context);
-  }
-
   static unsigned BatchMallocFn(const AllocatorDispatch* self,
                                 size_t size,
                                 void** results,
@@ -246,13 +239,6 @@ struct DispatcherImpl {
     // ReentryGuard, see ReallocFn for details.
     DoNotifyFree(address);
     self->next->free_definite_size_function(self->next, address, size, context);
-  }
-
-  static void TryFreeDefaultFn(const AllocatorDispatch* self,
-                               void* address,
-                               void* context) {
-    DoNotifyFree(address);
-    self->next->try_free_default_function(self->next, address, context);
   }
 
   static void* AlignedMallocFn(const AllocatorDispatch* self,
@@ -329,11 +315,9 @@ AllocatorDispatch DispatcherImpl<ObserverTypes...>::allocator_dispatch_ = {
     &ReallocFn,
     &FreeFn,
     &GetSizeEstimateFn,
-    &ClaimedAddressFn,
     &BatchMallocFn,
     &BatchFreeFn,
     &FreeDefiniteSizeFn,
-    &TryFreeDefaultFn,
     &AlignedMallocFn,
     &AlignedReallocFn,
     &AlignedFreeFn,

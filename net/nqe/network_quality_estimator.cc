@@ -26,6 +26,7 @@
 #include "base/strings/string_piece.h"
 #include "base/task/lazy_thread_pool_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/default_tick_clock.h"
 #include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
@@ -130,18 +131,18 @@ NetworkQualityEstimator::NetworkQualityEstimator(
       std::make_unique<nqe::internal::NetworkQualityStore>();
   NetworkChangeNotifier::AddConnectionTypeObserver(this);
   throughput_analyzer_ = std::make_unique<nqe::internal::ThroughputAnalyzer>(
-      this, params_.get(), base::SingleThreadTaskRunner::GetCurrentDefault(),
+      this, params_.get(), base::ThreadTaskRunnerHandle::Get(),
       base::BindRepeating(
           &NetworkQualityEstimator::OnNewThroughputObservationAvailable,
           weak_ptr_factory_.GetWeakPtr()),
       tick_clock_, net_log_);
 
   watcher_factory_ = std::make_unique<nqe::internal::SocketWatcherFactory>(
-      base::SingleThreadTaskRunner::GetCurrentDefault(),
+      base::ThreadTaskRunnerHandle::Get(),
       params_->min_socket_watcher_notification_interval(),
       // OnUpdatedTransportRTTAvailable() may be called via PostTask() by
       // socket watchers that live on a different thread than the current thread
-      // (i.e., base::SingleThreadTaskRunner::GetCurrentDefault()).
+      // (i.e., base::ThreadTaskRunnerHandle::Get()).
       // Use WeakPtr() to avoid crashes where the socket watcher is destroyed
       // after |this| is destroyed.
       base::BindRepeating(
@@ -149,10 +150,10 @@ NetworkQualityEstimator::NetworkQualityEstimator(
           weak_ptr_factory_.GetWeakPtr()),
       // ShouldSocketWatcherNotifyRTT() below is called by only the socket
       // watchers that live on the same thread as the current thread
-      // (i.e., base::SingleThreadTaskRunner::GetCurrentDefault()). Also,
-      // network quality estimator is destroyed after network contexts and
-      // URLRequestContexts. It's safe to use base::Unretained() below since the
-      // socket watcher (owned by sockets) would be destroyed before |this|.
+      // (i.e., base::ThreadTaskRunnerHandle::Get()). Also, network quality
+      // estimator is destroyed after network contexts and URLRequestContexts.
+      // It's safe to use base::Unretained() below since the socket watcher
+      // (owned by sockets) would be destroyed before |this|.
       base::BindRepeating(
           &NetworkQualityEstimator::ShouldSocketWatcherNotifyRTT,
           base::Unretained(this)),
@@ -511,7 +512,7 @@ void NetworkQualityEstimator::GatherEstimatesForNextConnectionType() {
                   FROM_HERE, base::BindOnce(std::move(reply_callback),
                                             DoGetCurrentNetworkID(nullptr)));
             },
-            base::SingleThreadTaskRunner::GetCurrentDefault(),
+            base::ThreadTaskRunnerHandle::Get(),
             base::BindOnce(&NetworkQualityEstimator::
                                ContinueGatherEstimatesForNextConnectionType,
                            weak_ptr_factory_.GetWeakPtr())));
@@ -898,7 +899,7 @@ void NetworkQualityEstimator::AddEffectiveConnectionTypeObserver(
 
   // Notify the |observer| on the next message pump since |observer| may not
   // be completely set up for receiving the callbacks.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&NetworkQualityEstimator::
                          NotifyEffectiveConnectionTypeObserverIfPresent,
@@ -920,7 +921,7 @@ void NetworkQualityEstimator::AddPeerToPeerConnectionsCountObserver(
 
   // Notify the |observer| on the next message pump since |observer| may not
   // be completely set up for receiving the callbacks.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&NetworkQualityEstimator::
                          NotifyPeerToPeerConnectionsCountObserverIfPresent,
@@ -942,7 +943,7 @@ void NetworkQualityEstimator::AddRTTAndThroughputEstimatesObserver(
 
   // Notify the |observer| on the next message pump since |observer| may not
   // be completely set up for receiving the callbacks.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&NetworkQualityEstimator::
                          NotifyRTTAndThroughputEstimatesObserverIfPresent,

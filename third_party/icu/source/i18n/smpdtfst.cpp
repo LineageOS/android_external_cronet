@@ -81,7 +81,7 @@ SimpleDateFormatStaticSets::cleanup(void)
     delete gStaticSets;
     gStaticSets = NULL;
     gSimpleDateFormatStaticSetsInitOnce.reset();
-    return true;
+    return TRUE;
 }
 
 U_CDECL_BEGIN

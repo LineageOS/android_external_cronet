@@ -9,7 +9,6 @@
 #ifndef _LIBCPP___RANGES_SINGLE_VIEW_H
 #define _LIBCPP___RANGES_SINGLE_VIEW_H
 
-#include <__concepts/constructible.h>
 #include <__config>
 #include <__ranges/copyable_box.h>
 #include <__ranges/range_adaptor.h>
@@ -17,6 +16,7 @@
 #include <__utility/forward.h>
 #include <__utility/in_place.h>
 #include <__utility/move.h>
+#include <concepts>
 #include <type_traits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)

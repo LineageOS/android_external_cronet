@@ -98,8 +98,13 @@ CookieSameSite StringToCookieSameSite(const std::string& same_site,
   return samesite;
 }
 
-void RecordCookieSameSiteAttributeValueHistogram(CookieSameSiteString value) {
+void RecordCookieSameSiteAttributeValueHistogram(CookieSameSiteString value,
+                                                 bool is_cookie_same_party) {
   UMA_HISTOGRAM_ENUMERATION("Cookie.SameSiteAttributeValue", value);
+  if (is_cookie_same_party) {
+    base::UmaHistogramEnumeration(
+        "Cookie.SamePartyCookieSameSiteAttributeValue", value);
+  }
 }
 
 CookiePort ReducePortRangeForCookieHistogram(const int port) {

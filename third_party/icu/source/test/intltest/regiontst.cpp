@@ -625,11 +625,11 @@ void RegionTest::TestGetPreferredValues() {
               continue;
             }
             for ( int i = 1 ; data[i] ; i++ ) {
-                UBool found = false;
+                UBool found = FALSE;
                 preferredValues->reset(status);
                 while ( const char *check = preferredValues->next(NULL,status) ) {
                     if ( !uprv_strcmp(check,data[i]) ) {
-                        found = true;
+                        found = TRUE;
                         break;
                     }
                 }

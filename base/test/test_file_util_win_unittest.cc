@@ -86,8 +86,4 @@ TEST(TestFileUtil, EvictFileWithLongName) {
   ASSERT_TRUE(EvictFileFromSystemCache(temp_file));
 }
 
-TEST(TestFileUtil, GetTempDirForTesting) {
-  ASSERT_FALSE(GetTempDirForTesting().value().empty());
-}
-
 }  // namespace base

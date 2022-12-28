@@ -80,9 +80,6 @@ struct AllocatorDispatch {
   using GetSizeEstimateFn = size_t(const AllocatorDispatch* self,
                                    void* address,
                                    void* context);
-  using ClaimedAddressFn = bool(const AllocatorDispatch* self,
-                                void* address,
-                                void* context);
   using BatchMallocFn = unsigned(const AllocatorDispatch* self,
                                  size_t size,
                                  void** results,
@@ -96,9 +93,6 @@ struct AllocatorDispatch {
                                   void* ptr,
                                   size_t size,
                                   void* context);
-  using TryFreeDefaultFn = void(const AllocatorDispatch* self,
-                                void* ptr,
-                                void* context);
   using AlignedMallocFn = void*(const AllocatorDispatch* self,
                                 size_t size,
                                 size_t alignment,
@@ -119,13 +113,11 @@ struct AllocatorDispatch {
   ReallocFn* const realloc_function;
   FreeFn* const free_function;
   GetSizeEstimateFn* const get_size_estimate_function;
-  // claimed_address, batch_malloc, batch_free, free_definite_size and
-  // try_free_default are specific to the OSX and iOS allocators.
-  ClaimedAddressFn* const claimed_address_function;
+  // batch_malloc, batch_free, and free_definite_size are specific to the OSX
+  // and iOS allocators.
   BatchMallocFn* const batch_malloc_function;
   BatchFreeFn* const batch_free_function;
   FreeDefiniteSizeFn* const free_definite_size_function;
-  TryFreeDefaultFn* const try_free_default_function;
   // _aligned_malloc, _aligned_realloc, and _aligned_free are specific to the
   // Windows allocator.
   AlignedMallocFn* const aligned_malloc_function;
@@ -162,12 +154,6 @@ BASE_EXPORT void InsertAllocatorDispatch(AllocatorDispatch* dispatch);
 // in malloc(), which we really don't want.
 BASE_EXPORT void RemoveAllocatorDispatchForTesting(AllocatorDispatch* dispatch);
 
-#if BUILDFLAG(IS_APPLE)
-// The fallback function to be called when try_free_default_function receives a
-// pointer which doesn't belong to the allocator.
-BASE_EXPORT void TryFreeDefaultFallbackToFindZoneAndFree(void* ptr);
-#endif  // BUILDFLAG(IS_APPLE)
-
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && BUILDFLAG(IS_WIN)
 // Configures the allocator for the caller's allocation domain. Allocations that
 // take place prior to this configuration step will succeed, but will not
@@ -178,8 +164,7 @@ BASE_EXPORT void ConfigurePartitionAlloc();
 
 #if BUILDFLAG(IS_APPLE)
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
-BASE_EXPORT void InitializeDefaultAllocatorPartitionRoot();
-bool IsDefaultAllocatorPartitionRootInitialized();
+void InitializeDefaultAllocatorPartitionRoot();
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 // On macOS, the allocator shim needs to be turned on during runtime.
 BASE_EXPORT void InitializeAllocatorShim();
@@ -193,7 +178,6 @@ using EnableBrpZapping = base::StrongAlias<class EnableBrpZappingTag, bool>;
 using SplitMainPartition = base::StrongAlias<class SplitMainPartitionTag, bool>;
 using UseDedicatedAlignedPartition =
     base::StrongAlias<class UseDedicatedAlignedPartitionTag, bool>;
-using AddDummyRefCount = base::StrongAlias<class AddDummyRefCountTag, bool>;
 using AlternateBucketDistribution =
     base::features::AlternateBucketDistributionMode;
 
@@ -205,7 +189,6 @@ BASE_EXPORT void ConfigurePartitions(
     EnableBrpZapping enable_brp_zapping,
     SplitMainPartition split_main_partition,
     UseDedicatedAlignedPartition use_dedicated_aligned_partition,
-    AddDummyRefCount add_dummy_ref_count,
     AlternateBucketDistribution use_alternate_bucket_distribution);
 
 #if defined(PA_ALLOW_PCSCAN)

@@ -4,7 +4,6 @@
 
 #include "thread_annotations.h"
 
-#include "base/memory/raw_ref.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace {
@@ -20,10 +19,10 @@ class SCOPED_LOCKABLE AutoLock {
   AutoLock(Lock& lock) EXCLUSIVE_LOCK_FUNCTION(lock) : lock_(lock) {
     lock.Acquire();
   }
-  ~AutoLock() UNLOCK_FUNCTION() { lock_->Release(); }
+  ~AutoLock() UNLOCK_FUNCTION() { lock_.Release(); }
 
  private:
-  const raw_ref<Lock> lock_;
+  Lock& lock_;
 };
 
 class ThreadSafe {

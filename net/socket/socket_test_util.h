@@ -912,9 +912,9 @@ class MockSSLClientSocket : public AsyncSocket, public SSLClientSocket {
   int SetSendBufferSize(int32_t size) override;
 
   // SSLSocket implementation.
-  int ExportKeyingMaterial(base::StringPiece label,
+  int ExportKeyingMaterial(const base::StringPiece& label,
                            bool has_context,
-                           base::StringPiece context,
+                           const base::StringPiece& context,
                            unsigned char* out,
                            unsigned int outlen) override;
 

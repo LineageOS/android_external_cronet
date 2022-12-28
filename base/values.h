@@ -25,7 +25,6 @@
 #include "base/containers/cxx20_erase_vector.h"
 #include "base/containers/flat_map.h"
 #include "base/containers/span.h"
-#include "base/memory/raw_ref.h"
 #include "base/strings/string_piece.h"
 #include "base/trace_event/base_tracing_forward.h"
 #include "base/value_iterators.h"
@@ -984,6 +983,9 @@ class BASE_EXPORT GSL_OWNER Value {
   // DEPRECATED: prefer `Value::Dict::empty()`.
   bool DictEmpty() const;
 
+  // DEPRECATED: prefer `Value::Dict::clear()`.
+  void DictClear();
+
   // Merge `dictionary` into this value. This is done recursively, i.e. any
   // sub-dictionaries will be merged as well. In case of key collisions, the
   // passed in dictionary takes precedence and data already present will be
@@ -1006,6 +1008,15 @@ class BASE_EXPORT GSL_OWNER Value {
   bool GetAsDictionary(DictionaryValue** out_value);
   bool GetAsDictionary(const DictionaryValue** out_value) const;
   // Note: Do not add more types. See the file-level comment above for why.
+
+  // This creates a deep copy of the entire Value tree, and returns a pointer
+  // to the copy. The caller gets ownership of the copy, of course.
+  // Subclasses return their own type directly in their overrides;
+  // this works because C++ supports covariant return types.
+  // TODO(crbug.com/646113): Delete this and migrate callsites.
+  //
+  // DEPRECATED: prefer `Value::Clone()`.
+  std::unique_ptr<Value> CreateDeepCopy() const;
 
   // Comparison operators so that Values can easily be used with standard
   // library algorithms and associative containers.
@@ -1275,7 +1286,7 @@ class BASE_EXPORT GSL_POINTER DictAdapterForMigration {
   const Value::Dict& dict_for_test() const;
 
  private:
-  const raw_ref<const Value::Dict> dict_;
+  const Value::Dict& dict_;
 };
 
 // DictionaryValue provides a key-value dictionary with (optional) "path"
@@ -1371,6 +1382,10 @@ class BASE_EXPORT DictionaryValue : public Value {
 
   // Swaps contents with the `other` dictionary.
   void Swap(DictionaryValue* other);
+
+  // DEPRECATED, use `Value::Dict::Clone()` instead.
+  // TODO(crbug.com/646113): Delete this and migrate callsites.
+  std::unique_ptr<DictionaryValue> CreateDeepCopy() const;
 };
 
 // This type of Value represents a list of other Value values.

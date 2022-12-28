@@ -38,27 +38,27 @@ static UBool U_CALLCONV unifiedcache_cleanup() {
     gCacheMutex = nullptr;
     gInProgressValueAddedCond->~condition_variable();
     gInProgressValueAddedCond = nullptr;
-    return true;
+    return TRUE;
 }
 U_CDECL_END
 
 
 U_NAMESPACE_BEGIN
 
-int32_t U_EXPORT2
+U_CAPI int32_t U_EXPORT2
 ucache_hashKeys(const UHashTok key) {
     const CacheKeyBase *ckey = (const CacheKeyBase *) key.pointer;
     return ckey->hashCode();
 }
 
-UBool U_EXPORT2
+U_CAPI UBool U_EXPORT2
 ucache_compareKeys(const UHashTok key1, const UHashTok key2) {
     const CacheKeyBase *p1 = (const CacheKeyBase *) key1.pointer;
     const CacheKeyBase *p2 = (const CacheKeyBase *) key2.pointer;
     return *p1 == *p2;
 }
 
-void U_EXPORT2
+U_CAPI void U_EXPORT2
 ucache_deleteKey(void *obj) {
     CacheKeyBase *p = (CacheKeyBase *) obj;
     delete p;
@@ -161,7 +161,7 @@ void UnifiedCache::flush() const {
     // Use a loop in case cache items that are flushed held hard references to
     // other cache items making those additional cache items eligible for
     // flushing.
-    while (_flush(false));
+    while (_flush(FALSE));
 }
 
 void UnifiedCache::handleUnreferencedObject() const {
@@ -225,7 +225,7 @@ UnifiedCache::~UnifiedCache() {
         // each other and entries with hard references from outside the cache.
         // Nothing we can do about these so proceed to wipe out the cache.
         std::lock_guard<std::mutex> lock(*gCacheMutex);
-        _flush(true);
+        _flush(TRUE);
     }
     uhash_close(fHashtable);
     fHashtable = nullptr;
@@ -244,7 +244,7 @@ UnifiedCache::_nextElement() const {
 }
 
 UBool UnifiedCache::_flush(UBool all) const {
-    UBool result = false;
+    UBool result = FALSE;
     int32_t origSize = uhash_count(fHashtable);
     for (int32_t i = 0; i < origSize; ++i) {
         const UHashElement *element = _nextElement();
@@ -257,7 +257,7 @@ UBool UnifiedCache::_flush(UBool all) const {
             U_ASSERT(sharedObject->cachePtr == this);
             uhash_removeElement(fHashtable, element);
             removeSoftRef(sharedObject);    // Deletes the sharedObject when softRefCount goes to zero.
-            result = true;
+            result = TRUE;
         }
     }
     return result;
@@ -365,14 +365,14 @@ UBool UnifiedCache::_poll(
     // fetch out the contents and return them.
     if (element != NULL) {
          _fetch(element, value, status);
-        return true;
+        return TRUE;
     }
 
     // The hash table contained nothing for this key.
     // Insert an inProgress place holder value.
     // Our caller will create the final value and update the hash table.
     _putNew(key, fNoValue, U_ZERO_ERROR, status);
-    return false;
+    return FALSE;
 }
 
 void UnifiedCache::_get(
@@ -471,7 +471,7 @@ UBool UnifiedCache::_isEvictable(const UHashElement *element) const
 
     // Entries that are under construction are never evictable
     if (_inProgress(theValue, theKey->fCreationStatus)) {
-        return false;
+        return FALSE;
     }
 
     // We can evict entries that are either not a primary or have just

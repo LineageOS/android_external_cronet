@@ -22,7 +22,7 @@ class QuicStreamSequencerPeer;
 
 // Buffers frames until we have something which can be passed
 // up to the next layer.
-class QUIC_EXPORT_PRIVATE QuicStreamSequencer final {
+class QUIC_EXPORT_PRIVATE QuicStreamSequencer {
  public:
   // Interface that thie Sequencer uses to communicate with the Stream.
   class QUIC_EXPORT_PRIVATE StreamInterface {
@@ -59,7 +59,7 @@ class QUIC_EXPORT_PRIVATE QuicStreamSequencer final {
   QuicStreamSequencer(QuicStreamSequencer&&) = default;
   QuicStreamSequencer& operator=(const QuicStreamSequencer&) = delete;
   QuicStreamSequencer& operator=(QuicStreamSequencer&&) = default;
-  ~QuicStreamSequencer();
+  virtual ~QuicStreamSequencer();
 
   // If the frame is the next one we need in order to process in-order data,
   // ProcessData will be immediately called on the stream until all buffered
@@ -162,7 +162,7 @@ class QUIC_EXPORT_PRIVATE QuicStreamSequencer final {
   void set_stream(StreamInterface* stream) { stream_ = stream; }
 
   // Returns string describing internal state.
-  std::string DebugString() const;
+  const std::string DebugString() const;
 
  private:
   friend class test::QuicStreamSequencerPeer;

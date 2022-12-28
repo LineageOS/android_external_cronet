@@ -28,6 +28,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/trace_event/trace_event.h"
 #include "base/types/optional_util.h"
@@ -360,7 +361,12 @@ void URLRequestHttpJob::OnGotFirstPartySetCacheFilterMatchInfo(
     DCHECK(!cookie_partition_key_.has_value());
 
     cookie_partition_key_ = CookiePartitionKey::FromNetworkIsolationKey(
-        request_->isolation_info().network_isolation_key());
+        request_->isolation_info().network_isolation_key(),
+        base::OptionalToPtr(
+            first_party_set_metadata_.top_frame_entry().has_value()
+                ? absl::make_optional(
+                      first_party_set_metadata_.top_frame_entry()->primary())
+                : absl::nullopt));
     AddCookieHeaderAndStart();
   } else {
     StartTransaction();
@@ -522,7 +528,7 @@ void URLRequestHttpJob::MaybeStartTransactionInternal(int result) {
     request_->net_log().AddEventWithStringParams(NetLogEventType::CANCELLED,
                                                  "source", "delegate");
     // Don't call back synchronously to the delegate.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&URLRequestHttpJob::NotifyStartError,
                                   weak_factory_.GetWeakPtr(), result));
   }
@@ -566,12 +572,6 @@ void URLRequestHttpJob::StartTransactionInternal() {
       }
     }
 
-    if (rv == OK && request_info_.method == "CONNECT") {
-      // CONNECT has different kinds of targets than other methods (RFC 9110,
-      // section 9.3.6), which are incompatible with URLRequest.
-      rv = ERR_METHOD_NOT_SUPPORTED;
-    }
-
     if (rv == OK) {
       transaction_->SetConnectedCallback(base::BindRepeating(
           &URLRequestHttpJob::NotifyConnectedCallback, base::Unretained(this)));
@@ -600,7 +600,7 @@ void URLRequestHttpJob::StartTransactionInternal() {
 
   // The transaction started synchronously, but we need to notify the
   // URLRequest delegate via the message loop.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&URLRequestHttpJob::OnStartCompleted,
                                 weak_factory_.GetWeakPtr(), rv));
 }
@@ -702,11 +702,6 @@ void URLRequestHttpJob::SetCookieHeaderAndStart(
     for (auto it = partition_it; it < maybe_included_cookies.end(); ++it) {
       it->access_result.status.AddExclusionReason(
           CookieInclusionStatus::EXCLUDE_USER_PREFERENCES);
-      if (first_party_set_metadata_.AreSitesInSameFirstPartySet()) {
-        it->access_result.status.AddExclusionReason(
-            CookieInclusionStatus::
-                EXCLUDE_THIRD_PARTY_BLOCKED_WITHIN_FIRST_PARTY_SET);
-      }
     }
     excluded_cookies.insert(
         excluded_cookies.end(), std::make_move_iterator(partition_it),
@@ -719,10 +714,12 @@ void URLRequestHttpJob::SetCookieHeaderAndStart(
     if (!maybe_included_cookies.empty()) {
       std::string cookie_line =
           CanonicalCookie::BuildCookieLine(maybe_included_cookies);
+      UMA_HISTOGRAM_COUNTS_10000("Cookie.HeaderLength", cookie_line.length());
       request_info_.extra_headers.SetHeader(HttpRequestHeaders::kCookie,
                                             cookie_line);
 
       size_t n_partitioned_cookies = 0;
+      size_t n_partitioned_cookies_no_nonce = 0;
 
       // TODO(crbug.com/1031664): Reduce the number of times the cookie list
       // is iterated over. Get metrics for every cookie which is included.
@@ -755,12 +752,34 @@ void URLRequestHttpJob::SetCookieHeaderAndStart(
                                   cookie_request_schemes);
         if (c.cookie.IsPartitioned()) {
           ++n_partitioned_cookies;
+          if (!c.cookie.PartitionKey()->nonce())
+            ++n_partitioned_cookies_no_nonce;
         }
       }
 
       if (IsPartitionedCookiesEnabled()) {
         base::UmaHistogramCounts100("Cookie.PartitionedCookiesInRequest",
                                     n_partitioned_cookies);
+        // TODO(crbug.com/1296161): Remove this code when the partitioned
+        // cookies Origin Trial is over.
+        if (n_partitioned_cookies_no_nonce > 0 &&
+            !request_info_.extra_headers.HasHeader(
+                "Sec-CH-Partitioned-Cookies")) {
+          // If the cookie store has partitioned cookies and there is no
+          // Sec-CH-Partitioned-Cookies header set by the process that initiated
+          // the request, then the site was in the Origin Trial at one point,
+          // but we have not yet received a valid token or Accept-CH header.
+          //
+          // In this case, we still send the partitioned cookies and set the
+          // Sec-CH-Partitioned-Cookies structured header to false.
+          //
+          // If the site does not respond with the Accept-CH header and OT token
+          // in the response, the partitioned cookies will be converted to
+          // unpartitioned cookies. This conversion is done by
+          // CookieManager::ConvertPartitionedCookiesToUnpartitioned.
+          request_info_.extra_headers.SetHeader("Sec-CH-Partitioned-Cookies",
+                                                "?0");
+        }
       }
     }
   }
@@ -888,6 +907,12 @@ void URLRequestHttpJob::SaveCookiesAndNotifyHeadersComplete(int result) {
     CookieInclusionStatus returned_status;
 
     num_cookie_lines_left_++;
+
+    // `cookie_partition_key_` is only non-null when partitioned cookie are
+    // enabled.
+    if (cookie_partition_key_ && ParsedCookie(cookie_string).IsPartitioned()) {
+      request_->SetHasPartitionedCookie();
+    }
 
     std::unique_ptr<CanonicalCookie> cookie = net::CanonicalCookie::Create(
         request_->url(), cookie_string, base::Time::Now(), server_time,
@@ -1406,7 +1431,7 @@ void URLRequestHttpJob::CancelAuth() {
   //
   // Have to do this via PostTask to avoid re-entrantly calling into the
   // consumer.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&URLRequestHttpJob::NotifyFinalHeadersReceived,
                                 weak_factory_.GetWeakPtr()));
 }
@@ -1431,7 +1456,7 @@ void URLRequestHttpJob::ContinueWithCertificate(
 
   // The transaction started synchronously, but we need to notify the
   // URLRequest delegate via the message loop.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&URLRequestHttpJob::OnStartCompleted,
                                 weak_factory_.GetWeakPtr(), rv));
 }
@@ -1454,7 +1479,7 @@ void URLRequestHttpJob::ContinueDespiteLastError() {
 
   // The transaction started synchronously, but we need to notify the
   // URLRequest delegate via the message loop.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&URLRequestHttpJob::OnStartCompleted,
                                 weak_factory_.GetWeakPtr(), rv));
 }

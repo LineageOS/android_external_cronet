@@ -350,9 +350,7 @@ bool ReserveAddressSpace(size_t size) {
   internal::ScopedGuard guard(GetReserveLock());
   if (!s_reservation_address) {
     uintptr_t mem = internal::SystemAllocPages(
-        0, size,
-        PageAccessibilityConfiguration(
-            PageAccessibilityConfiguration::kInaccessible),
+        0, size, PageAccessibilityConfiguration::kInaccessible,
         PageTag::kChromium);
     if (mem) {
       // We guarantee this alignment when reserving address space.

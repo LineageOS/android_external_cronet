@@ -89,7 +89,7 @@ void LSTMBETest::runTestFromFile(const char* filename) {
     }
 
     //  Put the test data into a UnicodeString
-    UnicodeString testString(false, testFile, len);
+    UnicodeString testString(FALSE, testFile, len);
 
     int32_t start = 0;
 

@@ -93,9 +93,6 @@ class QuicClientDefaultNetworkHelper : public QuicClientBase::NetworkHelper,
     fds_unregistered_externally_ = true;
   }
 
-  // Bind a socket to a specific network interface.
-  bool BindInterfaceNameIfNeeded(int fd);
-
  private:
   // Actually clean up |fd|.
   void CleanUpUDPSocketImpl(int fd);

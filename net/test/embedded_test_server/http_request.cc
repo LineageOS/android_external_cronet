@@ -11,7 +11,6 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
-#include "net/base/host_port_pair.h"
 #include "net/http/http_chunked_decoder.h"
 #include "url/gurl.h"
 
@@ -47,7 +46,7 @@ HttpRequestParser::HttpRequestParser()
 
 HttpRequestParser::~HttpRequestParser() = default;
 
-void HttpRequestParser::ProcessChunk(base::StringPiece data) {
+void HttpRequestParser::ProcessChunk(const base::StringPiece& data) {
   buffer_.append(data.data(), data.size());
   DCHECK_LE(buffer_.size() + data.size(), kRequestSizeLimit) <<
       "The HTTP request is too large.";
@@ -95,35 +94,18 @@ HttpRequestParser::ParseResult HttpRequestParser::ParseHeaders() {
     DCHECK_EQ(3u, header_line_tokens.size());
     // Method.
     http_request_->method_string = header_line_tokens[0];
-    http_request_->method = GetMethodType(http_request_->method_string);
-    // Target resource. See
-    // https://www.rfc-editor.org/rfc/rfc9112#name-request-line
-    // https://www.rfc-editor.org/rfc/rfc9110#name-determining-the-target-reso
-    if (http_request_->method == METHOD_CONNECT) {
-      // CONNECT uses a special authority-form. Just report the value as
-      // `relative_url`.
-      // https://www.rfc-editor.org/rfc/rfc9112#section-3.2.3
-      CHECK(!HostPortPair::FromString(header_line_tokens[1]).IsEmpty());
+    http_request_->method =
+        GetMethodType(base::ToLowerASCII(header_line_tokens[0]));
+    // Address.
+    // Don't build an absolute URL as the parser does not know (should not
+    // know) anything about the server address.
+    GURL url(header_line_tokens[1]);
+    if (url.is_valid()) {
+      http_request_->relative_url = url.PathForRequest();
+    } else if (header_line_tokens[1][0] == '/') {
       http_request_->relative_url = header_line_tokens[1];
-    } else if (http_request_->method == METHOD_OPTIONS &&
-               header_line_tokens[1] == "*") {
-      // OPTIONS allows a special asterisk-form for the request target.
-      // https://www.rfc-editor.org/rfc/rfc9112#section-3.2.4
-      http_request_->relative_url = "*";
     } else {
-      // The request target should be origin-form, unless connecting through a
-      // proxy, in which case it is absolute-form.
-      // https://www.rfc-editor.org/rfc/rfc9112#name-origin-form
-      // https://www.rfc-editor.org/rfc/rfc9112#name-absolute-form
-      if (!header_line_tokens[1].empty() &&
-          header_line_tokens[1].front() == '/') {
-        http_request_->relative_url = header_line_tokens[1];
-      } else {
-        GURL url(header_line_tokens[1]);
-        CHECK(url.is_valid());
-        // TODO(crbug.com/1375303): This should retain the entire URL.
-        http_request_->relative_url = url.PathForRequest();
-      }
+      http_request_->relative_url = "/" + header_line_tokens[1];
     }
 
     // Protocol.
@@ -242,26 +224,26 @@ std::unique_ptr<HttpRequest> HttpRequestParser::GetRequest() {
 }
 
 // static
-HttpMethod HttpRequestParser::GetMethodType(base::StringPiece token) {
-  if (token == "GET") {
+HttpMethod HttpRequestParser::GetMethodType(const std::string& token) {
+  if (token == "get") {
     return METHOD_GET;
-  } else if (token == "HEAD") {
+  } else if (token == "head") {
     return METHOD_HEAD;
-  } else if (token == "POST") {
+  } else if (token == "post") {
     return METHOD_POST;
-  } else if (token == "PUT") {
+  } else if (token == "put") {
     return METHOD_PUT;
-  } else if (token == "DELETE") {
+  } else if (token == "delete") {
     return METHOD_DELETE;
-  } else if (token == "PATCH") {
+  } else if (token == "patch") {
     return METHOD_PATCH;
-  } else if (token == "CONNECT") {
+  } else if (token == "connect") {
     return METHOD_CONNECT;
-  } else if (token == "OPTIONS") {
+  } else if (token == "options") {
     return METHOD_OPTIONS;
   }
   LOG(WARNING) << "Method not implemented: " << token;
-  return METHOD_UNKNOWN;
+  return METHOD_GET;
 }
 
 }  // namespace net::test_server

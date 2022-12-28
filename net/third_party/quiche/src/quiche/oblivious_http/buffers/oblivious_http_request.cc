@@ -49,22 +49,23 @@ ObliviousHttpRequest::CreateServerObliviousRequest(
   if (gateway_ctx == nullptr) {
     return SslErrorAsStatus("Failed to initialize Gateway/Server's Context.");
   }
-
-  QuicheDataReader reader(encrypted_data);
-
-  auto is_hdr_ok = ohttp_key_config.ParseOhttpPayloadHeader(reader);
+  // TODO(anov) Add ParseOhttpPayloadHeader(QuicheDataReader) to read fields out
+  // of payload, and eliminate sub-stringing.
+  auto is_hdr_ok = ohttp_key_config.ParseOhttpPayloadHeader(encrypted_data);
   if (!is_hdr_ok.ok()) {
     return is_hdr_ok;
   }
+  absl::string_view enc_plus_ciphertext =
+      encrypted_data.substr(ObliviousHttpHeaderKeyConfig::kHeaderLength);
 
   size_t enc_key_len = EVP_HPKE_KEM_enc_len(EVP_HPKE_KEY_kem(&gateway_key));
-
-  absl::string_view enc_key_received;
-  if (!reader.ReadStringPiece(&enc_key_received, enc_key_len)) {
+  if (enc_plus_ciphertext.size() < enc_key_len) {
     return absl::FailedPreconditionError(absl::StrCat(
         "Failed to extract encapsulation key of expected len=", enc_key_len,
         "from payload."));
   }
+  absl::string_view enc_key_received =
+      enc_plus_ciphertext.substr(0, enc_key_len);
   std::string info = ohttp_key_config.SerializeRecipientContextInfo();
   if (!EVP_HPKE_CTX_setup_recipient(
           gateway_ctx.get(), &gateway_key, ohttp_key_config.GetHpkeKdf(),
@@ -75,7 +76,9 @@ ObliviousHttpRequest::CreateServerObliviousRequest(
     return SslErrorAsStatus("Failed to setup recipient context");
   }
 
-  absl::string_view ciphertext_received = reader.ReadRemainingPayload();
+  absl::string_view ciphertext_received =
+      enc_plus_ciphertext.substr(enc_key_len);
+
   // Decrypt the message.
   std::string decrypted(ciphertext_received.size(), '\0');
   size_t decrypted_len;
@@ -95,23 +98,23 @@ ObliviousHttpRequest::CreateServerObliviousRequest(
 // Request Encapsulation.
 absl::StatusOr<ObliviousHttpRequest>
 ObliviousHttpRequest::CreateClientObliviousRequest(
-    std::string plaintext_payload, absl::string_view hpke_public_key,
+    absl::string_view plaintext_payload, absl::string_view hpke_public_key,
     const ObliviousHttpHeaderKeyConfig& ohttp_key_config) {
-  return EncapsulateWithSeed(std::move(plaintext_payload), hpke_public_key,
+  return EncapsulateWithSeed(plaintext_payload, hpke_public_key,
                              ohttp_key_config, "");
 }
 
 absl::StatusOr<ObliviousHttpRequest>
 ObliviousHttpRequest::CreateClientWithSeedForTesting(
-    std::string plaintext_payload, absl::string_view hpke_public_key,
+    absl::string_view plaintext_payload, absl::string_view hpke_public_key,
     const ObliviousHttpHeaderKeyConfig& ohttp_key_config,
     absl::string_view seed) {
   return ObliviousHttpRequest::EncapsulateWithSeed(
-      std::move(plaintext_payload), hpke_public_key, ohttp_key_config, seed);
+      plaintext_payload, hpke_public_key, ohttp_key_config, seed);
 }
 
 absl::StatusOr<ObliviousHttpRequest> ObliviousHttpRequest::EncapsulateWithSeed(
-    std::string plaintext_payload, absl::string_view hpke_public_key,
+    absl::string_view plaintext_payload, absl::string_view hpke_public_key,
     const ObliviousHttpHeaderKeyConfig& ohttp_key_config,
     absl::string_view seed) {
   if (plaintext_payload.empty() || hpke_public_key.empty()) {
@@ -182,7 +185,7 @@ absl::StatusOr<ObliviousHttpRequest> ObliviousHttpRequest::EncapsulateWithSeed(
 
   return ObliviousHttpRequest(
       std::move(client_ctx), std::move(encapsulated_key), ohttp_key_config,
-      std::move(ciphertext), std::move(plaintext_payload));
+      std::move(ciphertext), std::string(plaintext_payload));
 }
 
 // Request Serialize.

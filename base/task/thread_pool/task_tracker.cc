@@ -319,8 +319,7 @@ bool TaskTracker::WillPostTask(Task* task,
     // ordering bug. This aims to catch those early.
     CheckedAutoLock auto_lock(shutdown_lock_);
     DCHECK(shutdown_event_);
-    DCHECK(!shutdown_event_->IsSignaled())
-        << "posted_from: " << task->posted_from.ToString();
+    DCHECK(!shutdown_event_->IsSignaled());
   }
 
   // TODO(scheduler-dev): Record the task traits here.

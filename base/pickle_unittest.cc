@@ -153,7 +153,9 @@ TEST(PickleTest, LongFrom64Bit) {
   if (sizeof(long) < sizeof(int64_t)) {
     // ReadLong() should return false when the original written value can't be
     // represented as a long.
-    EXPECT_FALSE(iter.ReadLong(&outlong));
+#if GTEST_HAS_DEATH_TEST
+    EXPECT_DEATH(std::ignore = iter.ReadLong(&outlong), "");
+#endif
   } else {
     EXPECT_TRUE(iter.ReadLong(&outlong));
     EXPECT_EQ(testint64, outlong);

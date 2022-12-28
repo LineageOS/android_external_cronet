@@ -21,7 +21,8 @@ namespace spdy {
 // a setting with a setting ID of kMetadataExtensionId and a value of 1.
 //
 // Metadata is represented as a HPACK header block with literal encoding.
-class QUICHE_EXPORT MetadataVisitor : public spdy::ExtensionVisitorInterface {
+class QUICHE_EXPORT_PRIVATE MetadataVisitor
+    : public spdy::ExtensionVisitorInterface {
  public:
   using MetadataPayload = spdy::Http2HeaderBlock;
 
@@ -92,7 +93,7 @@ class QUICHE_EXPORT MetadataVisitor : public spdy::ExtensionVisitorInterface {
 
 // This class uses an HpackEncoder to serialize a METADATA block as a series of
 // METADATA frames.
-class QUICHE_EXPORT MetadataFrameSequence {
+class QUICHE_EXPORT_PRIVATE MetadataFrameSequence {
  public:
   MetadataFrameSequence(SpdyStreamId stream_id, spdy::Http2HeaderBlock payload);
 

@@ -14,6 +14,7 @@
 #include "base/strings/string_util.h"
 #include "base/sys_byteorder.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "net/base/net_errors.h"
 #include "net/server/http_connection.h"
@@ -57,7 +58,7 @@ HttpServer::HttpServer(std::unique_ptr<ServerSocket> server_socket,
   DCHECK(server_socket_);
   // Start accepting connections in next run loop in case when delegate is not
   // ready to get callbacks.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&HttpServer::DoAcceptLoop,
                                 weak_ptr_factory_.GetWeakPtr()));
 }
@@ -149,8 +150,8 @@ void HttpServer::Close(int connection_id) {
   // connection. Instead of referencing connection with ID all the time,
   // destroys the connection in next run loop to make sure any pending
   // callbacks in the call stack return.
-  base::SingleThreadTaskRunner::GetCurrentDefault()->DeleteSoon(
-      FROM_HERE, connection.release());
+  base::ThreadTaskRunnerHandle::Get()->DeleteSoon(FROM_HERE,
+                                                  connection.release());
 }
 
 int HttpServer::GetLocalAddress(IPEndPoint* address) {

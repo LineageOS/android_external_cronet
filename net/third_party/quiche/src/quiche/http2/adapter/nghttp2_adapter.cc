@@ -1,7 +1,5 @@
 #include "quiche/http2/adapter/nghttp2_adapter.h"
 
-#include <memory>
-
 #include "absl/algorithm/container.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -296,9 +294,9 @@ void NgHttp2Adapter::Initialize() {
     options_ = owned_options;
   }
 
-  session_ =
-      std::make_unique<NgHttp2Session>(perspective_, callbacks::Create(),
-                                       options_, static_cast<void*>(&visitor_));
+  session_ = absl::make_unique<NgHttp2Session>(perspective_,
+                                               callbacks::Create(), options_,
+                                               static_cast<void*>(&visitor_));
   if (owned_options != nullptr) {
     nghttp2_option_del(owned_options);
   }

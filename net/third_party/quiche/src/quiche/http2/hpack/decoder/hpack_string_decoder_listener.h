@@ -20,7 +20,7 @@ namespace test {
 // HpackStringDecoder methods require a listener that implements the methods
 // below, but it is NOT necessary to extend this class because the methods
 // are templates.
-class QUICHE_EXPORT HpackStringDecoderListener {
+class QUICHE_EXPORT_PRIVATE HpackStringDecoderListener {
  public:
   virtual ~HpackStringDecoderListener() {}
 
@@ -39,7 +39,7 @@ class QUICHE_EXPORT HpackStringDecoderListener {
   virtual void OnStringEnd() = 0;
 };
 
-class QUICHE_EXPORT HpackStringDecoderVLoggingListener
+class QUICHE_EXPORT_PRIVATE HpackStringDecoderVLoggingListener
     : public HpackStringDecoderListener {
  public:
   HpackStringDecoderVLoggingListener() : wrapped_(nullptr) {}

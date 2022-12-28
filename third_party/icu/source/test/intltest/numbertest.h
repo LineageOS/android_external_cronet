@@ -70,7 +70,6 @@ class NumberFormatterApiTest : public IntlTestWithFieldPosition {
     void unitGender();
     void unitNotConvertible();
     void unitPercent();
-    void unitLocaleTags();
     void percentParity();
     void roundingFraction();
     void roundingFigures();

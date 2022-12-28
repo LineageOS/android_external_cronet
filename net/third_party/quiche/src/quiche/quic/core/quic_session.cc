@@ -111,8 +111,7 @@ QuicSession::QuicSession(
   closed_streams_clean_up_alarm_ =
       absl::WrapUnique<QuicAlarm>(connection_->alarm_factory()->CreateAlarm(
           new ClosedStreamsCleanUpDelegate(this)));
-  if (!delay_setting_stateless_reset_token_ &&
-      perspective() == Perspective::IS_SERVER &&
+  if (perspective() == Perspective::IS_SERVER &&
       connection_->version().handshake_protocol == PROTOCOL_TLS1_3) {
     config_.SetStatelessResetTokenToSend(GetStatelessResetToken());
   }
@@ -135,12 +134,6 @@ void QuicSession::Initialize() {
       connection_->set_can_receive_ack_frequency_frame();
       config_.SetMinAckDelayMs(kDefaultMinAckDelayTimeMs);
     }
-  }
-  if (delay_setting_stateless_reset_token_ &&
-      perspective() == Perspective::IS_SERVER &&
-      connection_->version().handshake_protocol == PROTOCOL_TLS1_3) {
-    QUIC_RELOADABLE_FLAG_COUNT(quic_delay_setting_stateless_reset_token);
-    config_.SetStatelessResetTokenToSend(GetStatelessResetToken());
   }
 
   connection_->CreateConnectionIdManager();
@@ -645,14 +638,6 @@ void QuicSession::OnCanWrite() {
   }
   if (control_frame_manager_.WillingToWrite()) {
     control_frame_manager_.OnCanWrite();
-  }
-  if (GetQuicReloadableFlag(
-          quic_donot_pto_stream_data_before_handshake_confirmed) &&
-      version().UsesTls() && GetHandshakeState() != HANDSHAKE_CONFIRMED &&
-      connection_->in_probe_time_out()) {
-    QUIC_CODE_COUNT(quic_donot_pto_stream_data_before_handshake_confirmed);
-    // Do not PTO stream data before handshake gets confirmed.
-    return;
   }
   // TODO(b/147146815): this makes all datagrams go before stream data.  We
   // should have a better priority scheme for this.
@@ -1802,6 +1787,8 @@ void QuicSession::UpdateStreamPriority(
     QuicStreamId id, const spdy::SpdyStreamPrecedence& new_precedence) {
   write_blocked_streams()->UpdateStreamPriority(id, new_precedence);
 }
+
+QuicConfig* QuicSession::config() { return &config_; }
 
 void QuicSession::ActivateStream(std::unique_ptr<QuicStream> stream) {
   QuicStreamId stream_id = stream->id();

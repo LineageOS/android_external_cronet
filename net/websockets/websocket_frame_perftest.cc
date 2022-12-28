@@ -4,10 +4,9 @@
 
 #include "net/websockets/websocket_frame.h"
 
+#include <algorithm>
 #include <vector>
 
-#include "base/ranges/algorithm.h"
-#include "base/strings/string_piece.h"
 #include "base/timer/elapsed_timer.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/perf/perf_result_reporter.h"
@@ -16,9 +15,9 @@ namespace net {
 
 namespace {
 
-constexpr int kIterations = 100000;
-constexpr int kLongPayloadSize = 1 << 16;
-constexpr base::StringPiece kMaskingKey = "\xFE\xED\xBE\xEF";
+const int kIterations = 100000;
+const int kLongPayloadSize = 1 << 16;
+const char kMaskingKey[] = "\xFE\xED\xBE\xEF";
 
 static constexpr char kMetricPrefixWebSocketFrame[] = "WebSocketFrameMask.";
 static constexpr char kMetricMaskTimeMs[] = "mask_time";
@@ -30,7 +29,8 @@ perf_test::PerfResultReporter SetUpWebSocketFrameMaskReporter(
   return reporter;
 }
 
-static_assert(kMaskingKey.size() == WebSocketFrameHeader::kMaskingKeyLength,
+static_assert(std::size(kMaskingKey) ==
+                  WebSocketFrameHeader::kMaskingKeyLength + 1,
               "incorrect masking key size");
 
 class WebSocketFrameTestMaskBenchmark : public ::testing::Test {
@@ -40,7 +40,9 @@ class WebSocketFrameTestMaskBenchmark : public ::testing::Test {
                  size_t size) {
     std::vector<char> scratch(payload, payload + size);
     WebSocketMaskingKey masking_key;
-    base::ranges::copy(kMaskingKey, masking_key.key);
+    std::copy(kMaskingKey,
+              kMaskingKey + WebSocketFrameHeader::kMaskingKeyLength,
+              masking_key.key);
     auto reporter = SetUpWebSocketFrameMaskReporter(story);
     base::ElapsedTimer timer;
     for (int x = 0; x < kIterations; ++x) {

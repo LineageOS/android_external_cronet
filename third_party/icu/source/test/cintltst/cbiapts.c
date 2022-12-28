@@ -24,7 +24,6 @@
 
 #if !UCONFIG_NO_BREAK_ITERATION
 
-#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include "unicode/uloc.h"
@@ -43,7 +42,7 @@
 } UPRV_BLOCK_MACRO_END
 
 #define TEST_ASSERT(expr) UPRV_BLOCK_MACRO_BEGIN { \
-    if ((expr)==false) { \
+    if ((expr)==FALSE) { \
         log_data_err("Test Failure at file %s, line %d (Are you missing data?)\n", __FILE__, __LINE__); \
     } \
 } UPRV_BLOCK_MACRO_END
@@ -276,15 +275,15 @@ static void TestBreakIteratorCAPI()
     pos=ubrk_previous(word);
     log_verbose("%d \n", pos);
 
-    if (ubrk_isBoundary(word, 2) != false) {
-        log_err("error ubrk_isBoundary(word, 2) did not return false\n");
+    if (ubrk_isBoundary(word, 2) != FALSE) {
+        log_err("error ubrk_isBoundary(word, 2) did not return FALSE\n");
     }
     pos=ubrk_current(word);
     if (pos != 4) {
         log_err("error ubrk_current() != 4 after ubrk_isBoundary(word, 2)\n");
     }
-    if (ubrk_isBoundary(word, 4) != true) {
-        log_err("error ubrk_isBoundary(word, 4) did not return true\n");
+    if (ubrk_isBoundary(word, 4) != TRUE) {
+        log_err("error ubrk_isBoundary(word, 4) did not return TRUE\n");
     }
 
 
@@ -931,16 +930,16 @@ static void TestBreakIteratorTailoring(void) {
             int32_t offset, offsindx;
             UBool foundError;
 
-            foundError = false;
+            foundError = FALSE;
             for (offsindx = 0; (offset = ubrk_next(ubrkiter)) != UBRK_DONE; ++offsindx) {
                 if (!foundError && offsindx >= testPtr->numOffsets) {
                     log_err("FAIL: locale %s, break type %d, ubrk_next expected UBRK_DONE, got %d\n",
                             testPtr->locale, testPtr->type, offset);
-                    foundError = true;
+                    foundError = TRUE;
                 } else if (!foundError && offset != testPtr->offsFwd[offsindx]) {
                     log_err("FAIL: locale %s, break type %d, ubrk_next expected %d, got %d\n",
                             testPtr->locale, testPtr->type, testPtr->offsFwd[offsindx], offset);
-                    foundError = true;
+                    foundError = TRUE;
                 }
             }
             if (!foundError && offsindx < testPtr->numOffsets) {
@@ -948,16 +947,16 @@ static void TestBreakIteratorTailoring(void) {
                         testPtr->locale, testPtr->type, testPtr->offsFwd[offsindx]);
             }
 
-            foundError = false;
+            foundError = FALSE;
             for (offsindx = 0; (offset = ubrk_previous(ubrkiter)) != UBRK_DONE; ++offsindx) {
                 if (!foundError && offsindx >= testPtr->numOffsets) {
                     log_err("FAIL: locale %s, break type %d, ubrk_previous expected UBRK_DONE, got %d\n",
                             testPtr->locale, testPtr->type, offset);
-                    foundError = true;
+                    foundError = TRUE;
                 } else if (!foundError && offset != testPtr->offsRev[offsindx]) {
                     log_err("FAIL: locale %s, break type %d, ubrk_previous expected %d, got %d\n",
                             testPtr->locale, testPtr->type, testPtr->offsRev[offsindx], offset);
-                    foundError = true;
+                    foundError = TRUE;
                 }
             }
             if (!foundError && offsindx < testPtr->numOffsets) {

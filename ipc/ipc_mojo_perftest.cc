@@ -15,10 +15,10 @@
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/task/single_thread_task_runner.h"
 #include "base/test/perf_time_logger.h"
 #include "base/test/task_environment.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "ipc/ipc_channel_mojo.h"
@@ -200,8 +200,7 @@ class MojoChannelPerfTest : public IPCChannelMojoTestBase {
     PerformanceChannelListener listener("ChannelProxy");
     auto channel_proxy = IPC::ChannelProxy::Create(
         TakeHandle().release(), IPC::Channel::MODE_SERVER, &listener,
-        GetIOThreadTaskRunner(),
-        base::SingleThreadTaskRunner::GetCurrentDefault());
+        GetIOThreadTaskRunner(), base::ThreadTaskRunnerHandle::Get());
     listener.Init(channel_proxy.get());
 
     LockThreadAffinity thread_locker(kSharedCore);
@@ -234,8 +233,7 @@ class MojoChannelPerfTest : public IPCChannelMojoTestBase {
         base::WaitableEvent::InitialState::NOT_SIGNALED);
     auto channel_proxy = IPC::SyncChannel::Create(
         TakeHandle().release(), IPC::Channel::MODE_SERVER, &listener,
-        GetIOThreadTaskRunner(),
-        base::SingleThreadTaskRunner::GetCurrentDefault(), false,
+        GetIOThreadTaskRunner(), base::ThreadTaskRunnerHandle::Get(), false,
         &shutdown_event);
     listener.Init(channel_proxy.get());
 
@@ -823,7 +821,7 @@ class CallbackPerfTest : public testing::Test {
     std::vector<PingPongTestParams> params = GetDefaultTestParams();
     for (size_t i = 0; i < params.size(); i++) {
       std::string hello("hello");
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&CallbackPerfTest::SingleThreadPingPostTask,
                                     base::Unretained(this), hello));
       message_count_ = count_down_ = params[i].message_count();
@@ -834,7 +832,7 @@ class CallbackPerfTest : public testing::Test {
   }
 
   void SingleThreadPingPostTask(const std::string& value) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&CallbackPerfTest::SingleThreadPongPostTask,
                                   base::Unretained(this), value));
   }
@@ -858,7 +856,7 @@ class CallbackPerfTest : public testing::Test {
       }
     }
 
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&CallbackPerfTest::SingleThreadPingPostTask,
                                   base::Unretained(this), payload_));
   }

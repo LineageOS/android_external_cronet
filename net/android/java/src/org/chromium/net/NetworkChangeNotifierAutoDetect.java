@@ -1126,8 +1126,7 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
             // callback doesn't actually indicate a network change, we can ignore it by setting
             // mIgnoreNextBroadcast.
             mIgnoreNextBroadcast =
-                    ContextUtils.registerProtectedBroadcastReceiver(
-                            ContextUtils.getApplicationContext(), this, mIntentFilter)
+                    ContextUtils.getApplicationContext().registerReceiver(this, mIntentFilter)
                     != null;
         }
         mRegistered = true;

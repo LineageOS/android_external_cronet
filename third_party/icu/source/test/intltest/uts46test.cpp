@@ -106,22 +106,22 @@ static UBool isASCII(const UnicodeString &str) {
     int32_t length=str.length();
     for(int32_t i=0; i<length; ++i) {
         if(s[i]>=0x80) {
-            return false;
+            return FALSE;
         }
     }
-    return true;
+    return TRUE;
 }
 
 class TestCheckedArrayByteSink : public CheckedArrayByteSink {
 public:
     TestCheckedArrayByteSink(char* outbuf, int32_t capacity)
-            : CheckedArrayByteSink(outbuf, capacity), calledFlush(false) {}
+            : CheckedArrayByteSink(outbuf, capacity), calledFlush(FALSE) {}
     virtual CheckedArrayByteSink& Reset() override {
         CheckedArrayByteSink::Reset();
-        calledFlush = false;
+        calledFlush = FALSE;
         return *this;
     }
-    virtual void Flush() override { calledFlush = true; }
+    virtual void Flush() override { calledFlush = TRUE; }
     UBool calledFlush;
 };
 
@@ -1045,13 +1045,13 @@ void UTS46Test::checkIdnaTestResult(const char *line, const char *type,
                                     const char *status, const IDNAInfo &info) {
     // An error in toUnicode or toASCII is indicated by a value in square brackets,
     // such as "[B5 B6]".
-    UBool expectedHasErrors = false;
+    UBool expectedHasErrors = FALSE;
     if (*status != 0) {
         if (*status != u'[') {
             errln("%s  status field does not start with '[': %s\n    %s", type, status, line);
         }
         if (strcmp(status, reinterpret_cast<const char*>(u8"[]")) != 0) {
-            expectedHasErrors = true;
+            expectedHasErrors = TRUE;
         }
     }
     if (expectedHasErrors != info.hasErrors()) {

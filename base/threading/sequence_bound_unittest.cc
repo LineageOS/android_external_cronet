@@ -5,7 +5,6 @@
 #include "base/threading/sequence_bound.h"
 
 #include <functional>
-#include <memory>
 #include <utility>
 
 #include "base/memory/raw_ptr.h"
@@ -44,74 +43,6 @@ class EventLogger {
   std::vector<std::string> events_ GUARDED_BY(lock_);
 };
 
-// Helpers for writing type tests against both `SequenceBound<T>` and
-// `SequenceBound<std::unique_ptr<T>`. The tricky part here is that the
-// constructor and emplace both need to accept variadic args; however,
-// construction of the actual `T` depends on the storage strategy.  The
-// `Wrapper` template provides this layer of indirection to construct the
-// managed `T` while still passing through all the other remaining
-// `SequenceBound` APIs.
-struct DirectVariation {
-  static constexpr bool kManagingTaskRunnerConstructsT = true;
-
-  template <typename T>
-  class Wrapper : public SequenceBound<T> {
-   public:
-    template <typename... Args>
-    explicit Wrapper(scoped_refptr<SequencedTaskRunner> task_runner,
-                     Args&&... args)
-        : SequenceBound<T>(std::move(task_runner),
-                           std::forward<Args>(args)...) {}
-
-    template <typename... Args>
-    void WrappedEmplace(scoped_refptr<SequencedTaskRunner> task_runner,
-                        Args&&... args) {
-      this->emplace(std::move(task_runner), std::forward<Args>(args)...);
-    }
-
-    using SequenceBound<T>::SequenceBound;
-    using SequenceBound<T>::operator=;
-
-   private:
-    using SequenceBound<T>::emplace;
-  };
-};
-
-struct UniquePtrVariation {
-  static constexpr bool kManagingTaskRunnerConstructsT = false;
-
-  template <typename T>
-  struct Wrapper : public SequenceBound<std::unique_ptr<T>> {
-   public:
-    template <typename... Args>
-    explicit Wrapper(scoped_refptr<SequencedTaskRunner> task_runner,
-                     Args&&... args)
-        : SequenceBound<std::unique_ptr<T>>(
-              std::move(task_runner),
-              std::make_unique<T>(std::forward<Args>(args)...)) {}
-
-    template <typename... Args>
-    void WrappedEmplace(scoped_refptr<SequencedTaskRunner> task_runner,
-                        Args&&... args) {
-      this->emplace(std::move(task_runner),
-                    std::make_unique<T>(std::forward<Args>(args)...));
-    }
-
-    using SequenceBound<std::unique_ptr<T>>::SequenceBound;
-    using SequenceBound<std::unique_ptr<T>>::operator=;
-
-   private:
-    using SequenceBound<std::unique_ptr<T>>::emplace;
-  };
-};
-
-// Helper macros since using the name directly is otherwise quite unwieldy.
-#define SEQUENCE_BOUND_T typename TypeParam::template Wrapper
-// Try to catch tests that inadvertently use SequenceBound<T> directly instead
-// of SEQUENCE_BOUND_T, as that bypasses the point of having a typed test.
-#define SequenceBound PleaseUseSequenceBoundT
-
-template <typename Variation>
 class SequenceBoundTest : public ::testing::Test {
  public:
   void TearDown() override {
@@ -132,7 +63,7 @@ class SequenceBoundTest : public ::testing::Test {
 
   test::TaskEnvironment task_environment_;
 
-  // Task runner to use for SequenceBound's managed `T`.
+  // Otherwise, default to using `background_task_runner_` for new tests.
   scoped_refptr<SequencedTaskRunner> background_task_runner_ =
       ThreadPool::CreateSequencedTaskRunner({});
 
@@ -142,9 +73,6 @@ class SequenceBoundTest : public ::testing::Test {
   // already-posted cleanup tasks.
   EventLogger logger_;
 };
-
-using Variations = ::testing::Types<DirectVariation, UniquePtrVariation>;
-TYPED_TEST_SUITE(SequenceBoundTest, Variations);
 
 class Base {
  public:
@@ -217,7 +145,6 @@ class BoxedValue {
  public:
   explicit BoxedValue(int initial_value, EventLogger* logger = nullptr)
       : logger_(logger), value_(initial_value) {
-    sequence_checker_.DetachFromSequence();
     AddEventIfNeeded(StringPrintf("constructed BoxedValue = %d", value_));
   }
 
@@ -225,24 +152,24 @@ class BoxedValue {
   BoxedValue& operator=(const BoxedValue&) = delete;
 
   ~BoxedValue() {
-    EXPECT_TRUE(sequence_checker_.CalledOnValidSequence());
+    EXPECT_TRUE(sequence_checker.CalledOnValidSequence());
     AddEventIfNeeded(StringPrintf("destroyed BoxedValue = %d", value_));
     if (destruction_callback_)
       std::move(destruction_callback_).Run();
   }
 
   void set_destruction_callback(OnceClosure callback) {
-    EXPECT_TRUE(sequence_checker_.CalledOnValidSequence());
+    EXPECT_TRUE(sequence_checker.CalledOnValidSequence());
     destruction_callback_ = std::move(callback);
   }
 
   int value() const {
-    EXPECT_TRUE(sequence_checker_.CalledOnValidSequence());
+    EXPECT_TRUE(sequence_checker.CalledOnValidSequence());
     AddEventIfNeeded(StringPrintf("accessed BoxedValue = %d", value_));
     return value_;
   }
   void set_value(int value) {
-    EXPECT_TRUE(sequence_checker_.CalledOnValidSequence());
+    EXPECT_TRUE(sequence_checker.CalledOnValidSequence());
     AddEventIfNeeded(
         StringPrintf("updated BoxedValue from %d to %d", value_, value));
     value_ = value;
@@ -255,7 +182,7 @@ class BoxedValue {
     }
   }
 
-  SequenceChecker sequence_checker_;
+  SequenceChecker sequence_checker;
 
   mutable raw_ptr<EventLogger> logger_ = nullptr;
 
@@ -265,145 +192,128 @@ class BoxedValue {
 
 // Smoke test that all interactions with the wrapped object are posted to the
 // correct task runner.
-class SequenceValidator {
- public:
-  explicit SequenceValidator(scoped_refptr<SequencedTaskRunner> task_runner,
-                             bool constructs_on_managing_task_runner)
-      : task_runner_(std::move(task_runner)) {
-    if (constructs_on_managing_task_runner) {
+TEST_F(SequenceBoundTest, SequenceValidation) {
+  class Validator {
+   public:
+    explicit Validator(scoped_refptr<SequencedTaskRunner> task_runner)
+        : task_runner_(std::move(task_runner)) {
       EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
     }
-  }
 
-  ~SequenceValidator() {
-    EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
-  }
+    ~Validator() { EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence()); }
 
-  void ReturnsVoid() const {
-    EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
-  }
+    void ReturnsVoid() const {
+      EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
+    }
 
-  void ReturnsVoidMutable() {
-    EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
-  }
+    void ReturnsVoidMutable() {
+      EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
+    }
 
-  int ReturnsInt() const {
-    EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
-    return 0;
-  }
+    int ReturnsInt() const {
+      EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
+      return 0;
+    }
 
-  int ReturnsIntMutable() {
-    EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
-    return 0;
-  }
+    int ReturnsIntMutable() {
+      EXPECT_TRUE(task_runner_->RunsTasksInCurrentSequence());
+      return 0;
+    }
 
- private:
-  scoped_refptr<SequencedTaskRunner> task_runner_;
-};
+   private:
+    scoped_refptr<SequencedTaskRunner> task_runner_;
+  };
 
-TYPED_TEST(SequenceBoundTest, SequenceValidation) {
-  SEQUENCE_BOUND_T<SequenceValidator> validator(
-      this->background_task_runner_, this->background_task_runner_,
-      TypeParam::kManagingTaskRunnerConstructsT);
-  validator.AsyncCall(&SequenceValidator::ReturnsVoid);
-  validator.AsyncCall(&SequenceValidator::ReturnsVoidMutable);
-  validator.AsyncCall(&SequenceValidator::ReturnsInt).Then(BindOnce([](int) {
-  }));
-  validator.AsyncCall(&SequenceValidator::ReturnsIntMutable)
-      .Then(BindOnce([](int) {}));
-  validator.AsyncCall(IgnoreResult(&SequenceValidator::ReturnsInt));
-  validator.AsyncCall(IgnoreResult(&SequenceValidator::ReturnsIntMutable));
-  validator.WrappedEmplace(this->background_task_runner_,
-                           this->background_task_runner_,
-                           TypeParam::kManagingTaskRunnerConstructsT);
-  validator.PostTaskWithThisObject(BindLambdaForTesting(
-      [](const SequenceValidator& v) { v.ReturnsVoid(); }));
-  validator.PostTaskWithThisObject(BindLambdaForTesting(
-      [](SequenceValidator* v) { v->ReturnsVoidMutable(); }));
+  SequenceBound<Validator> validator(background_task_runner_,
+                                     background_task_runner_);
+  validator.AsyncCall(&Validator::ReturnsVoid);
+  validator.AsyncCall(&Validator::ReturnsVoidMutable);
+  validator.AsyncCall(&Validator::ReturnsInt).Then(BindOnce([](int) {}));
+  validator.AsyncCall(&Validator::ReturnsIntMutable).Then(BindOnce([](int) {}));
+  validator.AsyncCall(IgnoreResult(&Validator::ReturnsInt));
+  validator.AsyncCall(IgnoreResult(&Validator::ReturnsIntMutable));
+  validator.emplace(background_task_runner_, background_task_runner_);
+  validator.PostTaskWithThisObject(
+      BindLambdaForTesting([](const Validator& v) { v.ReturnsVoid(); }));
+  validator.PostTaskWithThisObject(
+      BindLambdaForTesting([](Validator* v) { v->ReturnsVoidMutable(); }));
   validator.Reset();
-  this->FlushPostedTasks();
+  FlushPostedTasks();
 }
 
-TYPED_TEST(SequenceBoundTest, Basic) {
-  SEQUENCE_BOUND_T<BoxedValue> value(this->background_task_runner_, 0,
-                                     &this->logger_);
-  // Construction of `BoxedValue` may be posted to `background_task_runner_`,
-  // but the `SequenceBound` itself should immediately be treated as valid /
+TEST_F(SequenceBoundTest, Basic) {
+  SequenceBound<BoxedValue> value(background_task_runner_, 0, &logger_);
+  // Construction of `BoxedValue` is posted to `background_task_runner_`, but
+  // the `SequenceBound` itself should immediately be treated as valid /
   // non-null.
   EXPECT_FALSE(value.is_null());
   EXPECT_TRUE(value);
   value.FlushPostedTasksForTesting();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed BoxedValue = 0"));
 
   value.AsyncCall(&BoxedValue::set_value).WithArgs(66);
   value.FlushPostedTasksForTesting();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("updated BoxedValue from 0 to 66"));
 
-  // Destruction of `BoxedValue` may be posted to `background_task_runner_`, but
-  // the `SequenceBound` itself should immediately be treated as valid /
-  // non-null.
+  // Destruction of `BoxedValue` is posted to `background_task_runner_`, but the
+  // `SequenceBound` itself should immediately be treated as valid / non-null.
   value.Reset();
   EXPECT_TRUE(value.is_null());
   EXPECT_FALSE(value);
-  this->FlushPostedTasks();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  FlushPostedTasks();
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("destroyed BoxedValue = 66"));
 }
 
-TYPED_TEST(SequenceBoundTest, ConstructAndImmediateAsyncCall) {
+TEST_F(SequenceBoundTest, ConstructAndImmediateAsyncCall) {
   // Calling `AsyncCall` immediately after construction should always work.
-  SEQUENCE_BOUND_T<BoxedValue> value(this->background_task_runner_, 0,
-                                     &this->logger_);
+  SequenceBound<BoxedValue> value(background_task_runner_, 0, &logger_);
   value.AsyncCall(&BoxedValue::set_value).WithArgs(8);
   value.FlushPostedTasksForTesting();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed BoxedValue = 0",
                                      "updated BoxedValue from 0 to 8"));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveConstruction) {
+TEST_F(SequenceBoundTest, MoveConstruction) {
   // std::ref() is required here: internally, the async work is bound into the
   // standard base callback infrastructure, which requires the explicit use of
   // `std::cref()` and `std::ref()` when passing by reference.
-  SEQUENCE_BOUND_T<Derived> derived_old(this->background_task_runner_,
-                                        std::ref(this->logger_));
-  SEQUENCE_BOUND_T<Derived> derived_new = std::move(derived_old);
-  // NOLINTNEXTLINE(bugprone-use-after-move)
+  SequenceBound<Derived> derived_old(background_task_runner_,
+                                     std::ref(logger_));
+  SequenceBound<Derived> derived_new = std::move(derived_old);
   EXPECT_TRUE(derived_old.is_null());
   EXPECT_FALSE(derived_new.is_null());
   derived_new.Reset();
-  this->FlushPostedTasks();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  FlushPostedTasks();
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed Base", "constructed Derived",
                                      "destroyed Derived", "destroyed Base"));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveConstructionUpcastsToBase) {
-  SEQUENCE_BOUND_T<Derived> derived(this->background_task_runner_,
-                                    std::ref(this->logger_));
-  SEQUENCE_BOUND_T<Base> base = std::move(derived);
-  // NOLINTNEXTLINE(bugprone-use-after-move)
+TEST_F(SequenceBoundTest, MoveConstructionUpcastsToBase) {
+  SequenceBound<Derived> derived(background_task_runner_, std::ref(logger_));
+  SequenceBound<Base> base = std::move(derived);
   EXPECT_TRUE(derived.is_null());
   EXPECT_FALSE(base.is_null());
 
   // The original `Derived` object is now owned by `SequencedBound<Base>`; make
   // sure `~Derived()` still runs when it is reset.
   base.Reset();
-  this->FlushPostedTasks();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  FlushPostedTasks();
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed Base", "constructed Derived",
                                      "destroyed Derived", "destroyed Base"));
 }
 
 // Classes with multiple-derived bases may need pointer adjustments when
 // upcasting. These tests rely on sanitizers to catch potential mistakes.
-TYPED_TEST(SequenceBoundTest, MoveConstructionUpcastsToLeftmost) {
-  SEQUENCE_BOUND_T<MultiplyDerived> multiply_derived(
-      this->background_task_runner_, std::ref(this->logger_));
-  SEQUENCE_BOUND_T<Leftmost> leftmost_base = std::move(multiply_derived);
-  // NOLINTNEXTLINE(bugprone-use-after-move)
+TEST_F(SequenceBoundTest, MoveConstructionUpcastsToLeftmost) {
+  SequenceBound<MultiplyDerived> multiply_derived(background_task_runner_,
+                                                  std::ref(logger_));
+  SequenceBound<Leftmost> leftmost_base = std::move(multiply_derived);
   EXPECT_TRUE(multiply_derived.is_null());
   EXPECT_FALSE(leftmost_base.is_null());
 
@@ -411,20 +321,19 @@ TYPED_TEST(SequenceBoundTest, MoveConstructionUpcastsToLeftmost) {
   // `SequencedBound<Leftmost>`; make sure all the expected destructors
   // still run when it is reset.
   leftmost_base.Reset();
-  this->FlushPostedTasks();
+  FlushPostedTasks();
   EXPECT_THAT(
-      this->logger_.TakeEvents(),
+      logger_.TakeEvents(),
       ::testing::ElementsAre(
           "constructed Leftmost", "constructed Base", "constructed Rightmost",
           "constructed MultiplyDerived", "destroyed MultiplyDerived",
           "destroyed Rightmost", "destroyed Base", "destroyed Leftmost"));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveConstructionUpcastsToRightmost) {
-  SEQUENCE_BOUND_T<MultiplyDerived> multiply_derived(
-      this->background_task_runner_, std::ref(this->logger_));
-  SEQUENCE_BOUND_T<Rightmost> rightmost_base = std::move(multiply_derived);
-  // NOLINTNEXTLINE(bugprone-use-after-move)
+TEST_F(SequenceBoundTest, MoveConstructionUpcastsToRightmost) {
+  SequenceBound<MultiplyDerived> multiply_derived(background_task_runner_,
+                                                  std::ref(logger_));
+  SequenceBound<Rightmost> rightmost_base = std::move(multiply_derived);
   EXPECT_TRUE(multiply_derived.is_null());
   EXPECT_FALSE(rightmost_base.is_null());
 
@@ -432,60 +341,56 @@ TYPED_TEST(SequenceBoundTest, MoveConstructionUpcastsToRightmost) {
   // `SequencedBound<Rightmost>`; make sure all the expected destructors
   // still run when it is reset.
   rightmost_base.Reset();
-  this->FlushPostedTasks();
+  FlushPostedTasks();
   EXPECT_THAT(
-      this->logger_.TakeEvents(),
+      logger_.TakeEvents(),
       ::testing::ElementsAre(
           "constructed Leftmost", "constructed Base", "constructed Rightmost",
           "constructed MultiplyDerived", "destroyed MultiplyDerived",
           "destroyed Rightmost", "destroyed Base", "destroyed Leftmost"));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveAssignment) {
-  SEQUENCE_BOUND_T<Derived> derived_old(this->background_task_runner_,
-                                        std::ref(this->logger_));
-  SEQUENCE_BOUND_T<Derived> derived_new;
+TEST_F(SequenceBoundTest, MoveAssignment) {
+  SequenceBound<Derived> derived_old(background_task_runner_,
+                                     std::ref(logger_));
+  SequenceBound<Derived> derived_new;
 
   derived_new = std::move(derived_old);
-  // NOLINTNEXTLINE(bugprone-use-after-move)
   EXPECT_TRUE(derived_old.is_null());
   EXPECT_FALSE(derived_new.is_null());
 
   // Note that this explicitly avoids using `Reset()` as a basic test that
   // assignment resets any previously-owned object.
-  derived_new = SEQUENCE_BOUND_T<Derived>();
-  this->FlushPostedTasks();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  derived_new = SequenceBound<Derived>();
+  FlushPostedTasks();
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed Base", "constructed Derived",
                                      "destroyed Derived", "destroyed Base"));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveAssignmentUpcastsToBase) {
-  SEQUENCE_BOUND_T<Derived> derived(this->background_task_runner_,
-                                    std::ref(this->logger_));
-  SEQUENCE_BOUND_T<Base> base;
+TEST_F(SequenceBoundTest, MoveAssignmentUpcastsToBase) {
+  SequenceBound<Derived> derived(background_task_runner_, std::ref(logger_));
+  SequenceBound<Base> base;
 
   base = std::move(derived);
-  // NOLINTNEXTLINE(bugprone-use-after-move)
   EXPECT_TRUE(derived.is_null());
   EXPECT_FALSE(base.is_null());
 
   // The original `Derived` object is now owned by `SequencedBound<Base>`; make
   // sure `~Derived()` still runs when it is reset.
   base.Reset();
-  this->FlushPostedTasks();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  FlushPostedTasks();
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed Base", "constructed Derived",
                                      "destroyed Derived", "destroyed Base"));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveAssignmentUpcastsToLeftmost) {
-  SEQUENCE_BOUND_T<MultiplyDerived> multiply_derived(
-      this->background_task_runner_, std::ref(this->logger_));
-  SEQUENCE_BOUND_T<Leftmost> leftmost_base;
+TEST_F(SequenceBoundTest, MoveAssignmentUpcastsToLeftmost) {
+  SequenceBound<MultiplyDerived> multiply_derived(background_task_runner_,
+                                                  std::ref(logger_));
+  SequenceBound<Leftmost> leftmost_base;
 
   leftmost_base = std::move(multiply_derived);
-  // NOLINTNEXTLINE(bugprone-use-after-move)
   EXPECT_TRUE(multiply_derived.is_null());
   EXPECT_FALSE(leftmost_base.is_null());
 
@@ -493,22 +398,21 @@ TYPED_TEST(SequenceBoundTest, MoveAssignmentUpcastsToLeftmost) {
   // `SequencedBound<Leftmost>`; make sure all the expected destructors
   // still run when it is reset.
   leftmost_base.Reset();
-  this->FlushPostedTasks();
+  FlushPostedTasks();
   EXPECT_THAT(
-      this->logger_.TakeEvents(),
+      logger_.TakeEvents(),
       ::testing::ElementsAre(
           "constructed Leftmost", "constructed Base", "constructed Rightmost",
           "constructed MultiplyDerived", "destroyed MultiplyDerived",
           "destroyed Rightmost", "destroyed Base", "destroyed Leftmost"));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveAssignmentUpcastsToRightmost) {
-  SEQUENCE_BOUND_T<MultiplyDerived> multiply_derived(
-      this->background_task_runner_, std::ref(this->logger_));
-  SEQUENCE_BOUND_T<Rightmost> rightmost_base;
+TEST_F(SequenceBoundTest, MoveAssignmentUpcastsToRightmost) {
+  SequenceBound<MultiplyDerived> multiply_derived(background_task_runner_,
+                                                  std::ref(logger_));
+  SequenceBound<Rightmost> rightmost_base;
 
   rightmost_base = std::move(multiply_derived);
-  // NOLINTNEXTLINE(bugprone-use-after-move)
   EXPECT_TRUE(multiply_derived.is_null());
   EXPECT_FALSE(rightmost_base.is_null());
 
@@ -516,80 +420,78 @@ TYPED_TEST(SequenceBoundTest, MoveAssignmentUpcastsToRightmost) {
   // `SequencedBound<Rightmost>`; make sure all the expected destructors
   // still run when it is reset.
   rightmost_base.Reset();
-  this->FlushPostedTasks();
+  FlushPostedTasks();
   EXPECT_THAT(
-      this->logger_.TakeEvents(),
+      logger_.TakeEvents(),
       ::testing::ElementsAre(
           "constructed Leftmost", "constructed Base", "constructed Rightmost",
           "constructed MultiplyDerived", "destroyed MultiplyDerived",
           "destroyed Rightmost", "destroyed Base", "destroyed Leftmost"));
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallLeftmost) {
-  SEQUENCE_BOUND_T<MultiplyDerived> multiply_derived(
-      this->background_task_runner_, std::ref(this->logger_));
+TEST_F(SequenceBoundTest, AsyncCallLeftmost) {
+  SequenceBound<MultiplyDerived> multiply_derived(background_task_runner_,
+                                                  std::ref(logger_));
   multiply_derived.AsyncCall(&Leftmost::SetValue).WithArgs(3);
   multiply_derived.FlushPostedTasksForTesting();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed Leftmost", "constructed Base",
                                      "constructed Rightmost",
                                      "constructed MultiplyDerived",
                                      "set Leftmost to 3"));
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallRightmost) {
-  SEQUENCE_BOUND_T<MultiplyDerived> multiply_derived(
-      this->background_task_runner_, std::ref(this->logger_));
+TEST_F(SequenceBoundTest, AsyncCallRightmost) {
+  SequenceBound<MultiplyDerived> multiply_derived(background_task_runner_,
+                                                  std::ref(logger_));
   multiply_derived.AsyncCall(&Rightmost::SetValue).WithArgs(3);
   multiply_derived.FlushPostedTasksForTesting();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed Leftmost", "constructed Base",
                                      "constructed Rightmost",
                                      "constructed MultiplyDerived",
                                      "set Rightmost to 3"));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveConstructionFromNull) {
-  SEQUENCE_BOUND_T<BoxedValue> value1;
+TEST_F(SequenceBoundTest, MoveConstructionFromNull) {
+  SequenceBound<BoxedValue> value1;
   // Should not crash.
-  SEQUENCE_BOUND_T<BoxedValue> value2(std::move(value1));
+  SequenceBound<BoxedValue> value2(std::move(value1));
 }
 
-TYPED_TEST(SequenceBoundTest, MoveAssignmentFromNull) {
-  SEQUENCE_BOUND_T<BoxedValue> value1;
-  SEQUENCE_BOUND_T<BoxedValue> value2;
+TEST_F(SequenceBoundTest, MoveAssignmentFromNull) {
+  SequenceBound<BoxedValue> value1;
+  SequenceBound<BoxedValue> value2;
   // Should not crash.
   value2 = std::move(value1);
 }
 
-TYPED_TEST(SequenceBoundTest, MoveAssignmentFromSelf) {
-  SEQUENCE_BOUND_T<BoxedValue> value;
+TEST_F(SequenceBoundTest, MoveAssignmentFromSelf) {
+  SequenceBound<BoxedValue> value;
   // Cheat to avoid clang self-move warning.
   auto& value2 = value;
   // Should not crash.
   value2 = std::move(value);
 }
 
-TYPED_TEST(SequenceBoundTest, ResetNullSequenceBound) {
-  SEQUENCE_BOUND_T<BoxedValue> value;
+TEST_F(SequenceBoundTest, ResetNullSequenceBound) {
+  SequenceBound<BoxedValue> value;
   // Should not crash.
   value.Reset();
 }
 
-TYPED_TEST(SequenceBoundTest, ConstructWithLvalue) {
+TEST_F(SequenceBoundTest, ConstructWithLvalue) {
   int lvalue = 99;
-  SEQUENCE_BOUND_T<BoxedValue> value(this->background_task_runner_, lvalue,
-                                     &this->logger_);
+  SequenceBound<BoxedValue> value(background_task_runner_, lvalue, &logger_);
   value.FlushPostedTasksForTesting();
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed BoxedValue = 99"));
 }
 
-TYPED_TEST(SequenceBoundTest, PostTaskWithThisObject) {
+TEST_F(SequenceBoundTest, PostTaskWithThisObject) {
   constexpr int kTestValue1 = 42;
   constexpr int kTestValue2 = 42;
-  SEQUENCE_BOUND_T<BoxedValue> value(this->background_task_runner_,
-                                     kTestValue1);
+  SequenceBound<BoxedValue> value(background_task_runner_, kTestValue1);
   value.PostTaskWithThisObject(BindLambdaForTesting(
       [&](const BoxedValue& v) { EXPECT_EQ(kTestValue1, v.value()); }));
   value.PostTaskWithThisObject(
@@ -599,8 +501,8 @@ TYPED_TEST(SequenceBoundTest, PostTaskWithThisObject) {
   value.FlushPostedTasksForTesting();
 }
 
-TYPED_TEST(SequenceBoundTest, SynchronouslyResetForTest) {
-  SEQUENCE_BOUND_T<BoxedValue> value(this->background_task_runner_, 0);
+TEST_F(SequenceBoundTest, SynchronouslyResetForTest) {
+  SequenceBound<BoxedValue> value(background_task_runner_, 0);
 
   bool destroyed = false;
   value.AsyncCall(&BoxedValue::set_destruction_callback)
@@ -610,27 +512,26 @@ TYPED_TEST(SequenceBoundTest, SynchronouslyResetForTest) {
   EXPECT_TRUE(destroyed);
 }
 
-TYPED_TEST(SequenceBoundTest, FlushPostedTasksForTesting) {
-  SEQUENCE_BOUND_T<BoxedValue> value(this->background_task_runner_, 0,
-                                     &this->logger_);
+TEST_F(SequenceBoundTest, FlushPostedTasksForTesting) {
+  SequenceBound<BoxedValue> value(background_task_runner_, 0, &logger_);
 
   value.AsyncCall(&BoxedValue::set_value).WithArgs(42);
   value.FlushPostedTasksForTesting();
 
-  EXPECT_THAT(this->logger_.TakeEvents(),
+  EXPECT_THAT(logger_.TakeEvents(),
               ::testing::ElementsAre("constructed BoxedValue = 0",
                                      "updated BoxedValue from 0 to 42"));
 }
 
-TYPED_TEST(SequenceBoundTest, SmallObject) {
+TEST_F(SequenceBoundTest, SmallObject) {
   class EmptyClass {};
-  SEQUENCE_BOUND_T<EmptyClass> value(this->background_task_runner_);
+  SequenceBound<EmptyClass> value(background_task_runner_);
   // Test passes if SequenceBound constructor does not crash in AlignedAlloc().
 }
 
-TYPED_TEST(SequenceBoundTest, SelfMoveAssign) {
+TEST_F(SequenceBoundTest, SelfMoveAssign) {
   class EmptyClass {};
-  SEQUENCE_BOUND_T<EmptyClass> value(this->background_task_runner_);
+  SequenceBound<EmptyClass> value(background_task_runner_);
   EXPECT_FALSE(value.is_null());
   // Clang has a warning for self-move, so be clever.
   auto& actually_the_same_value = value;
@@ -642,60 +543,46 @@ TYPED_TEST(SequenceBoundTest, SelfMoveAssign) {
   EXPECT_TRUE(value.is_null());
 }
 
-TYPED_TEST(SequenceBoundTest, Emplace) {
-  SEQUENCE_BOUND_T<BoxedValue> value;
+TEST_F(SequenceBoundTest, Emplace) {
+  SequenceBound<BoxedValue> value;
   EXPECT_TRUE(value.is_null());
-  value.WrappedEmplace(this->background_task_runner_, 8);
+  value.emplace(background_task_runner_, 8);
   value.AsyncCall(&BoxedValue::value)
       .Then(BindLambdaForTesting(
           [&](int actual_value) { EXPECT_EQ(8, actual_value); }));
   value.FlushPostedTasksForTesting();
 }
 
-TYPED_TEST(SequenceBoundTest, EmplaceOverExisting) {
-  SEQUENCE_BOUND_T<BoxedValue> value(this->background_task_runner_, 8,
-                                     &this->logger_);
+TEST_F(SequenceBoundTest, EmplaceOverExisting) {
+  SequenceBound<BoxedValue> value(background_task_runner_, 8, &logger_);
   EXPECT_FALSE(value.is_null());
-  value.WrappedEmplace(this->background_task_runner_, 9, &this->logger_);
+  value.emplace(background_task_runner_, 9, &logger_);
   value.AsyncCall(&BoxedValue::value)
       .Then(BindLambdaForTesting(
           [&](int actual_value) { EXPECT_EQ(9, actual_value); }));
   value.FlushPostedTasksForTesting();
-
-  if constexpr (TypeParam::kManagingTaskRunnerConstructsT) {
-    // Both the replaced `BoxedValue` and the current `BoxedValue` should
-    // live on the same sequence: make sure the replaced `BoxedValue` was
-    // destroyed before the current `BoxedValue` was constructed.
-    EXPECT_THAT(this->logger_.TakeEvents(),
-                ::testing::ElementsAre(
-                    "constructed BoxedValue = 8", "destroyed BoxedValue = 8",
-                    "constructed BoxedValue = 9", "accessed BoxedValue = 9"));
-  } else {
-    // When `SequenceBound` manages a `std::unique_ptr<T>`, `T` is constructed
-    // on the current sequence so construction of the new managed instance will
-    // happen before the previously-managed instance is destroyed on the
-    // managing task runner.
-    EXPECT_THAT(this->logger_.TakeEvents(),
-                ::testing::ElementsAre(
-                    "constructed BoxedValue = 8", "constructed BoxedValue = 9",
-                    "destroyed BoxedValue = 8", "accessed BoxedValue = 9"));
-  }
+  // Both the replaced `BoxedValue` and the current `BoxedValue` should
+  // live on the same sequence: make sure the replaced `BoxedValue` was
+  // destroyed before the current `BoxedValue` was constructed.
+  EXPECT_THAT(logger_.TakeEvents(),
+              ::testing::ElementsAre(
+                  "constructed BoxedValue = 8", "destroyed BoxedValue = 8",
+                  "constructed BoxedValue = 9", "accessed BoxedValue = 9"));
 }
 
-TYPED_TEST(SequenceBoundTest, EmplaceOverExistingWithTaskRunnerSwap) {
+TEST_F(SequenceBoundTest, EmplaceOverExistingWithTaskRunnerSwap) {
   scoped_refptr<SequencedTaskRunner> another_task_runner =
       ThreadPool::CreateSequencedTaskRunner({});
   // No `EventLogger` here since destruction of the old `BoxedValue` and
   // construction of the new `BoxedValue` take place on different sequences and
   // can arbitrarily race.
-  SEQUENCE_BOUND_T<BoxedValue> value(another_task_runner, 8);
+  SequenceBound<BoxedValue> value(another_task_runner, 8);
   EXPECT_FALSE(value.is_null());
-  value.WrappedEmplace(this->background_task_runner_, 9);
+  value.emplace(background_task_runner_, 9);
   {
     value.PostTaskWithThisObject(BindLambdaForTesting(
-        [another_task_runner,
-         background_task_runner =
-             this->background_task_runner_](const BoxedValue& boxed_value) {
+        [another_task_runner, background_task_runner = background_task_runner_](
+            const BoxedValue& boxed_value) {
           EXPECT_FALSE(another_task_runner->RunsTasksInCurrentSequence());
           EXPECT_TRUE(background_task_runner->RunsTasksInCurrentSequence());
           EXPECT_EQ(9, boxed_value.value());
@@ -720,7 +607,7 @@ class NoArgsVoidReturn {
   void set_loop(RunLoop* loop) { loop_ = loop; }
 
  private:
-  raw_ptr<RunLoop> loop_ = nullptr;
+  RunLoop* loop_ = nullptr;
 };
 
 class NoArgsIntReturn {
@@ -763,8 +650,8 @@ class IntArgIntReturn {
 
 }  // namespace
 
-TYPED_TEST(SequenceBoundTest, AsyncCallNoArgsNoThen) {
-  SEQUENCE_BOUND_T<NoArgsVoidReturn> s(this->background_task_runner_);
+TEST_F(SequenceBoundTest, AsyncCallNoArgsNoThen) {
+  SequenceBound<NoArgsVoidReturn> s(background_task_runner_);
 
   {
     RunLoop loop;
@@ -781,12 +668,11 @@ TYPED_TEST(SequenceBoundTest, AsyncCallNoArgsNoThen) {
   }
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallIntArgNoThen) {
+TEST_F(SequenceBoundTest, AsyncCallIntArgNoThen) {
   int method_called_with = 0;
   int const_method_called_with = 0;
-  SEQUENCE_BOUND_T<IntArgVoidReturn> s(this->background_task_runner_,
-                                       &method_called_with,
-                                       &const_method_called_with);
+  SequenceBound<IntArgVoidReturn> s(
+      background_task_runner_, &method_called_with, &const_method_called_with);
 
   {
     RunLoop loop;
@@ -805,8 +691,8 @@ TYPED_TEST(SequenceBoundTest, AsyncCallIntArgNoThen) {
   }
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallNoArgsVoidThen) {
-  SEQUENCE_BOUND_T<NoArgsVoidReturn> s(this->background_task_runner_);
+TEST_F(SequenceBoundTest, AsyncCallNoArgsVoidThen) {
+  SequenceBound<NoArgsVoidReturn> s(background_task_runner_);
 
   {
     RunLoop loop;
@@ -824,8 +710,8 @@ TYPED_TEST(SequenceBoundTest, AsyncCallNoArgsVoidThen) {
   }
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallNoArgsIntThen) {
-  SEQUENCE_BOUND_T<NoArgsIntReturn> s(this->background_task_runner_);
+TEST_F(SequenceBoundTest, AsyncCallNoArgsIntThen) {
+  SequenceBound<NoArgsIntReturn> s(background_task_runner_);
 
   {
     RunLoop loop;
@@ -848,12 +734,11 @@ TYPED_TEST(SequenceBoundTest, AsyncCallNoArgsIntThen) {
   }
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallWithArgsVoidThen) {
+TEST_F(SequenceBoundTest, AsyncCallWithArgsVoidThen) {
   int method_called_with = 0;
   int const_method_called_with = 0;
-  SEQUENCE_BOUND_T<IntArgVoidReturn> s(this->background_task_runner_,
-                                       &method_called_with,
-                                       &const_method_called_with);
+  SequenceBound<IntArgVoidReturn> s(
+      background_task_runner_, &method_called_with, &const_method_called_with);
 
   {
     RunLoop loop;
@@ -874,8 +759,8 @@ TYPED_TEST(SequenceBoundTest, AsyncCallWithArgsVoidThen) {
   }
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallWithArgsIntThen) {
-  SEQUENCE_BOUND_T<IntArgIntReturn> s(this->background_task_runner_);
+TEST_F(SequenceBoundTest, AsyncCallWithArgsIntThen) {
+  SequenceBound<IntArgIntReturn> s(background_task_runner_);
 
   {
     RunLoop loop;
@@ -900,10 +785,10 @@ TYPED_TEST(SequenceBoundTest, AsyncCallWithArgsIntThen) {
   }
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallIsConstQualified) {
+TEST_F(SequenceBoundTest, AsyncCallIsConstQualified) {
   // Tests that both const and non-const methods may be called through a
   // const-qualified SequenceBound.
-  const SEQUENCE_BOUND_T<NoArgsVoidReturn> s(this->background_task_runner_);
+  const SequenceBound<NoArgsVoidReturn> s(background_task_runner_);
   s.AsyncCall(&NoArgsVoidReturn::ConstMethod);
   s.AsyncCall(&NoArgsVoidReturn::Method);
 }
@@ -938,30 +823,30 @@ class IgnoreResultTestHelperWithNoArgs {
   const raw_ptr<bool> called_ = nullptr;
 };
 
-TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultNoArgs) {
+TEST_F(SequenceBoundTest, AsyncCallIgnoreResultNoArgs) {
   {
     RunLoop loop;
-    SEQUENCE_BOUND_T<IgnoreResultTestHelperWithNoArgs> s(
-        this->background_task_runner_, &loop, nullptr);
+    SequenceBound<IgnoreResultTestHelperWithNoArgs> s(background_task_runner_,
+                                                      &loop, nullptr);
     s.AsyncCall(IgnoreResult(&IgnoreResultTestHelperWithNoArgs::ConstMethod));
     loop.Run();
   }
 
   {
     RunLoop loop;
-    SEQUENCE_BOUND_T<IgnoreResultTestHelperWithNoArgs> s(
-        this->background_task_runner_, &loop, nullptr);
+    SequenceBound<IgnoreResultTestHelperWithNoArgs> s(background_task_runner_,
+                                                      &loop, nullptr);
     s.AsyncCall(IgnoreResult(&IgnoreResultTestHelperWithNoArgs::Method));
     loop.Run();
   }
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultThen) {
+TEST_F(SequenceBoundTest, AsyncCallIgnoreResultThen) {
   {
     RunLoop loop;
     bool called = false;
-    SEQUENCE_BOUND_T<IgnoreResultTestHelperWithNoArgs> s(
-        this->background_task_runner_, nullptr, &called);
+    SequenceBound<IgnoreResultTestHelperWithNoArgs> s(background_task_runner_,
+                                                      nullptr, &called);
     s.AsyncCall(IgnoreResult(&IgnoreResultTestHelperWithNoArgs::ConstMethod))
         .Then(BindLambdaForTesting([&] { loop.Quit(); }));
     loop.Run();
@@ -971,8 +856,8 @@ TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultThen) {
   {
     RunLoop loop;
     bool called = false;
-    SEQUENCE_BOUND_T<IgnoreResultTestHelperWithNoArgs> s(
-        this->background_task_runner_, nullptr, &called);
+    SequenceBound<IgnoreResultTestHelperWithNoArgs> s(background_task_runner_,
+                                                      nullptr, &called);
     s.AsyncCall(IgnoreResult(&IgnoreResultTestHelperWithNoArgs::Method))
         .Then(BindLambdaForTesting([&] { loop.Quit(); }));
     loop.Run();
@@ -986,7 +871,7 @@ class IgnoreResultTestHelperWithArgs {
       : loop_(loop), value_(value) {}
 
   int ConstMethod(int arg) const {
-    *value_ = arg;
+    value_ = arg;
     if (loop_) {
       loop_->Quit();
     }
@@ -994,7 +879,7 @@ class IgnoreResultTestHelperWithArgs {
   }
 
   int Method(int arg) {
-    *value_ = arg;
+    value_ = arg;
     if (loop_) {
       loop_->Quit();
     }
@@ -1003,15 +888,15 @@ class IgnoreResultTestHelperWithArgs {
 
  private:
   const raw_ptr<RunLoop> loop_ = nullptr;
-  const raw_ref<int> value_;
+  int& value_;
 };
 
-TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultWithArgs) {
+TEST_F(SequenceBoundTest, AsyncCallIgnoreResultWithArgs) {
   {
     RunLoop loop;
     int result = 0;
-    SEQUENCE_BOUND_T<IgnoreResultTestHelperWithArgs> s(
-        this->background_task_runner_, &loop, std::ref(result));
+    SequenceBound<IgnoreResultTestHelperWithArgs> s(background_task_runner_,
+                                                    &loop, std::ref(result));
     s.AsyncCall(IgnoreResult(&IgnoreResultTestHelperWithArgs::ConstMethod))
         .WithArgs(60);
     loop.Run();
@@ -1021,8 +906,8 @@ TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultWithArgs) {
   {
     RunLoop loop;
     int result = 0;
-    SEQUENCE_BOUND_T<IgnoreResultTestHelperWithArgs> s(
-        this->background_task_runner_, &loop, std::ref(result));
+    SequenceBound<IgnoreResultTestHelperWithArgs> s(background_task_runner_,
+                                                    &loop, std::ref(result));
     s.AsyncCall(IgnoreResult(&IgnoreResultTestHelperWithArgs::Method))
         .WithArgs(06);
     loop.Run();
@@ -1030,12 +915,12 @@ TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultWithArgs) {
   }
 }
 
-TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultWithArgsThen) {
+TEST_F(SequenceBoundTest, AsyncCallIgnoreResultWithArgsThen) {
   {
     RunLoop loop;
     int result = 0;
-    SEQUENCE_BOUND_T<IgnoreResultTestHelperWithArgs> s(
-        this->background_task_runner_, nullptr, std::ref(result));
+    SequenceBound<IgnoreResultTestHelperWithArgs> s(background_task_runner_,
+                                                    nullptr, std::ref(result));
     s.AsyncCall(IgnoreResult(&IgnoreResultTestHelperWithArgs::ConstMethod))
         .WithArgs(60)
         .Then(BindLambdaForTesting([&] { loop.Quit(); }));
@@ -1046,8 +931,8 @@ TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultWithArgsThen) {
   {
     RunLoop loop;
     int result = 0;
-    SEQUENCE_BOUND_T<IgnoreResultTestHelperWithArgs> s(
-        this->background_task_runner_, nullptr, std::ref(result));
+    SequenceBound<IgnoreResultTestHelperWithArgs> s(background_task_runner_,
+                                                    nullptr, std::ref(result));
     s.AsyncCall(IgnoreResult(&IgnoreResultTestHelperWithArgs::Method))
         .WithArgs(06)
         .Then(BindLambdaForTesting([&] { loop.Quit(); }));
@@ -1056,12 +941,10 @@ TYPED_TEST(SequenceBoundTest, AsyncCallIgnoreResultWithArgsThen) {
   }
 }
 
-// TODO(https://crbug.com/1382549): Maybe use the nocompile harness here instead
-// of being "clever"...
-TYPED_TEST(SequenceBoundTest, NoCompileTests) {
-  // TODO(https://crbug.com/1382549): Test calling WithArgs() on a method that
-  // takes no arguments.
-  //
+// TODO(dcheng): Maybe use the nocompile harness here instead of being
+// "clever"...
+TEST_F(SequenceBoundTest, NoCompileTests) {
+  // TODO(dcheng): Test calling WithArgs() on a method that takes no arguments.
   // Given:
   //   class C {
   //     void F();
@@ -1073,9 +956,7 @@ TYPED_TEST(SequenceBoundTest, NoCompileTests) {
   //
   // should not compile.
   //
-  // TODO(https://crbug.com/1382549): Test calling Then() before calling
-  // WithArgs().
-  //
+  // TODO(dcheng): Test calling Then() before calling WithArgs().
   // Given:
   //   class C {
   //     void F(int);
@@ -1087,10 +968,7 @@ TYPED_TEST(SequenceBoundTest, NoCompileTests) {
   //
   // should not compile.
   //
-  // TODO(https://crbug.com/1382549): Add no-compile tests for converting
-  // between SequenceBound<T> and SequenceBound<std::unique_ptr<T>>.
 }
-#undef SequenceBound
 
 class SequenceBoundDeathTest : public ::testing::Test {
  protected:

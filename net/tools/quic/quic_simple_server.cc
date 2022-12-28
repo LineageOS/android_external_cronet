@@ -12,6 +12,7 @@
 #include "base/location.h"
 #include "base/run_loop.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_errors.h"
 #include "net/log/net_log_source.h"
@@ -51,7 +52,7 @@ QuicSimpleServer::QuicSimpleServer(
           new QuicChromiumConnectionHelper(&clock_,
                                            quic::QuicRandom::GetInstance())),
       alarm_factory_(new QuicChromiumAlarmFactory(
-          base::SingleThreadTaskRunner::GetCurrentDefault().get(),
+          base::ThreadTaskRunnerHandle::Get().get(),
           &clock_)),
       config_(config),
       crypto_config_options_(crypto_config_options),
@@ -158,7 +159,7 @@ void QuicSimpleServer::StartReading() {
     synchronous_read_count_ = 0;
     if (dispatcher_->HasChlosBuffered()) {
       // No more packets to read, so yield before processing buffered packets.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&QuicSimpleServer::StartReading,
                                     weak_factory_.GetWeakPtr()));
     }
@@ -169,7 +170,7 @@ void QuicSimpleServer::StartReading() {
     synchronous_read_count_ = 0;
     // Schedule the processing through the message loop to 1) prevent infinite
     // recursion and 2) avoid blocking the thread for too long.
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(&QuicSimpleServer::OnReadComplete,
                                   weak_factory_.GetWeakPtr(), result));
   } else {

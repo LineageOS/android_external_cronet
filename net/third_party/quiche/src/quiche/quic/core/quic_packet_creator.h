@@ -141,8 +141,9 @@ class QUIC_EXPORT_PRIVATE QuicPacketCreator {
 
   // The overhead the framing will add for a packet with one frame.
   static size_t StreamFramePacketOverhead(
-      QuicTransportVersion version, uint8_t destination_connection_id_length,
-      uint8_t source_connection_id_length, bool include_version,
+      QuicTransportVersion version,
+      QuicConnectionIdLength destination_connection_id_length,
+      QuicConnectionIdLength source_connection_id_length, bool include_version,
       bool include_diversification_nonce,
       QuicPacketNumberLength packet_number_length,
       quiche::QuicheVariableLengthIntegerLength retry_token_length_length,
@@ -285,10 +286,10 @@ class QUIC_EXPORT_PRIVATE QuicPacketCreator {
   QuicConnectionId GetSourceConnectionId() const;
 
   // Returns length of destination connection ID to send over the wire.
-  uint8_t GetDestinationConnectionIdLength() const;
+  QuicConnectionIdLength GetDestinationConnectionIdLength() const;
 
   // Returns length of source connection ID to send over the wire.
-  uint8_t GetSourceConnectionIdLength() const;
+  QuicConnectionIdLength GetSourceConnectionIdLength() const;
 
   // Sets whether the server connection ID should be sent over the wire.
   void SetServerConnectionIdIncluded(

@@ -73,8 +73,8 @@ const char HttpRequestHeaders::kUserAgent[] = "User-Agent";
 HttpRequestHeaders::HeaderKeyValuePair::HeaderKeyValuePair() = default;
 
 HttpRequestHeaders::HeaderKeyValuePair::HeaderKeyValuePair(
-    base::StringPiece key,
-    base::StringPiece value)
+    const base::StringPiece& key,
+    const base::StringPiece& value)
     : key(key.data(), key.size()), value(value.data(), value.size()) {}
 
 HttpRequestHeaders::Iterator::Iterator(const HttpRequestHeaders& headers)
@@ -106,7 +106,7 @@ HttpRequestHeaders& HttpRequestHeaders::operator=(
 HttpRequestHeaders& HttpRequestHeaders::operator=(HttpRequestHeaders&& other) =
     default;
 
-bool HttpRequestHeaders::GetHeader(base::StringPiece key,
+bool HttpRequestHeaders::GetHeader(const base::StringPiece& key,
                                    std::string* out) const {
   auto it = FindHeader(key);
   if (it == headers_.end())
@@ -119,8 +119,8 @@ void HttpRequestHeaders::Clear() {
   headers_.clear();
 }
 
-void HttpRequestHeaders::SetHeader(base::StringPiece key,
-                                   base::StringPiece value) {
+void HttpRequestHeaders::SetHeader(const base::StringPiece& key,
+                                   const base::StringPiece& value) {
   // Invalid header names or values could mean clients can attach
   // browser-internal headers.
   CHECK(HttpUtil::IsValidHeaderName(key)) << key;
@@ -128,8 +128,8 @@ void HttpRequestHeaders::SetHeader(base::StringPiece key,
   SetHeaderInternal(key, value);
 }
 
-void HttpRequestHeaders::SetHeaderIfMissing(base::StringPiece key,
-                                            base::StringPiece value) {
+void HttpRequestHeaders::SetHeaderIfMissing(const base::StringPiece& key,
+                                            const base::StringPiece& value) {
   // Invalid header names or values could mean clients can attach
   // browser-internal headers.
   CHECK(HttpUtil::IsValidHeaderName(key));
@@ -139,13 +139,14 @@ void HttpRequestHeaders::SetHeaderIfMissing(base::StringPiece key,
     headers_.push_back(HeaderKeyValuePair(key, value));
 }
 
-void HttpRequestHeaders::RemoveHeader(base::StringPiece key) {
+void HttpRequestHeaders::RemoveHeader(const base::StringPiece& key) {
   auto it = FindHeader(key);
   if (it != headers_.end())
     headers_.erase(it);
 }
 
-void HttpRequestHeaders::AddHeaderFromString(base::StringPiece header_line) {
+void HttpRequestHeaders::AddHeaderFromString(
+    const base::StringPiece& header_line) {
   DCHECK_EQ(std::string::npos, header_line.find("\r\n"))
       << "\"" << header_line << "\" contains CRLF.";
 
@@ -184,8 +185,9 @@ void HttpRequestHeaders::AddHeaderFromString(base::StringPiece header_line) {
   }
 }
 
-void HttpRequestHeaders::AddHeadersFromString(base::StringPiece headers) {
-  for (base::StringPiece header : base::SplitStringPieceUsingSubstr(
+void HttpRequestHeaders::AddHeadersFromString(
+    const base::StringPiece& headers) {
+  for (const base::StringPiece& header : base::SplitStringPieceUsingSubstr(
            headers, "\r\n", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY)) {
     AddHeaderFromString(header);
   }
@@ -268,7 +270,7 @@ void HttpRequestHeaders::SetAcceptEncodingIfMissing(
 }
 
 HttpRequestHeaders::HeaderVector::iterator HttpRequestHeaders::FindHeader(
-    base::StringPiece key) {
+    const base::StringPiece& key) {
   for (auto it = headers_.begin(); it != headers_.end(); ++it) {
     if (base::EqualsCaseInsensitiveASCII(key, it->key))
       return it;
@@ -278,7 +280,7 @@ HttpRequestHeaders::HeaderVector::iterator HttpRequestHeaders::FindHeader(
 }
 
 HttpRequestHeaders::HeaderVector::const_iterator HttpRequestHeaders::FindHeader(
-    base::StringPiece key) const {
+    const base::StringPiece& key) const {
   for (auto it = headers_.begin(); it != headers_.end(); ++it) {
     if (base::EqualsCaseInsensitiveASCII(key, it->key))
       return it;
@@ -287,8 +289,8 @@ HttpRequestHeaders::HeaderVector::const_iterator HttpRequestHeaders::FindHeader(
   return headers_.end();
 }
 
-void HttpRequestHeaders::SetHeaderInternal(base::StringPiece key,
-                                           base::StringPiece value) {
+void HttpRequestHeaders::SetHeaderInternal(const base::StringPiece& key,
+                                           const base::StringPiece& value) {
   auto it = FindHeader(key);
   if (it != headers_.end())
     it->value.assign(value.data(), value.size());

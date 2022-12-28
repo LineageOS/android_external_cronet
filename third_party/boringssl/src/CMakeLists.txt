@@ -132,7 +132,7 @@ endif()
 if(CMAKE_COMPILER_IS_GNUCXX OR CLANG)
   # Note clang-cl is odd and sets both CLANG and MSVC. We base our configuration
   # primarily on our normal Clang one.
-  set(C_CXX_FLAGS "-Werror -Wformat=2 -Wsign-compare -Wmissing-field-initializers -Wwrite-strings -Wvla -Wshadow -Wtype-limits")
+  set(C_CXX_FLAGS "-Werror -Wformat=2 -Wsign-compare -Wmissing-field-initializers -Wwrite-strings -Wvla -Wshadow")
   if(MSVC)
     # clang-cl sets different default warnings than clang. It also treats -Wall
     # as -Weverything, to match MSVC. Instead -W3 is the alias for -Wall.
@@ -158,16 +158,6 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CLANG)
     # GCC (at least 4.8.4) has a bug where it'll find unreachable free() calls
     # and declare that the code is trying to free a stack pointer.
     set(C_CXX_FLAGS "${C_CXX_FLAGS} -Wno-free-nonheap-object")
-  endif()
-
-  # -Wstring-concatenation was added in Clang 12.0.0, which corresponds to
-  # AppleClang 13.0.0 per the table in
-  # https://en.wikipedia.org/wiki/Xcode#Toolchain_versions
-  if((CMAKE_C_COMPILER_ID STREQUAL "Clang" AND
-      CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "12.0.0") OR
-     (CMAKE_C_COMPILER_ID STREQUAL "AppleClang" AND
-      CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "13.0.0"))
-    set(C_CXX_FLAGS "${C_CXX_FLAGS} -Wstring-concatenation")
   endif()
 
   if(CLANG OR CMAKE_C_COMPILER_VERSION VERSION_GREATER_EQUAL "7.0.0")

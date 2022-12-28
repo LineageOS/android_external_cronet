@@ -12,7 +12,8 @@
 #include "base/containers/contains.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/ranges/algorithm.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/strings/stringprintf.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -409,7 +410,7 @@ OnHostResolutionCallbackResult SpdySessionPool::OnHostResolutionComplete(
 
       // Post task to inform pending requests for session for |key| that a
       // matching session is now available.
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE, base::BindOnce(&SpdySessionPool::UpdatePendingRequests,
                                     weak_ptr_factory_.GetWeakPtr(), key));
 
@@ -556,7 +557,7 @@ void SpdySessionPool::RemoveRequestForSpdySession(SpdySessionRequest* request) {
   // being canceled, or has completed.
   if (request->is_blocking_request_for_session() &&
       !iter->second.deferred_callbacks.empty()) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::BindOnce(&SpdySessionPool::UpdatePendingRequests,
                        weak_ptr_factory_.GetWeakPtr(), request->key()));
@@ -687,7 +688,7 @@ base::WeakPtr<SpdySession> SpdySessionPool::InsertSession(
   sessions_.insert(new_session.release());
   MapKeyToAvailableSession(key, available_session, std::move(dns_aliases));
 
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&SpdySessionPool::UpdatePendingRequests,
                                 weak_ptr_factory_.GetWeakPtr(), key));
 

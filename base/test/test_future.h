@@ -8,12 +8,12 @@
 #include <memory>
 #include <string>
 
-#include "base/bind.h"
 #include "base/callback_forward.h"
 #include "base/check.h"
 #include "base/memory/weak_ptr.h"
 #include "base/run_loop.h"
 #include "base/sequence_checker.h"
+#include "base/test/bind.h"
 #include "base/test/test_future_internal.h"
 #include "base/thread_annotations.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
@@ -31,7 +31,6 @@ namespace base::test {
 // If the callback takes multiple arguments, use TestFuture::Get<0>() to access
 // the value of the first argument, TestFuture::Get<1>() to access the value of
 // the second argument, and so on.
-// Alternatively you can use the argument type like TestFuture::Get<T>().
 //
 // If for any reason you can't use TestFuture::GetCallback(), you can use
 // TestFuture::SetValue() to directly set the value. This method must be called
@@ -49,7 +48,7 @@ namespace base::test {
 //
 //     const ResultType& actual_result = future.Get();
 //
-//     // When you come here, DoSomethingAsync has finished and `actual_result`
+//     // When you come here, DoSomethingAsync has finished and |actual_result|
 //     // contains the result passed to the callback.
 //   }
 //
@@ -60,24 +59,8 @@ namespace base::test {
 //
 //     object_under_test.DoSomethingAsync(future.GetCallback());
 //
-//     // Either select the argument by type...
-//     int first_argument = future.Get<int>();
-//     const std::string& second_argument = future.Get<std::string>();
-//
-//     // ... or by index.
 //     int first_argument = future.Get<0>();
-//     const std::string& second_argument = future.Get<1>();
-//   }
-//
-// Example if the callback has zero arguments:
-//
-//   TEST_F(MyTestFixture, MyTest) {
-//     TestFuture<void> signal;
-//
-//     object_under_test.DoSomethingAsync(signal.GetCallback());
-//
-//     EXPECT_TRUE(signal.Wait());
-//     // When you come here you know the async code is ready.
+//     const std::string & second_argument = future.Get<1>();
 //   }
 //
 // Or an example using TestFuture::Wait():
@@ -100,16 +83,14 @@ template <typename... Types>
 class TestFuture {
  public:
   using TupleType = std::tuple<std::decay_t<Types>...>;
-
-  static_assert(std::tuple_size<TupleType>::value > 0,
-                "Don't use TestFuture<> but use TestFuture<void> instead");
+  using FirstType = typename std::tuple_element<0, TupleType>::type;
 
   TestFuture() = default;
   TestFuture(const TestFuture&) = delete;
   TestFuture& operator=(const TestFuture&) = delete;
   ~TestFuture() = default;
 
-  // Waits for the value to arrive.
+  // Wait for the value to arrive.
   //
   // Returns true if the value arrived, or false if a timeout happens.
   //
@@ -136,7 +117,7 @@ class TestFuture {
     return values_.has_value();
   }
 
-  // Waits for the value to arrive, and returns the I-th value.
+  // Wait for the value to arrive, and return the I-th value.
   //
   // Will DCHECK if a timeout happens.
   //
@@ -146,32 +127,15 @@ class TestFuture {
   //   int first = future.Get<0>();
   //   std::string second = future.Get<1>();
   //
-  template <std::size_t I,
-            typename T = TupleType,
-            internal::EnableIfOneOrMoreValues<T> = true>
-  const auto& Get() {
+  template <std::size_t I>
+  const typename std::tuple_element<I, TupleType>::type& Get() {
     return std::get<I>(GetTuple());
-  }
-
-  // Waits for the value to arrive, and returns the value with the given type.
-  //
-  // Will DCHECK if a timeout happens.
-  //
-  // Example usage:
-  //
-  //   TestFuture<int, std::string> future;
-  //   int first = future.Get<int>();
-  //   std::string second = future.Get<std::string>();
-  //
-  template <typename Type>
-  const auto& Get() {
-    return std::get<Type>(GetTuple());
   }
 
   // Returns a callback that when invoked will store all the argument values,
   // and unblock any waiters.
   // Templated so you can specify how you need the arguments to be passed -
-  // const, reference, .... Defaults to simply `Types...`.
+  // const, reference, .... Defaults to simply |Types...|.
   //
   // Example usage:
   //
@@ -199,7 +163,7 @@ class TestFuture {
     return GetCallback<Types...>();
   }
 
-  // Sets the value of the future.
+  // Set the value of the future.
   // This will unblock any pending Wait() or Get() call.
   // This can only be called once.
   void SetValue(Types... values) {
@@ -208,7 +172,7 @@ class TestFuture {
     DCHECK(!values_.has_value())
         << "The value of a TestFuture can only be set once. If you need to "
            "handle an ordered stream of result values, use "
-           "`base::test::RepeatingTestFuture`.";
+           "|base::test::RepeatingTestFuture|.";
 
     values_ = std::make_tuple(std::forward<Types>(values)...);
     run_loop_.Quit();
@@ -218,19 +182,19 @@ class TestFuture {
   //  Accessor methods only available if the future holds a single value.
   //////////////////////////////////////////////////////////////////////////////
 
-  // Waits for the value to arrive, and returns its value.
+  // Wait for the value to arrive, and returns its value.
   //
   // Will DCHECK if a timeout happens.
   template <typename T = TupleType, internal::EnableIfSingleValue<T> = true>
-  [[nodiscard]] const auto& Get() {
+  [[nodiscard]] const FirstType& Get() {
     return std::get<0>(GetTuple());
   }
 
-  // Waits for the value to arrive, and move it out.
+  // Wait for the value to arrive, and move it out.
   //
   // Will DCHECK if a timeout happens.
   template <typename T = TupleType, internal::EnableIfSingleValue<T> = true>
-  [[nodiscard]] auto Take() {
+  [[nodiscard]] FirstType Take() {
     return std::get<0>(TakeTuple());
   }
 
@@ -238,7 +202,7 @@ class TestFuture {
   //  Accessor methods only available if the future holds multiple values.
   //////////////////////////////////////////////////////////////////////////////
 
-  // Waits for the values to arrive, and returns a tuple with the values.
+  // Wait for the values to arrive, and returns a tuple with the values.
   //
   // Will DCHECK if a timeout happens.
   template <typename T = TupleType, internal::EnableIfMultiValue<T> = true>
@@ -246,7 +210,7 @@ class TestFuture {
     return GetTuple();
   }
 
-  // Waits for the values to arrive, and move a tuple with the values out.
+  // Wait for the values to arrive, and move a tuple with the values out.
   //
   // Will DCHECK if a timeout happens.
   template <typename T = TupleType, internal::EnableIfMultiValue<T> = true>
@@ -276,39 +240,6 @@ class TestFuture {
   absl::optional<TupleType> values_ GUARDED_BY_CONTEXT(sequence_checker_);
 
   base::WeakPtrFactory<TestFuture<Types...>> weak_ptr_factory_{this};
-};
-
-// Specialization so you can use `TestFuture` to wait for a no-args callback.
-//
-// This specialization offers a subset of the methods provided on the base
-// `TestFuture`, as there is no value to be returned.
-template <>
-class TestFuture<void> {
- public:
-  // Waits until the callback or `SetValue()` is invoked.
-  //
-  // Fails your test if a timeout happens, but you can check the return value
-  // to improve the error reported:
-  //
-  //   ASSERT_TRUE(future.Wait()) << "Detailed error message";
-  [[nodiscard]] bool Wait() { return implementation_.Wait(); }
-
-  // Waits until the callback or `SetValue()` is invoked.
-  void Get() { std::ignore = implementation_.Get(); }
-
-  // Returns true if the callback or `SetValue()` was invoked.
-  bool IsReady() const { return implementation_.IsReady(); }
-
-  // Returns a callback that when invoked will unblock any waiters.
-  base::OnceCallback<void()> GetCallback() {
-    return base::BindOnce(implementation_.GetCallback(), true);
-  }
-
-  // Indicates this `TestFuture` is ready, and unblocks any waiters.
-  void SetValue() { implementation_.SetValue(true); }
-
- private:
-  TestFuture<bool> implementation_;
 };
 
 }  // namespace base::test

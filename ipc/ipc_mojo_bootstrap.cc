@@ -673,9 +673,12 @@ class ChannelAssociatedGroupController
     void OnSyncMessageEventReady() {
       DCHECK(task_runner_->RunsTasksInCurrentSequence());
 
-      scoped_refptr<Endpoint> keepalive(this);
+      // SUBTLE: The order of these scoped_refptrs matters.
+      // `controller_keepalive` MUST outlive `keepalive` because the Endpoint
+      // holds raw pointer to the AssociatedGroupController.
       scoped_refptr<AssociatedGroupController> controller_keepalive(
           controller_.get());
+      scoped_refptr<Endpoint> keepalive(this);
       base::AutoLock locker(controller_->lock_);
       bool more_to_process = false;
       if (!sync_messages_.empty()) {
@@ -763,7 +766,7 @@ class ChannelAssociatedGroupController
     scoped_refptr<base::SequencedTaskRunner> task_runner_;
     std::unique_ptr<mojo::SequenceLocalSyncEventWatcher> sync_watcher_;
     base::circular_deque<std::pair<uint32_t, MessageWrapper>> sync_messages_;
-    raw_ptr<ExclusiveSyncWait> exclusive_wait_ = nullptr;
+    ExclusiveSyncWait* exclusive_wait_ = nullptr;
     uint32_t next_sync_message_id_ = 0;
   };
 

@@ -15,9 +15,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 
-/**
- * Provides implementations of {@link UploadDataProvider} for common use cases.
- */
+/** Provides implementations of {@link UploadDataProvider} for common use cases. */
 public final class UploadDataProviders {
     /**
      * Uploads an entire file.
@@ -38,8 +36,8 @@ public final class UploadDataProviders {
      * Uploads an entire file, closing the descriptor when it is no longer needed.
      *
      * @param fd The file descriptor to upload
-     * @return A new UploadDataProvider for the given file descriptor
      * @throws IllegalArgumentException if {@code fd} is not a file.
+     * @return A new UploadDataProvider for the given file descriptor
      */
     public static UploadDataProvider create(final ParcelFileDescriptor fd) {
         return new FileUploadProvider(new FileChannelProvider() {
@@ -94,9 +92,7 @@ public final class UploadDataProviders {
     private static final class FileUploadProvider extends UploadDataProvider {
         private volatile FileChannel mChannel;
         private final FileChannelProvider mProvider;
-        /**
-         * Guards initialization of {@code mChannel}
-         */
+        /** Guards initialization of {@code mChannel} */
         private final Object mLock = new Object();
 
         private FileUploadProvider(FileChannelProvider provider) {

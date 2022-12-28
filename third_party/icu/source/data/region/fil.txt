@@ -308,8 +308,6 @@ fil{
         CG{"Congo (Republika)"}
         CI{"Ivory Coast"}
         CZ{"Czech Republic"}
-        NZ{"Aotearoa New Zealand"}
         TL{"East Timor"}
-        TR{"Türkiye"}
     }
 }

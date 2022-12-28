@@ -131,7 +131,7 @@ public:
         }
     }
 private:
-    Hangul() = delete;  // no instantiation
+    Hangul();  // no instantiation
 };
 
 class Normalizer2Impl;
@@ -759,7 +759,7 @@ public:
     // Must be used only when it is known that norm2 is a Normalizer2WithImpl instance.
     static const Normalizer2Impl *getImpl(const Normalizer2 *norm2);
 private:
-    Normalizer2Factory() = delete;  // No instantiation.
+    Normalizer2Factory();  // No instantiation.
 };
 
 U_NAMESPACE_END

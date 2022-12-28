@@ -5,12 +5,8 @@
 #ifndef COMPONENTS_METRICS_MOTHERBOARD_METRICS_PROVIDER_H_
 #define COMPONENTS_METRICS_MOTHERBOARD_METRICS_PROVIDER_H_
 
-#include <memory>
-#include "base/callback.h"
-#include "base/memory/weak_ptr.h"
 #include "components/metrics/metrics_provider.h"
 #include "components/metrics/motherboard.h"
-#include "third_party/metrics_proto/system_profile.pb.h"
 
 namespace metrics {
 
@@ -18,25 +14,20 @@ namespace metrics {
 // include manufacturer and model.
 class MotherboardMetricsProvider : public MetricsProvider {
  public:
-  MotherboardMetricsProvider();
-  ~MotherboardMetricsProvider() override;
+  MotherboardMetricsProvider() = default;
 
   MotherboardMetricsProvider(const MotherboardMetricsProvider&) = delete;
   MotherboardMetricsProvider& operator=(const MotherboardMetricsProvider&) =
       delete;
 
-  // metrics::MetricsProvider:
-  void AsyncInit(base::OnceClosure done_callback) override;
+  ~MotherboardMetricsProvider() override = default;
+
   void ProvideSystemProfileMetrics(
       SystemProfileProto* system_profile_proto) override;
 
  private:
-  // Initializes `motherboard_info_` on the UI thread.
-  void InitializeMotherboard(base::OnceClosure cb,
-                             std::unique_ptr<Motherboard> motherboard_info);
-
-  std::unique_ptr<const Motherboard> motherboard_info_;
-  base::WeakPtrFactory<MotherboardMetricsProvider> weak_ptr_factory_{this};
+  // All the Motherboard information is generated in the constructor.
+  const Motherboard motherboard_info_;
 };
 
 }  // namespace metrics

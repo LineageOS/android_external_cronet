@@ -53,7 +53,8 @@ class CertVerifyProcAndroidTestWithAIAFetching : public testing::Test {
 
     // Generate a certificate chain with AIA pointers. Tests can modify these
     // if testing a different scenario.
-    std::tie(leaf_, intermediate_, root_) = CertBuilder::CreateSimpleChain3();
+    CertBuilder::CreateSimpleChain(&leaf_, &intermediate_, &root_);
+    ASSERT_TRUE(leaf_ && intermediate_ && root_);
     root_->SetCaIssuersUrl(kRootURL);
     intermediate_->SetCaIssuersUrl(kRootURL);
     leaf_->SetCaIssuersUrl(kIntermediateURL);

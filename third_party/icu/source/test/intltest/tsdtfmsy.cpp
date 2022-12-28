@@ -135,10 +135,10 @@ UBool IntlTestDateFormatSymbols::UnicodeStringsArePrefixes(int32_t count, int32_
     for (i = 0; i < count; i++) {
         if (baseArray[i].compare(0, prefixLen, prefixArray[i]) != 0) {
             errln("ERROR: Mismatch example: expect prefix \"" + prefixArray[i] + "\" of base \"" + baseArray[i] + "\".");
-            return false;
+            return FALSE;
         }
     }
-    return true;
+    return TRUE;
 }
 
 void IntlTestDateFormatSymbols::TestGetSetSpecificItems()

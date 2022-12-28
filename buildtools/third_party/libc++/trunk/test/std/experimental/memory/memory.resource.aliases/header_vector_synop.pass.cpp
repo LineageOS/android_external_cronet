@@ -22,8 +22,6 @@
 //
 // }}} // namespace std::experimental::pmr
 
-// ADDITIONAL_COMPILE_FLAGS: -D_LIBCPP_DISABLE_DEPRECATION_WARNINGS
-
 #include <experimental/vector>
 #include <experimental/memory_resource>
 #include <type_traits>

@@ -18,9 +18,10 @@
 
 namespace spdy {
 
-class QUICHE_EXPORT SpdyNoOpVisitor : public SpdyFramerVisitorInterface,
-                                      public SpdyFramerDebugVisitorInterface,
-                                      public SpdyHeadersHandlerInterface {
+class QUICHE_EXPORT_PRIVATE SpdyNoOpVisitor
+    : public SpdyFramerVisitorInterface,
+      public SpdyFramerDebugVisitorInterface,
+      public SpdyHeadersHandlerInterface {
  public:
   SpdyNoOpVisitor();
   ~SpdyNoOpVisitor() override;

@@ -12,6 +12,7 @@
 #include "base/location.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/values.h"
 #include "net/base/load_timing_info.h"
 #include "net/base/net_errors.h"
@@ -65,7 +66,7 @@ void URLRequestRedirectJob::GetLoadTimingInfo(
 void URLRequestRedirectJob::Start() {
   request()->net_log().AddEventWithStringParams(
       NetLogEventType::URL_REQUEST_REDIRECT_JOB, "reason", redirect_reason_);
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&URLRequestRedirectJob::StartAsync,
                                 weak_factory_.GetWeakPtr()));
 }

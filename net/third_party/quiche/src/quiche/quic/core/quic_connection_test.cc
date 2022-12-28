@@ -210,23 +210,6 @@ class TestConnection : public QuicConnection {
 
   MOCK_METHOD(void, OnSerializedPacket, (SerializedPacket packet), (override));
 
-  void OnEffectivePeerMigrationValidated(bool is_migration_linkable) override {
-    QuicConnection::OnEffectivePeerMigrationValidated(is_migration_linkable);
-    if (is_migration_linkable) {
-      num_linkable_client_migration_++;
-    } else {
-      num_unlinkable_client_migration_++;
-    }
-  }
-
-  uint32_t num_unlinkable_client_migration() const {
-    return num_unlinkable_client_migration_;
-  }
-
-  uint32_t num_linkable_client_migration() const {
-    return num_linkable_client_migration_;
-  }
-
   void SetSendAlgorithm(SendAlgorithmInterface* send_algorithm) {
     QuicConnectionPeer::SetSendAlgorithm(this, send_algorithm);
   }
@@ -558,10 +541,6 @@ class TestConnection : public QuicConnection {
   std::unique_ptr<QuicSocketAddress> next_effective_peer_addr_;
 
   QuicSocketAddress self_address_on_default_path_while_sending_packet_;
-
-  uint32_t num_unlinkable_client_migration_ = 0;
-
-  uint32_t num_linkable_client_migration_ = 0;
 };
 
 enum class AckResponse { kDefer, kImmediate };
@@ -1058,7 +1037,7 @@ class QuicConnectionTest : public QuicTestWithParam<TestParams> {
                                      QuicStreamOffset offset,
                                      StreamSendingState state,
                                      QuicPacketNumber* last_packet) {
-    QuicByteCount packet_size = 0;
+    QuicByteCount packet_size;
     // Save the last packet's size.
     EXPECT_CALL(*send_algorithm_, OnPacketSent(_, _, _, _, _))
         .Times(AnyNumber())
@@ -1735,7 +1714,6 @@ TEST_P(QuicConnectionTest, PeerPortChangeAtServer) {
   if (connection_.validate_client_address()) {
     EXPECT_EQ(NO_CHANGE, connection_.active_effective_peer_migration_type());
     EXPECT_EQ(1u, connection_.GetStats().num_validated_peer_migration);
-    EXPECT_EQ(1u, connection_.num_linkable_client_migration());
   }
 }
 
@@ -1877,7 +1855,6 @@ TEST_P(QuicConnectionTest, PeerIpAddressChangeAtServer) {
   // than the anti-amplification limit.
   connection_.SendCryptoDataWithString(std::string(1200, 'a'), 0);
   EXPECT_EQ(1u, connection_.GetStats().num_validated_peer_migration);
-  EXPECT_EQ(1u, connection_.num_linkable_client_migration());
 }
 
 TEST_P(QuicConnectionTest, PeerIpAddressChangeAtServerWithMissingConnectionId) {
@@ -1900,7 +1877,9 @@ TEST_P(QuicConnectionTest, PeerIpAddressChangeAtServerWithMissingConnectionId) {
   QuicConnectionPeer::SetAddressValidated(&connection_);
 
   // Sends new server CID to client.
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -2017,7 +1996,6 @@ TEST_P(QuicConnectionTest, EffectivePeerAddressChangeAtServer) {
   if (connection_.validate_client_address()) {
     EXPECT_EQ(NO_CHANGE, connection_.active_effective_peer_migration_type());
     EXPECT_EQ(1u, connection_.GetStats().num_validated_peer_migration);
-    EXPECT_EQ(1u, connection_.num_linkable_client_migration());
   }
 
   // Process another packet with a different direct peer address and the same
@@ -2104,7 +2082,9 @@ TEST_P(QuicConnectionTest, ConnectionMigrationWithPendingPaddingBytes) {
 
   // Sends new server CID to client.
   QuicConnectionId new_cid;
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -2166,7 +2146,9 @@ TEST_P(QuicConnectionTest,
 
   // Sends new server CID to client.
   QuicConnectionId new_cid;
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -2238,7 +2220,9 @@ TEST_P(QuicConnectionTest, ReversePathValidationFailureAtServer) {
   QuicConnectionId server_cid0 = connection_.connection_id();
   QuicConnectionId server_cid1;
   // Sends new server CID to client.
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -9881,6 +9865,9 @@ TEST_P(QuicConnectionTest, PtoSkipsPacketNumber) {
   EXPECT_CALL(*send_algorithm_, SetFromConfig(_, _));
   connection_.SetFromConfig(config);
   EXPECT_FALSE(connection_.GetRetransmissionAlarm()->IsSet());
+  EXPECT_CALL(visitor_, GetHandshakeState())
+      .WillRepeatedly(Return(HANDSHAKE_CONFIRMED));
+  connection_.OnHandshakeComplete();
 
   QuicStreamId stream_id = 2;
   QuicPacketNumber last_packet;
@@ -10008,6 +9995,49 @@ TEST_P(QuicConnectionTest, FailToCoalescePacket) {
   };
 
   EXPECT_QUIC_BUG(test_body(), "SerializeCoalescedPacket failed.");
+}
+
+TEST_P(QuicConnectionTest, LegacyVersionEncapsulation) {
+  connection_.EnableLegacyVersionEncapsulation("test.example.org");
+
+  MockQuicConnectionDebugVisitor debug_visitor;
+  connection_.set_debug_visitor(&debug_visitor);
+  EXPECT_CALL(debug_visitor, OnPacketSent(_, _, _, _, _, _, _, _)).Times(1);
+
+  // Our TestPacketWriter normally parses the sent packet using the version
+  // from the connection, so here we need to tell it to use the encapsulation
+  // version, and reset the initial decrypter for that version.
+  writer_->framer()->SetSupportedVersions(
+      SupportedVersions(LegacyVersionForEncapsulation()));
+  writer_->framer()->framer()->SetInitialObfuscators(
+      connection_.connection_id());
+
+  {
+    QuicConnection::ScopedPacketFlusher flusher(&connection_);
+    connection_.SendCryptoDataWithString("TEST_CRYPTO_DATA", /*offset=*/0);
+  }
+
+  EXPECT_EQ(1u, writer_->packets_write_attempts());
+  // Verify that the packet is fully padded.
+  EXPECT_EQ(connection_.max_packet_length(), writer_->last_packet_size());
+
+  // Check that the connection stats show Legacy Version Encapsulation was used.
+  EXPECT_GT(connection_.GetStats().sent_legacy_version_encapsulated_packets,
+            0u);
+
+  // Verify that the sent packet was in fact encapsulated, and check header.
+  const QuicPacketHeader& encapsulated_header = writer_->last_packet_header();
+  EXPECT_TRUE(encapsulated_header.version_flag);
+  EXPECT_EQ(encapsulated_header.version, LegacyVersionForEncapsulation());
+  EXPECT_EQ(encapsulated_header.destination_connection_id,
+            connection_.connection_id());
+
+  // Encapsulated packet should contain a stream frame for the crypto stream,
+  // optionally padding, and nothing else.
+  EXPECT_EQ(0u, writer_->crypto_frames().size());
+  EXPECT_EQ(1u, writer_->stream_frames().size());
+  EXPECT_EQ(writer_->frame_count(), writer_->framer()->padding_frames().size() +
+                                        writer_->stream_frames().size());
 }
 
 TEST_P(QuicConnectionTest, ClientReceivedHandshakeDone) {
@@ -13320,7 +13350,9 @@ TEST_P(QuicConnectionTest, PathChallengeBeforePeerIpAddressChangeAtServer) {
   QuicConnectionId client_cid1 = TestConnectionId(2);
   QuicConnectionId server_cid1;
   // Sends new server CID to client.
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -13458,7 +13490,6 @@ TEST_P(QuicConnectionTest, PathChallengeBeforePeerIpAddressChangeAtServer) {
       .WillRepeatedly(Return(QuicBandwidth::Zero()));
   connection_.SendCryptoDataWithString(std::string(1200, 'a'), 0);
   EXPECT_EQ(1u, connection_.GetStats().num_validated_peer_migration);
-  EXPECT_EQ(1u, connection_.num_unlinkable_client_migration());
 }
 
 TEST_P(QuicConnectionTest,
@@ -13473,7 +13504,9 @@ TEST_P(QuicConnectionTest,
   QuicConnectionId server_cid0 = connection_.connection_id();
   QuicConnectionId server_cid1;
   // Sends new server CID to client.
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -13598,7 +13631,9 @@ TEST_P(QuicConnectionTest, NoNonProbingFrameOnAlternativePath) {
   QuicConnectionId client_cid1 = TestConnectionId(2);
   QuicConnectionId server_cid1;
   // Sends new server CID to client.
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -13710,7 +13745,9 @@ TEST_P(QuicConnectionTest, DoNotIssueNewCidIfVisitorSaysNo) {
   QuicConnectionId client_cid1 = TestConnectionId(2);
   QuicConnectionId server_cid1;
   // Sends new server CID to client.
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -13847,8 +13884,11 @@ TEST_P(QuicConnectionTest,
   ASSERT_EQ(packet_creator->GetDestinationConnectionId(), server_cid0);
 
   // Client will issue a new client connection ID to server.
-  EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
-      .WillOnce(Return(TestConnectionId(456)));
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator)) {
+    EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
+        .WillOnce(Return(TestConnectionId(456)));
+  }
   EXPECT_CALL(visitor_, SendNewConnectionId(_))
       .WillOnce(Invoke([&](const QuicNewConnectionIdFrame& frame) {
         client_cid1 = frame.connection_id;
@@ -14007,8 +14047,11 @@ TEST_P(QuicConnectionTest,
 
   // Client will issue a new client connection ID to server.
   QuicConnectionId new_client_connection_id;
-  EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
-      .WillOnce(Return(TestConnectionId(456)));
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator)) {
+    EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
+        .WillOnce(Return(TestConnectionId(456)));
+  }
   EXPECT_CALL(visitor_, SendNewConnectionId(_))
       .WillOnce(Invoke([&](const QuicNewConnectionIdFrame& frame) {
         new_client_connection_id = frame.connection_id;
@@ -14262,7 +14305,9 @@ TEST_P(QuicConnectionTest, RetireConnectionIdFrameResultsInError) {
   set_perspective(Perspective::IS_SERVER);
   connection_.CreateConnectionIdManager();
 
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -14299,7 +14344,9 @@ TEST_P(QuicConnectionTest,
   QuicRetireConnectionIdFrame frame;
   frame.sequence_number = 0u;
   if (connection_.connection_migration_use_new_cid()) {
-    if (!connection_.connection_id().IsEmpty()) {
+    if (GetQuicReloadableFlag(
+            quic_connection_uses_abstract_connection_id_generator) &&
+        !connection_.connection_id().IsEmpty()) {
       EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(cid0))
           .WillOnce(Return(TestConnectionId(456)));
       EXPECT_CALL(connection_id_generator_,
@@ -14339,7 +14386,9 @@ TEST_P(QuicConnectionTest, ServerRetireSelfIssuedConnectionId) {
   EXPECT_EQ(connection_.GetOneActiveServerConnectionId(), cid0);
 
   connection_.SetDefaultEncryptionLevel(ENCRYPTION_FORWARD_SECURE);
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -14374,7 +14423,9 @@ TEST_P(QuicConnectionTest, ServerRetireSelfIssuedConnectionId) {
 
   // Packet2 with RetireConnectionId frame trigers sending NewConnectionId
   // immediately.
-  if (!connection_.connection_id().IsEmpty()) {
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator) &&
+      !connection_.connection_id().IsEmpty()) {
     EXPECT_CALL(connection_id_generator_, GenerateNextConnectionId(_))
         .WillOnce(Return(TestConnectionId(456)));
   }
@@ -14622,6 +14673,80 @@ TEST_P(QuicConnectionTest, PtoSendStreamData) {
   EXPECT_EQ(0x02020202u, writer_->final_bytes_of_last_packet());
 }
 
+TEST_P(QuicConnectionTest, ClientPtoSendZeroRttStreamData) {
+  if (!connection_.SupportsMultiplePacketNumberSpaces()) {
+    return;
+  }
+  use_tagging_decrypter();
+  connection_.SetEncrypter(ENCRYPTION_INITIAL,
+                           std::make_unique<TaggingEncrypter>(0x01));
+  connection_.SetDefaultEncryptionLevel(ENCRYPTION_INITIAL);
+  // Send CHLO.
+  connection_.SendCryptoStreamData();
+  ASSERT_TRUE(connection_.GetRetransmissionAlarm()->IsSet());
+  // Install 0-RTT keys.
+  connection_.SetEncrypter(ENCRYPTION_ZERO_RTT,
+                           std::make_unique<TaggingEncrypter>(0x02));
+  connection_.SetDefaultEncryptionLevel(ENCRYPTION_ZERO_RTT);
+  // Send 0-RTT stream data with congestion control blocked.
+  EXPECT_CALL(*send_algorithm_, CanSend(_)).WillRepeatedly(Return(false));
+  connection_.SendStreamDataWithString(2, std::string(1500, 'a'), 0, NO_FIN);
+
+  ASSERT_TRUE(connection_.GetRetransmissionAlarm()->IsSet());
+  connection_.GetRetransmissionAlarm()->Fire();
+  // Verify INITIAL packet get retransmitted.
+  EXPECT_EQ(0x01010101u, writer_->final_bytes_of_last_packet());
+}
+
+TEST_P(QuicConnectionTest, ClientPtoSendForwardSecureStreamData) {
+  if (!connection_.SupportsMultiplePacketNumberSpaces()) {
+    return;
+  }
+  if (QuicVersionUsesCryptoFrames(connection_.transport_version())) {
+    EXPECT_CALL(visitor_, OnCryptoFrame(_)).Times(AnyNumber());
+  }
+  EXPECT_CALL(visitor_, OnStreamFrame(_)).Times(AnyNumber());
+  use_tagging_decrypter();
+  connection_.SetEncrypter(ENCRYPTION_INITIAL,
+                           std::make_unique<TaggingEncrypter>(0x01));
+  connection_.SetDefaultEncryptionLevel(ENCRYPTION_INITIAL);
+  // Send CHLO.
+  connection_.SendCryptoDataWithString("foo", 0, ENCRYPTION_INITIAL);
+  // Receive server INITIAL + HANDSHAKE
+  QuicFrames frames1;
+  frames1.push_back(QuicFrame(&crypto_frame_));
+  QuicAckFrame ack_frame1 = InitAckFrame(1);
+  frames1.push_back(QuicFrame(&ack_frame1));
+
+  QuicFrames frames2;
+  QuicCryptoFrame crypto_frame(ENCRYPTION_HANDSHAKE, 0,
+                               absl::string_view(data1));
+  frames2.push_back(QuicFrame(&crypto_frame));
+  EXPECT_CALL(*send_algorithm_, OnCongestionEvent(_, _, _, _, _));
+  ProcessCoalescedPacket(
+      {{1, frames1, ENCRYPTION_INITIAL}, {2, frames2, ENCRYPTION_HANDSHAKE}});
+  // Send Client finished.
+  connection_.SetEncrypter(ENCRYPTION_HANDSHAKE,
+                           std::make_unique<TaggingEncrypter>(0x02));
+  connection_.SetDefaultEncryptionLevel(ENCRYPTION_HANDSHAKE);
+  EXPECT_CALL(visitor_, OnHandshakePacketSent()).Times(1);
+  connection_.SendCryptoDataWithString("foo", 0, ENCRYPTION_HANDSHAKE);
+
+  EXPECT_CALL(visitor_, GetHandshakeState())
+      .WillRepeatedly(Return(HANDSHAKE_COMPLETE));
+  connection_.SetEncrypter(ENCRYPTION_FORWARD_SECURE,
+                           std::make_unique<TaggingEncrypter>(0x03));
+  connection_.SetDefaultEncryptionLevel(ENCRYPTION_FORWARD_SECURE);
+  // Send 1-RTT stream data with congestion control blocked.
+  EXPECT_CALL(*send_algorithm_, CanSend(_)).WillRepeatedly(Return(false));
+  connection_.SendStreamDataWithString(2, std::string(1500, 'a'), 0, NO_FIN);
+
+  ASSERT_TRUE(connection_.GetRetransmissionAlarm()->IsSet());
+  connection_.GetRetransmissionAlarm()->Fire();
+  // Verify HANDSHAKE packet get retransmitted.
+  EXPECT_EQ(0x02020202u, writer_->final_bytes_of_last_packet());
+}
+
 TEST_P(QuicConnectionTest, SendingZeroRttPacketsDoesNotPostponePTO) {
   if (!connection_.SupportsMultiplePacketNumberSpaces()) {
     return;
@@ -14788,12 +14913,15 @@ TEST_P(QuicConnectionTest, AckElicitingFrames) {
       !connection_.connection_migration_use_new_cid()) {
     return;
   }
-  EXPECT_CALL(connection_id_generator_,
-              GenerateNextConnectionId(TestConnectionId(12)))
-      .WillOnce(Return(TestConnectionId(456)));
-  EXPECT_CALL(connection_id_generator_,
-              GenerateNextConnectionId(TestConnectionId(456)))
-      .WillOnce(Return(TestConnectionId(789)));
+  if (GetQuicReloadableFlag(
+          quic_connection_uses_abstract_connection_id_generator)) {
+    EXPECT_CALL(connection_id_generator_,
+                GenerateNextConnectionId(TestConnectionId(12)))
+        .WillOnce(Return(TestConnectionId(456)));
+    EXPECT_CALL(connection_id_generator_,
+                GenerateNextConnectionId(TestConnectionId(456)))
+        .WillOnce(Return(TestConnectionId(789)));
+  }
   EXPECT_CALL(visitor_, SendNewConnectionId(_)).Times(2);
   EXPECT_CALL(visitor_, OnRstStream(_));
   EXPECT_CALL(visitor_, OnWindowUpdateFrame(_));

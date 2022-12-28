@@ -218,8 +218,8 @@ NetworkChangeNotifierAndroid::NetworkChangeNotifierAndroid(
     : NetworkChangeNotifier(NetworkChangeCalculatorParamsAndroid()),
       delegate_(delegate),
       blocking_thread_objects_(nullptr, base::OnTaskRunnerDeleter(nullptr)) {
-  static_assert(NetId::INVALID == handles::kInvalidNetworkHandle,
-                "handles::kInvalidNetworkHandle doesn't match NetId::INVALID");
+  CHECK_EQ(NetId::INVALID, handles::kInvalidNetworkHandle)
+      << "handles::kInvalidNetworkHandle doesn't match NetId::INVALID";
   delegate_->RegisterObserver(this);
   // Since Android P, ConnectivityManager's signals include VPNs so we don't
   // need to use AddressTrackerLinux.

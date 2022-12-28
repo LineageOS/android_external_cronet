@@ -41,7 +41,7 @@ UBool U_CALLCONV cleanupNumberSkeletons() {
     uprv_free(kSerializedStemTrie);
     kSerializedStemTrie = nullptr;
     gNumberSkeletonsInitOnce.reset();
-    return true;
+    return TRUE;
 }
 
 void U_CALLCONV initNumberSkeletons(UErrorCode& status) {

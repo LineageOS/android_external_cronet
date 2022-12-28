@@ -35,6 +35,7 @@
 #include "base/test/test_shared_memory_util.h"
 #include "base/test/test_timeouts.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "ipc/ipc_message.h"
 #include "ipc/ipc_message_utils.h"
@@ -800,9 +801,9 @@ class ChannelProxyRunner {
   void CreateProxy(IPC::Listener* listener) {
     io_thread_.StartWithOptions(
         base::Thread::Options(base::MessagePumpType::IO, 0));
-    proxy_ = IPC::SyncChannel::Create(
-        listener, io_thread_.task_runner(),
-        base::SingleThreadTaskRunner::GetCurrentDefault(), &never_signaled_);
+    proxy_ = IPC::SyncChannel::Create(listener, io_thread_.task_runner(),
+                                      base::ThreadTaskRunnerHandle::Get(),
+                                      &never_signaled_);
   }
 
   void RunProxy() {
@@ -810,11 +811,11 @@ class ChannelProxyRunner {
     if (for_server_) {
       factory = IPC::ChannelMojo::CreateServerFactory(
           std::move(handle_), io_thread_.task_runner(),
-          base::SingleThreadTaskRunner::GetCurrentDefault());
+          base::ThreadTaskRunnerHandle::Get());
     } else {
       factory = IPC::ChannelMojo::CreateClientFactory(
           std::move(handle_), io_thread_.task_runner(),
-          base::SingleThreadTaskRunner::GetCurrentDefault());
+          base::ThreadTaskRunnerHandle::Get());
     }
     proxy_->Init(std::move(factory), true);
   }

@@ -12,7 +12,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/strings/strcat.h"
 #include "base/strings/stringprintf.h"
-#include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "components/cronet/cronet_upload_data_stream.h"
 #include "components/cronet/native/engine.h"
 #include "components/cronet/native/generated/cronet.idl_impl_struct.h"
@@ -263,7 +263,7 @@ void Cronet_UploadDataSinkImpl::NetworkTasks::InitializeOnNetworkThread(
   PostTaskToExecutor(
       base::BindOnce(&Cronet_UploadDataSinkImpl::InitializeUploadDataStream,
                      base::Unretained(upload_data_sink_), upload_data_stream,
-                     base::SingleThreadTaskRunner::GetCurrentDefault()));
+                     base::ThreadTaskRunnerHandle::Get()));
 }
 
 void Cronet_UploadDataSinkImpl::NetworkTasks::Read(
