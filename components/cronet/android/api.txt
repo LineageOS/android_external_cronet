@@ -301,13 +301,6 @@ public abstract class org.chromium.net.UploadDataProvider implements java.io.Clo
   public abstract void rewind(org.chromium.net.UploadDataSink) throws java.io.IOException;
   public void close() throws java.io.IOException;
 }
-public final class org.chromium.net.UploadDataProviders {
-  public static org.chromium.net.UploadDataProvider create(java.io.File);
-  public static org.chromium.net.UploadDataProvider create(android.os.ParcelFileDescriptor);
-  public static org.chromium.net.UploadDataProvider create(java.nio.ByteBuffer);
-  public static org.chromium.net.UploadDataProvider create(byte[], int, int);
-  public static org.chromium.net.UploadDataProvider create(byte[]);
-}
 public abstract class org.chromium.net.UploadDataSink {
   public org.chromium.net.UploadDataSink();
   public abstract void onReadSucceeded(boolean);

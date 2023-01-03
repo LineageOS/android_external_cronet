@@ -47,7 +47,6 @@ filegroup {
         "components/cronet/android/api/src/org/chromium/net/QuicException.java",
         "components/cronet/android/api/src/org/chromium/net/RequestFinishedInfo.java",
         "components/cronet/android/api/src/org/chromium/net/UploadDataProvider.java",
-        "components/cronet/android/api/src/org/chromium/net/UploadDataProviders.java",
         "components/cronet/android/api/src/org/chromium/net/UploadDataSink.java",
         "components/cronet/android/api/src/org/chromium/net/UrlRequest.java",
         "components/cronet/android/api/src/org/chromium/net/UrlResponseInfo.java",
