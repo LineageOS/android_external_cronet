@@ -104,7 +104,7 @@ public class CronetTestRule implements TestRule {
 
         private ExperimentalCronetEngine.Builder createJavaEngineBuilder() {
             return CronetTestRule.createJavaEngineBuilder(mContext)
-                    .setUserAgent(UserAgent.from(getContext()))
+                    .setUserAgent(UserAgent.getDefault())
                     .enableQuic(true);
         }
 
