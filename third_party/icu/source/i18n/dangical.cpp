@@ -39,7 +39,7 @@ static UBool calendar_dangi_cleanup(void) {
         gDangiCalendarZoneAstroCalc = NULL;
     }
     gDangiCalendarInitOnce.reset();
-    return true;
+    return TRUE;
 }
 U_CDECL_END
 

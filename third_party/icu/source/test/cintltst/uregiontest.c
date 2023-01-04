@@ -15,8 +15,6 @@
 
 #if !UCONFIG_NO_FORMATTING
 
-#include <stdbool.h>
-
 #include "unicode/ustring.h"
 #include "unicode/uregion.h"
 #include "unicode/uenum.h"
@@ -577,11 +575,11 @@ static void TestGetPreferredValues() {
                     const char * preferredCode;
                     while ( (preferredCode = *regionListPtr++) != NULL ) {
                         const char *check;
-                        UBool found = false;
+                        UBool found = FALSE;
                         uenum_reset(preferredRegions, &status);
                         while ((check = uenum_next(preferredRegions, NULL, &status)) != NULL && U_SUCCESS(status) ) {
                             if ( !uprv_strcmp(check,preferredCode) ) {
-                                found = true;
+                                found = TRUE;
                                 break;
                             }
                         }

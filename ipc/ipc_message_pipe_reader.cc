@@ -13,7 +13,6 @@
 #include "base/containers/span.h"
 #include "base/location.h"
 #include "base/logging.h"
-#include "base/memory/raw_ref.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/trace_event.h"
@@ -39,7 +38,7 @@ class ThreadSafeProxy : public mojo::ThreadSafeProxy {
 
   // mojo::ThreadSafeProxy:
   void SendMessage(mojo::Message& message) override {
-    message.SerializeHandles(&*group_controller_);
+    message.SerializeHandles(&group_controller_);
     task_runner_->PostTask(FROM_HERE,
                            base::BindOnce(forwarder_, std::move(message)));
   }
@@ -56,7 +55,7 @@ class ThreadSafeProxy : public mojo::ThreadSafeProxy {
 
   const scoped_refptr<base::SequencedTaskRunner> task_runner_;
   const Forwarder forwarder_;
-  const raw_ref<mojo::AssociatedGroupController> group_controller_;
+  mojo::AssociatedGroupController& group_controller_;
 };
 
 }  // namespace

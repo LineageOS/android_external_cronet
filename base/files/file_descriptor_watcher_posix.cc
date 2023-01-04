@@ -9,7 +9,6 @@
 #include "base/bind.h"
 #include "base/callback_helpers.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/raw_ref.h"
 #include "base/message_loop/message_pump_for_io.h"
 #include "base/no_destructor.h"
 #include "base/synchronization/waitable_event.h"
@@ -72,7 +71,7 @@ class FileDescriptorWatcher::Controller::Watcher
 
   // WaitableEvent to signal to ensure that the Watcher is always destroyed
   // before the Controller.
-  const raw_ref<base::WaitableEvent, DanglingUntriaged> on_destroyed_;
+  base::WaitableEvent& on_destroyed_;
 
   // Whether this Watcher is notified when |fd_| becomes readable or writable
   // without blocking.
@@ -110,7 +109,7 @@ FileDescriptorWatcher::Controller::Watcher::~Watcher() {
 
   // Stop watching the descriptor before signalling |on_destroyed_|.
   CHECK(fd_watch_controller_.StopWatchingFileDescriptor());
-  on_destroyed_->Signal();
+  on_destroyed_.Signal();
 }
 
 void FileDescriptorWatcher::Controller::Watcher::StartWatching() {

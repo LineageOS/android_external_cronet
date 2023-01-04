@@ -25,9 +25,6 @@ struct NET_EXPORT_PRIVATE ConnectionEndpointMetadata {
   using EchConfigList = std::vector<uint8_t>;
 
   ConnectionEndpointMetadata();
-  ConnectionEndpointMetadata(std::vector<std::string> supported_protocol_alpns,
-                             EchConfigList ech_config_list,
-                             std::string target_name);
   ~ConnectionEndpointMetadata();
 
   ConnectionEndpointMetadata(const ConnectionEndpointMetadata&);

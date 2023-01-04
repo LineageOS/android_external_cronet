@@ -17,8 +17,6 @@
 
 namespace base {
 
-class ScopedAllowBlockingForProc : public ScopedAllowBlocking {};
-
 namespace {
 
 // Reads the |field_num|th field from |proc_stats|.
@@ -47,7 +45,7 @@ std::string GetProcStatsFieldAsString(
 // delimiter.
 bool GetProcCmdline(pid_t pid, std::vector<std::string>* proc_cmd_line_args) {
   // Synchronously reading files in /proc is safe.
-  ScopedAllowBlockingForProc allow_blocking;
+  ThreadRestrictions::ScopedAllowIO allow_io;
 
   FilePath cmd_line_file = internal::GetProcPidDir(pid).Append("cmdline");
   std::string cmd_line;

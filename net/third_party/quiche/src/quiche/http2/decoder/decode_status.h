@@ -25,7 +25,8 @@ enum class DecodeStatus {
   // an HTTP/2 frame has padding declared to be larger than the payload).
   kDecodeError,
 };
-QUICHE_EXPORT std::ostream& operator<<(std::ostream& out, DecodeStatus v);
+QUICHE_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& out,
+                                               DecodeStatus v);
 
 }  // namespace http2
 

@@ -30,10 +30,6 @@ void ExpectDictStringValue(StringPiece expected_value,
                            const Value::Dict& dict,
                            StringPiece path);
 
-void ExpectDictValue(const Value::Dict& expected_value,
-                     const Value::Dict& dict,
-                     StringPiece path);
-
 void ExpectDictValue(const Value& expected_value,
                      const Value::Dict& dict,
                      StringPiece path);
@@ -102,6 +98,12 @@ Value ParseJson(StringPiece json);
 // container.
 Value::Dict ParseJsonDict(StringPiece json);
 Value::List ParseJsonList(StringPiece json);
+
+// DEPRECATED.
+// Parses |json| as JSON, allowing trailing commas, and returns the
+// resulting value.  If the json fails to parse, causes an EXPECT
+// failure and returns the Null Value (but never a NULL pointer).
+std::unique_ptr<Value> ParseJsonDeprecated(StringPiece json);
 
 }  // namespace test
 }  // namespace base

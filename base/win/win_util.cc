@@ -437,13 +437,11 @@ bool GetUserSidString(std::wstring* user_sid) {
   return true;
 }
 
-class ScopedAllowBlockingForUserAccountControl : public ScopedAllowBlocking {};
-
 bool UserAccountControlIsEnabled() {
   // This can be slow if Windows ends up going to disk.  Should watch this key
   // for changes and only read it once, preferably on the file thread.
   //   http://code.google.com/p/chromium/issues/detail?id=61644
-  ScopedAllowBlockingForUserAccountControl allow_blocking;
+  ThreadRestrictions::ScopedAllowIO allow_io;
 
   RegKey key(HKEY_LOCAL_MACHINE,
              L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System",

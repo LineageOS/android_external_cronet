@@ -21,10 +21,9 @@ class PageWithBitmap final {
   PageWithBitmap()
       : base_(AllocPages(kSuperPageSize,
                          kSuperPageAlignment,
-                         PageAccessibilityConfiguration(
-                             PageAccessibilityConfiguration::kReadWrite),
+                         PageAccessibilityConfiguration::kReadWrite,
                          PageTag::kPartitionAlloc)),
-        bitmap_(new(reinterpret_cast<void*>(base_)) TestBitmap) {}
+        bitmap_(new (reinterpret_cast<void*>(base_)) TestBitmap) {}
 
   PageWithBitmap(const PageWithBitmap&) = delete;
   PageWithBitmap& operator=(const PageWithBitmap&) = delete;

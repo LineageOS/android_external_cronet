@@ -46,7 +46,7 @@ static UBool U_CALLCONV region_cleanup(void)
 {
     icu::Region::cleanupRegionData();
 
-    return true;
+    return TRUE;
 }
 
 U_CDECL_END
@@ -668,21 +668,21 @@ Region::contains(const Region &other) const {
     umtx_initOnce(gRegionDataInitOnce, &loadRegionData, status);
 
     if (!containedRegions) {
-          return false;
+          return FALSE;
     }
     if (containedRegions->contains((void *)&other.idStr)) {
-        return true;
+        return TRUE;
     } else {
         for ( int32_t i = 0 ; i < containedRegions->size() ; i++ ) {
             UnicodeString *crStr = (UnicodeString *)containedRegions->elementAt(i);
             Region *cr = (Region *) uhash_get(regionIDMap,(void *)crStr);
             if ( cr && cr->contains(other) ) {
-                return true;
+                return TRUE;
             }
         }
     }
 
-    return false;
+    return FALSE;
 }
 
 /**

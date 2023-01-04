@@ -20,7 +20,7 @@ namespace quic {
 // Provides a libevent-based implementation of QuicEventLoop.  Since libevent
 // uses relative time for all timeouts, the provided clock does not need to use
 // the UNIX time.
-class QUICHE_EXPORT LibeventQuicEventLoop : public QuicEventLoop {
+class QUICHE_EXPORT_PRIVATE LibeventQuicEventLoop : public QuicEventLoop {
  public:
   explicit LibeventQuicEventLoop(event_base* base, QuicClock* clock);
 
@@ -91,7 +91,7 @@ class QUICHE_EXPORT LibeventQuicEventLoop : public QuicEventLoop {
 };
 
 // RAII-style wrapper around event_base.
-class QUICHE_EXPORT LibeventLoop {
+class QUICHE_EXPORT_PRIVATE LibeventLoop {
  public:
   LibeventLoop(struct event_base* base) : event_base_(base) {}
   ~LibeventLoop() { event_base_free(event_base_); }
@@ -106,7 +106,7 @@ class QUICHE_EXPORT LibeventLoop {
 // that the inheritance order here matters, since otherwise the `event_base` in
 // question will be deleted before the LibeventQuicEventLoop object referencing
 // it.
-class QUICHE_EXPORT LibeventQuicEventLoopWithOwnership
+class QUICHE_EXPORT_PRIVATE LibeventQuicEventLoopWithOwnership
     : public LibeventLoop,
       public LibeventQuicEventLoop {
  public:
@@ -119,7 +119,8 @@ class QUICHE_EXPORT LibeventQuicEventLoopWithOwnership
       : LibeventLoop(base), LibeventQuicEventLoop(base, clock) {}
 };
 
-class QUICHE_EXPORT QuicLibeventEventLoopFactory : public QuicEventLoopFactory {
+class QUICHE_EXPORT_PRIVATE QuicLibeventEventLoopFactory
+    : public QuicEventLoopFactory {
  public:
   // Provides the preferred libevent backend.
   static QuicLibeventEventLoopFactory* Get() {

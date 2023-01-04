@@ -19,7 +19,7 @@
 
 namespace http2 {
 
-class QUICHE_EXPORT HpackWholeEntryListener {
+class QUICHE_EXPORT_PRIVATE HpackWholeEntryListener {
  public:
   virtual ~HpackWholeEntryListener();
 
@@ -55,7 +55,7 @@ class QUICHE_EXPORT HpackWholeEntryListener {
 
 // A no-op implementation of HpackWholeEntryDecoderListener, useful for ignoring
 // callbacks once an error is detected.
-class QUICHE_EXPORT HpackWholeEntryNoOpListener
+class QUICHE_EXPORT_PRIVATE HpackWholeEntryNoOpListener
     : public HpackWholeEntryListener {
  public:
   ~HpackWholeEntryNoOpListener() override;

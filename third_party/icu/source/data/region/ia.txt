@@ -307,7 +307,6 @@ ia{
         CG{"Congo (Republica)"}
         CI{"Republica de Côte d’Ivoire"}
         CZ{"Republica Chec"}
-        NZ{"Aotearoa/Nove Zelanda"}
         SZ{"Swazilandia"}
     }
 }

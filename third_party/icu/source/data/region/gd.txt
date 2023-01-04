@@ -307,7 +307,6 @@ gd{
         CG{"A’ Chongo"}
         CI{"An Costa Ìbhri"}
         CZ{"Poblachd na Seice"}
-        NZ{"Aotearoa Sealainn Nuadh"}
         SZ{"Dùthaich nan Suasaidh"}
         TL{"Tìomor an Ear"}
     }

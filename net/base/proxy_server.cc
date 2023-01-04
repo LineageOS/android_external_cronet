@@ -83,7 +83,7 @@ ProxyServer ProxyServer::FromSchemeHostAndPort(Scheme scheme,
                              &canonicalized_output, &component_output)) {
     return ProxyServer();
   }
-  if (component_output.is_empty())
+  if (!component_output.is_nonempty())
     return ProxyServer();
 
   canonicalized_output.Complete();

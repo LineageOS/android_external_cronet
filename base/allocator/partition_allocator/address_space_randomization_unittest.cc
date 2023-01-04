@@ -264,9 +264,7 @@ TEST(PartitionAllocAddressSpaceRandomizationTest, CanMapInAslrRange) {
 
     uintptr_t address = AllocPages(
         requested_address, size, internal::PageAllocationGranularity(),
-        PageAccessibilityConfiguration(
-            PageAccessibilityConfiguration::kReadWrite),
-        PageTag::kPartitionAlloc);
+        PageAccessibilityConfiguration::kReadWrite, PageTag::kPartitionAlloc);
     ASSERT_NE(address, 0u);
     FreePages(address, size);
 

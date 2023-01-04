@@ -156,7 +156,8 @@ public class SysUtils {
 
     public static boolean hasCamera(final Context context) {
         final PackageManager pm = context.getPackageManager();
-        return pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
+        return pm.hasSystemFeature(PackageManager.FEATURE_CAMERA)
+                || pm.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY);
     }
 
     private static boolean detectLowEndDevice() {

@@ -16,7 +16,6 @@
 #include "base/task/thread_pool/task.h"
 #include "base/task/thread_pool/task_source.h"
 #include "base/task/thread_pool/task_source_sort_key.h"
-#include "base/thread_annotations.h"
 #include "base/threading/sequence_local_storage_map.h"
 
 namespace base {
@@ -152,24 +151,24 @@ class BASE_EXPORT Sequence : public TaskSource {
   // delayed queue and return it.
   // Expects this sequence to have at least one task that can run
   // immediately.
-  Task TakeEarliestTask() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  Task TakeEarliestTask();
 
   // Get and return next task from immediate queue
-  Task TakeNextImmediateTask() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  Task TakeNextImmediateTask();
 
   // Determine next ready time and set ready time to it
-  TimeTicks GetNextReadyTime() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  TimeTicks GetNextReadyTime();
 
   // Returns true if there are immediate tasks
-  bool HasImmediateTasks() const EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  bool HasImmediateTasks() const;
 
   // Returns true if there are tasks ripe for execution in the delayed queue
-  bool HasRipeDelayedTasks(TimeTicks now) const EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  bool HasRipeDelayedTasks(TimeTicks now) const;
 
   // Returns true if tasks ready to be executed
-  bool HasReadyTasks(TimeTicks now) const EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  bool HasReadyTasks(TimeTicks now) const;
 
-  bool IsEmpty() const EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  bool IsEmpty() const;
 
   TimeTicks GetReadyTime() const;
 
@@ -179,9 +178,8 @@ class BASE_EXPORT Sequence : public TaskSource {
   const SequenceToken token_ = SequenceToken::Create();
 
   // Queues of tasks to execute.
-  base::queue<Task> queue_ GUARDED_BY(lock_);
-  base::IntrusiveHeap<Task, DelayedTaskGreater> delayed_queue_
-      GUARDED_BY(lock_);
+  base::queue<Task> queue_;
+  base::IntrusiveHeap<Task, DelayedTaskGreater> delayed_queue_;
 
   std::atomic<TimeTicks> ready_time_{TimeTicks()};
 

@@ -10,7 +10,6 @@
 #include "base/check.h"
 #include "base/check_op.h"
 #include "base/memory/raw_ptr.h"
-#include "base/scoped_observation_traits.h"
 
 namespace base {
 
@@ -36,63 +35,33 @@ namespace base {
 //   `ScopedObservation`, one might need to keep track of whether one has
 //   already stopped observing in a separate boolean.
 //
-// A complete usage example can be found below.
+// Basic example (as a member variable):
 //
-// `observer.h`:
-//   class Observer {
+//   class MyObserver : public Observable::Observer {
 //    public:
-//     virtual ~Observer() {}
-//
-//     virtual void OnEvent() {}
-//   };
-//
-// `source.h`:
-//   class Observer;
-//   class Source {
-//    public:
-//     void AddObserver(Observer* observer);
-//     void RemoveObserver(Observer* observer);
-//   };
-//
-// `observer_impl.h`:
-//   #include "observer.h"
-//
-//   class Source;
-//
-//   class ObserverImpl: public Observer {
-//    public:
-//     ObserverImpl(Source* source);
-//     // Note how there is no need to stop observing in the destructor.
-//     ~ObserverImpl() override {}
-//
-//     void OnEvent() override {
-//       ...
+//     MyObserver(Observable* observable) {
+//       observation_.Observe(observable);
 //     }
-//
+//     // Note how there is no need to stop observing in the destructor.
 //    private:
-//     // Note that |obs_| can be instantiated with forward-declared Source.
-//     base::ScopedObservation<Source, Observer> obs_{this};
+//     ScopedObservation<Observable, Observable::Observer> observation_{this};
 //   };
 //
-// `observer_impl.cc`:
-//   #include "observer_impl.h"
-//   #include "source.h"
+// For cases with methods not named AddObserver/RemoveObserver:
 //
-//   ObserverImpl::ObserverImpl(Source* source) {
-//     // After the call |this| starts listening to events from |source|.
-//     obs_.Observe(source);
-//   }
-//
-////////////////////////////////////////////////////////////////////////////////
-//
-// By default `ScopedObservation` only works with sources that expose
-// `AddObserver` and `RemoveObserver`. However, it's also possible to
-// adapt it to custom function names (say `AddFoo` and `RemoveFoo` accordingly)
-// by tailoring ScopedObservationTraits<> for the given Source and Observer --
-// see `base/scoped_observation_traits.h` for details.
-//
-
-template <class Source, class Observer>
+//   class MyStateObserver : public Observable::StateObserver {
+//     ...
+//    private:
+//     ScopedObservation<Observable,
+//                       Observable::StateObserver,
+//                       &Observable::AddStateObserver,
+//                       &Observable::RemoveStateObserver>
+//       observation_{this};
+//   };
+template <class Source,
+          class Observer,
+          void (Source::*AddObsFn)(Observer*) = &Source::AddObserver,
+          void (Source::*RemoveObsFn)(Observer*) = &Source::RemoveObserver>
 class ScopedObservation {
  public:
   explicit ScopedObservation(Observer* observer) : observer_(observer) {}
@@ -107,14 +76,14 @@ class ScopedObservation {
     //     has been fully retired.
     CHECK_EQ(source_, nullptr);
     source_ = source;
-    Traits::AddObserver(source_, observer_);
+    (source_.get()->*AddObsFn)(observer_);
   }
 
   // Remove the object passed to the constructor as an observer from |source_|
   // if currently observing. Does nothing otherwise.
   void Reset() {
     if (source_) {
-      Traits::RemoveObserver(source_, observer_);
+      (source_.get()->*RemoveObsFn)(observer_);
       source_ = nullptr;
     }
   }
@@ -129,8 +98,6 @@ class ScopedObservation {
   }
 
  private:
-  using Traits = ScopedObservationTraits<Source, Observer>;
-
   const raw_ptr<Observer> observer_;
 
   // The observed source, if any.

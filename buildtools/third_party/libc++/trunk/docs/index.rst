@@ -93,7 +93,6 @@ reasons, but some of the major ones are:
   Further, both projects are apparently abandoned: STLport 5.2.1 was
   released in Oct'08, and STDCXX 4.2.1 in May'08.
 
-.. _SupportedPlatforms:
 
 Platform and Compiler Support
 =============================

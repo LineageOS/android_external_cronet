@@ -10,7 +10,6 @@
 #include "base/containers/flat_map.h"
 #include "base/containers/flat_set.h"
 #include "base/functional/function_ref.h"
-#include "base/version.h"
 #include "net/base/net_export.h"
 #include "net/base/schemeful_site.h"
 #include "net/first_party_sets/first_party_set_entry.h"
@@ -38,9 +37,12 @@ class NET_EXPORT GlobalFirstPartySets {
  public:
   GlobalFirstPartySets();
   GlobalFirstPartySets(
-      base::Version public_sets_version,
       base::flat_map<SchemefulSite, FirstPartySetEntry> entries,
       base::flat_map<SchemefulSite, SchemefulSite> aliases);
+  GlobalFirstPartySets(
+      base::flat_map<SchemefulSite, FirstPartySetEntry> entries,
+      base::flat_map<SchemefulSite, SchemefulSite> aliases,
+      FirstPartySetsContextConfig manual_config);
 
   GlobalFirstPartySets(GlobalFirstPartySets&&);
   GlobalFirstPartySets& operator=(GlobalFirstPartySets&&);
@@ -53,8 +55,9 @@ class NET_EXPORT GlobalFirstPartySets {
   // Creates a clone of this instance.
   GlobalFirstPartySets Clone() const;
 
-  // Returns a FirstPartySetsContextConfig that respects the overrides given by
-  // `replacement_sets` and `addition_sets`, relative to this instance's state.
+  // Returns a FirstPartySetsContextConfig suitable for passing into
+  // FindEntries, in order to respect the overrides given by `replacement_sets`
+  // and `addition_sets`.
   //
   // Preconditions: sets defined by `replacement_sets` and
   // `addition_sets` must be disjoint.
@@ -91,17 +94,6 @@ class NET_EXPORT GlobalFirstPartySets {
   void ApplyManuallySpecifiedSet(
       const base::flat_map<SchemefulSite, FirstPartySetEntry>& manual_entries);
 
-  // Directly sets this instance's manual config. This is unsafe, because it
-  // assumes that the config was computed by this instance (or one with
-  // identical data), but cannot enforce that as a precondition.
-  //
-  // This must be public since at least one caller is above the //net layer, so
-  // we can't refer to the caller's type here (and therefore can't "friend" it
-  // and also can't use a base::Passkey).
-  //
-  // Must not be called if the manual config has already been set.
-  void UnsafeSetManualConfig(FirstPartySetsContextConfig manual_config);
-
   // Synchronously iterate over all entries in the public sets (i.e. not
   // including any manual set entries). Returns early if any of the iterations
   // returns false. Returns false if iteration was incomplete; true if all
@@ -111,31 +103,11 @@ class NET_EXPORT GlobalFirstPartySets {
       base::FunctionRef<bool(const SchemefulSite&, const FirstPartySetEntry&)>
           f) const;
 
-  // Synchronously iterate over the manual config. Returns early if any of the
-  // iterations returns false. Returns false if iteration was incomplete; true
-  // if all iterations returned true. No guarantees are made re: iteration
-  // order.
-  bool ForEachManualConfigEntry(
-      base::FunctionRef<bool(const SchemefulSite&,
-                             const absl::optional<FirstPartySetEntry>&)> f)
-      const;
-
-  // Synchronously iterate over all the effective entries (i.e. anything that
-  // could be returned by `FindEntry` using this instance and `config`,
-  // including the manual set, policy sets, and aliases). Returns early if any
-  // of the iterations returns false. Returns false if iteration was incomplete;
-  // true if all iterations returned true. No guarantees are made re: iteration
-  // order.
-  bool ForEachEffectiveSetEntry(
-      const FirstPartySetsContextConfig& config,
-      base::FunctionRef<bool(const SchemefulSite&, const FirstPartySetEntry&)>
-          f) const;
-
   // Whether the global sets are empty.
   bool empty() const { return entries_.empty() && manual_config_.empty(); }
 
-  const base::Version& public_sets_version() const {
-    return public_sets_version_;
+  const base::flat_map<SchemefulSite, FirstPartySetEntry>& manual_sets() const {
+    return manual_sets_;
   }
 
  private:
@@ -145,12 +117,6 @@ class NET_EXPORT GlobalFirstPartySets {
 
   friend NET_EXPORT std::ostream& operator<<(std::ostream& os,
                                              const GlobalFirstPartySets& sets);
-
-  GlobalFirstPartySets(
-      base::Version public_sets_version,
-      base::flat_map<SchemefulSite, FirstPartySetEntry> entries,
-      base::flat_map<SchemefulSite, SchemefulSite> aliases,
-      FirstPartySetsContextConfig manual_config);
 
   // Same as the public version of FindEntry, but is allowed to omit the
   // `config` argument (i.e. pass nullptr instead of a reference).
@@ -179,13 +145,6 @@ class NET_EXPORT GlobalFirstPartySets {
       const std::set<SchemefulSite>& party_context,
       const FirstPartySetsContextConfig& fps_context_config) const;
 
-  // Same as the public version of ForEachEffectiveSetEntry, but is allowed to
-  // omit the `config` argument (i.e. pass nullptr instead of a reference).
-  bool ForEachEffectiveSetEntry(
-      const FirstPartySetsContextConfig* config,
-      base::FunctionRef<bool(const SchemefulSite&, const FirstPartySetEntry&)>
-          f) const;
-
   const base::flat_map<SchemefulSite, FirstPartySetEntry>& entries() const {
     return entries_;
   }
@@ -198,12 +157,6 @@ class NET_EXPORT GlobalFirstPartySets {
     return manual_config_;
   }
 
-  // The version associated with the component_updater-provided public sets.
-  // This may be invalid if the "First-Party Sets" component has not been
-  // installed yet, or has been corrupted. Entries and aliases from invalid
-  // components are ignored.
-  base::Version public_sets_version_;
-
   // Represents the mapping of site -> entry, where keys are sites within sets,
   // and values are entries of the sets.
   base::flat_map<SchemefulSite, FirstPartySetEntry> entries_;
@@ -215,6 +168,10 @@ class NET_EXPORT GlobalFirstPartySets {
   // Stores the customizations induced by the manually-specified set. May be
   // empty if no switch was provided.
   FirstPartySetsContextConfig manual_config_;
+
+  // A map representing the manually-specified sets. Contains entries for
+  // aliases as well as canonical sites.
+  base::flat_map<SchemefulSite, FirstPartySetEntry> manual_sets_;
 };
 
 NET_EXPORT std::ostream& operator<<(std::ostream& os,

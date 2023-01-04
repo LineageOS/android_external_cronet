@@ -46,14 +46,6 @@ static_assert(sizeof(void*) != 8, "");
 #endif  // defined(PA_HAS_64_BITS_POINTERS) &&
         // (BUILDFLAG(IS_IOS) || BUILDFLAG(IS_WIN))
 
-// Puts the regular and BRP pools right next to each other, so that we can
-// check "belongs to one of the two pools" with a single bitmask operation.
-//
-// This setting is specific to 64-bit, as 32-bit has a different implementation.
-#if defined(PA_HAS_64_BITS_POINTERS) && BUILDFLAG(GLUE_CORE_POOLS)
-#define PA_GLUE_CORE_POOLS
-#endif
-
 #if defined(PA_HAS_64_BITS_POINTERS) && \
     (BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_ANDROID))
 #include <linux/version.h>
@@ -146,19 +138,8 @@ static_assert(sizeof(void*) != 8, "");
 #define PA_HAS_FREELIST_SHADOW_ENTRY
 #endif
 
-// Build MTECheckedPtr code.
-//
-// Only applicable to code with 64-bit pointers. Currently conflicts with true
-// hardware MTE.
-#if BUILDFLAG(ENABLE_MTE_CHECKED_PTR_SUPPORT) && \
-    defined(PA_HAS_64_BITS_POINTERS) && !defined(PA_HAS_MEMORY_TAGGING)
-#define PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS
-#endif  // BUILDFLAG(ENABLE_MTE_CHECKED_PTR_SUPPORT) &&
-        // defined(PA_HAS_64_BITS_POINTERS) && !defined(PA_HAS_MEMORY_TAGGING)
-
 // Specifies whether allocation extras need to be added.
-#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) || \
-    defined(PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS)
+#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
 #define PA_EXTRAS_REQUIRED
 #endif
 
@@ -261,6 +242,16 @@ constexpr bool kUseLazyCommit = false;
 #define PA_PREFER_SMALLER_SLOT_SPANS
 #endif  // BUILDFLAG(IS_LINUX) || (BUILDFLAG(IS_MAC) && defined(ARCH_CPU_ARM64))
 
+// Build MTECheckedPtr code.
+//
+// Only applicable to code with 64-bit pointers. Currently conflicts with true
+// hardware MTE.
+#if BUILDFLAG(ENABLE_MTE_CHECKED_PTR_SUPPORT) && \
+    defined(PA_HAS_64_BITS_POINTERS) && !defined(PA_HAS_MEMORY_TAGGING)
+#define PA_ENABLE_MTE_CHECKED_PTR_SUPPORT_WITH_64_BITS_POINTERS
+#endif  // BUILDFLAG(ENABLE_MTE_CHECKED_PTR_SUPPORT) &&
+        // defined(PA_HAS_64_BITS_POINTERS) && !defined(PA_HAS_MEMORY_TAGGING)
+
 // Enable shadow metadata.
 //
 // With this flag, shadow pools will be mapped, on which writable shadow
@@ -283,24 +274,5 @@ constexpr bool kUseLazyCommit = false;
 #if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) && BUILDFLAG(IS_MAC)
 #define PA_ENABLE_MAC11_MALLOC_SIZE_HACK
 #endif
-
-// Enables compressed (4-byte) pointers that can point within the core pools
-// (Regular + BRP).
-#if defined(PA_HAS_64_BITS_POINTERS) && BUILDFLAG(ENABLE_POINTER_COMPRESSION)
-#define PA_POINTER_COMPRESSION
-
-#if !defined(PA_GLUE_CORE_POOLS)
-#error "Pointer compression works only with contiguous pools"
-#endif
-#if defined(PA_DYNAMICALLY_SELECT_POOL_SIZE)
-#error "Dynamically selected pool size is currently not supported"
-#endif
-#if defined(ENABLE_MTE_CHECKED_PTR_SUPPORT) || defined(PA_HAS_MEMORY_TAGGING)
-// TODO(1376980): Address MTE once it's enabled.
-#error "Compressed pointers don't support tag in the upper bits"
-#endif
-
-#endif  // defined(PA_HAS_64_BITS_POINTERS) &&
-        // BUILDFLAG(ENABLE_POINTER_COMPRESSION)
 
 #endif  // BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_ALLOC_CONFIG_H_

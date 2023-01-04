@@ -298,7 +298,7 @@ DateIntervalFormat::format(const DateInterval* dtInterval,
     }
 
     FieldPositionOnlyHandler handler(fieldPosition);
-    handler.setAcceptFirstOnly(true);
+    handler.setAcceptFirstOnly(TRUE);
     int8_t ignore;
 
     Mutex lock(&gFormatterMutex);
@@ -351,7 +351,7 @@ DateIntervalFormat::format(Calendar& fromCalendar,
                            FieldPosition& pos,
                            UErrorCode& status) const {
     FieldPositionOnlyHandler handler(pos);
-    handler.setAcceptFirstOnly(true);
+    handler.setAcceptFirstOnly(TRUE);
     int8_t ignore;
 
     Mutex lock(&gFormatterMutex);
@@ -1207,8 +1207,8 @@ DateIntervalFormat::getDateTimeSkeleton(const UnicodeString& skeleton,
  * @param dateSkeleton   normalized date skeleton
  * @param timeSkeleton   normalized time skeleton
  * @return               whether the resource is found for the skeleton.
- *                       true if interval pattern found for the skeleton,
- *                       false otherwise.
+ *                       TRUE if interval pattern found for the skeleton,
+ *                       FALSE otherwise.
  * @stable ICU 4.0
  */
 UBool
@@ -1420,8 +1420,8 @@ DateIntervalFormat::setIntervalPattern(UCalendarDateFields field,
  * @param extendedBestSkeleton  extended best match skeleton
  * @return                      whether the interval pattern is found
  *                              through extending skeleton or not.
- *                              true if interval pattern is found by
- *                              extending skeleton, false otherwise.
+ *                              TRUE if interval pattern is found by
+ *                              extending skeleton, FALSE otherwise.
  * @stable ICU 4.0
  */
 UBool
@@ -1495,10 +1495,10 @@ DateIntervalFormat::setIntervalPattern(UCalendarDateFields field,
             setIntervalPattern(field, pattern);
         }
         if ( extendedSkeleton && !extendedSkeleton->isEmpty() ) {
-            return true;
+            return TRUE;
         }
     }
-    return false;
+    return FALSE;
 }
 
 
@@ -1539,8 +1539,8 @@ DateIntervalFormat::splitPatternInto2Part(const UnicodeString& intervalPattern) 
         if (ch != prevCh && count > 0) {
             // check the repeativeness of pattern letter
             UBool repeated = patternRepeated[(int)(prevCh - PATTERN_CHAR_BASE)];
-            if ( repeated == false ) {
-                patternRepeated[prevCh - PATTERN_CHAR_BASE] = true;
+            if ( repeated == FALSE ) {
+                patternRepeated[prevCh - PATTERN_CHAR_BASE] = TRUE;
             } else {
                 foundRepetition = true;
                 break;
@@ -1568,8 +1568,8 @@ DateIntervalFormat::splitPatternInto2Part(const UnicodeString& intervalPattern) 
     // "dd MM" ( no repetition ),
     // "d-d"(last char repeated ), and
     // "d-d MM" ( repetition found )
-    if ( count > 0 && foundRepetition == false ) {
-        if ( patternRepeated[(int)(prevCh - PATTERN_CHAR_BASE)] == false ) {
+    if ( count > 0 && foundRepetition == FALSE ) {
+        if ( patternRepeated[(int)(prevCh - PATTERN_CHAR_BASE)] == FALSE ) {
             count = 0;
         }
     }
@@ -1683,7 +1683,7 @@ DateIntervalFormat::fieldExistsInSkeleton(UCalendarDateFields field,
                                           const UnicodeString& skeleton)
 {
     const UChar fieldChar = fgCalendarFieldToPatternLetter[field];
-    return ( (skeleton.indexOf(fieldChar) == -1)?false:true ) ;
+    return ( (skeleton.indexOf(fieldChar) == -1)?FALSE:TRUE ) ;
 }
 
 
@@ -1725,13 +1725,7 @@ DateIntervalFormat::adjustFieldWidth(const UnicodeString& inputSkeleton,
     DateIntervalInfo::parseSkeleton(inputSkeleton, inputSkeletonFieldWidth);
     DateIntervalInfo::parseSkeleton(bestMatchSkeleton, bestMatchSkeletonFieldWidth);
     if (suppressDayPeriodField) {
-        // remove the 'a' and any NBSP/NNBSP on one side of it
-        findReplaceInPattern(adjustedPtn, UnicodeString(u"\u00A0a",-1), UnicodeString());
-        findReplaceInPattern(adjustedPtn, UnicodeString(u"\u202Fa",-1), UnicodeString());
-        findReplaceInPattern(adjustedPtn, UnicodeString(u"a\u00A0",-1), UnicodeString());
-        findReplaceInPattern(adjustedPtn, UnicodeString(u"a\u202F",-1), UnicodeString());
         findReplaceInPattern(adjustedPtn, UnicodeString(LOW_A), UnicodeString());
-        // adjust interior double spaces, remove exterior whitespace
         findReplaceInPattern(adjustedPtn, UnicodeString("  "), UnicodeString(" "));
         adjustedPtn.trim();
     }

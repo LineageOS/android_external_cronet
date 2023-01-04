@@ -7,6 +7,7 @@
 #include "base/location.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "net/cookies/cookie_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -17,7 +18,7 @@ CookieCallback::CookieCallback(base::Thread* run_in_thread)
 
 CookieCallback::CookieCallback()
     : run_in_thread_(nullptr),
-      run_in_task_runner_(base::SingleThreadTaskRunner::GetCurrentDefault()) {}
+      run_in_task_runner_(base::ThreadTaskRunnerHandle::Get()) {}
 
 CookieCallback::~CookieCallback() = default;
 

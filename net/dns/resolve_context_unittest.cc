@@ -48,7 +48,7 @@ class ResolveContextTest : public TestWithTaskEnvironment {
 
   scoped_refptr<DnsSession> CreateDnsSession(const DnsConfig& config) {
     auto null_random_callback =
-        base::BindRepeating([](int, int) -> int { base::ImmediateCrash(); });
+        base::BindRepeating([](int, int) -> int { IMMEDIATE_CRASH(); });
     return base::MakeRefCounted<DnsSession>(config, null_random_callback,
                                             nullptr /* netlog */);
   }

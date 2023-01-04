@@ -8,7 +8,6 @@
 #include <string>
 #include <vector>
 
-#include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
 #include "base/logging.h"
@@ -202,7 +201,6 @@ bool CheckHostnames(const TransportSecurityStateEntries& entries) {
 int main(int argc, char* argv[]) {
   crypto::EnsureOpenSSLInit();
 
-  base::AtExitManager at_exit_manager;
   base::CommandLine::Init(argc, argv);
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();

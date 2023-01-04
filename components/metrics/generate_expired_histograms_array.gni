@@ -156,7 +156,6 @@ template("generate_expired_histograms_array") {
       "//tools/metrics/histograms/metadata/simple/histograms.xml",
       "//tools/metrics/histograms/metadata/software/histograms.xml",
       "//tools/metrics/histograms/metadata/stability/histograms.xml",
-      "//tools/metrics/histograms/metadata/start_surface/histograms.xml",
       "//tools/metrics/histograms/metadata/startup/histograms.xml",
       "//tools/metrics/histograms/metadata/storage/histograms.xml",
       "//tools/metrics/histograms/metadata/subresource/histograms.xml",
@@ -180,6 +179,7 @@ template("generate_expired_histograms_array") {
       "//tools/metrics/histograms/metadata/weblayer/histograms.xml",
       "//tools/metrics/histograms/metadata/windows/histograms.xml",
       "//tools/metrics/histograms/metadata/xr/histograms.xml",
+      "//tools/metrics/histograms/metadata/obsolete_histograms.xml",
       "//tools/metrics/histograms/enums.xml",
     ]
 

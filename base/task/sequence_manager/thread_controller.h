@@ -10,7 +10,6 @@
 
 #include "base/base_export.h"
 #include "base/check.h"
-#include "base/memory/raw_ptr.h"
 #include "base/memory/raw_ref.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/message_loop/message_pump.h"
@@ -268,7 +267,7 @@ class BASE_EXPORT ThreadController {
     void OnIdle(LazyNow& lazy_now);
 
     size_t num_run_levels() const {
-      DCHECK_CALLED_ON_VALID_THREAD(outer_->associated_thread_->thread_checker);
+      DCHECK_CALLED_ON_VALID_THREAD(outer_.associated_thread_->thread_checker);
       return run_levels_.size();
     }
 
@@ -357,14 +356,14 @@ class BASE_EXPORT ThreadController {
       bool current_work_item_is_native_ = true;
 
       // non-null when recording is enabled.
-      raw_ptr<HistogramBase> histogram_ = nullptr;
+      HistogramBase* histogram_ = nullptr;
 #if BUILDFLAG(ENABLE_BASE_TRACING)
       absl::optional<perfetto::Track> perfetto_track_;
 
       // True if tracing was enabled during the last pass of RecordTimeInPhase.
       bool was_tracing_enabled_;
 #endif
-      const raw_ref<const RunLevelTracker> outer_;
+      const RunLevelTracker& outer_;
     } time_keeper_{*this};
 
     class RunLevel {
@@ -397,7 +396,7 @@ class BASE_EXPORT ThreadController {
 
       const raw_ref<TimeKeeper> time_keeper_;
       // Must be set shortly before ~RunLevel.
-      raw_ptr<LazyNow> exit_lazy_now_ = nullptr;
+      LazyNow* exit_lazy_now_ = nullptr;
 
       SampleMetadata thread_controller_sample_metadata_;
       size_t thread_controller_active_id_ = 0;
@@ -419,10 +418,10 @@ class BASE_EXPORT ThreadController {
       TruePostMove was_moved_;
     };
 
-    [[maybe_unused]] const raw_ref<const ThreadController> outer_;
+    [[maybe_unused]] const ThreadController& outer_;
 
     std::stack<RunLevel, std::vector<RunLevel>> run_levels_
-        GUARDED_BY_CONTEXT(outer_->associated_thread_->thread_checker);
+        GUARDED_BY_CONTEXT(outer_.associated_thread_->thread_checker);
 
     static TraceObserverForTesting* trace_observer_for_testing_;
   } run_level_tracker_{*this};

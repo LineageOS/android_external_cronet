@@ -36,10 +36,15 @@
 #endif
 
 #if BUILDFLAG(IS_MAC)
-#include "third_party/abseil-cpp/absl/types/optional.h"
+#include <sys/sysctl.h>
+#include "base/feature_list.h"
+#include "base/system/sys_info_internal.h"
 #endif
 
 namespace {
+#if BUILDFLAG(IS_MAC)
+bool is_cpu_security_mitigation_enabled = false;
+#endif
 
 uint64_t AmountOfVirtualMemory() {
   struct rlimit limit;
@@ -110,10 +115,19 @@ namespace internal {
 
 int NumberOfProcessors() {
 #if BUILDFLAG(IS_MAC)
-  absl::optional<int> number_of_physical_cores =
-      NumberOfProcessorsWhenCpuSecurityMitigationEnabled();
-  if (number_of_physical_cores.has_value())
-    return number_of_physical_cores.value();
+  // When CPU security mitigation is enabled, return number of "physical"
+  // cores and not the number of "logical" cores. CPU security mitigations
+  // disables hyper-threading for the current application, which effectively
+  // limits the number of concurrently executing threads to the number of
+  // physical cores.
+  if (base::FeatureList::IsEnabled(
+          base::kNumberOfCoresWithCpuSecurityMitigation) &&
+      is_cpu_security_mitigation_enabled) {
+    absl::optional<int> number_of_physical_cores =
+        internal::NumberOfPhysicalProcessors();
+    if (number_of_physical_cores.has_value())
+      return number_of_physical_cores.value();
+  }
 #endif  // BUILDFLAG(IS_MAC)
 
   // sysconf returns the number of "logical" (not "physical") processors on both
@@ -151,6 +165,20 @@ int NumberOfProcessors() {
 
   return num_cpus;
 }
+
+#if BUILDFLAG(IS_MAC)
+absl::optional<int> NumberOfPhysicalProcessors() {
+  uint32_t sysctl_value = 0;
+  size_t length = sizeof(sysctl_value);
+
+  if (sysctlbyname("hw.physicalcpu_max", &sysctl_value, &length, nullptr, 0) ==
+      0) {
+    return static_cast<int>(sysctl_value);
+  }
+
+  return absl::nullopt;
+}
+#endif  // BUILDFLAG(IS_LINUX)
 
 }  // namespace internal
 
@@ -260,5 +288,16 @@ std::string SysInfo::OperatingSystemArchitecture() {
 size_t SysInfo::VMAllocationGranularity() {
   return checked_cast<size_t>(getpagesize());
 }
+
+#if BUILDFLAG(IS_MAC)
+BASE_FEATURE(kNumberOfCoresWithCpuSecurityMitigation,
+             "NumberOfCoresWithCpuSecurityMitigation",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+void SysInfo::SetIsCpuSecurityMitigationsEnabled(bool is_enabled) {
+  is_cpu_security_mitigation_enabled = is_enabled;
+}
+
+#endif  // BUILDFLAG(IS_MAC)
 
 }  // namespace base

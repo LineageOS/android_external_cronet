@@ -380,7 +380,7 @@ UnicodeString FormattedStringBuilder::toUnicodeString() const {
 
 const UnicodeString FormattedStringBuilder::toTempUnicodeString() const {
     // Readonly-alias constructor:
-    return UnicodeString(false, getCharPtr() + fZero, fLength);
+    return UnicodeString(FALSE, getCharPtr() + fZero, fLength);
 }
 
 UnicodeString FormattedStringBuilder::toDebugString() const {

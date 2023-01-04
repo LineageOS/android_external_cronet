@@ -720,11 +720,6 @@ TEST(StringPieceTest, OutOfBoundsDeath) {
   }
 }
 
-TEST(StringPieceTest, InvalidLengthDeath) {
-  int length = -1;
-  ASSERT_DEATH_IF_SUPPORTED({ StringPiece piece("hello", length); }, "");
-}
-
 TEST(StringPieceTest, ConstexprData) {
   {
     constexpr StringPiece piece;

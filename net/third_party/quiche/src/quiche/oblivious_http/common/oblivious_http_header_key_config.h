@@ -14,7 +14,7 @@
 
 namespace quiche {
 
-class QUICHE_EXPORT ObliviousHttpHeaderKeyConfig {
+class QUICHE_EXPORT_PRIVATE ObliviousHttpHeaderKeyConfig {
  public:
   // https://www.ietf.org/archive/id/draft-ietf-ohai-ohttp-03.html#section-4.1-4.2
   static constexpr absl::string_view kOhttpRequestLabel =
@@ -60,6 +60,7 @@ class QUICHE_EXPORT ObliviousHttpHeaderKeyConfig {
   // https://www.ietf.org/archive/id/draft-ietf-ohai-ohttp-03.html#section-4.1-10
   std::string SerializeRecipientContextInfo() const;
 
+  // TODO(anov): Replace with ObliviousRequest/Response abstraction
   // Parses the below Header
   // [keyID(1 byte), kemID(2 bytes), kdfID(2 bytes), aeadID(2 bytes)]
   // from the payload received in Ohttp Request, and verifies that these values
@@ -67,14 +68,6 @@ class QUICHE_EXPORT ObliviousHttpHeaderKeyConfig {
   // aead_id_]
   // https://www.ietf.org/archive/id/draft-ietf-ohai-ohttp-03.html#section-4.1-7
   absl::Status ParseOhttpPayloadHeader(absl::string_view payload_bytes) const;
-
-  // Parses the Oblivious HTTP header [keyID(1 byte), kemID(2 bytes), kdfID(2
-  // bytes), aeadID(2 bytes)] from the buffer initialized within
-  // `QuicheDataReader`, and  verifies these values against instantiated class
-  // data namely [key_id_, kem_id_, kdf_id_, aead_id_] for a match. On
-  // success(i.e., if matched successfully), leaves `reader` pointing at the
-  // first byte after the header.
-  absl::Status ParseOhttpPayloadHeader(QuicheDataReader& reader) const;
 
   // Extracts Key ID from the OHTTP Request payload.
   static absl::StatusOr<uint8_t> ParseKeyIdFromObliviousHttpRequestPayload(
@@ -109,7 +102,7 @@ class QUICHE_EXPORT ObliviousHttpHeaderKeyConfig {
 // for details of the "Key Configuration" spec.
 //
 // ObliviousHttpKeyConfigs objects are immutable after construction.
-class QUICHE_EXPORT ObliviousHttpKeyConfigs {
+class QUICHE_EXPORT_PRIVATE ObliviousHttpKeyConfigs {
  public:
   // Parses the "application/ohttp-keys" media type, which is a byte string
   // formatted according to the spec:

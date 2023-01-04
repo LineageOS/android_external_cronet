@@ -329,11 +329,13 @@ class SQLitePersistentCookieStore::Backend
 
  private:
   // Creates or loads the SQLite database on background runner.
-  void LoadAndNotifyInBackground(LoadedCallback loaded_callback);
+  void LoadAndNotifyInBackground(LoadedCallback loaded_callback,
+                                 const base::Time& posted_at);
 
   // Loads cookies for the domain key (eTLD+1) on background runner.
   void LoadKeyAndNotifyInBackground(const std::string& domains,
-                                    LoadedCallback loaded_callback);
+                                    LoadedCallback loaded_callback,
+                                    const base::Time& posted_at);
 
   // Notifies the CookieMonster when loading completes for a specific domain key
   // or for all domain keys. Triggers the callback and passes it all cookies
@@ -349,7 +351,8 @@ class SQLitePersistentCookieStore::Backend
   // Sends notification when a single priority load completes. Updates priority
   // load metric data. The data is sent only after the final load completes.
   void CompleteLoadForKeyInForeground(LoadedCallback loaded_callback,
-                                      bool load_success);
+                                      bool load_success,
+                                      const base::Time& requested_at);
 
   // Initialize the Cookies table.
   bool CreateDatabaseSchema() override;
@@ -731,9 +734,9 @@ bool CreateV18Schema(sql::Database* db) {
 
 void SQLitePersistentCookieStore::Backend::Load(
     LoadedCallback loaded_callback) {
-  PostBackgroundTask(FROM_HERE,
-                     base::BindOnce(&Backend::LoadAndNotifyInBackground, this,
-                                    std::move(loaded_callback)));
+  PostBackgroundTask(
+      FROM_HERE, base::BindOnce(&Backend::LoadAndNotifyInBackground, this,
+                                std::move(loaded_callback), base::Time::Now()));
 }
 
 void SQLitePersistentCookieStore::Backend::LoadCookiesForKey(
@@ -748,12 +751,14 @@ void SQLitePersistentCookieStore::Backend::LoadCookiesForKey(
   }
 
   PostBackgroundTask(
-      FROM_HERE, base::BindOnce(&Backend::LoadKeyAndNotifyInBackground, this,
-                                key, std::move(loaded_callback)));
+      FROM_HERE,
+      base::BindOnce(&Backend::LoadKeyAndNotifyInBackground, this, key,
+                     std::move(loaded_callback), base::Time::Now()));
 }
 
 void SQLitePersistentCookieStore::Backend::LoadAndNotifyInBackground(
-    LoadedCallback loaded_callback) {
+    LoadedCallback loaded_callback,
+    const base::Time& posted_at) {
   DCHECK(background_task_runner()->RunsTasksInCurrentSequence());
   IncrementTimeDelta increment(&cookie_load_duration_);
 
@@ -768,7 +773,8 @@ void SQLitePersistentCookieStore::Backend::LoadAndNotifyInBackground(
 
 void SQLitePersistentCookieStore::Backend::LoadKeyAndNotifyInBackground(
     const std::string& key,
-    LoadedCallback loaded_callback) {
+    LoadedCallback loaded_callback,
+    const base::Time& posted_at) {
   DCHECK(background_task_runner()->RunsTasksInCurrentSequence());
   IncrementTimeDelta increment(&cookie_load_duration_);
 
@@ -787,13 +793,18 @@ void SQLitePersistentCookieStore::Backend::LoadKeyAndNotifyInBackground(
       FROM_HERE,
       base::BindOnce(
           &SQLitePersistentCookieStore::Backend::CompleteLoadForKeyInForeground,
-          this, std::move(loaded_callback), success));
+          this, std::move(loaded_callback), success, posted_at));
 }
 
 void SQLitePersistentCookieStore::Backend::CompleteLoadForKeyInForeground(
     LoadedCallback loaded_callback,
-    bool load_success) {
+    bool load_success,
+    const ::Time& requested_at) {
   DCHECK(client_task_runner()->RunsTasksInCurrentSequence());
+
+  UMA_HISTOGRAM_CUSTOM_TIMES("Cookie.TimeKeyLoadTotalWait",
+                             base::Time::Now() - requested_at,
+                             base::Milliseconds(1), base::Minutes(1), 50);
 
   Notify(std::move(loaded_callback), load_success);
 
@@ -1151,6 +1162,7 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
   }
 
   if (cur_version == 11) {
+    SCOPED_UMA_HISTOGRAM_TIMER("Cookie.TimeDatabaseMigrationToV12");
     sql::Transaction transaction(db());
     if (!transaction.Begin())
       return absl::nullopt;
@@ -1249,6 +1261,8 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
   }
 
   if (cur_version == 14) {
+    SCOPED_UMA_HISTOGRAM_TIMER("Cookie.TimeDatabaseMigrationToV15");
+
     sql::Transaction transaction(db());
     if (!transaction.Begin())
       return absl::nullopt;
@@ -1285,6 +1299,8 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
   }
 
   if (cur_version == 15) {
+    SCOPED_UMA_HISTOGRAM_TIMER("Cookie.TimeDatabaseMigrationToV16");
+
     sql::Transaction transaction(db());
     if (!transaction.Begin())
       return absl::nullopt;
@@ -1321,6 +1337,8 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
   }
 
   if (cur_version == 16) {
+    SCOPED_UMA_HISTOGRAM_TIMER("Cookie.TimeDatabaseMigrationToV17");
+
     sql::Transaction transaction(db());
     if (!transaction.Begin())
       return absl::nullopt;

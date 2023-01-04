@@ -234,25 +234,17 @@ int QuicClientDefaultNetworkHelper::CreateUDPSocket(
   *overflow_supported = api.EnableDroppedPacketCount(fd);
   api.EnableReceiveTimestamp(fd);
 
-  if (!BindInterfaceNameIfNeeded(fd)) {
-    CleanUpUDPSocket(fd);
-    return kQuicInvalidSocketFd;
-  }
-
-  return fd;
-}
-
-bool QuicClientDefaultNetworkHelper::BindInterfaceNameIfNeeded(int fd) {
-  QuicUdpSocketApi api;
   std::string interface_name = client_->interface_name();
   if (!interface_name.empty()) {
     if (!api.BindInterface(fd, interface_name)) {
       QUIC_DLOG(WARNING) << "Failed to bind socket (" << fd
                          << ") to interface (" << interface_name << ").";
-      return false;
+      CleanUpUDPSocket(fd);
+      return kQuicInvalidSocketFd;
     }
   }
-  return true;
+
+  return fd;
 }
 
 }  // namespace quic

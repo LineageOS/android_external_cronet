@@ -20,7 +20,9 @@
 #include "base/notreached.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/values.h"
 #include "net/base/host_port_pair.h"
@@ -283,7 +285,7 @@ int TransportClientSocketPool::RequestSocket(
     // re-entrancy issues if the socket pool is doing something else at the
     // time.
     if (group->CanUseAdditionalSocketSlot(max_sockets_per_group_)) {
-      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+      base::ThreadTaskRunnerHandle::Get()->PostTask(
           FROM_HERE,
           base::BindOnce(
               &TransportClientSocketPool::TryToCloseSocketsInLayeredPools,
@@ -328,13 +330,13 @@ int TransportClientSocketPool::RequestSockets(
   int rv = OK;
 
   base::RepeatingClosure preconnect_done_closure = base::BarrierClosure(
-      num_sockets,
-      base::BindOnce(
-          [](CompletionOnceCallback callback) {
-            base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-                FROM_HERE, base::BindOnce(std::move(callback), OK));
-          },
-          std::move(callback)));
+      num_sockets, base::BindOnce(
+                       [](CompletionOnceCallback callback) {
+                         base::ThreadTaskRunnerHandle::Get()->PostTask(
+                             FROM_HERE,
+                             base::BindOnce(std::move(callback), OK));
+                       },
+                       std::move(callback)));
   int pending_connect_job_count = 0;
   for (int num_iterations_left = num_sockets;
        group->NumActiveSocketSlots() < num_sockets && num_iterations_left > 0;
@@ -1387,7 +1389,7 @@ void TransportClientSocketPool::InvokeUserCallbackLater(
   if (rv == OK) {
     handle->socket()->ApplySocketTag(socket_tag);
   }
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE, base::BindOnce(&TransportClientSocketPool::InvokeUserCallback,
                                 weak_factory_.GetWeakPtr(),
                                 base::UnsafeDanglingUntriaged(handle)));

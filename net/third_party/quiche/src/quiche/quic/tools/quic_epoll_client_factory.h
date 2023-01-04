@@ -8,12 +8,12 @@
 #include <memory>
 
 #include "quiche/quic/core/io/quic_event_loop.h"
-#include "quiche/quic/tools/quic_client_factory.h"
+#include "quiche/quic/tools/quic_toy_client.h"
 
 namespace quic {
 
 // Factory creating QuicClient instances.
-class QuicEpollClientFactory : public ClientFactoryInterface {
+class QuicEpollClientFactory : public QuicToyClient::ClientFactory {
  public:
   QuicEpollClientFactory();
 

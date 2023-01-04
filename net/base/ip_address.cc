@@ -10,14 +10,11 @@
 #include "base/check_op.h"
 #include "base/containers/stack_container.h"
 #include "base/notreached.h"
-#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/stringprintf.h"
-#include "base/values.h"
 #include "net/base/parse_number.h"
-#include "third_party/abseil-cpp/absl/types/optional.h"
 #include "url/gurl.h"
 #include "url/url_canon_ip.h"
 
@@ -115,7 +112,7 @@ bool IsPubliclyRoutableIPv6(const IPAddressBytes& ip_address) {
   return false;
 }
 
-bool ParseIPLiteralToBytes(base::StringPiece ip_literal,
+bool ParseIPLiteralToBytes(const base::StringPiece& ip_literal,
                            IPAddressBytes* bytes) {
   // |ip_literal| could be either an IPv4 or an IPv6 literal. If it contains
   // a colon however, it must be an IPv6 address.
@@ -164,24 +161,11 @@ bool IPAddressBytes::operator<(const IPAddressBytes& other) const {
 }
 
 bool IPAddressBytes::operator==(const IPAddressBytes& other) const {
-  return base::ranges::equal(*this, other);
+  return size_ == other.size_ && std::equal(begin(), end(), other.begin());
 }
 
 bool IPAddressBytes::operator!=(const IPAddressBytes& other) const {
   return !(*this == other);
-}
-
-// static
-absl::optional<IPAddress> IPAddress::FromValue(const base::Value& value) {
-  if (!value.is_string())
-    return absl::nullopt;
-
-  IPAddress address;
-  bool success = address.AssignFromIPLiteral(value.GetString());
-  if (!success || !address.IsValid())
-    return absl::nullopt;
-
-  return address;
 }
 
 IPAddress::IPAddress() = default;
@@ -303,7 +287,7 @@ bool IPAddress::IsLinkLocal() const {
   return false;
 }
 
-bool IPAddress::AssignFromIPLiteral(base::StringPiece ip_literal) {
+bool IPAddress::AssignFromIPLiteral(const base::StringPiece& ip_literal) {
   bool success = ParseIPLiteralToBytes(ip_literal, &ip_address_);
   if (!success)
     ip_address_.Resize(0);
@@ -375,11 +359,6 @@ std::string IPAddress::ToString() const {
 
   output.Complete();
   return str;
-}
-
-base::Value IPAddress::ToValue() const {
-  DCHECK(IsValid());
-  return base::Value(ToString());
 }
 
 std::string IPAddressToStringWithPort(const IPAddress& address, uint16_t port) {
@@ -475,7 +454,7 @@ bool ParseCIDRBlock(base::StringPiece cidr_literal,
   return true;
 }
 
-bool ParseURLHostnameToAddress(base::StringPiece hostname,
+bool ParseURLHostnameToAddress(const base::StringPiece& hostname,
                                IPAddress* ip_address) {
   if (hostname.size() >= 2 && hostname.front() == '[' &&
       hostname.back() == ']') {

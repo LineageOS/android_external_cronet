@@ -15,6 +15,7 @@
 #include "base/strings/string_util.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/types/pass_key.h"
 #include "build/build_config.h"
 #include "net/base/cache_type.h"
@@ -449,7 +450,7 @@ std::unique_ptr<URLRequestContext> URLRequestContextBuilder::Build() {
     if (!proxy_config_service_) {
       proxy_config_service_ =
           ProxyConfigService::CreateSystemProxyConfigService(
-              base::SingleThreadTaskRunner::GetCurrentDefault().get());
+              base::ThreadTaskRunnerHandle::Get().get());
     }
 #endif  // !BUILDFLAG(IS_LINUX) && !BUILDFLAG(IS_CHROMEOS) &&
         // !BUILDFLAG(IS_ANDROID)

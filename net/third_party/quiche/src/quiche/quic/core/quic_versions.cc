@@ -631,6 +631,10 @@ ParsedQuicVersion QuicVersionReservedForNegotiation() {
   return ParsedQuicVersion::ReservedForNegotiation();
 }
 
+ParsedQuicVersion LegacyVersionForEncapsulation() {
+  return ParsedQuicVersion::Q043();
+}
+
 std::string AlpnForVersion(ParsedQuicVersion parsed_version) {
   if (parsed_version == ParsedQuicVersion::V2Draft01()) {
     return "h3";

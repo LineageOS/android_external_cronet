@@ -215,8 +215,7 @@ class StrippingTest : public ::testing::Test {
 #elif defined(_WIN32)
     std::basic_string<TCHAR> path(4096, _T('\0'));
     while (true) {
-      const uint32_t ret = ::GetModuleFileName(nullptr, &path[0],
-                                               static_cast<DWORD>(path.size()));
+      const uint32_t ret = ::GetModuleFileName(nullptr, &path[0], path.size());
       if (ret == 0) {
         absl::FPrintF(
             stderr,

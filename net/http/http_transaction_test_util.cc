@@ -14,6 +14,7 @@
 #include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/clock.h"
 #include "base/time/time.h"
 #include "net/base/ip_address.h"
@@ -586,7 +587,7 @@ void MockNetworkTransaction::CloseConnectionOnDestruction() {
 
 void MockNetworkTransaction::CallbackLater(CompletionOnceCallback callback,
                                            int result) {
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+  base::ThreadTaskRunnerHandle::Get()->PostTask(
       FROM_HERE,
       base::BindOnce(&MockNetworkTransaction::RunCallback,
                      weak_factory_.GetWeakPtr(), std::move(callback), result));
@@ -687,7 +688,7 @@ int ConnectedHandler::OnConnected(const TransportInfo& info,
                                   CompletionOnceCallback callback) {
   transports_.push_back(info);
   if (run_callback_) {
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+    base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE, base::BindOnce(std::move(callback), result_));
     return net::ERR_IO_PENDING;
   }

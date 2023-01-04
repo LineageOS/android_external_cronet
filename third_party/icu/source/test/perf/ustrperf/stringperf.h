@@ -92,7 +92,7 @@ public:
 
     virtual void call(UErrorCode* status)
     {
-        if(line_mode_==true){
+        if(line_mode_==TRUE){
             if(uselen_){
                 for(int32_t i = 0; i< numLines_; i++){
                     if (fnType_==Fn_ICU) {
@@ -129,7 +129,7 @@ public:
 
     virtual long getOperationsPerIteration()
     {
-        if(line_mode_==true){
+        if(line_mode_==TRUE){
             return numLines_;
         }else{
             return 1;
@@ -144,7 +144,7 @@ public:
         wlines_=NULL;
         numLines_=srcNumLines;
         uselen_=uselen;
-        line_mode_=true;
+        line_mode_=TRUE;
         src_ = NULL;
         srcLen_ = 0;
         wsrc_ = NULL;
@@ -168,7 +168,7 @@ public:
         wlines_=NULL;
         numLines_=srcNumLines;
         uselen_=uselen;
-        line_mode_=true;
+        line_mode_=TRUE;
         src_ = NULL;
         srcLen_ = 0;
         wsrc_ = NULL;
@@ -191,7 +191,7 @@ public:
         wlines_=NULL;
         numLines_=0;
         uselen_=uselen;
-        line_mode_=false;
+        line_mode_=FALSE;
         src_ = new UChar[sourceLen];
         memcpy(src_, source, sourceLen * U_SIZEOF_UCHAR);
         srcLen_ = sourceLen;
@@ -213,7 +213,7 @@ public:
         wlines_=NULL;
         numLines_=0;
         uselen_=uselen;
-        line_mode_=false;
+        line_mode_=FALSE;
         src_ = new UChar[sourceLen];
         memcpy(src_, source, sourceLen * U_SIZEOF_UCHAR);
         srcLen_ = sourceLen;

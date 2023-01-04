@@ -31,7 +31,6 @@
 
 #if BUILDFLAG(IS_WIN)
 #include <windows.h>
-
 #include <aclapi.h>
 #elif BUILDFLAG(IS_POSIX)
 #include <sys/stat.h>
