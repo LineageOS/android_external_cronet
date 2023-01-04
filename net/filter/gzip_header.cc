@@ -7,9 +7,9 @@
 #include <string.h>
 
 #include <algorithm>
+#include <zlib.h>
 
 #include "base/check_op.h"
-#include "third_party/zlib/zlib.h"
 
 namespace net {
 

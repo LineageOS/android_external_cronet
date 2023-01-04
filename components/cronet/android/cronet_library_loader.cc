@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <zlib.h>
 
 #include "base/android/base_jni_onload.h"
 #include "base/android/build_info.h"
@@ -30,7 +31,6 @@
 #include "net/base/network_change_notifier.h"
 #include "net/proxy_resolution/configured_proxy_resolution_service.h"
 #include "net/proxy_resolution/proxy_config_service_android.h"
-#include "third_party/zlib/zlib.h"
 #include "url/buildflags.h"
 
 #if !BUILDFLAG(USE_PLATFORM_ICU_ALTERNATIVES)

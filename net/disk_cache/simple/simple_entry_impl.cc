@@ -9,6 +9,7 @@
 #include <limits>
 #include <utility>
 #include <vector>
+#include <zlib.h>
 
 #include "base/bind.h"
 #include "base/callback.h"
@@ -36,7 +37,6 @@
 #include "net/disk_cache/simple/simple_util.h"
 #include "net/log/net_log.h"
 #include "net/log/net_log_source_type.h"
-#include "third_party/zlib/zlib.h"
 
 namespace disk_cache {
 namespace {
