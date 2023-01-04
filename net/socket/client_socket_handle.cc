@@ -11,7 +11,7 @@
 #include "base/check_op.h"
 #include "base/compiler_specific.h"
 #include "base/notreached.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "net/base/net_errors.h"
 #include "net/base/trace_constants.h"
 #include "net/log/net_log_event_type.h"

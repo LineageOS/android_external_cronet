@@ -11,7 +11,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/task/thread_pool.h"
 #include "base/threading/thread_restrictions.h"
-#include "base/trace_event/trace_event.h"
+#include "base/trace_event/base_tracing.h"
 #include "crypto/crypto_buildflags.h"
 #include "net/base/net_errors.h"
 #include "net/base/trace_constants.h"
