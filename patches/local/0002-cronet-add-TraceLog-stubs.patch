@@ -1,0 +1,58 @@
+From 9de16e3689b65eb8f0ea4cc0ff4c33971f024cd4 Mon Sep 17 00:00:00 2001
+From: Patrick Rohr <prohr@google.com>
+Date: Thu, 22 Dec 2022 14:10:02 -0800
+Subject: [PATCH] cronet: add TraceLog stubs
+
+Cherry-pick crrev/c/3989183 that has not been accepted upstream.
+
+Test: none
+Change-Id: Ia09e94d6d37c0faa5090f09493708b21f651bc33
+---
+ base/trace_event/trace_event_stub.h | 24 ++++++++++++++++++++++++
+ 1 file changed, 24 insertions(+)
+
+diff --git a/base/trace_event/trace_event_stub.h b/base/trace_event/trace_event_stub.h
+index 91bd3a36ee7a4..f0feb4f456238 100644
+--- a/base/trace_event/trace_event_stub.h
++++ b/base/trace_event/trace_event_stub.h
+@@ -12,6 +12,7 @@
+ #include <string>
+ 
+ #include "base/base_export.h"
++#include "base/memory/weak_ptr.h"
+ #include "base/strings/string_piece.h"
+ #include "base/trace_event/common/trace_event_common.h"
+ #include "base/trace_event/memory_allocator_dump_guid.h"
+@@ -158,6 +159,29 @@ class BASE_EXPORT MemoryDumpManager {
+       TRACE_DISABLED_BY_DEFAULT("memory-infra");
+ };
+ 
++class BASE_EXPORT TraceLog {
++ public:
++  class BASE_EXPORT AsyncEnabledStateObserver {
++   public:
++    virtual ~AsyncEnabledStateObserver() = default;
++
++    virtual void OnTraceLogEnabled() = 0;
++    virtual void OnTraceLogDisabled() = 0;
++  };
++
++  static TraceLog* GetInstance() {
++    static TraceLog obj;
++    return &obj;
++  }
++
++  bool IsEnabled() {
++    return false;
++  }
++
++  void AddAsyncEnabledStateObserver(WeakPtr<AsyncEnabledStateObserver>) {}
++  void RemoveAsyncEnabledStateObserver(AsyncEnabledStateObserver*) {}
++};
++
+ }  // namespace trace_event
+ }  // namespace base
+ 
+-- 
+2.39.0.314.g84b9a713c41-goog
+

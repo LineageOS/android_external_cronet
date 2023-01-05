@@ -1,0 +1,44 @@
+From 73be89f20009eab8ee63a56e691af389cf024ba2 Mon Sep 17 00:00:00 2001
+From: Patrick Rohr <prohr@google.com>
+Date: Wed, 4 Jan 2023 00:36:31 -0800
+Subject: [PATCH] cronet: set maximum pool size to reflect effective maximum
+
+For a ThreadPoolExecutor with an unbounded work queue, the effective
+maximum pool size is equivalent to the core pool size. This is because
+to go beyond the number of core pool threads, the work queue must be
+full (which never happens if it is unbounded).
+
+Per the docs:
+When a new task is submitted in method {@link #execute(Runnable)},
+if fewer than corePoolSize threads are running, a new thread is
+created to handle the request, even if other worker threads are
+idle.  Else if fewer than maximumPoolSize threads are running, a
+new thread will be created to handle the request only if the queue
+is full.
+
+This is breaking error-prone builds on Android.
+
+Test: TH
+Change-Id: I3421caa6a31fd12628f4719c515f944e49530337
+---
+ .../java/src/org/chromium/net/impl/JavaCronetEngine.java      | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngine.java b/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngine.java
+index 2b0e5d8ac6252..7e128431b2cd0 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngine.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngine.java
+@@ -59,7 +59,9 @@ public final class JavaCronetEngine extends CronetEngineBase {
+         final int threadPriority =
+                 builder.threadPriority(THREAD_PRIORITY_BACKGROUND + THREAD_PRIORITY_MORE_FAVORABLE);
+         this.mUserAgent = builder.getUserAgent();
+-        this.mExecutorService = new ThreadPoolExecutor(10, 20, 50, TimeUnit.SECONDS,
++        // For unbounded work queues, the effective maximum pool size is
++        // equivalent to the core pool size.
++        this.mExecutorService = new ThreadPoolExecutor(10, 10, 50, TimeUnit.SECONDS,
+                 new LinkedBlockingQueue<Runnable>(), new ThreadFactory() {
+                     @Override
+                     public Thread newThread(final Runnable r) {
+-- 
+2.39.0.314.g84b9a713c41-goog
+
