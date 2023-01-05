@@ -1632,7 +1632,6 @@ source_set("net_deps") {
     ":constants",
     ":isolation_info_proto",
     ":net_export_header",
-    ":net_resources",
     ":preload_decoder",
     "//base",
     "//base/third_party/dynamic_annotations",
