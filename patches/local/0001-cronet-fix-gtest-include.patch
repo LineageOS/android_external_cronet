@@ -1,0 +1,47 @@
+From 9375ee7ba80e5c71aa1d1a859e9e4bc69a06ae5b Mon Sep 17 00:00:00 2001
+From: Patrick Rohr <prohr@google.com>
+Date: Thu, 22 Dec 2022 13:18:56 -0800
+Subject: [PATCH] cronet: fix gtest include
+
+Chromium includes gtest directly from its local directory structure.
+This does not work if we want to use Android's gtest (at least not
+without playing tricks with symlinks).
+For now, this feels light enough for a downstream modification. However,
+we should revisit this topic with the Chromium team after the IC window.
+
+Test: build cronet
+Change-Id: I6c06e8beea8561981d864deb21ad10570183ea01
+---
+ .../partition_allocator/partition_alloc_base/gtest_prod_util.h  | 2 +-
+ base/gtest_prod_util.h                                          | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/base/allocator/partition_allocator/partition_alloc_base/gtest_prod_util.h b/base/allocator/partition_allocator/partition_alloc_base/gtest_prod_util.h
+index c0065f645cde4..b4760526450bd 100644
+--- a/base/allocator/partition_allocator/partition_alloc_base/gtest_prod_util.h
++++ b/base/allocator/partition_allocator/partition_alloc_base/gtest_prod_util.h
+@@ -5,7 +5,7 @@
+ #ifndef BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_ALLOC_BASE_GTEST_PROD_UTIL_H_
+ #define BASE_ALLOCATOR_PARTITION_ALLOCATOR_PARTITION_ALLOC_BASE_GTEST_PROD_UTIL_H_
+ 
+-#include "testing/gtest/include/gtest/gtest_prod.h"  // nogncheck
++#include <gtest/gtest_prod.h>  // nogncheck
+ 
+ // This is a wrapper for gtest's FRIEND_TEST macro that friends
+ // test with all possible prefixes. This is very helpful when changing the test
+diff --git a/base/gtest_prod_util.h b/base/gtest_prod_util.h
+index fada32eeeb6e5..b6f128d7c2046 100644
+--- a/base/gtest_prod_util.h
++++ b/base/gtest_prod_util.h
+@@ -5,7 +5,7 @@
+ #ifndef BASE_GTEST_PROD_UTIL_H_
+ #define BASE_GTEST_PROD_UTIL_H_
+ 
+-#include "testing/gtest/include/gtest/gtest_prod.h"  // nogncheck
++#include <gtest/gtest_prod.h>  // nogncheck
+ 
+ // This is a wrapper for gtest's FRIEND_TEST macro that friends
+ // test with all possible prefixes. This is very helpful when changing the test
+-- 
+2.39.0.314.g84b9a713c41-goog
+
