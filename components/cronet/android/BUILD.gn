@@ -412,7 +412,6 @@ android_library("cronet_impl_native_base_java") {
     "java/src/org/chromium/net/impl/CronetUrlRequest.java",
     "java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
     "java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
-    "java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java",
   ]
 
   # Adding deps here won't include those deps in the cronet_impl_native_java.jar.
