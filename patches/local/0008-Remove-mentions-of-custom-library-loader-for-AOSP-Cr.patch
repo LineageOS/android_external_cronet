@@ -1,0 +1,235 @@
+From ffbbbf8a5c3c434e3ee7f8c6b777a4f550334692 Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Fri, 6 Jan 2023 13:46:09 +0000
+Subject: [PATCH] Remove mentions of custom library loader for AOSP Cronet.
+
+The canonical system-wide Cronet SO is always loaded.
+
+Test: m
+
+Change-Id: I551a7ad67bb2a90e2f63bbf7f2810e0c7e84544d
+---
+ components/cronet/android/BUILD.gn            |  1 -
+ components/cronet/android/api.txt             |  8 ----
+ .../src/org/chromium/net/CronetEngine.java    | 11 ------
+ .../chromium/net/ICronetEngineBuilder.java    |  2 -
+ .../net/impl/CronetEngineBuilderImpl.java     | 18 ---------
+ .../net/impl/CronetLibraryLoader.java         |  6 +--
+ ...netEngineBuilderWithLibraryLoaderImpl.java | 39 -------------------
+ .../net/impl/VersionSafeCallbacks.java        | 16 --------
+ 8 files changed, 1 insertion(+), 100 deletions(-)
+ delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java
+
+diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
+index 079f9f7332e44..242e33c4a5c40 100644
+--- a/components/cronet/android/BUILD.gn
++++ b/components/cronet/android/BUILD.gn
+@@ -412,7 +412,6 @@ android_library("cronet_impl_native_base_java") {
+     "java/src/org/chromium/net/impl/CronetUrlRequest.java",
+     "java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
+     "java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
+-    "java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java",
+   ]
+ 
+   # Adding deps here won't include those deps in the cronet_impl_native_java.jar.
+diff --git a/components/cronet/android/api.txt b/components/cronet/android/api.txt
+index 77a7659ccd28b..e5b4545d8a888 100644
+--- a/components/cronet/android/api.txt
++++ b/components/cronet/android/api.txt
+@@ -43,10 +43,6 @@ public abstract class org.chromium.net.BidirectionalStream {
+ public abstract class org.chromium.net.CallbackException extends org.chromium.net.CronetException {
+   protected org.chromium.net.CallbackException(java.lang.String, java.lang.Throwable);
+ }
+-public abstract class org.chromium.net.CronetEngine$Builder$LibraryLoader {
+-  public org.chromium.net.CronetEngine$Builder$LibraryLoader();
+-  public abstract void loadLibrary(java.lang.String);
+-}
+ public class org.chromium.net.CronetEngine$Builder {
+   protected final org.chromium.net.ICronetEngineBuilder mBuilderDelegate;
+   public static final int HTTP_CACHE_DISABLED;
+@@ -58,7 +54,6 @@ public class org.chromium.net.CronetEngine$Builder {
+   public java.lang.String getDefaultUserAgent();
+   public org.chromium.net.CronetEngine$Builder setUserAgent(java.lang.String);
+   public org.chromium.net.CronetEngine$Builder setStoragePath(java.lang.String);
+-  public org.chromium.net.CronetEngine$Builder setLibraryLoader(org.chromium.net.CronetEngine$Builder$LibraryLoader);
+   public org.chromium.net.CronetEngine$Builder enableQuic(boolean);
+   public org.chromium.net.CronetEngine$Builder enableHttp2(boolean);
+   public org.chromium.net.CronetEngine$Builder enableSdch(boolean);
+@@ -112,7 +107,6 @@ public class org.chromium.net.ExperimentalCronetEngine$Builder extends org.chrom
+   public org.chromium.net.ICronetEngineBuilder getBuilderDelegate();
+   public org.chromium.net.ExperimentalCronetEngine$Builder setUserAgent(java.lang.String);
+   public org.chromium.net.ExperimentalCronetEngine$Builder setStoragePath(java.lang.String);
+-  public org.chromium.net.ExperimentalCronetEngine$Builder setLibraryLoader(org.chromium.net.CronetEngine$Builder$LibraryLoader);
+   public org.chromium.net.ExperimentalCronetEngine$Builder enableQuic(boolean);
+   public org.chromium.net.ExperimentalCronetEngine$Builder enableHttp2(boolean);
+   public org.chromium.net.ExperimentalCronetEngine$Builder enableSdch(boolean);
+@@ -129,7 +123,6 @@ public class org.chromium.net.ExperimentalCronetEngine$Builder extends org.chrom
+   public org.chromium.net.CronetEngine$Builder enableSdch(boolean);
+   public org.chromium.net.CronetEngine$Builder enableHttp2(boolean);
+   public org.chromium.net.CronetEngine$Builder enableQuic(boolean);
+-  public org.chromium.net.CronetEngine$Builder setLibraryLoader(org.chromium.net.CronetEngine$Builder$LibraryLoader);
+   public org.chromium.net.CronetEngine$Builder setStoragePath(java.lang.String);
+   public org.chromium.net.CronetEngine$Builder setUserAgent(java.lang.String);
+ }
+@@ -202,7 +195,6 @@ public abstract class org.chromium.net.ICronetEngineBuilder {
+   public abstract org.chromium.net.ICronetEngineBuilder enableSdch(boolean);
+   public org.chromium.net.ICronetEngineBuilder enableBrotli(boolean);
+   public abstract org.chromium.net.ICronetEngineBuilder setExperimentalOptions(java.lang.String);
+-  public abstract org.chromium.net.ICronetEngineBuilder setLibraryLoader(org.chromium.net.CronetEngine$Builder$LibraryLoader);
+   public abstract org.chromium.net.ICronetEngineBuilder setStoragePath(java.lang.String);
+   public abstract org.chromium.net.ICronetEngineBuilder setUserAgent(java.lang.String);
+   public abstract java.lang.String getDefaultUserAgent();
+diff --git a/components/cronet/android/api/src/org/chromium/net/CronetEngine.java b/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
+index 64886d545e061..916fe7fa0b863 100644
+--- a/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
++++ b/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
+@@ -126,17 +126,6 @@ public abstract class CronetEngine {
+             return this;
+         }
+ 
+-        /**
+-         * Sets a {@link LibraryLoader} to be used to load the native library.
+-         * If not set, the library will be loaded using {@link System#loadLibrary}.
+-         * @param loader {@code LibraryLoader} to be used to load the native library.
+-         * @return the builder to facilitate chaining.
+-         */
+-        public Builder setLibraryLoader(LibraryLoader loader) {
+-            mBuilderDelegate.setLibraryLoader(loader);
+-            return this;
+-        }
+-
+         /**
+          * Sets whether <a href="https://www.chromium.org/quic">QUIC</a> protocol
+          * is enabled. Defaults to enabled. If QUIC is enabled, then QUIC User Agent Id
+diff --git a/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java b/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java
+index 4cdb0bf790198..a5395c7ad8c82 100644
+--- a/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java
++++ b/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java
+@@ -31,8 +31,6 @@ public abstract class ICronetEngineBuilder {
+         return this;
+     }
+     public abstract ICronetEngineBuilder setExperimentalOptions(String options);
+-    public abstract ICronetEngineBuilder setLibraryLoader(
+-            CronetEngine.Builder.LibraryLoader loader);
+     public abstract ICronetEngineBuilder setStoragePath(String value);
+     public abstract ICronetEngineBuilder setUserAgent(String userAgent);
+     public abstract String getDefaultUserAgent();
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
+index a2560329217ac..d4d17cbe682a5 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
+@@ -195,24 +195,6 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
+         return mStoragePath;
+     }
+ 
+-    @Override
+-    public CronetEngineBuilderImpl setLibraryLoader(CronetEngine.Builder.LibraryLoader loader) {
+-        // |CronetEngineBuilderImpl| is an abstract class that is used by concrete builder
+-        // implementations, including the Java Cronet engine builder; therefore, the implementation
+-        // of this method should be "no-op". Subclasses that care about the library loader
+-        // should override this method.
+-        return this;
+-    }
+-
+-    /**
+-     * Default implementation of the method that returns {@code null}.
+-     *
+-     * @return {@code null}.
+-     */
+-    VersionSafeCallbacks.LibraryLoader libraryLoader() {
+-        return null;
+-    }
+-
+     @Override
+     public CronetEngineBuilderImpl enableQuic(boolean value) {
+         mQuicEnabled = value;
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetLibraryLoader.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetLibraryLoader.java
+index 3fe6a1a2127d5..54fce58d691c3 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetLibraryLoader.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetLibraryLoader.java
+@@ -65,11 +65,7 @@ public class CronetLibraryLoader {
+                 });
+             }
+             if (!sLibraryLoaded) {
+-                if (builder.libraryLoader() != null) {
+-                    builder.libraryLoader().loadLibrary(LIBRARY_NAME);
+-                } else {
+-                    System.loadLibrary(LIBRARY_NAME);
+-                }
++                System.loadLibrary(LIBRARY_NAME);
+                 String implVersion = ImplVersion.getCronetVersion();
+                 if (!implVersion.equals(CronetLibraryLoaderJni.get().getCronetVersion())) {
+                     throw new RuntimeException(String.format("Expected Cronet version number %s, "
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java
+deleted file mode 100644
+index f4659e02d6bdf..0000000000000
+--- a/components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java
++++ /dev/null
+@@ -1,39 +0,0 @@
+-// Copyright 2017 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.impl;
+-
+-import android.content.Context;
+-
+-import org.chromium.net.CronetEngine.Builder.LibraryLoader;
+-import org.chromium.net.ICronetEngineBuilder;
+-
+-/**
+- * An extension of {@link NativeCronetEngineBuilderImpl} that implements
+- * {@link ICronetEngineBuilder#setLibraryLoader}.
+- */
+-public class NativeCronetEngineBuilderWithLibraryLoaderImpl extends NativeCronetEngineBuilderImpl {
+-    private VersionSafeCallbacks.LibraryLoader mLibraryLoader;
+-
+-    /**
+-     * Constructs a builder for Native Cronet Engine.
+-     * Default config enables SPDY, disables QUIC and HTTP cache.
+-     *
+-     * @param context Android {@link Context} for engine to use.
+-     */
+-    public NativeCronetEngineBuilderWithLibraryLoaderImpl(Context context) {
+-        super(context);
+-    }
+-
+-    @Override
+-    public CronetEngineBuilderImpl setLibraryLoader(LibraryLoader loader) {
+-        mLibraryLoader = new VersionSafeCallbacks.LibraryLoader(loader);
+-        return this;
+-    }
+-
+-    @Override
+-    VersionSafeCallbacks.LibraryLoader libraryLoader() {
+-        return mLibraryLoader;
+-    }
+-}
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
+index a5bf8dd163f64..9233b855e6f6a 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
+@@ -272,20 +272,4 @@ public class VersionSafeCallbacks {
+                     ((NetworkQualityThroughputListenerWrapper) o).mWrappedListener);
+         }
+     }
+-
+-    /**
+-     * Wrap a {@link CronetEngine.Builder.LibraryLoader} in a version safe manner.
+-     */
+-    public static final class LibraryLoader extends CronetEngine.Builder.LibraryLoader {
+-        private final CronetEngine.Builder.LibraryLoader mWrappedLoader;
+-
+-        public LibraryLoader(CronetEngine.Builder.LibraryLoader libraryLoader) {
+-            mWrappedLoader = libraryLoader;
+-        }
+-
+-        @Override
+-        public void loadLibrary(String libName) {
+-            mWrappedLoader.loadLibrary(libName);
+-        }
+-    }
+ }
+-- 
+2.39.0.314.g84b9a713c41-goog
+

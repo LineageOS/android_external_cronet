@@ -31,8 +31,6 @@ public abstract class ICronetEngineBuilder {
         return this;
     }
     public abstract ICronetEngineBuilder setExperimentalOptions(String options);
-    public abstract ICronetEngineBuilder setLibraryLoader(
-            CronetEngine.Builder.LibraryLoader loader);
     public abstract ICronetEngineBuilder setStoragePath(String value);
     public abstract ICronetEngineBuilder setUserAgent(String userAgent);
     public abstract String getDefaultUserAgent();
