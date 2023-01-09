@@ -18,7 +18,6 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
 import org.chromium.net.CronetEngine;
-import org.chromium.net.CronetProvider;
 import org.chromium.net.ExperimentalCronetEngine;
 
 import java.util.List;

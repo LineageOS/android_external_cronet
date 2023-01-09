@@ -232,7 +232,6 @@ android_library("cronet_api_java") {
     "api/src/org/chromium/net/CallbackException.java",
     "api/src/org/chromium/net/CronetEngine.java",
     "api/src/org/chromium/net/CronetException.java",
-    "api/src/org/chromium/net/CronetProvider.java",
     "api/src/org/chromium/net/ExperimentalBidirectionalStream.java",
     "api/src/org/chromium/net/ExperimentalCronetEngine.java",
     "api/src/org/chromium/net/ExperimentalUrlRequest.java",
@@ -335,7 +334,6 @@ android_library("cronet_impl_platform_base_java") {
     "java/src/org/chromium/net/impl/InputStreamChannel.java",
     "java/src/org/chromium/net/impl/JavaCronetEngine.java",
     "java/src/org/chromium/net/impl/JavaCronetEngineBuilderImpl.java",
-    "java/src/org/chromium/net/impl/JavaCronetProvider.java",
     "java/src/org/chromium/net/impl/JavaUrlRequest.java",
   ]
 
@@ -354,7 +352,6 @@ android_library("cronet_impl_fake_base_java") {
   sources = [
     "fake/java/org/chromium/net/test/FakeCronetController.java",
     "fake/java/org/chromium/net/test/FakeCronetEngine.java",
-    "fake/java/org/chromium/net/test/FakeCronetProvider.java",
     "fake/java/org/chromium/net/test/FakeUrlRequest.java",
     "fake/java/org/chromium/net/test/FakeUrlResponse.java",
     "fake/java/org/chromium/net/test/ResponseMatcher.java",
@@ -416,7 +413,6 @@ android_library("cronet_impl_native_base_java") {
     "java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
     "java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
     "java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java",
-    "java/src/org/chromium/net/impl/NativeCronetProvider.java",
   ]
 
   # Adding deps here won't include those deps in the cronet_impl_native_java.jar.
