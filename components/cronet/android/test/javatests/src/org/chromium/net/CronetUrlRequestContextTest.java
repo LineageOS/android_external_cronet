@@ -164,10 +164,6 @@ public class CronetUrlRequestContextTest {
         String userAgentValue = "User-Agent-Value";
         ExperimentalCronetEngine.Builder cronetEngineBuilder =
                 new ExperimentalCronetEngine.Builder(getContext());
-        if (mTestRule.testingJavaImpl()) {
-            cronetEngineBuilder =
-                    CronetTestRule.createJavaEngineBuilder(CronetTestRule.getContext());
-        }
         cronetEngineBuilder.setUserAgent(userAgentValue);
         final CronetEngine cronetEngine = cronetEngineBuilder.build();
         NativeTestServer.shutdownNativeTestServer(); // startNativeTestServer returns false if it's
@@ -1424,36 +1420,6 @@ public class CronetUrlRequestContextTest {
         boolean wasCalled() {
             return mWasCalled;
         }
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Cronet"})
-    @OnlyRunNativeCronet
-    public void testSetLibraryLoaderIsEnforcedByDefaultEmbeddedProvider() throws Exception {
-        CronetEngine.Builder builder = new CronetEngine.Builder(getContext());
-        TestBadLibraryLoader loader = new TestBadLibraryLoader();
-        builder.setLibraryLoader(loader);
-        try {
-            builder.build();
-            fail("Native library should not be loaded");
-        } catch (UnsatisfiedLinkError e) {
-            assertTrue(loader.wasCalled());
-        }
-    }
-
-    @Test
-    @SmallTest
-    @Feature({"Cronet"})
-    @OnlyRunNativeCronet
-    public void testSetLibraryLoaderIsIgnoredInNativeCronetEngineBuilderImpl() throws Exception {
-        CronetEngine.Builder builder =
-                new CronetEngine.Builder(new NativeCronetEngineBuilderImpl(getContext()));
-        TestBadLibraryLoader loader = new TestBadLibraryLoader();
-        builder.setLibraryLoader(loader);
-        CronetEngine engine = builder.build();
-        assertNotNull(engine);
-        assertFalse(loader.wasCalled());
     }
 
     // Creates a CronetEngine on another thread and then one on the main thread.  This shouldn't

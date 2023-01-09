@@ -150,14 +150,6 @@ public class BidirectionalStreamTest {
     @SmallTest
     @Feature({"Cronet"})
     public void testBuilderCheck() throws Exception {
-        if (mTestRule.testingJavaImpl()) {
-            runBuilderCheckJavaImpl();
-        } else {
-            runBuilderCheckNativeImpl();
-        }
-    }
-
-    private void runBuilderCheckNativeImpl() throws Exception {
         TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
         try {
             mCronetEngine.newBidirectionalStreamBuilder(null, callback, callback.getExecutor());
@@ -199,20 +191,6 @@ public class BidirectionalStreamTest {
             fail("Method name is not null-checked");
         } catch (NullPointerException e) {
             assertEquals("Method is required.", e.getMessage());
-        }
-    }
-
-    private void runBuilderCheckJavaImpl() {
-        try {
-            TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
-            CronetTestRule.createJavaEngineBuilder(CronetTestRule.getContext())
-                    .build()
-                    .newBidirectionalStreamBuilder(
-                            Http2TestServer.getServerUrl(), callback, callback.getExecutor());
-            fail("JavaCronetEngine doesn't support BidirectionalStream."
-                    + " Expected UnsupportedOperationException");
-        } catch (UnsupportedOperationException e) {
-            // Expected.
         }
     }
 

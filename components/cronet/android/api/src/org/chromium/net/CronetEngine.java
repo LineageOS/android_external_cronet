@@ -6,20 +6,13 @@ package org.chromium.net;
 
 import android.content.Context;
 import android.net.http.HttpResponseCache;
-import android.util.Log;
-
-import androidx.annotation.VisibleForTesting;
 
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandlerFactory;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Date;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -30,7 +23,10 @@ import javax.net.ssl.HttpsURLConnection;
  * using {@link Builder}.
  */
 public abstract class CronetEngine {
-    private static final String TAG = CronetEngine.class.getSimpleName();
+
+    public static Builder builder(Context context) {
+        return new Builder(context);
+    }
 
     /**
      * A builder for {@link CronetEngine}s, which allows runtime configuration of
@@ -40,6 +36,7 @@ public abstract class CronetEngine {
     // NOTE(kapishnikov): In order to avoid breaking the existing API clients, all future methods
     // added to this class and other API classes must have default implementation.
     public static class Builder {
+
         /**
          * A class which provides a method for loading the cronet native library. Apps needing to
          * implement custom library loading logic can inherit from this class and pass an instance
@@ -72,7 +69,7 @@ public abstract class CronetEngine {
          *                context will be kept, so as to avoid extending
          *                the lifetime of {@code context} unnecessarily.
          */
-        public Builder(Context context) {
+        Builder(Context context) {
             this(createBuilderDelegate(context));
         }
 
@@ -85,7 +82,7 @@ public abstract class CronetEngine {
          *
          * {@hide}
          */
-        public Builder(ICronetEngineBuilder builderDelegate) {
+        Builder(ICronetEngineBuilder builderDelegate) {
             mBuilderDelegate = builderDelegate;
         }
 
@@ -316,108 +313,22 @@ public abstract class CronetEngine {
 
         /**
          * Creates an implementation of {@link ICronetEngineBuilder} that can be used
-         * to delegate the builder calls to. The method uses {@link CronetProvider}
-         * to obtain the list of available providers.
+         * to delegate the builder calls to.
          *
          * @param context Android Context to use.
          * @return the created {@code ICronetEngineBuilder}.
          */
         private static ICronetEngineBuilder createBuilderDelegate(Context context) {
-            List<CronetProvider> providers =
-                    new ArrayList<>(CronetProvider.getAllProviders(context));
-            CronetProvider provider = getEnabledCronetProviders(context, providers).get(0);
-            if (Log.isLoggable(TAG, Log.DEBUG)) {
-                Log.d(TAG,
-                        String.format("Using '%s' provider for creating CronetEngine.Builder.",
-                                provider));
-            }
-            return provider.createBuilder().mBuilderDelegate;
-        }
+            // TODO class name
+            try {
+                Class<?> clazz = context.getClassLoader().loadClass(
+                        "org.chromium.net.impl.NativeCronetEngineBuilderImpl");
 
-        /**
-         * Returns the list of available and enabled {@link CronetProvider}. The returned list
-         * is sorted based on the provider versions and types.
-         *
-         * @param context Android Context to use.
-         * @param providers the list of enabled and disabled providers to filter out and sort.
-         * @return the sorted list of enabled providers. The list contains at least one provider.
-         * @throws RuntimeException is the list of providers is empty or all of the providers
-         *                          are disabled.
-         */
-        @VisibleForTesting
-        static List<CronetProvider> getEnabledCronetProviders(
-                Context context, List<CronetProvider> providers) {
-            // Check that there is at least one available provider.
-            if (providers.size() == 0) {
-                throw new RuntimeException("Unable to find any Cronet provider."
-                        + " Have you included all necessary jars?");
+                return (ICronetEngineBuilder) clazz.getConstructor(Context.class).newInstance(
+                        context);
+            } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
+                throw new IllegalArgumentException(e);
             }
-
-            // Exclude disabled providers from the list.
-            for (Iterator<CronetProvider> i = providers.iterator(); i.hasNext();) {
-                CronetProvider provider = i.next();
-                if (!provider.isEnabled()) {
-                    i.remove();
-                }
-            }
-
-            // Check that there is at least one enabled provider.
-            if (providers.size() == 0) {
-                throw new RuntimeException("All available Cronet providers are disabled."
-                        + " A provider should be enabled before it can be used.");
-            }
-
-            // Sort providers based on version and type.
-            Collections.sort(providers, new Comparator<CronetProvider>() {
-                @Override
-                public int compare(CronetProvider p1, CronetProvider p2) {
-                    // The fallback provider should always be at the end of the list.
-                    if (CronetProvider.PROVIDER_NAME_FALLBACK.equals(p1.getName())) {
-                        return 1;
-                    }
-                    if (CronetProvider.PROVIDER_NAME_FALLBACK.equals(p2.getName())) {
-                        return -1;
-                    }
-                    // A provider with higher version should go first.
-                    return -compareVersions(p1.getVersion(), p2.getVersion());
-                }
-            });
-            return providers;
-        }
-
-        /**
-         * Compares two strings that contain versions. The string should only contain
-         * dot-separated segments that contain an arbitrary number of digits digits [0-9].
-         *
-         * @param s1 the first string.
-         * @param s2 the second string.
-         * @return -1 if s1<s2, +1 if s1>s2 and 0 if s1=s2. If two versions are equal, the
-         *         version with the higher number of segments is considered to be higher.
-         *
-         * @throws IllegalArgumentException if any of the strings contains an illegal
-         * version number.
-         */
-        @VisibleForTesting
-        static int compareVersions(String s1, String s2) {
-            if (s1 == null || s2 == null) {
-                throw new IllegalArgumentException("The input values cannot be null");
-            }
-            String[] s1segments = s1.split("\\.");
-            String[] s2segments = s2.split("\\.");
-            for (int i = 0; i < s1segments.length && i < s2segments.length; i++) {
-                try {
-                    int s1segment = Integer.parseInt(s1segments[i]);
-                    int s2segment = Integer.parseInt(s2segments[i]);
-                    if (s1segment != s2segment) {
-                        return Integer.signum(s1segment - s2segment);
-                    }
-                } catch (NumberFormatException e) {
-                    throw new IllegalArgumentException("Unable to convert version segments into"
-                                    + " integers: " + s1segments[i] + " & " + s2segments[i],
-                            e);
-                }
-            }
-            return Integer.signum(s1segments.length - s2segments.length);
         }
     }
 

@@ -185,12 +185,6 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
         }
 
         @Override
-        public Builder setLibraryLoader(LibraryLoader loader) {
-            super.setLibraryLoader(loader);
-            return this;
-        }
-
-        @Override
         public Builder enableQuic(boolean value) {
             super.enableQuic(value);
             return this;
