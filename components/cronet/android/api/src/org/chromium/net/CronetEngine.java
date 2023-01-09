@@ -127,17 +127,6 @@ public abstract class CronetEngine {
         }
 
         /**
-         * Sets a {@link LibraryLoader} to be used to load the native library.
-         * If not set, the library will be loaded using {@link System#loadLibrary}.
-         * @param loader {@code LibraryLoader} to be used to load the native library.
-         * @return the builder to facilitate chaining.
-         */
-        public Builder setLibraryLoader(LibraryLoader loader) {
-            mBuilderDelegate.setLibraryLoader(loader);
-            return this;
-        }
-
-        /**
          * Sets whether <a href="https://www.chromium.org/quic">QUIC</a> protocol
          * is enabled. Defaults to enabled. If QUIC is enabled, then QUIC User Agent Id
          * containing application name and Cronet version is sent to the server.
