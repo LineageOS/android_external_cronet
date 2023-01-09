@@ -167,7 +167,7 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
 
     @Override
     public String getDefaultUserAgent() {
-        return UserAgent.from(mApplicationContext);
+        return UserAgent.getDefault();
     }
 
     @Override
@@ -231,7 +231,7 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
      * @return QUIC User Agent ID string.
      */
     String getDefaultQuicUserAgentId() {
-        return mQuicEnabled ? UserAgent.getQuicUserAgentIdFrom(mApplicationContext) : "";
+        return mQuicEnabled ? UserAgent.getDefaultQuicUserAgentId() : "";
     }
 
     @Override
