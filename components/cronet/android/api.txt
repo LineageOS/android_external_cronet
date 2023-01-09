@@ -83,18 +83,6 @@ public abstract class org.chromium.net.CronetEngine {
 public abstract class org.chromium.net.CronetException extends java.io.IOException {
   protected org.chromium.net.CronetException(java.lang.String, java.lang.Throwable);
 }
-public abstract class org.chromium.net.CronetProvider {
-  public static final java.lang.String PROVIDER_NAME_APP_PACKAGED;
-  public static final java.lang.String PROVIDER_NAME_FALLBACK;
-  protected final android.content.Context mContext;
-  protected org.chromium.net.CronetProvider(android.content.Context);
-  public abstract org.chromium.net.CronetEngine$Builder createBuilder();
-  public abstract java.lang.String getName();
-  public abstract java.lang.String getVersion();
-  public abstract boolean isEnabled();
-  public java.lang.String toString();
-  public static java.util.List<org.chromium.net.CronetProvider> getAllProviders(android.content.Context);
-}
 public abstract class org.chromium.net.ExperimentalBidirectionalStream$Builder extends org.chromium.net.BidirectionalStream$Builder {
   public org.chromium.net.ExperimentalBidirectionalStream$Builder();
   public org.chromium.net.ExperimentalBidirectionalStream$Builder addRequestAnnotation(java.lang.Object);
