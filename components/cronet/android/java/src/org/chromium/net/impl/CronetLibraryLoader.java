@@ -65,11 +65,7 @@ public class CronetLibraryLoader {
                 });
             }
             if (!sLibraryLoaded) {
-                if (builder.libraryLoader() != null) {
-                    builder.libraryLoader().loadLibrary(LIBRARY_NAME);
-                } else {
-                    System.loadLibrary(LIBRARY_NAME);
-                }
+                System.loadLibrary(LIBRARY_NAME);
                 String implVersion = ImplVersion.getCronetVersion();
                 if (!implVersion.equals(CronetLibraryLoaderJni.get().getCronetVersion())) {
                     throw new RuntimeException(String.format("Expected Cronet version number %s, "
