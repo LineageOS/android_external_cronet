@@ -11,11 +11,17 @@ import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-import static org.chromium.net.CronetEngine.Builder.HTTP_CACHE_IN_MEMORY;
+import static android.net.http.CronetEngine.Builder.HTTP_CACHE_IN_MEMORY;
 import static org.chromium.net.CronetTestRule.assertContains;
 import static org.chromium.net.CronetTestRule.getContext;
 import static org.chromium.net.CronetTestRule.getTestStorage;
 
+import android.net.http.CronetEngine;
+import android.net.http.CronetException;
+import android.net.http.ExperimentalCronetEngine;
+import android.net.http.ExperimentalUrlRequest;
+import android.net.http.UrlRequest;
+import android.net.http.UrlResponseInfo;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.net.Network;
@@ -49,7 +55,6 @@ import org.chromium.net.TestUrlRequestCallback.ResponseStep;
 import org.chromium.net.impl.CronetEngineBuilderImpl;
 import org.chromium.net.impl.CronetLibraryLoader;
 import org.chromium.net.impl.CronetUrlRequestContext;
-import org.chromium.net.impl.NativeCronetEngineBuilderImpl;
 import org.chromium.net.test.EmbeddedTestServer;
 
 import java.io.BufferedReader;

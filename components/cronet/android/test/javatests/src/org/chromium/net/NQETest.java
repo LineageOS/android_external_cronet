@@ -11,6 +11,8 @@ import static org.junit.Assert.fail;
 import static org.chromium.net.CronetTestRule.getContext;
 import static org.chromium.net.CronetTestRule.getTestStorage;
 
+import android.net.http.ExperimentalCronetEngine;
+import android.net.http.UrlRequest;
 import android.os.StrictMode;
 import android.support.test.runner.AndroidJUnit4;
 

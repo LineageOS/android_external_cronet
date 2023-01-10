@@ -4,7 +4,7 @@
 
 package org.chromium.net.impl;
 
-import org.chromium.net.NetworkException;
+import android.net.http.NetworkException;
 
 /**
  * Implements {@link NetworkException}.

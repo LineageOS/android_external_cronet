@@ -4,7 +4,8 @@
 
 package org.chromium.net.impl;
 
-import org.chromium.net.UrlResponseInfo;
+import android.net.http.UrlRequest;
+import android.net.http.UrlResponseInfo;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -16,8 +17,8 @@ import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Implements the container for basic information about a response. Included in
- * {@link org.chromium.net.UrlRequest.Callback} callbacks. Each
- * {@link org.chromium.net.UrlRequest.Callback#onRedirectReceived onRedirectReceived()}
+ * {@link UrlRequest.Callback} callbacks. Each
+ * {@link UrlRequest.Callback#onRedirectReceived onRedirectReceived()}
  * callback gets a different copy of {@code UrlResponseInfo} describing a particular
  * redirect response.
  */

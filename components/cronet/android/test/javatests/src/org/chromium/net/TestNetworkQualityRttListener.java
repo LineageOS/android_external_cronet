@@ -6,6 +6,7 @@ package org.chromium.net;
 
 import static junit.framework.Assert.assertEquals;
 
+import android.net.http.NetworkQualityRttListener;
 import android.os.ConditionVariable;
 import android.util.SparseIntArray;
 

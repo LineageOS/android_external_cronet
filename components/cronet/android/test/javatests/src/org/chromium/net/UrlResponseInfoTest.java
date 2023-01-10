@@ -4,6 +4,7 @@
 
 package org.chromium.net;
 
+import android.net.http.UrlResponseInfo;
 import android.support.test.runner.AndroidJUnit4;
 
 import androidx.test.filters.SmallTest;

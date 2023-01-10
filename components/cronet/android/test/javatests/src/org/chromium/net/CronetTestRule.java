@@ -6,6 +6,9 @@ package org.chromium.net;
 
 import static org.junit.Assume.assumeTrue;
 
+import android.net.http.CronetEngine;
+import android.net.http.ExperimentalCronetEngine;
+import android.net.http.UrlResponseInfo;
 import android.content.Context;
 import android.os.Build;
 import android.os.StrictMode;
@@ -19,7 +22,6 @@ import org.junit.runners.model.Statement;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
-import org.chromium.net.impl.UserAgent;
 
 import java.io.File;
 import java.lang.annotation.Annotation;
