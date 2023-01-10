@@ -11,8 +11,8 @@ import android.util.Base64;
 import androidx.annotation.IntDef;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.net.CronetEngine;
-import org.chromium.net.ICronetEngineBuilder;
+import android.net.http.CronetEngine;
+import android.net.http.ICronetEngineBuilder;
 
 import java.io.File;
 import java.lang.annotation.Retention;
