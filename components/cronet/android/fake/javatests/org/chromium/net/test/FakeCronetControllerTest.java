@@ -22,7 +22,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.net.CronetEngine;
-import org.chromium.net.impl.JavaCronetEngineBuilderImpl;
 
 import java.util.AbstractMap;
 import java.util.List;

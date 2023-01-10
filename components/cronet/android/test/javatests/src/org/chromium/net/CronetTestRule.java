@@ -51,7 +51,6 @@ public class CronetTestRule implements TestRule {
     private CronetTestFramework mCronetTestFramework;
 
     private boolean mTestingSystemHttpURLConnection;
-    private boolean mTestingJavaImpl;
     private StrictMode.VmPolicy mOldVmPolicy;
 
     /**
@@ -133,13 +132,12 @@ public class CronetTestRule implements TestRule {
      * Returns {@code true} when test is being run against the java implementation of CronetEngine.
      */
     public boolean testingJavaImpl() {
-        return mTestingJavaImpl;
+        return false;
     }
 
     // TODO(yolandyan): refactor this using parameterize framework
     private void runBase(Statement base, Description desc) throws Throwable {
         setTestingSystemHttpURLConnection(false);
-        setTestingJavaImpl(false);
         String packageName = desc.getTestClass().getPackage().getName();
 
         boolean onlyRunTestForNative = desc.getAnnotation(OnlyRunNativeCronet.class) != null;
@@ -150,7 +148,6 @@ public class CronetTestRule implements TestRule {
                     + "OnlyRunNativeCronet and OnlyRunJavaCronet annotations");
         }
         boolean doRunTestForNative = onlyRunTestForNative || !onlyRunTestForJava;
-        boolean doRunTestForJava = onlyRunTestForJava || !onlyRunTestForNative;
 
         // Find the API version required by the test.
         int requiredApiVersion = getMaximumAvailableApiLevel();
@@ -203,11 +200,6 @@ public class CronetTestRule implements TestRule {
             try {
                 if (doRunTestForNative) {
                     Log.i(TAG, "Running test against Native implementation.");
-                    base.evaluate();
-                }
-                if (doRunTestForJava) {
-                    Log.i(TAG, "Running test against Java implementation.");
-                    setTestingJavaImpl(true);
                     base.evaluate();
                 }
             } catch (Throwable e) {
@@ -439,6 +431,5 @@ public class CronetTestRule implements TestRule {
     }
 
     private void setTestingJavaImpl(boolean value) {
-        mTestingJavaImpl = value;
     }
 }
