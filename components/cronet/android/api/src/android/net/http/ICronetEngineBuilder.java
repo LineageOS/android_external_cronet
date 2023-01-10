@@ -3,8 +3,8 @@
 // found in the LICENSE file.
 package android.net.http;
 
+import java.time.Instant;
 import java.util.Collections;
-import java.util.Date;
 import java.util.Set;
 
 /**
@@ -30,7 +30,7 @@ public abstract class ICronetEngineBuilder {
 
     // Public API methods.
     public abstract ICronetEngineBuilder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
-            boolean includeSubdomains, Date expirationDate);
+            boolean includeSubdomains, Instant expirationInstant);
 
     public abstract ICronetEngineBuilder addQuicHint(String host, int port, int alternatePort);
 

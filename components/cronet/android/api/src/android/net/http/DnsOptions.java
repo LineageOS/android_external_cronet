@@ -45,7 +45,7 @@ public final class DnsOptions {
     @Nullable
     private final Boolean mEnableStaleDns;
     @Nullable
-    private final Long mPersistHostCachePeriodMillis;
+    private final Duration mPersistHostCachePeriod;
 
     @Nullable
     private final Boolean mPreestablishConnectionsToStaleDnsResults;
@@ -55,7 +55,7 @@ public final class DnsOptions {
     DnsOptions(Builder builder) {
         this.mEnableStaleDns = builder.mEnableStaleDns;
         this.mStaleDnsOptions = builder.mStaleDnsOptions;
-        this.mPersistHostCachePeriodMillis = builder.mPersistHostCachePeriodMillis;
+        this.mPersistHostCachePeriod = builder.mPersistHostCachePeriod;
         this.mPreestablishConnectionsToStaleDnsResults =
                 builder.mPreestablishConnectionsToStaleDnsResults;
         this.mUseBuiltInDnsResolver = builder.mUseBuiltInDnsResolver;
@@ -90,11 +90,11 @@ public final class DnsOptions {
     }
 
     /**
-     * See {@link Builder#setPersistHostCachePeriodMillis}
+     * See {@link Builder#setPersistHostCachePeriod}
      */
     @Nullable
-    public Long getPersistHostCachePeriodMillis() {
-        return mPersistHostCachePeriodMillis;
+    public Duration getPersistHostCachePeriod() {
+        return mPersistHostCachePeriod;
     }
 
     /**
@@ -295,7 +295,7 @@ public final class DnsOptions {
         @Nullable
         private Boolean mPersistHostCache;
         @Nullable
-        private Long mPersistHostCachePeriodMillis;
+        private Duration mPersistHostCachePeriod;
         @Nullable
         private Boolean mPreestablishConnectionsToStaleDnsResults;
 
@@ -387,20 +387,9 @@ public final class DnsOptions {
          *
          * @return the builder for chaining
          */
-        public Builder setPersistHostCachePeriodMillis(long persistHostCachePeriodMillis) {
-            this.mPersistHostCachePeriodMillis = persistHostCachePeriodMillis;
+        public Builder setPersistHostCachePeriod(Duration persistHostCachePeriod) {
+            this.mPersistHostCachePeriod = persistHostCachePeriod;
             return this;
-        }
-
-        /**
-         * Same as {@link #setPersistHostCachePeriodMillis(long)} but using {@link
-         * java.time.Duration}.
-         *
-         * @return the builder for chaining
-         */
-        @RequiresApi(api = VERSION_CODES.O)
-        public Builder setPersistDelay(Duration persistToDiskPeriod) {
-            return setPersistHostCachePeriodMillis(persistToDiskPeriod.toMillis());
         }
 
         /**

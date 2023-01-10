@@ -6,6 +6,8 @@ package android.net.http;
 
 import androidx.annotation.Nullable;
 
+import java.time.Duration;
+
 /**
  * A class configuring Cronet's connection migration functionality.
  *
@@ -34,13 +36,13 @@ public class ConnectionMigrationOptions {
     @Nullable
     private final Boolean mMigrateIdleConnections;
     @Nullable
-    private final Long mIdleMigrationPeriodSeconds;
+    private final Duration mIdleMigrationPeriod;
     @Nullable
     private final Boolean mRetryPreHandshakeErrorsOnNonDefaultNetwork;
     @Nullable
     private final Boolean mAllowNonDefaultNetworkUsage;
     @Nullable
-    private final Long mMaxTimeOnNonDefaultNetworkSeconds;
+    private final Duration mMaxTimeOnNonDefaultNetwork;
     @Nullable
     private final Integer mMaxWriteErrorNonDefaultNetworkMigrationsCount;
     @Nullable
@@ -91,8 +93,8 @@ public class ConnectionMigrationOptions {
      */
     @Experimental
     @Nullable
-    public Long getIdleMigrationPeriodSeconds() {
-        return mIdleMigrationPeriodSeconds;
+    public Duration getIdleMigrationPeriod() {
+        return mIdleMigrationPeriod;
     }
 
     /**
@@ -124,8 +126,8 @@ public class ConnectionMigrationOptions {
      */
     @Experimental
     @Nullable
-    public Long getMaxTimeOnNonDefaultNetworkSeconds() {
-        return mMaxTimeOnNonDefaultNetworkSeconds;
+    public Duration getMaxTimeOnNonDefaultNetwork() {
+        return mMaxTimeOnNonDefaultNetwork;
     }
 
     /**
@@ -155,11 +157,11 @@ public class ConnectionMigrationOptions {
         this.mEnablePathDegradationMigration = builder.mEnablePathDegradationMigration;
         this.mAllowServerMigration = builder.mAllowServerMigration;
         this.mMigrateIdleConnections = builder.mMigrateIdleConnections;
-        this.mIdleMigrationPeriodSeconds = builder.mIdleConnectionMigrationPeriodSeconds;
+        this.mIdleMigrationPeriod = builder.mIdleConnectionMigrationPeriod;
         this.mRetryPreHandshakeErrorsOnNonDefaultNetwork =
                 builder.mRetryPreHandshakeErrorsOnAlternateNetwork;
         this.mAllowNonDefaultNetworkUsage = builder.mAllowNonDefaultNetworkUsage;
-        this.mMaxTimeOnNonDefaultNetworkSeconds = builder.mMaxTimeOnNonDefaultNetworkSeconds;
+        this.mMaxTimeOnNonDefaultNetwork = builder.mMaxTimeOnNonDefaultNetwork;
         this.mMaxWriteErrorNonDefaultNetworkMigrationsCount = builder.mMaxWriteErrorNonDefaultNetworkMigrationsCount;
         this.mMaxPathDegradingNonDefaultMigrationsCount = builder.mMaxPathDegradingNonDefaultMigrationsCount;
     }
@@ -177,13 +179,13 @@ public class ConnectionMigrationOptions {
         @Nullable
         private Boolean mMigrateIdleConnections;
         @Nullable
-        private Long mIdleConnectionMigrationPeriodSeconds;
+        private Duration mIdleConnectionMigrationPeriod;
         @Nullable
         private Boolean mRetryPreHandshakeErrorsOnAlternateNetwork;
         @Nullable
         private Boolean mAllowNonDefaultNetworkUsage;
         @Nullable
-        private Long mMaxTimeOnNonDefaultNetworkSeconds;
+        private Duration mMaxTimeOnNonDefaultNetwork;
         @Nullable
         private Integer mMaxWriteErrorNonDefaultNetworkMigrationsCount;
         @Nullable
@@ -267,8 +269,8 @@ public class ConnectionMigrationOptions {
          */
         @Experimental
         public Builder setIdleMigrationPeriodSeconds(
-                long idleConnectionMigrationPeriodSeconds) {
-            this.mIdleConnectionMigrationPeriodSeconds = idleConnectionMigrationPeriodSeconds;
+                Duration idleConnectionMigrationPeriod) {
+            this.mIdleConnectionMigrationPeriod = idleConnectionMigrationPeriod;
             return this;
         }
 
@@ -305,8 +307,8 @@ public class ConnectionMigrationOptions {
          */
         @Experimental
         public Builder setMaxTimeOnNonDefaultNetworkSeconds(
-                long maxTimeOnNonDefaultNetworkSeconds) {
-            this.mMaxTimeOnNonDefaultNetworkSeconds = maxTimeOnNonDefaultNetworkSeconds;
+                Duration maxTimeOnNonDefaultNetwork) {
+            this.mMaxTimeOnNonDefaultNetwork = maxTimeOnNonDefaultNetwork;
             return this;
         }
 
