@@ -314,25 +314,6 @@ android_library("cronet_impl_common_base_java") {
   srcjar_deps = cronet_impl_common_java_srcjar_deps
 }
 
-# cronet_impl_fake_base_java.jar - Fake implementation of Cronet.
-android_library("cronet_impl_fake_base_java") {
-  sources = [
-    "fake/java/org/chromium/net/test/FakeCronetController.java",
-    "fake/java/org/chromium/net/test/FakeCronetEngine.java",
-    "fake/java/org/chromium/net/test/FakeUrlRequest.java",
-    "fake/java/org/chromium/net/test/FakeUrlResponse.java",
-    "fake/java/org/chromium/net/test/ResponseMatcher.java",
-    "fake/java/org/chromium/net/test/UrlResponseMatcher.java",
-  ]
-
-  deps = [
-    ":cronet_api_java",
-    ":cronet_impl_common_base_java",
-    ":cronet_impl_java_util_java",
-    "//third_party/androidx:androidx_annotation_annotation_java",
-  ]
-}
-
 android_library("cronet_urlconnection_impl_java") {
   sources = [
     "java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java",
@@ -539,15 +520,6 @@ android_java_prebuilt("package_impl_platform_java") {
   ]
 }
 
-android_java_prebuilt("package_impl_fake_java") {
-  jar_path = "$_package_dir/cronet_impl_fake_java.jar"
-  deps = [
-    ":package_api_java",
-    ":package_impl_common_java",
-    ":repackage_fake",
-  ]
-}
-
 template("jar_src") {
   action_with_pydeps(target_name) {
     _rebased_src_search_dirs =
@@ -637,12 +609,6 @@ jar_src("jar_cronet_impl_common_java_source") {
   jar_path = "$_package_dir/cronet_impl_common_java-src.jar"
 }
 
-jar_src("jar_cronet_impl_fake_java_source") {
-  src_search_dirs = [ "fake/java" ]
-  source_deps = [ ":cronet_impl_fake_base_java" ]
-  jar_path = "$_package_dir/cronet_impl_fake_java-src.jar"
-}
-
 jar_src("jar_cronet_impl_util_java_source") {
   src_search_dirs = [ "java/src" ]
   source_deps = [ ":cronet_impl_java_util_java" ]
@@ -681,11 +647,6 @@ template("repackage_jars") {
 repackage_jars("repackage_api") {
   output = "$_package_dir/cronet_api.jar"
   deps = [ ":cronet_api_java" ]
-}
-
-repackage_jars("repackage_fake") {
-  output = "$_package_dir/cronet_impl_fake_java.jar"
-  deps = [ ":cronet_impl_fake_base_java" ]
 }
 
 repackage_jars("repackage_util") {
@@ -912,35 +873,8 @@ if (!is_component_build) {
     ]
   }
 
-  # cronet_fake_javatests.jar - Java tests for the fake implementation of Cronet.
-  android_library("cronet_fake_javatests") {
-    testonly = true
-    sources = [
-      "fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java",
-      "fake/javatests/org/chromium/net/test/FakeCronetEngineTest.java",
-      "fake/javatests/org/chromium/net/test/FakeCronetProviderTest.java",
-      "fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java",
-      "fake/javatests/org/chromium/net/test/FakeUrlResponseTest.java",
-      "fake/javatests/org/chromium/net/test/UrlResponseMatcherTest.java",
-    ]
-
-    deps = [
-      ":cronet_api_java",
-      ":cronet_common_javatests",
-      ":cronet_impl_common_base_java",
-      ":cronet_impl_fake_base_java",
-      "//base:base_java_test_support",
-      "//third_party/android_sdk:android_test_base_java",
-      "//third_party/android_support_test_runner:runner_java",
-      "//third_party/androidx:androidx_test_runner_java",
-      "//third_party/junit",
-      "//third_party/mockito:mockito_java",
-    ]
-  }
-
   cronet_javatests_deps_to_package = [
     ":cronet_common_javatests",
-    ":cronet_fake_javatests",
     ":cronet_test_apk_java",
     "//base:base_java",
     "//base:jni_java",
@@ -1373,7 +1307,6 @@ if (!is_component_build) {
       "//AUTHORS",
       "//chrome/VERSION",
       "cronet_impl_common_proguard.cfg",
-      "cronet_impl_fake_proguard.cfg",
       "cronet_impl_platform_proguard.cfg",
       "implementation_api_version.txt",
       "interface_api_version.txt",
@@ -1384,7 +1317,6 @@ if (!is_component_build) {
       ":cronet_api_java",
       ":cronet_combine_proguard_flags",
       ":cronet_impl_common_base_java",
-      ":cronet_impl_fake_base_java",
     ]
   }
 
@@ -1551,13 +1483,11 @@ if (!is_component_build) {
         ":generate_licenses",
         ":jar_cronet_api_source",
         ":jar_cronet_impl_common_java_source",
-        ":jar_cronet_impl_fake_java_source",
         ":jar_cronet_impl_native_java_source",
         ":jar_cronet_impl_platform_java_source",
         ":jar_cronet_sample_source",
         ":repackage_api",
         ":repackage_common",
-        ":repackage_fake",
         ":repackage_native",
         ":repackage_platform",
       ]
