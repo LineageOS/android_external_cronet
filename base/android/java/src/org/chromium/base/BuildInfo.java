@@ -18,11 +18,12 @@ import android.text.TextUtils;
 
 import androidx.annotation.OptIn;
 import androidx.annotation.VisibleForTesting;
-import androidx.core.os.BuildCompat;
 
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.compat.ApiHelperForP;
 import org.chromium.build.BuildConfig;
+
+import com.android.modules.utils.build.SdkLevel;
 
 /**
  * BuildInfo is a utility class providing easy access to {@link PackageInfo} information. This is
@@ -251,11 +252,10 @@ public class BuildInfo {
     }
 
     /**
-     * Wrap BuildCompat.isAtLeastT. This enables it to be shadowed in Robolectric tests.
+     * Wrap SdkLevel.isAtLeastT. This enables it to be shadowed in Robolectric tests.
      */
-    @OptIn(markerClass = androidx.core.os.BuildCompat.PrereleaseSdkCheck.class)
     public static boolean isAtLeastT() {
-        return BuildCompat.isAtLeastT();
+        return SdkLevel.isAtLeastT();
     }
 
     /**
@@ -263,7 +263,6 @@ public class BuildInfo {
      * This must be manually maintained as the SDK goes through finalization!
      * Avoid depending on this if possible; this is only intended for WebView.
      */
-    @OptIn(markerClass = androidx.core.os.BuildCompat.PrereleaseSdkCheck.class)
     public static boolean targetsAtLeastT() {
         int target = ContextUtils.getApplicationContext().getApplicationInfo().targetSdkVersion;
 
