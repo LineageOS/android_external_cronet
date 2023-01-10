@@ -27,8 +27,8 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.Log;
 import org.chromium.base.test.util.Feature;
-import org.chromium.net.CronetEngine;
-import org.chromium.net.CronetException;
+import android.net.http.CronetEngine;
+import android.net.http.CronetException;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CompareDefaultWithCronet;
 import org.chromium.net.CronetTestRule.OnlyRunCronetHttpURLConnection;

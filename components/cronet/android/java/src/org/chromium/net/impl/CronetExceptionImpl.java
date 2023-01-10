@@ -4,7 +4,7 @@
 
 package org.chromium.net.impl;
 
-import org.chromium.net.CronetException;
+import android.net.http.CronetException;
 
 /**
  * Implements {@link CronetException}.
