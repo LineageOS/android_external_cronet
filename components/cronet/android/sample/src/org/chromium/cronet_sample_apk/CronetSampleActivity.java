@@ -17,7 +17,6 @@ import androidx.appcompat.app.AlertDialog;
 
 import org.chromium.net.CronetEngine;
 import org.chromium.net.CronetException;
-import org.chromium.net.UploadDataProviders;
 import org.chromium.net.UrlRequest;
 import org.chromium.net.UrlResponseInfo;
 

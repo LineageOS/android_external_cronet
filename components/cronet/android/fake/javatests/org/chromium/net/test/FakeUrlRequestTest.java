@@ -34,7 +34,6 @@ import org.chromium.net.InlineExecutionProhibitedException;
 import org.chromium.net.TestUploadDataProvider;
 import org.chromium.net.TestUrlRequestCallback;
 import org.chromium.net.UploadDataProvider;
-import org.chromium.net.UploadDataProviders;
 import org.chromium.net.UploadDataSink;
 import org.chromium.net.UrlRequest;
 import org.chromium.net.UrlRequest.Status;
