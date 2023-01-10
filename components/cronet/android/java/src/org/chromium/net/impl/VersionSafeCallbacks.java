@@ -272,20 +272,4 @@ public class VersionSafeCallbacks {
                     ((NetworkQualityThroughputListenerWrapper) o).mWrappedListener);
         }
     }
-
-    /**
-     * Wrap a {@link CronetEngine.Builder.LibraryLoader} in a version safe manner.
-     */
-    public static final class LibraryLoader extends CronetEngine.Builder.LibraryLoader {
-        private final CronetEngine.Builder.LibraryLoader mWrappedLoader;
-
-        public LibraryLoader(CronetEngine.Builder.LibraryLoader libraryLoader) {
-            mWrappedLoader = libraryLoader;
-        }
-
-        @Override
-        public void loadLibrary(String libName) {
-            mWrappedLoader.loadLibrary(libName);
-        }
-    }
 }

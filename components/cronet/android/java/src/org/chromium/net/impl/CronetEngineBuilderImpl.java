@@ -167,7 +167,7 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
 
     @Override
     public String getDefaultUserAgent() {
-        return UserAgent.from(mApplicationContext);
+        return UserAgent.getDefault();
     }
 
     @Override
@@ -196,24 +196,6 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
     }
 
     @Override
-    public CronetEngineBuilderImpl setLibraryLoader(CronetEngine.Builder.LibraryLoader loader) {
-        // |CronetEngineBuilderImpl| is an abstract class that is used by concrete builder
-        // implementations, including the Java Cronet engine builder; therefore, the implementation
-        // of this method should be "no-op". Subclasses that care about the library loader
-        // should override this method.
-        return this;
-    }
-
-    /**
-     * Default implementation of the method that returns {@code null}.
-     *
-     * @return {@code null}.
-     */
-    VersionSafeCallbacks.LibraryLoader libraryLoader() {
-        return null;
-    }
-
-    @Override
     public CronetEngineBuilderImpl enableQuic(boolean value) {
         mQuicEnabled = value;
         return this;
@@ -231,7 +213,7 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
      * @return QUIC User Agent ID string.
      */
     String getDefaultQuicUserAgentId() {
-        return mQuicEnabled ? UserAgent.getQuicUserAgentIdFrom(mApplicationContext) : "";
+        return mQuicEnabled ? UserAgent.getDefaultQuicUserAgentId() : "";
     }
 
     @Override
