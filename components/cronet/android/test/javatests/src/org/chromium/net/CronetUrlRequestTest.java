@@ -22,6 +22,7 @@ import android.support.test.runner.AndroidJUnit4;
 
 import androidx.test.filters.SmallTest;
 
+import org.chromium.net.apihelpers.UploadDataProviders;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
