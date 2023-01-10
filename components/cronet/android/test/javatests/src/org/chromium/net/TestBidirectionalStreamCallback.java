@@ -4,6 +4,9 @@
 
 package org.chromium.net;
 
+import android.net.http.BidirectionalStream;
+import android.net.http.CronetException;
+import android.net.http.UrlResponseInfo;
 import android.os.ConditionVariable;
 
 import static junit.framework.Assert.assertEquals;

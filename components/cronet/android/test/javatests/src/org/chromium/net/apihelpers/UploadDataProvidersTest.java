@@ -11,6 +11,7 @@ import static org.junit.Assert.assertTrue;
 import static org.chromium.net.CronetTestRule.assertContains;
 import static org.chromium.net.CronetTestRule.getContext;
 
+import android.net.http.apihelpers.UploadDataProviders;
 import android.os.ConditionVariable;
 import android.os.ParcelFileDescriptor;
 import android.support.test.runner.AndroidJUnit4;
@@ -24,15 +25,15 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Feature;
-import org.chromium.net.CallbackException;
+import android.net.http.CallbackException;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.NativeTestServer;
 import org.chromium.net.TestUrlRequestCallback;
-import org.chromium.net.UploadDataProvider;
-import org.chromium.net.UploadDataSink;
-import org.chromium.net.UrlRequest;
+import android.net.http.UploadDataProvider;
+import android.net.http.UploadDataSink;
+import android.net.http.UrlRequest;
 
 import java.io.File;
 import java.io.FileOutputStream;

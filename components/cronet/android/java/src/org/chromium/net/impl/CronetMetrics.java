@@ -7,9 +7,9 @@ package org.chromium.net.impl;
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
-import org.chromium.net.RequestFinishedInfo;
+import android.net.http.RequestFinishedInfo;
 
-import java.util.Date;
+import java.time.Instant;
 
 /**
  * Implementation of {@link RequestFinishedInfo.Metrics}.
@@ -31,21 +31,15 @@ public final class CronetMetrics extends RequestFinishedInfo.Metrics {
     private final long mRequestEndMs;
     private final boolean mSocketReused;
 
-    // TODO(mgersh): Delete after the switch to the new API http://crbug.com/629194
-    @Nullable
-    private final Long mTtfbMs;
-    // TODO(mgersh): Delete after the switch to the new API http://crbug.com/629194
-    @Nullable
-    private final Long mTotalTimeMs;
     @Nullable
     private final Long mSentByteCount;
     @Nullable
     private final Long mReceivedByteCount;
 
     @Nullable
-    private static Date toDate(long timestamp) {
+    private static Instant toInstant(long timestamp) {
         if (timestamp != -1) {
-            return new Date(timestamp);
+            return Instant.ofEpochMilli(timestamp);
         }
         return null;
     }
@@ -54,34 +48,6 @@ public final class CronetMetrics extends RequestFinishedInfo.Metrics {
         // If end doesn't exist, start can be anything, including also not existing
         // If end exists, start must also exist and be before end
         return (end >= start && start != -1) || end == -1;
-    }
-
-    /**
-     * Old-style constructor
-     * TODO(mgersh): Delete after the switch to the new API http://crbug.com/629194
-     */
-    public CronetMetrics(@Nullable Long ttfbMs, @Nullable Long totalTimeMs,
-            @Nullable Long sentByteCount, @Nullable Long receivedByteCount) {
-        mTtfbMs = ttfbMs;
-        mTotalTimeMs = totalTimeMs;
-        mSentByteCount = sentByteCount;
-        mReceivedByteCount = receivedByteCount;
-
-        // Everything else is -1 (translates to null) for now
-        mRequestStartMs = -1;
-        mDnsStartMs = -1;
-        mDnsEndMs = -1;
-        mConnectStartMs = -1;
-        mConnectEndMs = -1;
-        mSslStartMs = -1;
-        mSslEndMs = -1;
-        mSendingStartMs = -1;
-        mSendingEndMs = -1;
-        mPushStartMs = -1;
-        mPushEndMs = -1;
-        mResponseStartMs = -1;
-        mRequestEndMs = -1;
-        mSocketReused = false;
     }
 
     /**
@@ -121,113 +87,89 @@ public final class CronetMetrics extends RequestFinishedInfo.Metrics {
         mSocketReused = socketReused;
         mSentByteCount = sentByteCount;
         mReceivedByteCount = receivedByteCount;
-
-        // TODO(mgersh): delete these after embedders stop using them http://crbug.com/629194
-        if (requestStartMs != -1 && responseStartMs != -1) {
-            mTtfbMs = responseStartMs - requestStartMs;
-        } else {
-            mTtfbMs = null;
-        }
-        if (requestStartMs != -1 && requestEndMs != -1) {
-            mTotalTimeMs = requestEndMs - requestStartMs;
-        } else {
-            mTotalTimeMs = null;
-        }
     }
 
     @Nullable
     @Override
-    public Date getRequestStart() {
-        return toDate(mRequestStartMs);
+    public Instant getRequestStart() {
+        return toInstant(mRequestStartMs);
     }
 
     @Nullable
     @Override
-    public Date getDnsStart() {
-        return toDate(mDnsStartMs);
+    public Instant getDnsStart() {
+        return toInstant(mDnsStartMs);
     }
 
     @Nullable
     @Override
-    public Date getDnsEnd() {
-        return toDate(mDnsEndMs);
+    public Instant getDnsEnd() {
+        return toInstant(mDnsEndMs);
     }
 
     @Nullable
     @Override
-    public Date getConnectStart() {
-        return toDate(mConnectStartMs);
+    public Instant getConnectStart() {
+        return toInstant(mConnectStartMs);
     }
 
     @Nullable
     @Override
-    public Date getConnectEnd() {
-        return toDate(mConnectEndMs);
+    public Instant getConnectEnd() {
+        return toInstant(mConnectEndMs);
     }
 
     @Nullable
     @Override
-    public Date getSslStart() {
-        return toDate(mSslStartMs);
+    public Instant getSslStart() {
+        return toInstant(mSslStartMs);
     }
 
     @Nullable
     @Override
-    public Date getSslEnd() {
-        return toDate(mSslEndMs);
+    public Instant getSslEnd() {
+        return toInstant(mSslEndMs);
     }
 
     @Nullable
     @Override
-    public Date getSendingStart() {
-        return toDate(mSendingStartMs);
+    public Instant getSendingStart() {
+        return toInstant(mSendingStartMs);
     }
 
     @Nullable
     @Override
-    public Date getSendingEnd() {
-        return toDate(mSendingEndMs);
+    public Instant getSendingEnd() {
+        return toInstant(mSendingEndMs);
     }
 
     @Nullable
     @Override
-    public Date getPushStart() {
-        return toDate(mPushStartMs);
+    public Instant getPushStart() {
+        return toInstant(mPushStartMs);
     }
 
     @Nullable
     @Override
-    public Date getPushEnd() {
-        return toDate(mPushEndMs);
+    public Instant getPushEnd() {
+        return toInstant(mPushEndMs);
     }
 
     @Nullable
     @Override
-    public Date getResponseStart() {
-        return toDate(mResponseStartMs);
+    public Instant getResponseStart() {
+        return toInstant(mResponseStartMs);
     }
 
     @Nullable
     @Override
-    public Date getRequestEnd() {
-        return toDate(mRequestEndMs);
+    public Instant getRequestEnd() {
+        return toInstant(mRequestEndMs);
     }
 
     @Override
     public boolean getSocketReused() {
         return mSocketReused;
-    }
-
-    @Nullable
-    @Override
-    public Long getTtfbMs() {
-        return mTtfbMs;
-    }
-
-    @Nullable
-    @Override
-    public Long getTotalTimeMs() {
-        return mTotalTimeMs;
     }
 
     @Nullable

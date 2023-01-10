@@ -9,11 +9,12 @@ import static org.junit.Assert.assertTrue;
 
 import static org.chromium.net.CronetTestRule.getContext;
 
+import android.net.http.UrlRequest;
 import android.support.test.runner.AndroidJUnit4;
 
 import androidx.test.filters.LargeTest;
 
-import org.chromium.net.apihelpers.UploadDataProviders;
+import android.net.http.apihelpers.UploadDataProviders;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;

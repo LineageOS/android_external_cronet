@@ -12,6 +12,11 @@ import static junit.framework.Assert.assertTrue;
 
 import static org.chromium.net.CronetTestRule.assertContains;
 
+import android.net.http.CallbackException;
+import android.net.http.CronetException;
+import android.net.http.InlineExecutionProhibitedException;
+import android.net.http.UrlRequest;
+import android.net.http.UrlResponseInfo;
 import android.os.ConditionVariable;
 import android.os.StrictMode;
 

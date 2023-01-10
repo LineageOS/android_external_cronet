@@ -6,9 +6,9 @@ package org.chromium.net.impl;
 import android.annotation.SuppressLint;
 import android.os.Build;
 
-import org.chromium.net.BidirectionalStream;
-import org.chromium.net.CronetEngine;
-import org.chromium.net.ExperimentalBidirectionalStream;
+import android.net.http.BidirectionalStream;
+import android.net.http.CronetEngine;
+import android.net.http.ExperimentalBidirectionalStream;
 
 import java.util.AbstractMap;
 import java.util.ArrayList;

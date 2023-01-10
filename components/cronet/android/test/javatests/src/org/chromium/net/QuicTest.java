@@ -10,6 +10,11 @@ import static org.junit.Assert.assertTrue;
 import static org.chromium.net.CronetTestRule.getContext;
 import static org.chromium.net.CronetTestRule.getTestStorage;
 
+import android.net.http.CronetEngine;
+import android.net.http.ExperimentalCronetEngine;
+import android.net.http.RequestFinishedInfo;
+import android.net.http.UrlRequest;
+import android.net.http.UrlResponseInfo;
 import android.support.test.runner.AndroidJUnit4;
 
 import androidx.test.filters.LargeTest;

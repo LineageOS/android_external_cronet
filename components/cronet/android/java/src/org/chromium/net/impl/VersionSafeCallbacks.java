@@ -4,16 +4,15 @@
 
 package org.chromium.net.impl;
 
-import org.chromium.net.BidirectionalStream;
-import org.chromium.net.CronetEngine;
-import org.chromium.net.CronetException;
-import org.chromium.net.NetworkQualityRttListener;
-import org.chromium.net.NetworkQualityThroughputListener;
-import org.chromium.net.RequestFinishedInfo;
-import org.chromium.net.UploadDataProvider;
-import org.chromium.net.UploadDataSink;
-import org.chromium.net.UrlRequest;
-import org.chromium.net.UrlResponseInfo;
+import android.net.http.BidirectionalStream;
+import android.net.http.CronetException;
+import android.net.http.NetworkQualityRttListener;
+import android.net.http.NetworkQualityThroughputListener;
+import android.net.http.RequestFinishedInfo;
+import android.net.http.UploadDataProvider;
+import android.net.http.UploadDataSink;
+import android.net.http.UrlRequest;
+import android.net.http.UrlResponseInfo;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;

@@ -17,6 +17,14 @@ import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
 import static org.chromium.net.CronetTestRule.assertContains;
 import static org.chromium.net.CronetTestRule.getContext;
 
+import android.net.http.BidirectionalStream;
+import android.net.http.CronetEngine;
+import android.net.http.CronetException;
+import android.net.http.ExperimentalBidirectionalStream;
+import android.net.http.ExperimentalCronetEngine;
+import android.net.http.NetworkException;
+import android.net.http.RequestFinishedInfo;
+import android.net.http.UrlResponseInfo;
 import android.os.Build;
 import android.os.ConditionVariable;
 import android.os.Process;

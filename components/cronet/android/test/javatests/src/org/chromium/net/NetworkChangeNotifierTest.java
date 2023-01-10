@@ -13,6 +13,8 @@ import static org.junit.Assert.assertTrue;
 
 import static org.chromium.net.CronetTestRule.assertContains;
 
+import android.net.http.NetworkException;
+import android.net.http.UrlRequest;
 import android.os.Build;
 import android.support.test.runner.AndroidJUnit4;
 import android.system.Os;
