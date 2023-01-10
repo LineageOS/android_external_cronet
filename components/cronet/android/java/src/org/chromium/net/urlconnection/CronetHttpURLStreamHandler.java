@@ -4,7 +4,7 @@
 
 package org.chromium.net.urlconnection;
 
-import org.chromium.net.ExperimentalCronetEngine;
+import android.net.http.ExperimentalCronetEngine;
 
 import java.io.IOException;
 import java.net.Proxy;

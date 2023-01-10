@@ -17,15 +17,15 @@ import org.chromium.base.annotations.JNIAdditionalImport;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeClassQualifiedName;
 import org.chromium.base.annotations.NativeMethods;
-import org.chromium.net.CallbackException;
-import org.chromium.net.CronetException;
+import android.net.http.CallbackException;
+import android.net.http.CronetException;
 import org.chromium.net.Idempotency;
-import org.chromium.net.InlineExecutionProhibitedException;
-import org.chromium.net.NetworkException;
-import org.chromium.net.RequestFinishedInfo;
+import android.net.http.InlineExecutionProhibitedException;
+import android.net.http.NetworkException;
+import android.net.http.RequestFinishedInfo;
 import org.chromium.net.RequestPriority;
-import org.chromium.net.UploadDataProvider;
-import org.chromium.net.UrlRequest;
+import android.net.http.UploadDataProvider;
+import android.net.http.UrlRequest;
 import org.chromium.net.impl.CronetLogger.CronetTrafficInfo;
 
 import java.nio.ByteBuffer;
@@ -794,7 +794,8 @@ public final class CronetUrlRequest extends UrlRequestBase {
             if (mMetrics != null) {
                 throw new IllegalStateException("Metrics collection should only happen once.");
             }
-            mMetrics = new CronetMetrics(requestStartMs, dnsStartMs, dnsEndMs, connectStartMs,
+            mMetrics = new CronetMetrics(
+                    requestStartMs, dnsStartMs, dnsEndMs, connectStartMs,
                     connectEndMs, sslStartMs, sslEndMs, sendingStartMs, sendingEndMs, pushStartMs,
                     pushEndMs, responseStartMs, requestEndMs, socketReused, sentByteCount,
                     receivedByteCount);
@@ -940,16 +941,14 @@ public final class CronetUrlRequest extends UrlRequestBase {
 
         final Duration headersLatency;
         if (mMetrics.getRequestStart() != null && mMetrics.getResponseStart() != null) {
-            headersLatency = Duration.ofMillis(
-                    mMetrics.getResponseStart().getTime() - mMetrics.getRequestStart().getTime());
+            headersLatency = Duration.between(mMetrics.getRequestStart(), mMetrics.getResponseStart());
         } else {
             headersLatency = Duration.ofSeconds(0);
         }
 
         final Duration totalLatency;
         if (mMetrics.getRequestStart() != null && mMetrics.getRequestEnd() != null) {
-            totalLatency = Duration.ofMillis(
-                    mMetrics.getRequestEnd().getTime() - mMetrics.getRequestStart().getTime());
+            totalLatency = Duration.between(mMetrics.getRequestStart(), mMetrics.getRequestEnd());
         } else {
             totalLatency = Duration.ofSeconds(0);
         }

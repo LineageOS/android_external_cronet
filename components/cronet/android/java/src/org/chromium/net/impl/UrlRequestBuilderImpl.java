@@ -8,18 +8,18 @@ import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
 
-import org.chromium.net.CronetEngine;
-import org.chromium.net.ExperimentalUrlRequest;
-import org.chromium.net.RequestFinishedInfo;
-import org.chromium.net.UploadDataProvider;
-import org.chromium.net.UrlRequest;
+import android.net.http.CronetEngine;
+import android.net.http.ExperimentalUrlRequest;
+import android.net.http.RequestFinishedInfo;
+import android.net.http.UploadDataProvider;
+import android.net.http.UrlRequest;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.concurrent.Executor;
 
 /**
- * Implements {@link org.chromium.net.ExperimentalUrlRequest.Builder}.
+ * Implements {@link ExperimentalUrlRequest.Builder}.
  */
 public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
     private static final String ACCEPT_ENCODING = "Accept-Encoding";

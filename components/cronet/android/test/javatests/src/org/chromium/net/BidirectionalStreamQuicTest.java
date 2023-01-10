@@ -12,6 +12,12 @@ import static org.junit.Assert.assertTrue;
 import static org.chromium.base.CollectionUtil.newHashSet;
 import static org.chromium.net.CronetTestRule.getContext;
 
+import android.net.http.BidirectionalStream;
+import android.net.http.ExperimentalCronetEngine;
+import android.net.http.NetworkException;
+import android.net.http.QuicException;
+import android.net.http.RequestFinishedInfo;
+import android.net.http.UrlResponseInfo;
 import android.support.test.runner.AndroidJUnit4;
 
 import androidx.test.filters.SmallTest;

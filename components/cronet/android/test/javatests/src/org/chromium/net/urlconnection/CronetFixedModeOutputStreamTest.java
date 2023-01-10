@@ -26,12 +26,12 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Feature;
-import org.chromium.net.CronetEngine;
+import android.net.http.CronetEngine;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CompareDefaultWithCronet;
 import org.chromium.net.CronetTestRule.OnlyRunCronetHttpURLConnection;
 import org.chromium.net.NativeTestServer;
-import org.chromium.net.NetworkException;
+import android.net.http.NetworkException;
 import org.chromium.net.impl.CallbackExceptionImpl;
 
 import java.io.IOException;

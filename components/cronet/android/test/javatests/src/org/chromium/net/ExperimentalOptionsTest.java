@@ -15,6 +15,12 @@ import static org.chromium.net.CronetTestRule.assertContains;
 import static org.chromium.net.CronetTestRule.getContext;
 import static org.chromium.net.CronetTestRule.getTestStorage;
 
+import android.net.http.BidirectionalStream;
+import android.net.http.CronetEngine;
+import android.net.http.ExperimentalBidirectionalStream;
+import android.net.http.ExperimentalCronetEngine;
+import android.net.http.NetworkException;
+import android.net.http.UrlRequest;
 import android.support.test.runner.AndroidJUnit4;
 
 import androidx.test.filters.LargeTest;
