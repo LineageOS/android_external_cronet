@@ -230,8 +230,10 @@ android_library("cronet_api_java") {
   sources = [
     "api/src/android/net/http/BidirectionalStream.java",
     "api/src/android/net/http/CallbackException.java",
+    "api/src/android/net/http/ConnectionMigrationOptions.java",
     "api/src/android/net/http/CronetEngine.java",
     "api/src/android/net/http/CronetException.java",
+    "api/src/android/net/http/DnsOptions.java",
     "api/src/android/net/http/ExperimentalBidirectionalStream.java",
     "api/src/android/net/http/ExperimentalCronetEngine.java",
     "api/src/android/net/http/ExperimentalUrlRequest.java",
@@ -241,6 +243,7 @@ android_library("cronet_api_java") {
     "api/src/android/net/http/NetworkQualityRttListener.java",
     "api/src/android/net/http/NetworkQualityThroughputListener.java",
     "api/src/android/net/http/QuicException.java",
+    "api/src/android/net/http/QuicOptions.java",
     "api/src/android/net/http/RequestFinishedInfo.java",
     "api/src/android/net/http/UploadDataProvider.java",
     "api/src/android/net/http/UploadDataSink.java",
