@@ -14,7 +14,7 @@ import static org.junit.Assert.fail;
 import static org.chromium.net.CronetTestRule.assertContains;
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.net.http.CronetException;
+import android.net.http.HttpException;
 import android.net.http.ExperimentalUrlRequest;
 import android.net.http.NetworkException;
 import android.net.http.QuicException;
@@ -385,7 +385,7 @@ public class CronetUrlRequestTest {
             }
 
             @Override
-            public void onFailed(UrlRequest request, UrlResponseInfo info, CronetException error) {
+            public void onFailed(UrlRequest request, UrlResponseInfo info, HttpException error) {
                 failedExpectation.set(true);
                 fail();
             }
@@ -762,7 +762,7 @@ public class CronetUrlRequestTest {
         assertNull(callback.mResponseInfo);
         assertNotNull(callback.mError);
         assertEquals(arbitraryNetError,
-                ((NetworkException) callback.mError).getCronetInternalErrorCode());
+                ((NetworkException) callback.mError).getInternalErrorCode());
         assertEquals(0, callback.mRedirectCount);
         assertTrue(callback.mOnErrorCalled);
         assertEquals(ResponseStep.ON_FAILED, callback.mResponseStep);
@@ -781,7 +781,7 @@ public class CronetUrlRequestTest {
         assertEquals(15, callback.mResponseInfo.getReceivedByteCount());
         assertNotNull(callback.mError);
         assertEquals(arbitraryNetError,
-                ((NetworkException) callback.mError).getCronetInternalErrorCode());
+                ((NetworkException) callback.mError).getInternalErrorCode());
         assertEquals(0, callback.mRedirectCount);
         assertTrue(callback.mOnErrorCalled);
         assertEquals(ResponseStep.ON_FAILED, callback.mResponseStep);
@@ -801,7 +801,7 @@ public class CronetUrlRequestTest {
         assertEquals(15, callback.mResponseInfo.getReceivedByteCount());
         assertNotNull(callback.mError);
         assertEquals(arbitraryNetError,
-                ((NetworkException) callback.mError).getCronetInternalErrorCode());
+                ((NetworkException) callback.mError).getInternalErrorCode());
         assertEquals(0, callback.mRedirectCount);
         assertTrue(callback.mOnErrorCalled);
         assertEquals(ResponseStep.ON_FAILED, callback.mResponseStep);
@@ -838,7 +838,7 @@ public class CronetUrlRequestTest {
         assertNull(callback.mResponseInfo);
         assertNotNull(callback.mError);
         assertTrue(callback.mOnErrorCalled);
-        assertEquals(-201, ((NetworkException) callback.mError).getCronetInternalErrorCode());
+        assertEquals(-201, ((NetworkException) callback.mError).getInternalErrorCode());
         assertContains("Exception in CronetUrlRequest: net::ERR_CERT_DATE_INVALID",
                 callback.mError.getMessage());
         assertEquals(ResponseStep.ON_FAILED, callback.mResponseStep);
@@ -872,7 +872,7 @@ public class CronetUrlRequestTest {
         assertNull(callback.mResponseInfo);
         assertNotNull(callback.mError);
         assertTrue(callback.mOnErrorCalled);
-        assertEquals(-201, ((NetworkException) callback.mError).getCronetInternalErrorCode());
+        assertEquals(-201, ((NetworkException) callback.mError).getInternalErrorCode());
         assertContains("Exception in CronetUrlRequest: net::ERR_CERT_DATE_INVALID",
                 callback.mError.getMessage());
         assertEquals(ResponseStep.ON_FAILED, callback.mResponseStep);
@@ -2276,11 +2276,11 @@ public class CronetUrlRequestTest {
             }
 
             @Override
-            public void onFailed(UrlRequest request, UrlResponseInfo info, CronetException error) {
+            public void onFailed(UrlRequest request, UrlResponseInfo info, HttpException error) {
                 assertTrue(error instanceof NetworkException);
-                assertEquals(netError, ((NetworkException) error).getCronetInternalErrorCode());
+                assertEquals(netError, ((NetworkException) error).getInternalErrorCode());
                 failedExpectation.set(
-                        ((NetworkException) error).getCronetInternalErrorCode() != netError);
+                        ((NetworkException) error).getInternalErrorCode() != netError);
                 done.open();
             }
 
@@ -2307,7 +2307,7 @@ public class CronetUrlRequestTest {
                 MockUrlRequestJobFactory.getMockUrlWithFailure(FailurePhase.START, netError));
         assertNull(callback.mResponseInfo);
         assertNotNull(callback.mError);
-        assertEquals(netError, ((NetworkException) callback.mError).getCronetInternalErrorCode());
+        assertEquals(netError, ((NetworkException) callback.mError).getInternalErrorCode());
         assertEquals(errorCode, ((NetworkException) callback.mError).getErrorCode());
         assertEquals(
                 immediatelyRetryable, ((NetworkException) callback.mError).immediatelyRetryable());
@@ -2355,7 +2355,7 @@ public class CronetUrlRequestTest {
         assertNull(callback.mResponseInfo);
         assertNotNull(callback.mError);
         assertEquals(cleartextNotPermitted,
-                ((NetworkException) callback.mError).getCronetInternalErrorCode());
+                ((NetworkException) callback.mError).getInternalErrorCode());
     }
 
     @Test

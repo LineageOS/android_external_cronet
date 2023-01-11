@@ -21,16 +21,16 @@ import javax.net.ssl.HttpsURLConnection;
  * available on the current platform. An instance of this class can be created
  * using {@link Builder}.
  */
-public abstract class CronetEngine {
+public abstract class HttpEngine {
 
     public static Builder builder(Context context) {
         return new Builder(context);
     }
 
     /**
-     * A builder for {@link CronetEngine}s, which allows runtime configuration of
-     * {@code CronetEngine}. Configuration options are set on the builder and
-     * then {@link #build} is called to create the {@code CronetEngine}.
+     * A builder for {@link HttpEngine}s, which allows runtime configuration of
+     * {@link HttpEngine}. Configuration options are set on the builder and
+     * then {@link #build} is called to create the {@link HttpEngine}.
      */
     // NOTE(kapishnikov): In order to avoid breaking the existing API clients, all future methods
     // added to this class and other API classes must have default implementation.
@@ -40,11 +40,11 @@ public abstract class CronetEngine {
          * Reference to the actual builder implementation.
          * {@hide exclude from JavaDoc}.
          */
-        protected final ICronetEngineBuilder mBuilderDelegate;
+        protected final IHttpEngineBuilder mBuilderDelegate;
 
         /**
          * Constructs a {@link Builder} object that facilitates creating a
-         * {@link CronetEngine}. The default configuration enables HTTP/2 and
+         * {@link HttpEngine}. The default configuration enables HTTP/2 and
          * QUIC, but disables the HTTP cache.
          *
          * @param context Android {@link Context}, which is used by
@@ -66,13 +66,13 @@ public abstract class CronetEngine {
          *
          * {@hide}
          */
-        Builder(ICronetEngineBuilder builderDelegate) {
+        Builder(IHttpEngineBuilder builderDelegate) {
             mBuilderDelegate = builderDelegate;
         }
 
         /**
-         * Constructs a User-Agent string including application name and version,
-         * system build version, model and id, and Cronet version.
+         * Constructs a default User-Agent string including the system build version, model and id,
+         * and the HTTP stack version.
          *
          * @return User-Agent string.
          */
@@ -99,8 +99,8 @@ public abstract class CronetEngine {
          * exist.
          * <p>
          * <b>NOTE:</b> Do not use the same storage directory with more than one
-         * {@code CronetEngine} at a time. Access to the storage directory does
-         * not support concurrent access by multiple {@code CronetEngine}s.
+         * {@link HttpEngine} at a time. Access to the storage directory does
+         * not support concurrent access by multiple {@link HttpEngine} instances.
          *
          * @param value path to existing directory.
          * @return the builder to facilitate chaining.
@@ -112,8 +112,8 @@ public abstract class CronetEngine {
 
         /**
          * Sets whether <a href="https://www.chromium.org/quic">QUIC</a> protocol
-         * is enabled. Defaults to enabled. If QUIC is enabled, then QUIC User Agent Id
-         * containing application name and Cronet version is sent to the server.
+         * is enabled. Defaults to enabled.
+         *
          * @param value {@code true} to enable QUIC, {@code false} to disable.
          * @return the builder to facilitate chaining.
          */
@@ -130,15 +130,6 @@ public abstract class CronetEngine {
          */
         public Builder enableHttp2(boolean value) {
             mBuilderDelegate.enableHttp2(value);
-            return this;
-        }
-
-        /**
-         * @deprecated SDCH is deprecated in Cronet M63. This method is a no-op.
-         * {@hide exclude from JavaDoc}.
-         */
-        @Deprecated
-        public Builder enableSdch(boolean value) {
             return this;
         }
 
@@ -277,8 +268,9 @@ public abstract class CronetEngine {
         }
 
         /**
-         * Configures the behavior of Cronet when using QUIC. For more details, see documentation
-         * of {@link QuicOptions} and the individual methods of {@link QuicOptions.Builder}.
+         * Configures the behavior of the HTTP stack when using QUIC. For more details, see
+         * documentation of {@link QuicOptions} and the individual methods
+         * of {@link QuicOptions.Builder}.
          *
          * <p>Only relevant if {@link #enableQuic(boolean)} is enabled.
          *
@@ -346,27 +338,27 @@ public abstract class CronetEngine {
         }
 
         /**
-         * Build a {@link CronetEngine} using this builder's configuration.
-         * @return constructed {@link CronetEngine}.
+         * Build a {@link HttpEngine} using this builder's configuration.
+         * @return constructed {@link HttpEngine}.
          */
-        public CronetEngine build() {
+        public HttpEngine build() {
             return mBuilderDelegate.build();
         }
 
         /**
-         * Creates an implementation of {@link ICronetEngineBuilder} that can be used
+         * Creates an implementation of {@link IHttpEngineBuilder} that can be used
          * to delegate the builder calls to.
          *
          * @param context Android Context to use.
-         * @return the created {@code ICronetEngineBuilder}.
+         * @return the created {@link IHttpEngineBuilder}.
          */
-        private static ICronetEngineBuilder createBuilderDelegate(Context context) {
+        private static IHttpEngineBuilder createBuilderDelegate(Context context) {
             // TODO class name
             try {
                 Class<?> clazz = context.getClassLoader().loadClass(
                         "org.chromium.net.impl.NativeCronetEngineBuilderImpl");
 
-                return (ICronetEngineBuilder) clazz.getConstructor(Context.class).newInstance(
+                return (IHttpEngineBuilder) clazz.getConstructor(Context.class).newInstance(
                         context);
             } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
                 throw new IllegalArgumentException(e);
@@ -380,19 +372,18 @@ public abstract class CronetEngine {
     public abstract String getVersionString();
 
     /**
-     * Shuts down the {@link CronetEngine} if there are no active requests,
+     * Shuts down the {@link HttpEngine} if there are no active requests,
      * otherwise throws an exception.
      *
-     * Cannot be called on network thread - the thread Cronet calls into
+     * Cannot be called on network thread - the thread the HTTP stack calls into
      * Executor on (which is different from the thread the Executor invokes
-     * callbacks on). May block until all the {@code CronetEngine}'s
-     * resources have been cleaned up.
+     * callbacks on). May block until all the {@link HttpEngine} resources have been cleaned up.
      */
     public abstract void shutdown();
 
     /**
      * Starts NetLog logging to a file. The NetLog will contain events emitted
-     * by all live CronetEngines. The NetLog is useful for debugging.
+     * by all live {@link HttpEngine} instances. The NetLog is useful for debugging.
      * The file can be viewed using a Chrome browser navigated to
      * chrome://net-internals/#import
      * @param fileName the complete file path. It must not be empty. If the file
@@ -404,14 +395,18 @@ public abstract class CronetEngine {
      *            only be used with the user's consent and in situations where the log
      *            won't be public.
      *            {@code false} to just include basic events.
+     *
+     * {@hide}
      */
-    public abstract void startNetLogToFile(String fileName, boolean logAll);
+    public void startNetLogToFile(String fileName, boolean logAll) {}
 
     /**
      * Stops NetLog logging and flushes file to disk. If a logging session is
      * not in progress, this call is ignored.
+     *
+     * {@hide}
      */
-    public abstract void stopNetLog();
+    public void stopNetLog() {}
 
     /**
      * Returns differences in metrics collected by Cronet since the last call to
@@ -419,7 +414,7 @@ public abstract class CronetEngine {
      * <p>
      * Cronet collects these metrics globally. This means deltas returned by
      * {@code getGlobalMetricsDeltas()} will include measurements of requests
-     * processed by other {@link CronetEngine} instances. Since this function
+     * processed by other {@link HttpEngine} instances. Since this function
      * returns differences in metrics collected since the last call, and these
      * metrics are collected globally, a call to any {@code CronetEngine}
      * instance's {@code getGlobalMetricsDeltas()} method will affect the deltas
@@ -433,18 +428,23 @@ public abstract class CronetEngine {
      * @return differences in metrics collected by Cronet, since the last call
      *         to {@code getGlobalMetricsDeltas()}, serialized as a
      *         <a href=https://developers.google.com/protocol-buffers>protobuf
-     *         </a>.
+     *         </a>, or an empty array if collecting metrics is not supported.
+     *
+     * {@hide}
      */
-    public abstract byte[] getGlobalMetricsDeltas();
+    public byte[] getGlobalMetricsDeltas() {
+        return new byte[0];
+    }
 
     /**
      * Establishes a new connection to the resource specified by the {@link URL} {@code url}.
      * <p>
-     * <b>Note:</b> Cronet's {@link java.net.HttpURLConnection} implementation is subject to certain
+     * <b>Note:</b> This {@link java.net.HttpURLConnection} implementation is subject to certain
      * limitations, see {@link #createURLStreamHandlerFactory} for details.
      *
      * @param url URL of resource to connect to.
-     * @return an {@link java.net.HttpURLConnection} instance implemented by this CronetEngine.
+     * @return an {@link java.net.HttpURLConnection} instance implemented
+     *     by this {@link HttpEngine}.
      * @throws IOException if an error occurs while opening the connection.
      */
     public abstract URLConnection openConnection(URL url) throws IOException;
@@ -452,10 +452,11 @@ public abstract class CronetEngine {
     /**
      * Creates a {@link URLStreamHandlerFactory} to handle HTTP and HTTPS
      * traffic. An instance of this class can be installed via
-     * {@link URL#setURLStreamHandlerFactory} thus using this CronetEngine by default for
+     * {@link URL#setURLStreamHandlerFactory} thus using this {@link HttpEngine} by default for
      * all requests created via {@link URL#openConnection}.
      * <p>
-     * Cronet does not use certain HTTP features provided via the system:
+     * This {@link java.net.HttpURLConnection} implementation does not implement all features
+     * offered by the API:
      * <ul>
      * <li>the HTTP cache installed via
      *     {@link HttpResponseCache#install(java.io.File, long) HttpResponseCache.install()}</li>
@@ -464,10 +465,9 @@ public abstract class CronetEngine {
      * <li>the HTTP cookie storage installed via {@link java.net.CookieHandler#setDefault}</li>
      * </ul>
      * <p>
-     * While Cronet supports and encourages requests using the HTTPS protocol,
-     * Cronet does not provide support for the
-     * {@link HttpsURLConnection} API. This lack of support also
-     * includes not using certain HTTPS features provided via the system:
+     * While we support and encourages requests using the HTTPS protocol, we don't provide support
+     * for the {@link HttpsURLConnection} API. This lack of support also includes not using certain
+     * HTTPS features provided via {@link HttpsURLConnection}:
      * <ul>
      * <li>the HTTPS hostname verifier installed via {@link
      *   HttpsURLConnection#setDefaultHostnameVerifier(javax.net.ssl.HostnameVerifier)
@@ -478,7 +478,7 @@ public abstract class CronetEngine {
      * </ul>
      *
      * @return an {@link URLStreamHandlerFactory} instance implemented by this
-     *         CronetEngine.
+     *         {@link HttpEngine}.
      */
     public abstract URLStreamHandlerFactory createURLStreamHandlerFactory();
 

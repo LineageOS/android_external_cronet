@@ -105,9 +105,7 @@ public final class UploadDataProviders {
 
         @Override
         public void read(UploadDataSink uploadDataSink, ByteBuffer byteBuffer) throws IOException {
-            if (!byteBuffer.hasRemaining()) {
-                throw new IllegalStateException("Cronet passed a buffer with no bytes remaining");
-            }
+            checkHasBytesRemaining(byteBuffer);
             FileChannel channel = getChannel();
             int bytesRead = 0;
             while (bytesRead == 0) {
@@ -165,9 +163,7 @@ public final class UploadDataProviders {
 
         @Override
         public void read(UploadDataSink uploadDataSink, ByteBuffer byteBuffer) {
-            if (!byteBuffer.hasRemaining()) {
-                throw new IllegalStateException("Cronet passed a buffer with no bytes remaining");
-            }
+            checkHasBytesRemaining(byteBuffer);
             if (byteBuffer.remaining() >= mUploadBuffer.remaining()) {
                 byteBuffer.put(mUploadBuffer);
             } else {
@@ -184,6 +180,14 @@ public final class UploadDataProviders {
             mUploadBuffer.position(0);
             uploadDataSink.onRewindSucceeded();
         }
+    }
+
+    private static ByteBuffer checkHasBytesRemaining(ByteBuffer buffer) {
+        if (!buffer.hasRemaining()) {
+            throw new IllegalStateException("buffer with no bytes remaining");
+        }
+
+        return buffer;
     }
 
     // Prevent instantiation

@@ -12,8 +12,8 @@ import static org.chromium.net.CronetTestRule.SERVER_CERT_PEM;
 import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.net.http.CronetEngine;
-import android.net.http.ExperimentalCronetEngine;
+import android.net.http.HttpEngine;
+import android.net.http.ExperimentalHttpEngine;
 import android.net.http.UrlRequest;
 import android.support.test.runner.AndroidJUnit4;
 
@@ -38,7 +38,7 @@ public class BrotliTest {
     @Rule
     public final CronetTestRule mTestRule = new CronetTestRule();
 
-    private CronetEngine mCronetEngine;
+    private HttpEngine mCronetEngine;
 
     @Before
     public void setUp() throws Exception {
@@ -60,8 +60,8 @@ public class BrotliTest {
     @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testBrotliAdvertised() throws Exception {
-        ExperimentalCronetEngine.Builder builder =
-                new ExperimentalCronetEngine.Builder(getContext());
+        ExperimentalHttpEngine.Builder builder =
+                new ExperimentalHttpEngine.Builder(getContext());
         builder.enableBrotli(true);
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
@@ -77,8 +77,8 @@ public class BrotliTest {
     @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testBrotliNotAdvertised() throws Exception {
-        ExperimentalCronetEngine.Builder builder =
-                new ExperimentalCronetEngine.Builder(getContext());
+        ExperimentalHttpEngine.Builder builder =
+                new ExperimentalHttpEngine.Builder(getContext());
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
         mCronetEngine = builder.build();
@@ -93,8 +93,8 @@ public class BrotliTest {
     @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testBrotliDecoded() throws Exception {
-        ExperimentalCronetEngine.Builder builder =
-                new ExperimentalCronetEngine.Builder(getContext());
+        ExperimentalHttpEngine.Builder builder =
+                new ExperimentalHttpEngine.Builder(getContext());
         builder.enableBrotli(true);
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
