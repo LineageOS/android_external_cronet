@@ -4259,8 +4259,6 @@ java_library {
     libs: [
         "androidx.annotation_annotation",
         "androidx.annotation_annotation-experimental-nodeps",
-        "androidx.collection_collection",
-        "androidx.core_core-nodeps",
         "cronet_aml_api_java",
         "framework-connectivity-t.stubs.module_lib",
         "framework-connectivity.stubs.module_lib",
