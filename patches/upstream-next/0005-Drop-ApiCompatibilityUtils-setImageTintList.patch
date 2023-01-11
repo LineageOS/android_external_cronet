@@ -1,0 +1,63 @@
+From 79b507386cd3c283277bb9d8b11feed85ea9f6d7 Mon Sep 17 00:00:00 2001
+From: Stefano Duo <stefanoduo@google.com>
+Date: Tue, 10 Jan 2023 16:55:20 +0000
+Subject: [PATCH] Drop ApiCompatibilityUtils#setImageTintList
+
+Change-Id: Ieff7b03786494f54e2610d989ae42352c30a3dc6
+---
+ .../chromium/base/ApiCompatibilityUtils.java  | 20 -------------------
+ 1 file changed, 20 deletions(-)
+
+diff --git a/base/android/java/src/org/chromium/base/ApiCompatibilityUtils.java b/base/android/java/src/org/chromium/base/ApiCompatibilityUtils.java
+index 72cc4382..9e73c3ad 100644
+--- a/base/android/java/src/org/chromium/base/ApiCompatibilityUtils.java
++++ b/base/android/java/src/org/chromium/base/ApiCompatibilityUtils.java
+@@ -12,7 +12,6 @@ import android.content.ContentResolver;
+ import android.content.Context;
+ import android.content.Intent;
+ import android.content.pm.PackageManager;
+-import android.content.res.ColorStateList;
+ import android.content.res.Resources;
+ import android.content.res.Resources.NotFoundException;
+ import android.graphics.Bitmap;
+@@ -39,13 +38,11 @@ import android.view.inputmethod.EditorInfo;
+ import android.view.inputmethod.InputMethodSubtype;
+ import android.view.textclassifier.TextClassifier;
+ import android.widget.EditText;
+-import android.widget.ImageView;
+ import android.widget.TextView;
+ 
+ import androidx.annotation.NonNull;
+ import androidx.annotation.Nullable;
+ import androidx.annotation.RequiresApi;
+-import androidx.core.widget.ImageViewCompat;
+ 
+ import java.io.IOException;
+ import java.io.UnsupportedEncodingException;
+@@ -280,23 +277,6 @@ public class ApiCompatibilityUtils {
+         return getDrawableForDensity(res, id, 0);
+     }
+ 
+-    public static void setImageTintList(ImageView view, @Nullable ColorStateList tintList) {
+-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.LOLLIPOP) {
+-            // Work around broken workaround in ImageViewCompat, see
+-            // https://crbug.com/891609#c3.
+-            if (tintList != null && view.getImageTintMode() == null) {
+-                view.setImageTintMode(PorterDuff.Mode.SRC_IN);
+-            }
+-        }
+-        ImageViewCompat.setImageTintList(view, tintList);
+-
+-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.LOLLIPOP) {
+-            // Work around that the tint list is not cleared when setting tint list to null on L
+-            // in some cases. See https://crbug.com/983686.
+-            if (tintList == null) view.refreshDrawableState();
+-        }
+-    }
+-
+     /**
+      * @see android.content.res.Resources#getDrawableForDensity(int id, int density).
+      */
+-- 
+2.39.0.314.g84b9a713c41-goog
+

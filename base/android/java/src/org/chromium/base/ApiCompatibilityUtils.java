@@ -12,7 +12,6 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.res.ColorStateList;
 import android.content.res.Resources;
 import android.content.res.Resources.NotFoundException;
 import android.graphics.Bitmap;
@@ -39,13 +38,11 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodSubtype;
 import android.view.textclassifier.TextClassifier;
 import android.widget.EditText;
-import android.widget.ImageView;
 import android.widget.TextView;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
-import androidx.core.widget.ImageViewCompat;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -278,23 +275,6 @@ public class ApiCompatibilityUtils {
      */
     public static Drawable getDrawable(Resources res, int id) throws NotFoundException {
         return getDrawableForDensity(res, id, 0);
-    }
-
-    public static void setImageTintList(ImageView view, @Nullable ColorStateList tintList) {
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.LOLLIPOP) {
-            // Work around broken workaround in ImageViewCompat, see
-            // https://crbug.com/891609#c3.
-            if (tintList != null && view.getImageTintMode() == null) {
-                view.setImageTintMode(PorterDuff.Mode.SRC_IN);
-            }
-        }
-        ImageViewCompat.setImageTintList(view, tintList);
-
-        if (Build.VERSION.SDK_INT == Build.VERSION_CODES.LOLLIPOP) {
-            // Work around that the tint list is not cleared when setting tint list to null on L
-            // in some cases. See https://crbug.com/983686.
-            if (tintList == null) view.refreshDrawableState();
-        }
     }
 
     /**
