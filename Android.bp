@@ -1092,6 +1092,7 @@ cc_genrule {
         "base/android/java/src/org/chromium/base/MemoryPressureListener.java",
         "base/android/java/src/org/chromium/base/PathService.java",
         "base/android/java/src/org/chromium/base/PathUtils.java",
+        "base/android/java/src/org/chromium/base/PiiElider.java",
         "base/android/java/src/org/chromium/base/PowerMonitor.java",
         "base/android/java/src/org/chromium/base/RadioUtils.java",
         "base/android/java/src/org/chromium/base/SysUtils.java",
@@ -1164,6 +1165,8 @@ cc_genrule {
          "PathService_jni.h " +
          "--output_name " +
          "PathUtils_jni.h " +
+         "--output_name " +
+         "PiiElider_jni.h " +
          "--output_name " +
          "PowerMonitor_jni.h " +
          "--output_name " +
@@ -1245,6 +1248,8 @@ cc_genrule {
          "--input_file " +
          "$(location base/android/java/src/org/chromium/base/PathUtils.java) " +
          "--input_file " +
+         "$(location base/android/java/src/org/chromium/base/PiiElider.java) " +
+         "--input_file " +
          "$(location base/android/java/src/org/chromium/base/PowerMonitor.java) " +
          "--input_file " +
          "$(location base/android/java/src/org/chromium/base/RadioUtils.java) " +
@@ -1309,6 +1314,7 @@ cc_genrule {
         "base/base_jni_headers/NativeUmaRecorder_jni.h",
         "base/base_jni_headers/PathService_jni.h",
         "base/base_jni_headers/PathUtils_jni.h",
+        "base/base_jni_headers/PiiElider_jni.h",
         "base/base_jni_headers/PostTask_jni.h",
         "base/base_jni_headers/PowerMonitor_jni.h",
         "base/base_jni_headers/RadioUtils_jni.h",
@@ -4295,6 +4301,7 @@ java_library {
         "-Aorg.chromium.chrome.skipGenJni",
         "-Apackage_prefix=android.net.http.internal",
     ],
+    min_sdk_version: "30",
 }
 
 // GN: //base/android/jni_generator:jni_processor
