@@ -22,8 +22,7 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
- * Base class of {@link CronetUrlRequestContext} and {@link JavaCronetEngine} that contains
- * shared logic.
+ * Base class of {@link CronetUrlRequestContext}.
  */
 public abstract class CronetEngineBase extends ExperimentalCronetEngine {
     /*

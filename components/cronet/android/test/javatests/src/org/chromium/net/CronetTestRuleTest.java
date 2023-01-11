@@ -22,11 +22,9 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
-import org.chromium.net.CronetTestRule.OnlyRunJavaCronet;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestRule.RequiresMinApi;
 import org.chromium.net.impl.CronetUrlRequestContext;
-import org.chromium.net.impl.JavaCronetEngine;
 
 /**
  * Tests features of CronetTestRule.
@@ -74,20 +72,7 @@ public class CronetTestRuleTest {
         mTestWasRun = true;
     }
 
-    @Test
-    @SmallTest
-    @Feature({"Cronet"})
-    public void testRunBothImplsMustRun() {
-        if (mTestRule.testingJavaImpl()) {
-            assertFalse(mTestWasRun);
-            mTestWasRun = true;
-            assertEquals(mTestFramework.mCronetEngine.getClass(), JavaCronetEngine.class);
-        } else {
-            assertFalse(mTestWasRun);
-            mTestWasRun = true;
-            assertEquals(mTestFramework.mCronetEngine.getClass(), CronetUrlRequestContext.class);
-        }
-    }
+}
 
     @Test
     @SmallTest
@@ -100,14 +85,4 @@ public class CronetTestRuleTest {
         assertEquals(mTestFramework.mCronetEngine.getClass(), CronetUrlRequestContext.class);
     }
 
-    @Test
-    @SmallTest
-    @Feature({"Cronet"})
-    @OnlyRunJavaCronet
-    public void testRunOnlyJavaMustRun() {
-        assertTrue(mTestRule.testingJavaImpl());
-        assertFalse(mTestWasRun);
-        mTestWasRun = true;
-        assertEquals(mTestFramework.mCronetEngine.getClass(), JavaCronetEngine.class);
-    }
 }

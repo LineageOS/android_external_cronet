@@ -16,7 +16,7 @@ import java.util.concurrent.Executor;
 
 /**
  * Base class for classes that implement {@link UrlRequest} including experimental
- * features. {@link CronetUrlRequest} and {@link JavaUrlRequest} extends this class.
+ * features.
  */
 public abstract class UrlRequestBase extends ExperimentalUrlRequest {
     /**
