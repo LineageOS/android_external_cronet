@@ -524,12 +524,15 @@ def ExtractJNINamespace(contents):
   return m[0]
 
 
-def ExtractFullyQualifiedJavaClassName(java_file_name, contents):
+def ExtractFullyQualifiedJavaClassName(java_file_name, contents, package_prefix):
   re_package = re.compile('.*?package (.*?);')
   matches = re.findall(re_package, contents)
   if not matches:
     raise SyntaxError('Unable to find "package" line in %s' % java_file_name)
-  class_path = matches[0].replace('.', '/')
+  class_path = matches[0]
+  if package_prefix:
+      class_path = "%s.%s" % (package_prefix, class_path)
+  class_path = class_path.replace('.', '/')
   class_name = os.path.splitext(os.path.basename(java_file_name))[0]
   return class_path + '/' + class_name
 
@@ -878,12 +881,15 @@ class ProxyHelpers(object):
     return 'N' if use_hash else 'GEN_JNI'
 
   @staticmethod
-  def GetPackage(use_hash):
-    return 'J' if use_hash else 'org/chromium/base/natives'
+  def GetPackage(use_hash, package_prefix):
+    original_package = 'J' if use_hash else 'org/chromium/base/natives'
+    if package_prefix:
+        original_package = '%s/%s' % (package_prefix.replace(".", "/"), original_package)
+    return original_package
 
   @staticmethod
-  def GetQualifiedClass(use_hash):
-    return '%s/%s' % (ProxyHelpers.GetPackage(use_hash),
+  def GetQualifiedClass(use_hash, package_prefix):
+    return '%s/%s' % (ProxyHelpers.GetPackage(use_hash, package_prefix),
                       ProxyHelpers.GetClass(use_hash))
 
   @staticmethod
@@ -995,7 +1001,7 @@ class JNIFromJavaSource(object):
     with open(java_file_name) as f:
       contents = f.read()
     fully_qualified_class = ExtractFullyQualifiedJavaClassName(
-        java_file_name, contents)
+        java_file_name, contents, options.package_prefix)
     return JNIFromJavaSource(contents, fully_qualified_class, options)
 
 
@@ -1014,7 +1020,7 @@ class HeaderFileGeneratorHelper(object):
     self.split_name = split_name
     self.enable_jni_multiplexing = enable_jni_multiplexing
 
-  def GetStubName(self, native):
+  def GetStubName(self, native, package_prefix):
     """Return the name of the stub function for this native method.
 
     Args:
@@ -1031,7 +1037,7 @@ class HeaderFileGeneratorHelper(object):
       return 'Java_%s_%s' % (EscapeClassName(
           ProxyHelpers.GetQualifiedClass(
               self.use_proxy_hash
-              or self.enable_jni_multiplexing)), method_name)
+              or self.enable_jni_multiplexing, package_prefix=package_prefix)), method_name)
 
     template = Template('Java_${JAVA_NAME}_native${NAME}')
 
@@ -1048,7 +1054,7 @@ class HeaderFileGeneratorHelper(object):
       if isinstance(entry, NativeMethod) and entry.is_proxy:
         use_hash = self.use_proxy_hash or self.enable_jni_multiplexing
         ret[ProxyHelpers.GetClass(use_hash)] \
-          = ProxyHelpers.GetQualifiedClass(use_hash)
+          = ProxyHelpers.GetQualifiedClass(use_hash, package_prefix=None)
         continue
       ret[self.class_name] = self.fully_qualified_class
 
@@ -1082,7 +1088,7 @@ const char kClassPath_${JAVA_CLASS}[] = \
       # Since all proxy methods use the same class, defining this in every
       # header file would result in duplicated extern initializations.
       if full_clazz != ProxyHelpers.GetQualifiedClass(
-          self.use_proxy_hash or self.enable_jni_multiplexing):
+          self.use_proxy_hash or self.enable_jni_multiplexing, package_prefix=None):
         ret += [template.substitute(values)]
 
     class_getter = """\
@@ -1114,7 +1120,7 @@ JNI_REGISTRATION_EXPORT std::atomic<jclass> g_${JAVA_CLASS}_clazz(nullptr);
       # Since all proxy methods use the same class, defining this in every
       # header file would result in duplicated extern initializations.
       if full_clazz != ProxyHelpers.GetQualifiedClass(
-          self.use_proxy_hash or self.enable_jni_multiplexing):
+          self.use_proxy_hash or self.enable_jni_multiplexing, package_prefix=None):
         ret += [template.substitute(values)]
 
     return ''.join(ret)
@@ -1126,6 +1132,7 @@ class InlHeaderFileGenerator(object):
   def __init__(self, namespace, fully_qualified_class, natives,
                called_by_natives, constant_fields, jni_params, options):
     self.namespace = namespace
+    self.package_prefix = options.package_prefix
     self.fully_qualified_class = fully_qualified_class
     self.class_name = self.fully_qualified_class.split('/')[-1]
     self.natives = natives
@@ -1311,7 +1318,7 @@ $METHOD_STUBS
         'PARAMS_IN_STUB': GetParamsInStub(native),
         'PARAMS_IN_CALL': params_in_call,
         'POST_CALL': post_call,
-        'STUB_NAME': self.helper.GetStubName(native),
+        'STUB_NAME': self.helper.GetStubName(native, package_prefix=self.package_prefix),
         'PROFILING_ENTERED_NATIVE': profiling_entered_native,
         'TRACE_EVENT': '',
     }
@@ -1654,6 +1661,10 @@ See SampleForTests.java for more details.
   parser.add_argument(
       '--split_name',
       help='Split name that the Java classes should be loaded from.')
+  parser.add_argument(
+      '--package_prefix',
+      help='Adds a prefix to every package with JNI. '
+           'This is important if you are jarjaring the code')
   # TODO(agrieve): --stamp used only to make incremental builds work.
   #     Remove --stamp at some point after 2022.
   parser.add_argument('--stamp',
