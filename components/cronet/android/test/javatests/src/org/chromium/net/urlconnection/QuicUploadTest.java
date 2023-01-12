@@ -19,11 +19,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Feature;
-import org.chromium.net.CronetEngine;
+import android.net.http.CronetEngine;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestUtil;
-import org.chromium.net.ExperimentalCronetEngine;
+import android.net.http.ExperimentalCronetEngine;
 import org.chromium.net.QuicTestServer;
 
 import java.io.OutputStream;

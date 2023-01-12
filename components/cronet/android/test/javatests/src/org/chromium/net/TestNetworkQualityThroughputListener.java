@@ -6,6 +6,7 @@ package org.chromium.net;
 
 import static junit.framework.Assert.assertEquals;
 
+import android.net.http.NetworkQualityThroughputListener;
 import android.os.ConditionVariable;
 
 import java.util.concurrent.Executor;

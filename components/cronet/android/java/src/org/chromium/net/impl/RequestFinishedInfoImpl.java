@@ -7,9 +7,9 @@ package org.chromium.net.impl;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 
-import org.chromium.net.CronetException;
-import org.chromium.net.RequestFinishedInfo;
-import org.chromium.net.UrlResponseInfo;
+import android.net.http.CronetException;
+import android.net.http.RequestFinishedInfo;
+import android.net.http.UrlResponseInfo;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;

@@ -31,36 +31,36 @@ filegroup {
     name: "cronet_aml_api_sources",
     srcs: [
         ":cronet_aml_components_cronet_android_interface_api_version",
-        "components/cronet/android/api/src/org/chromium/net/BidirectionalStream.java",
-        "components/cronet/android/api/src/org/chromium/net/CallbackException.java",
-        "components/cronet/android/api/src/org/chromium/net/CronetEngine.java",
-        "components/cronet/android/api/src/org/chromium/net/CronetException.java",
-        "components/cronet/android/api/src/org/chromium/net/ExperimentalBidirectionalStream.java",
-        "components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java",
-        "components/cronet/android/api/src/org/chromium/net/ExperimentalUrlRequest.java",
-        "components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java",
-        "components/cronet/android/api/src/org/chromium/net/InlineExecutionProhibitedException.java",
-        "components/cronet/android/api/src/org/chromium/net/NetworkException.java",
-        "components/cronet/android/api/src/org/chromium/net/NetworkQualityRttListener.java",
-        "components/cronet/android/api/src/org/chromium/net/NetworkQualityThroughputListener.java",
-        "components/cronet/android/api/src/org/chromium/net/QuicException.java",
-        "components/cronet/android/api/src/org/chromium/net/RequestFinishedInfo.java",
-        "components/cronet/android/api/src/org/chromium/net/UploadDataProvider.java",
-        "components/cronet/android/api/src/org/chromium/net/UploadDataSink.java",
-        "components/cronet/android/api/src/org/chromium/net/UrlRequest.java",
-        "components/cronet/android/api/src/org/chromium/net/UrlResponseInfo.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/ByteArrayCronetCallback.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/ContentTypeParametersParser.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/CronetRequestCompletionListener.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/CronetResponse.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/ImplicitFlowControlCallback.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/InMemoryTransformCronetCallback.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/JsonCronetCallback.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/RedirectHandler.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/RedirectHandlers.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/StringCronetCallback.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/UploadDataProviders.java",
-        "components/cronet/android/api/src/org/chromium/net/apihelpers/UrlRequestCallbacks.java",
+        "components/cronet/android/api/src/android/net/http/BidirectionalStream.java",
+        "components/cronet/android/api/src/android/net/http/CallbackException.java",
+        "components/cronet/android/api/src/android/net/http/CronetEngine.java",
+        "components/cronet/android/api/src/android/net/http/CronetException.java",
+        "components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java",
+        "components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java",
+        "components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java",
+        "components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java",
+        "components/cronet/android/api/src/android/net/http/InlineExecutionProhibitedException.java",
+        "components/cronet/android/api/src/android/net/http/NetworkException.java",
+        "components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java",
+        "components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java",
+        "components/cronet/android/api/src/android/net/http/QuicException.java",
+        "components/cronet/android/api/src/android/net/http/RequestFinishedInfo.java",
+        "components/cronet/android/api/src/android/net/http/UploadDataProvider.java",
+        "components/cronet/android/api/src/android/net/http/UploadDataSink.java",
+        "components/cronet/android/api/src/android/net/http/UrlRequest.java",
+        "components/cronet/android/api/src/android/net/http/UrlResponseInfo.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/ByteArrayCronetCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/ContentTypeParametersParser.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/CronetRequestCompletionListener.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/CronetResponse.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/ImplicitFlowControlCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/InMemoryTransformCronetCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/JsonCronetCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandler.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandlers.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/StringCronetCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/UploadDataProviders.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/UrlRequestCallbacks.java",
     ],
 }
 
@@ -381,7 +381,9 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runtime.class " +
          "--javap " +
-         "$$(find out/.path -name javap)",
+         "$$(find out/.path -name javap) " +
+         "--package_prefix " +
+         "android.net.http.internal",
     out: [
         "base/android_runtime_jni_headers/Runnable_jni.h",
         "base/android_runtime_jni_headers/Runtime_jni.h",
@@ -1273,7 +1275,9 @@ cc_genrule {
          "--input_file " +
          "$(location base/android/java/src/org/chromium/base/task/PostTask.java) " +
          "--input_file " +
-         "$(location base/android/java/src/org/chromium/base/task/TaskRunnerImpl.java)",
+         "$(location base/android/java/src/org/chromium/base/task/TaskRunnerImpl.java) " +
+         "--package_prefix " +
+         "android.net.http.internal",
     out: [
         "base/base_jni_headers/ApkAssets_jni.h",
         "base/base_jni_headers/ApplicationStatus_jni.h",
@@ -2504,7 +2508,9 @@ cc_genrule {
          "--input_file " +
          "$(location components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java) " +
          "--input_file " +
-         "$(location components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java)",
+         "$(location components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java) " +
+         "--package_prefix " +
+         "android.net.http.internal",
     out: [
         "components/cronet/android/cronet_jni_headers/CronetBidirectionalStream_jni.h",
         "components/cronet/android/cronet_jni_headers/CronetLibraryLoader_jni.h",
@@ -2649,19 +2655,6 @@ cc_genrule {
         "base/android/java/src/org/chromium/base/metrics/TimingMetric.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorder.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorderHolder.java",
-        "base/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
-        "base/android/java/src/org/chromium/base/process_launcher/BindService.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildConnectionAllocator.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessConnection.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessConstants.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessLauncher.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessService.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessServiceDelegate.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnection.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionDelegate.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionFactory.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionImpl.java",
-        "base/android/java/src/org/chromium/base/process_launcher/FileDescriptorInfo.java",
         "base/android/java/src/org/chromium/base/supplier/BooleanSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/DestroyableObservableSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/ObservableSupplier.java",
@@ -2771,6 +2764,8 @@ cc_genrule {
          "--header-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.h " +
          "--manual_jni_registration " +
+         "--package_prefix " +
+         "android.net.http.internal " +
          ";sed -i -e 's/OUT_SOONG_.TEMP_SBOX_.*_OUT/GEN/g'  " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.h",
     out: [
@@ -2914,19 +2909,6 @@ java_genrule {
         "base/android/java/src/org/chromium/base/metrics/TimingMetric.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorder.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorderHolder.java",
-        "base/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
-        "base/android/java/src/org/chromium/base/process_launcher/BindService.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildConnectionAllocator.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessConnection.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessConstants.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessLauncher.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessService.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessServiceDelegate.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnection.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionDelegate.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionFactory.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionImpl.java",
-        "base/android/java/src/org/chromium/base/process_launcher/FileDescriptorInfo.java",
         "base/android/java/src/org/chromium/base/supplier/BooleanSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/DestroyableObservableSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/ObservableSupplier.java",
@@ -3036,8 +3018,10 @@ java_genrule {
          "--header-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.h " +
          "--manual_jni_registration " +
+         "--package_prefix " +
+         "android.net.http.internal " +
          ";sed -i -e 's/OUT_SOONG_.TEMP_SBOX_.*_OUT/GEN/g'  " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.h",
+         "$(genDir)/components/cronet/android/cronet_jni_registration.h ",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
     ],
@@ -3247,7 +3231,7 @@ java_genrule {
          "'API_LEVEL=19' " +
          "-o " +
          "$(out) " +
-         "$(location components/cronet/android/api/src/org/chromium/net/ApiVersion.template)",
+         "$(location components/cronet/android/api/src/android/net/http/ApiVersion.template)",
     out: [
         "components/cronet/android/templates/org/chromium/net/ApiVersion.java",
     ],
@@ -3256,7 +3240,7 @@ java_genrule {
         "build/util/android_chrome_version.py",
         "build/util/version.py",
         "chrome/VERSION",
-        "components/cronet/android/api/src/org/chromium/net/ApiVersion.template",
+        "components/cronet/android/api/src/android/net/http/ApiVersion.template",
     ],
 }
 
@@ -3774,7 +3758,9 @@ cc_genrule {
          "--output_name " +
          "PrefService_jni.h " +
          "--input_file " +
-         "$(location components/prefs/android/java/src/org/chromium/components/prefs/PrefService.java)",
+         "$(location components/prefs/android/java/src/org/chromium/components/prefs/PrefService.java) " +
+         "--package_prefix " +
+         "android.net.http.internal",
     out: [
         "components/prefs/android/jni_headers/PrefService_jni.h",
     ],
@@ -4183,21 +4169,6 @@ java_library {
         "base/android/java/src/org/chromium/base/metrics/TimingMetric.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorder.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorderHolder.java",
-        "base/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
-        "base/android/java/src/org/chromium/base/process_launcher/BindService.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildConnectionAllocator.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessConnection.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessConstants.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessLauncher.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessService.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildProcessServiceDelegate.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnection.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionDelegate.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionFactory.java",
-        "base/android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionImpl.java",
-        "base/android/java/src/org/chromium/base/process_launcher/FileDescriptorInfo.java",
-        "base/android/java/src/org/chromium/base/process_launcher/IChildProcessService.aidl",
-        "base/android/java/src/org/chromium/base/process_launcher/IParentProcess.aidl",
         "base/android/java/src/org/chromium/base/supplier/BooleanSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/DestroyableObservableSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/ObservableSupplier.java",
@@ -4298,11 +4269,8 @@ java_library {
         "com.android.tethering",
     ],
     libs: [
-        "android-support-multidex",
         "androidx.annotation_annotation",
         "androidx.annotation_annotation-experimental-nodeps",
-        "androidx.collection_collection",
-        "androidx.core_core-nodeps",
         "cronet_aml_api_java",
         "framework-connectivity-t.stubs.module_lib",
         "framework-connectivity.stubs.module_lib",
@@ -4325,6 +4293,7 @@ java_library {
     sdk_version: "module_current",
     javacflags: [
         "-Aorg.chromium.chrome.skipGenJni",
+        "-Apackage_prefix=android.net.http.internal",
     ],
 }
 
@@ -5730,7 +5699,9 @@ cc_genrule {
          "--input_file " +
          "$(location net/android/java/src/org/chromium/net/ProxyChangeListener.java) " +
          "--input_file " +
-         "$(location net/android/java/src/org/chromium/net/X509Util.java)",
+         "$(location net/android/java/src/org/chromium/net/X509Util.java) " +
+         "--package_prefix " +
+         "android.net.http.internal",
     out: [
         "net/net_jni_headers/AndroidCertVerifyResult_jni.h",
         "net/net_jni_headers/AndroidKeyStore_jni.h",
@@ -10732,7 +10703,9 @@ cc_genrule {
          "--input_file " +
          "$(location url/android/java/src/org/chromium/url/IDNStringUtil.java) " +
          "--input_file " +
-         "$(location url/android/java/src/org/chromium/url/Origin.java)",
+         "$(location url/android/java/src/org/chromium/url/Origin.java) " +
+         "--package_prefix " +
+         "android.net.http.internal",
     out: [
         "url/url_jni_headers/IDNStringUtil_jni.h",
         "url/url_jni_headers/Origin_jni.h",

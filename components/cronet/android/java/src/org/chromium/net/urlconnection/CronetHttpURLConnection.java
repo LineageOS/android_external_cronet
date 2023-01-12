@@ -9,11 +9,11 @@ import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
 
-import org.chromium.net.CronetEngine;
-import org.chromium.net.CronetException;
-import org.chromium.net.ExperimentalUrlRequest;
-import org.chromium.net.UrlRequest;
-import org.chromium.net.UrlResponseInfo;
+import android.net.http.CronetEngine;
+import android.net.http.CronetException;
+import android.net.http.ExperimentalUrlRequest;
+import android.net.http.UrlRequest;
+import android.net.http.UrlResponseInfo;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

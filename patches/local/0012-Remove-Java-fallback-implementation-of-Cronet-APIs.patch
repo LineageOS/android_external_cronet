@@ -7,7 +7,6 @@ Test: m
 
 Change-Id: Ie119db4827f3e4029b244a6e7b3337f8b38d7b07
 ---
- Android.bp                                    |    6 -
  components/cronet/android/BUILD.gn            |   56 +-
  .../org/chromium/net/test/FakeUrlRequest.java |    5 -
  .../net/test/FakeCronetControllerTest.java    |    1 -
@@ -31,37 +30,6 @@ Change-Id: Ie119db4827f3e4029b244a6e7b3337f8b38d7b07
  delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequest.java
  delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequestUtils.java
 
-diff --git a/Android.bp b/Android.bp
-index bc863db393cdc..a07c4a1b6e044 100644
---- a/Android.bp
-+++ b/Android.bp
-@@ -2713,8 +2713,6 @@ cc_genrule {
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
--        "components/cronet/android/java/src/org/chromium/net/impl/JavaUploadDataSinkBase.java",
--        "components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequestUtils.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
-@@ -2980,8 +2978,6 @@ java_genrule {
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
--        "components/cronet/android/java/src/org/chromium/net/impl/JavaUploadDataSinkBase.java",
--        "components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequestUtils.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
-@@ -4353,8 +4349,6 @@ java_library {
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
--        "components/cronet/android/java/src/org/chromium/net/impl/JavaUploadDataSinkBase.java",
--        "components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequestUtils.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
-         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
 diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
 index 242e33c4a5c40..8bfa7a32e0875 100644
 --- a/components/cronet/android/BUILD.gn

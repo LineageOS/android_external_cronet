@@ -1,0 +1,43 @@
+From 38b5332cf274b766ba0e84f7efbd3c3272086783 Mon Sep 17 00:00:00 2001
+From: Stefano Duo <stefanoduo@google.com>
+Date: Wed, 11 Jan 2023 08:39:21 +0000
+Subject: [PATCH] BundleUtils: use ArrayMap from OS instead of AndroidX
+
+Bug: 1404728
+Ignore-Freeze: true
+Cq-Include-Trybots: luci.chromium.try:android-cronet-arm64-rel,android-cronet-asan-arm-rel,android-cronet-arm64-dbg,android-cronet-arm-dbg,android-cronet-x86-dbg-10-tests,android-cronet-x86-dbg,android-cronet-x86-dbg-oreo-tests,android-cronet-x86-dbg-11-tests,android-cronet-x86-dbg-pie-tests,android-cronet-x86-rel-kitkat-tests,android-cronet-x86-rel,ios-simulator-cronet,ios-m1-simulator-cronet,android_cronet
+Change-Id: Id0048d3d4b967f37aa051820455c217116ad9c6c
+---
+ base/android/java/src/org/chromium/base/BundleUtils.java | 6 ++----
+ 1 file changed, 2 insertions(+), 4 deletions(-)
+
+diff --git a/base/android/java/src/org/chromium/base/BundleUtils.java b/base/android/java/src/org/chromium/base/BundleUtils.java
+index f0a71fa61a133..280de2817c332 100644
+--- a/base/android/java/src/org/chromium/base/BundleUtils.java
++++ b/base/android/java/src/org/chromium/base/BundleUtils.java
+@@ -12,11 +12,10 @@ import android.content.pm.ApplicationInfo;
+ import android.content.pm.PackageManager;
+ import android.os.Build;
+ import android.os.Bundle;
++import android.util.ArrayMap;
+ import android.view.LayoutInflater;
+ 
+ import androidx.annotation.Nullable;
+-import androidx.collection.ArrayMap;
+-import androidx.collection.SimpleArrayMap;
+ 
+ import dalvik.system.BaseDexClassLoader;
+ import dalvik.system.PathClassLoader;
+@@ -57,8 +56,7 @@ public class BundleUtils {
+ 
+     // This cache is needed to support the workaround for b/172602571, see
+     // createIsolatedSplitContext() for more info.
+-    private static final SimpleArrayMap<String, ClassLoader> sCachedClassLoaders =
+-            new SimpleArrayMap<>();
++    private static final ArrayMap<String, ClassLoader> sCachedClassLoaders = new ArrayMap<>();
+ 
+     private static final Map<String, ClassLoader> sInflationClassLoaders =
+             Collections.synchronizedMap(new ArrayMap<>());
+-- 
+2.39.0.314.g84b9a713c41-goog
+
