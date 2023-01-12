@@ -18,7 +18,7 @@ import java.io.File;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.net.IDN;
-import java.util.Date;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -59,13 +59,13 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
         // Should pin apply to subdomains?
         final boolean mIncludeSubdomains;
         // When the pin expires.
-        final Date mExpirationDate;
+        final Instant mExpirationInsant;
 
-        Pkp(String host, byte[][] hashes, boolean includeSubdomains, Date expirationDate) {
+        Pkp(String host, byte[][] hashes, boolean includeSubdomains, Instant expirationInstant) {
             mHost = host;
             mHashes = hashes;
             mIncludeSubdomains = includeSubdomains;
-            mExpirationDate = expirationDate;
+            mExpirationInsant = expirationInstant;
         }
     }
 
@@ -295,14 +295,14 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
 
     @Override
     public CronetEngineBuilderImpl addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
-            boolean includeSubdomains, Date expirationDate) {
+            boolean includeSubdomains, Instant expirationInstant) {
         if (hostName == null) {
             throw new NullPointerException("The hostname cannot be null");
         }
         if (pinsSha256 == null) {
             throw new NullPointerException("The set of SHA256 pins cannot be null");
         }
-        if (expirationDate == null) {
+        if (expirationInstant == null) {
             throw new NullPointerException("The pin expiration date cannot be null");
         }
         String idnHostName = validateHostNameForPinningAndConvert(hostName);
@@ -316,7 +316,7 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
         }
         // Add new element to PKP list.
         mPkps.add(new Pkp(idnHostName, hashes.values().toArray(new byte[hashes.size()][]),
-                includeSubdomains, expirationDate));
+                includeSubdomains, expirationInstant));
         return this;
     }
 

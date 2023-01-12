@@ -15,8 +15,8 @@ import java.io.IOException;
 import java.net.Proxy;
 import java.net.URL;
 import java.net.URLConnection;
+import java.time.Instant;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
@@ -269,24 +269,24 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
                     quicOptions.put("disable_tls_zero_rtt", !options.getEnableTlsZeroRtt());
                 }
 
-                if (options.getPreCryptoHandshakeIdleTimeoutSeconds() != null) {
+                if (options.getPreCryptoHandshakeIdleTimeout() != null) {
                     quicOptions.put("max_idle_time_before_crypto_handshake_seconds",
-                            options.getPreCryptoHandshakeIdleTimeoutSeconds());
+                            options.getPreCryptoHandshakeIdleTimeout().toSeconds());
                 }
 
-                if (options.getCryptoHandshakeTimeoutSeconds() != null) {
+                if (options.getCryptoHandshakeTimeout() != null) {
                     quicOptions.put("max_time_before_crypto_handshake_seconds",
-                            options.getCryptoHandshakeTimeoutSeconds());
+                            options.getCryptoHandshakeTimeout().toSeconds());
                 }
 
-                if (options.getIdleConnectionTimeoutSeconds() != null) {
+                if (options.getIdleConnectionTimeout() != null) {
                     quicOptions.put("idle_connection_timeout_seconds",
-                            options.getIdleConnectionTimeoutSeconds());
+                            options.getIdleConnectionTimeout().toSeconds());
                 }
 
-                if (options.getRetransmittableOnWireTimeoutMillis() != null) {
+                if (options.getRetransmittableOnWireTimeout() != null) {
                     quicOptions.put("retransmittable_on_wire_timeout_milliseconds",
-                            options.getRetransmittableOnWireTimeoutMillis());
+                            options.getRetransmittableOnWireTimeout().toMillis());
                 }
 
                 if (options.getCloseSessionsOnIpChange() != null) {
@@ -299,9 +299,9 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
                             "goaway_sessions_on_ip_change", options.getGoawaySessionsOnIpChange());
                 }
 
-                if (options.getInitialBrokenServicePeriodSeconds() != null) {
+                if (options.getInitialBrokenServicePeriod() != null) {
                     quicOptions.put("initial_delay_for_broken_alternative_service_seconds",
-                            options.getInitialBrokenServicePeriodSeconds());
+                            options.getInitialBrokenServicePeriod().toSeconds());
                 }
 
                 if (options.getIncreaseBrokenServicePeriodExponentially() != null) {
@@ -345,9 +345,9 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
                     staleDnsOptions.put("persist_to_disk", options.getPersistHostCache());
                 }
 
-                if (options.getPersistHostCachePeriodMillis() != null) {
+                if (options.getPersistHostCachePeriod() != null) {
                     staleDnsOptions.put(
-                            "persist_delay_ms", options.getPersistHostCachePeriodMillis());
+                            "persist_delay_ms", options.getPersistHostCachePeriod().toMillis());
                 }
 
                 if (options.getStaleDnsOptions() != null) {
@@ -407,17 +407,17 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
                 if (options.getMigrateIdleConnections() != null) {
                     quicOptions.put("migrate_idle_sessions", options.getMigrateIdleConnections());
                 }
-                if (options.getIdleMigrationPeriodSeconds() != null) {
+                if (options.getIdleMigrationPeriod() != null) {
                     quicOptions.put("idle_session_migration_period_seconds",
-                            options.getIdleMigrationPeriodSeconds());
+                            options.getIdleMigrationPeriod().toSeconds());
                 }
                 if (options.getRetryPreHandshakeErrorsOnNonDefaultNetwork() != null) {
                     quicOptions.put("retry_on_alternate_network_before_handshake",
                             options.getRetryPreHandshakeErrorsOnNonDefaultNetwork());
                 }
-                if (options.getMaxTimeOnNonDefaultNetworkSeconds() != null) {
+                if (options.getMaxTimeOnNonDefaultNetwork() != null) {
                     quicOptions.put("max_time_on_non_default_network_seconds",
-                            options.getMaxTimeOnNonDefaultNetworkSeconds());
+                            options.getMaxTimeOnNonDefaultNetwork().toSeconds());
                 }
                 if (options.getMaxPathDegradingNonDefaultMigrationsCount() != null) {
                     quicOptions.put("max_migrations_to_non_default_network_on_path_degrading",
@@ -477,8 +477,8 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
 
         @Override
         public Builder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
-                boolean includeSubdomains, Date expirationDate) {
-            super.addPublicKeyPins(hostName, pinsSha256, includeSubdomains, expirationDate);
+                boolean includeSubdomains, Instant expirationInstant) {
+            super.addPublicKeyPins(hostName, pinsSha256, includeSubdomains, expirationInstant);
             return this;
         }
 

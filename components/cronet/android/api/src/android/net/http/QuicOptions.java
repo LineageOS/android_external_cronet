@@ -6,6 +6,7 @@ package android.net.http;
 
 import androidx.annotation.Nullable;
 
+import java.time.Duration;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -14,7 +15,7 @@ import java.util.Set;
  * Configuration options for QUIC in Cronet.
  *
  * <p>The settings in this class are only relevant if QUIC is enabled. Use
- * {@link org.chromium.net.CronetEngine.Builder#enableQuic(boolean)} to enable / disable QUIC for
+ * {@link CronetEngine.Builder#enableQuic(boolean)} to enable / disable QUIC for
  * the Cronet engine.
  */
 public class QuicOptions {
@@ -33,14 +34,14 @@ public class QuicOptions {
     private final Boolean mEnableTlsZeroRtt;
 
     @Nullable
-    private final Long mPreCryptoHandshakeIdleTimeoutSeconds;
+    private final Duration mPreCryptoHandshakeIdleTimeout;
     @Nullable
-    private final Long mCryptoHandshakeTimeoutSeconds;
+    private final Duration mCryptoHandshakeTimeout;
 
     @Nullable
-    private final Long mIdleConnectionTimeoutSeconds;
+    private final Duration mIdleConnectionTimeout;
     @Nullable
-    private final Long mRetransmittableOnWireTimeoutMillis;
+    private final Duration mRetransmittableOnWireTimeout;
 
     @Nullable
     private final Boolean mCloseSessionsOnIpChange;
@@ -48,7 +49,7 @@ public class QuicOptions {
     private final Boolean mGoawaySessionsOnIpChange;
 
     @Nullable
-    private final Long mInitialBrokenServicePeriodSeconds;
+    private final Duration mInitialBrokenServicePeriod;
     @Nullable
     private final Boolean mIncreaseBrokenServicePeriodExponentially;
     @Nullable
@@ -69,13 +70,13 @@ public class QuicOptions {
         this.mHandshakeUserAgent = builder.mHandshakeUserAgent;
         this.mRetryWithoutAltSvcOnQuicErrors = builder.mRetryWithoutAltSvcOnQuicErrors;
         this.mEnableTlsZeroRtt = builder.mEnableTlsZeroRtt;
-        this.mPreCryptoHandshakeIdleTimeoutSeconds = builder.mPreCryptoHandshakeIdleTimeoutSeconds;
-        this.mCryptoHandshakeTimeoutSeconds = builder.mCryptoHandshakeTimeoutSeconds;
-        this.mIdleConnectionTimeoutSeconds = builder.mIdleConnectionTimeoutSeconds;
-        this.mRetransmittableOnWireTimeoutMillis = builder.mRetransmittableOnWireTimeoutMillis;
+        this.mPreCryptoHandshakeIdleTimeout = builder.mPreCryptoHandshakeIdleTimeout;
+        this.mCryptoHandshakeTimeout = builder.mCryptoHandshakeTimeout;
+        this.mIdleConnectionTimeout = builder.mIdleConnectionTimeout;
+        this.mRetransmittableOnWireTimeout = builder.mRetransmittableOnWireTimeout;
         this.mCloseSessionsOnIpChange = builder.mCloseSessionsOnIpChange;
         this.mGoawaySessionsOnIpChange = builder.mGoawaySessionsOnIpChange;
-        this.mInitialBrokenServicePeriodSeconds = builder.mInitialBrokenServicePeriodSeconds;
+        this.mInitialBrokenServicePeriod = builder.mInitialBrokenServicePeriod;
         this.mIncreaseBrokenServicePeriodExponentially =
                 builder.mIncreaseBrokenServicePeriodExponentially;
         this.mDelayJobsWithAvailableSpdySession = builder.mDelayJobsWithAvailableSpdySession;
@@ -159,47 +160,47 @@ public class QuicOptions {
     }
 
     /**
-     * See {@link Builder#setPreCryptoHandshakeIdleTimeoutSeconds}
+     * See {@link Builder#setPreCryptoHandshakeIdleTimeout}
      *
      * {@hide}
      */
     @Experimental
     @Nullable
-    public Long getPreCryptoHandshakeIdleTimeoutSeconds() {
-        return mPreCryptoHandshakeIdleTimeoutSeconds;
+    public Duration getPreCryptoHandshakeIdleTimeout() {
+        return mPreCryptoHandshakeIdleTimeout;
     }
 
     /**
-     * See {@link Builder#setCryptoHandshakeTimeoutSeconds}
+     * See {@link Builder#setCryptoHandshakeTimeout}
      *
      * {@hide}
      */
     @Experimental
     @Nullable
-    public Long getCryptoHandshakeTimeoutSeconds() {
-        return mCryptoHandshakeTimeoutSeconds;
+    public Duration getCryptoHandshakeTimeout() {
+        return mCryptoHandshakeTimeout;
     }
 
     /**
-     * See {@link Builder#setIdleConnectionTimeoutSeconds}
+     * See {@link Builder#setIdleConnectionTimeout}
      *
      * {@hide}
      */
     @Experimental
     @Nullable
-    public Long getIdleConnectionTimeoutSeconds() {
-        return mIdleConnectionTimeoutSeconds;
+    public Duration getIdleConnectionTimeout() {
+        return mIdleConnectionTimeout;
     }
 
     /**
-     * See {@link Builder#setRetransmittableOnWireTimeoutMillis}
+     * See {@link Builder#setRetransmittableOnWireTimeout}
      *
      * {@hide}
      */
     @Experimental
     @Nullable
-    public Long getRetransmittableOnWireTimeoutMillis() {
-        return mRetransmittableOnWireTimeoutMillis;
+    public Duration getRetransmittableOnWireTimeout() {
+        return mRetransmittableOnWireTimeout;
     }
 
     /**
@@ -231,8 +232,8 @@ public class QuicOptions {
      */
     @Experimental
     @Nullable
-    public Long getInitialBrokenServicePeriodSeconds() {
-        return mInitialBrokenServicePeriodSeconds;
+    public Duration getInitialBrokenServicePeriod() {
+        return mInitialBrokenServicePeriod;
     }
 
     /**
@@ -291,24 +292,23 @@ public class QuicOptions {
         @Nullable
         private Boolean mEnableTlsZeroRtt;
         @Nullable
-        private Long mPreCryptoHandshakeIdleTimeoutSeconds;
+        private Duration mPreCryptoHandshakeIdleTimeout;
         @Nullable
-        private Long mCryptoHandshakeTimeoutSeconds;
+        private Duration mCryptoHandshakeTimeout;
         @Nullable
-        private Long mIdleConnectionTimeoutSeconds;
+        private Duration mIdleConnectionTimeout;
         @Nullable
-        private Long mRetransmittableOnWireTimeoutMillis;
+        private Duration mRetransmittableOnWireTimeout;
         @Nullable
         private Boolean mCloseSessionsOnIpChange;
         @Nullable
         private Boolean mGoawaySessionsOnIpChange;
         @Nullable
-        private Long mInitialBrokenServicePeriodSeconds;
+        private Duration mInitialBrokenServicePeriod;
         @Nullable
         private Boolean mIncreaseBrokenServicePeriodExponentially;
         @Nullable
         private Boolean mDelayJobsWithAvailableSpdySession;
-        @Nullable
         private final Set<String> mExtraQuicheFlags = new LinkedHashSet<>();
 
         Builder() {}
@@ -453,9 +453,9 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder setPreCryptoHandshakeIdleTimeoutSeconds(
-                long preCryptoHandshakeIdleTimeoutSeconds) {
-            this.mPreCryptoHandshakeIdleTimeoutSeconds = preCryptoHandshakeIdleTimeoutSeconds;
+        public Builder setPreCryptoHandshakeIdleTimeout(
+                Duration preCryptoHandshakeIdleTimeout) {
+            this.mPreCryptoHandshakeIdleTimeout = preCryptoHandshakeIdleTimeout;
             return this;
         }
 
@@ -467,8 +467,8 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder setCryptoHandshakeTimeoutSeconds(long cryptoHandshakeTimeoutSeconds) {
-            this.mCryptoHandshakeTimeoutSeconds = cryptoHandshakeTimeoutSeconds;
+        public Builder setCryptoHandshakeTimeout(Duration cryptoHandshakeTimeoutSeconds) {
+            this.mCryptoHandshakeTimeout = cryptoHandshakeTimeoutSeconds;
             return this;
         }
 
@@ -482,8 +482,8 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder setIdleConnectionTimeoutSeconds(long idleConnectionTimeoutSeconds) {
-            this.mIdleConnectionTimeoutSeconds = idleConnectionTimeoutSeconds;
+        public Builder setIdleConnectionTimeout(Duration idleConnectionTimeoutSeconds) {
+            this.mIdleConnectionTimeout = idleConnectionTimeoutSeconds;
             return this;
         }
 
@@ -500,9 +500,9 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder setRetransmittableOnWireTimeoutMillis(
-                long retransmittableOnWireTimeoutMillis) {
-            this.mRetransmittableOnWireTimeoutMillis = retransmittableOnWireTimeoutMillis;
+        public Builder setRetransmittableOnWireTimeout(
+                Duration retransmittableOnWireTimeout) {
+            this.mRetransmittableOnWireTimeout = retransmittableOnWireTimeout;
             return this;
         }
 
@@ -558,8 +558,8 @@ public class QuicOptions {
          */
         @Experimental
         public Builder setInitialBrokenServicePeriodSeconds(
-                long initialBrokenServicePeriodSeconds) {
-            this.mInitialBrokenServicePeriodSeconds = initialBrokenServicePeriodSeconds;
+                Duration initialBrokenServicePeriod) {
+            this.mInitialBrokenServicePeriod = initialBrokenServicePeriod;
             return this;
         }
 

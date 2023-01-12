@@ -16,6 +16,7 @@ import android.net.http.UrlResponseInfo;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.concurrent.Executor;
 
 /**
@@ -210,8 +211,8 @@ public class VersionSafeCallbacks {
         }
 
         @Override
-        public void onRttObservation(int rttMs, long whenMs, int source) {
-            mWrappedListener.onRttObservation(rttMs, whenMs, source);
+        public void onRttObservation(int rttMs, Instant observationInstant, int source) {
+            mWrappedListener.onRttObservation(rttMs, observationInstant, source);
         }
 
         @Override
@@ -248,8 +249,8 @@ public class VersionSafeCallbacks {
         }
 
         @Override
-        public void onThroughputObservation(int throughputKbps, long whenMs, int source) {
-            mWrappedListener.onThroughputObservation(throughputKbps, whenMs, source);
+        public void onThroughputObservation(int throughputKbps, Instant observationInstant, int source) {
+            mWrappedListener.onThroughputObservation(throughputKbps, observationInstant, source);
         }
 
         @Override

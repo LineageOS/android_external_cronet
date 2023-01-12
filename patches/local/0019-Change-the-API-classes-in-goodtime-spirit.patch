@@ -1,0 +1,856 @@
+From 1de1494ffcb3c78bfad56ef2852a1b233f5fc5e2 Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Tue, 10 Jan 2023 12:43:34 +0000
+Subject: [PATCH] Change the API classes in goodtime spirit
+
+Test: m
+
+Change-Id: Iedf0c4f9f4f6813299478d1f86e2031b6d520f26
+---
+ .../net/http/ConnectionMigrationOptions.java  | 30 ++++---
+ .../src/android/net/http/CronetEngine.java    |  8 +-
+ .../api/src/android/net/http/DnsOptions.java  | 27 ++----
+ .../net/http/ExperimentalCronetEngine.java    | 38 ++++----
+ .../net/http/ICronetEngineBuilder.java        |  4 +-
+ .../net/http/NetworkQualityRttListener.java   |  5 +-
+ .../NetworkQualityThroughputListener.java     |  5 +-
+ .../api/src/android/net/http/QuicOptions.java | 86 +++++++++----------
+ .../net/impl/CronetEngineBuilderImpl.java     | 14 +--
+ .../net/impl/CronetUrlRequestContext.java     | 19 ++--
+ .../net/impl/VersionSafeCallbacks.java        |  9 +-
+ .../src/org/chromium/net/PkpTest.java         | 28 +++---
+ 12 files changed, 129 insertions(+), 144 deletions(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+index 6d0d69da..ede4cbce 100644
+--- a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
++++ b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+@@ -6,6 +6,8 @@ package android.net.http;
+ 
+ import androidx.annotation.Nullable;
+ 
++import java.time.Duration;
++
+ /**
+  * A class configuring Cronet's connection migration functionality.
+  *
+@@ -34,13 +36,13 @@ public class ConnectionMigrationOptions {
+     @Nullable
+     private final Boolean mMigrateIdleConnections;
+     @Nullable
+-    private final Long mIdleMigrationPeriodSeconds;
++    private final Duration mIdleMigrationPeriod;
+     @Nullable
+     private final Boolean mRetryPreHandshakeErrorsOnNonDefaultNetwork;
+     @Nullable
+     private final Boolean mAllowNonDefaultNetworkUsage;
+     @Nullable
+-    private final Long mMaxTimeOnNonDefaultNetworkSeconds;
++    private final Duration mMaxTimeOnNonDefaultNetwork;
+     @Nullable
+     private final Integer mMaxWriteErrorNonDefaultNetworkMigrationsCount;
+     @Nullable
+@@ -91,8 +93,8 @@ public class ConnectionMigrationOptions {
+      */
+     @Experimental
+     @Nullable
+-    public Long getIdleMigrationPeriodSeconds() {
+-        return mIdleMigrationPeriodSeconds;
++    public Duration getIdleMigrationPeriod() {
++        return mIdleMigrationPeriod;
+     }
+ 
+     /**
+@@ -124,8 +126,8 @@ public class ConnectionMigrationOptions {
+      */
+     @Experimental
+     @Nullable
+-    public Long getMaxTimeOnNonDefaultNetworkSeconds() {
+-        return mMaxTimeOnNonDefaultNetworkSeconds;
++    public Duration getMaxTimeOnNonDefaultNetwork() {
++        return mMaxTimeOnNonDefaultNetwork;
+     }
+ 
+     /**
+@@ -155,11 +157,11 @@ public class ConnectionMigrationOptions {
+         this.mEnablePathDegradationMigration = builder.mEnablePathDegradationMigration;
+         this.mAllowServerMigration = builder.mAllowServerMigration;
+         this.mMigrateIdleConnections = builder.mMigrateIdleConnections;
+-        this.mIdleMigrationPeriodSeconds = builder.mIdleConnectionMigrationPeriodSeconds;
++        this.mIdleMigrationPeriod = builder.mIdleConnectionMigrationPeriod;
+         this.mRetryPreHandshakeErrorsOnNonDefaultNetwork =
+                 builder.mRetryPreHandshakeErrorsOnAlternateNetwork;
+         this.mAllowNonDefaultNetworkUsage = builder.mAllowNonDefaultNetworkUsage;
+-        this.mMaxTimeOnNonDefaultNetworkSeconds = builder.mMaxTimeOnNonDefaultNetworkSeconds;
++        this.mMaxTimeOnNonDefaultNetwork = builder.mMaxTimeOnNonDefaultNetwork;
+         this.mMaxWriteErrorNonDefaultNetworkMigrationsCount = builder.mMaxWriteErrorNonDefaultNetworkMigrationsCount;
+         this.mMaxPathDegradingNonDefaultMigrationsCount = builder.mMaxPathDegradingNonDefaultMigrationsCount;
+     }
+@@ -177,13 +179,13 @@ public class ConnectionMigrationOptions {
+         @Nullable
+         private Boolean mMigrateIdleConnections;
+         @Nullable
+-        private Long mIdleConnectionMigrationPeriodSeconds;
++        private Duration mIdleConnectionMigrationPeriod;
+         @Nullable
+         private Boolean mRetryPreHandshakeErrorsOnAlternateNetwork;
+         @Nullable
+         private Boolean mAllowNonDefaultNetworkUsage;
+         @Nullable
+-        private Long mMaxTimeOnNonDefaultNetworkSeconds;
++        private Duration mMaxTimeOnNonDefaultNetwork;
+         @Nullable
+         private Integer mMaxWriteErrorNonDefaultNetworkMigrationsCount;
+         @Nullable
+@@ -267,8 +269,8 @@ public class ConnectionMigrationOptions {
+          */
+         @Experimental
+         public Builder setIdleMigrationPeriodSeconds(
+-                long idleConnectionMigrationPeriodSeconds) {
+-            this.mIdleConnectionMigrationPeriodSeconds = idleConnectionMigrationPeriodSeconds;
++                Duration idleConnectionMigrationPeriod) {
++            this.mIdleConnectionMigrationPeriod = idleConnectionMigrationPeriod;
+             return this;
+         }
+ 
+@@ -305,8 +307,8 @@ public class ConnectionMigrationOptions {
+          */
+         @Experimental
+         public Builder setMaxTimeOnNonDefaultNetworkSeconds(
+-                long maxTimeOnNonDefaultNetworkSeconds) {
+-            this.mMaxTimeOnNonDefaultNetworkSeconds = maxTimeOnNonDefaultNetworkSeconds;
++                Duration maxTimeOnNonDefaultNetwork) {
++            this.mMaxTimeOnNonDefaultNetwork = maxTimeOnNonDefaultNetwork;
+             return this;
+         }
+ 
+diff --git a/components/cronet/android/api/src/android/net/http/CronetEngine.java b/components/cronet/android/api/src/android/net/http/CronetEngine.java
+index e7e57401..0c3de7d4 100644
+--- a/components/cronet/android/api/src/android/net/http/CronetEngine.java
++++ b/components/cronet/android/api/src/android/net/http/CronetEngine.java
+@@ -11,7 +11,7 @@ import java.lang.reflect.InvocationTargetException;
+ import java.net.URL;
+ import java.net.URLConnection;
+ import java.net.URLStreamHandlerFactory;
+-import java.util.Date;
++import java.time.Instant;
+ import java.util.Set;
+ import java.util.concurrent.Executor;
+ 
+@@ -244,7 +244,7 @@ public abstract class CronetEngine {
+          *                   lost, it is highly recommended to supply one.
+          * @param includeSubdomains indicates whether the pinning policy should be applied to
+          *                          subdomains of {@code hostName}.
+-         * @param expirationDate specifies the expiration date for the pins.
++         * @param expirationInstant specifies the expiration instant for the pins.
+          * @return the builder to facilitate chaining.
+          * @throws NullPointerException if any of the input parameters are {@code null}.
+          * @throws IllegalArgumentException if the given host name is invalid or {@code pinsSha256}
+@@ -252,9 +252,9 @@ public abstract class CronetEngine {
+          *                                  SHA-256 hash.
+          */
+         public Builder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
+-                boolean includeSubdomains, Date expirationDate) {
++                boolean includeSubdomains, Instant expirationInstant) {
+             mBuilderDelegate.addPublicKeyPins(
+-                    hostName, pinsSha256, includeSubdomains, expirationDate);
++                    hostName, pinsSha256, includeSubdomains, expirationInstant);
+             return this;
+         }
+ 
+diff --git a/components/cronet/android/api/src/android/net/http/DnsOptions.java b/components/cronet/android/api/src/android/net/http/DnsOptions.java
+index e8237ea9..1971c58d 100644
+--- a/components/cronet/android/api/src/android/net/http/DnsOptions.java
++++ b/components/cronet/android/api/src/android/net/http/DnsOptions.java
+@@ -45,7 +45,7 @@ public final class DnsOptions {
+     @Nullable
+     private final Boolean mEnableStaleDns;
+     @Nullable
+-    private final Long mPersistHostCachePeriodMillis;
++    private final Duration mPersistHostCachePeriod;
+ 
+     @Nullable
+     private final Boolean mPreestablishConnectionsToStaleDnsResults;
+@@ -55,7 +55,7 @@ public final class DnsOptions {
+     DnsOptions(Builder builder) {
+         this.mEnableStaleDns = builder.mEnableStaleDns;
+         this.mStaleDnsOptions = builder.mStaleDnsOptions;
+-        this.mPersistHostCachePeriodMillis = builder.mPersistHostCachePeriodMillis;
++        this.mPersistHostCachePeriod = builder.mPersistHostCachePeriod;
+         this.mPreestablishConnectionsToStaleDnsResults =
+                 builder.mPreestablishConnectionsToStaleDnsResults;
+         this.mUseBuiltInDnsResolver = builder.mUseBuiltInDnsResolver;
+@@ -90,11 +90,11 @@ public final class DnsOptions {
+     }
+ 
+     /**
+-     * See {@link Builder#setPersistHostCachePeriodMillis}
++     * See {@link Builder#setPersistHostCachePeriod}
+      */
+     @Nullable
+-    public Long getPersistHostCachePeriodMillis() {
+-        return mPersistHostCachePeriodMillis;
++    public Duration getPersistHostCachePeriod() {
++        return mPersistHostCachePeriod;
+     }
+ 
+     /**
+@@ -295,7 +295,7 @@ public final class DnsOptions {
+         @Nullable
+         private Boolean mPersistHostCache;
+         @Nullable
+-        private Long mPersistHostCachePeriodMillis;
++        private Duration mPersistHostCachePeriod;
+         @Nullable
+         private Boolean mPreestablishConnectionsToStaleDnsResults;
+ 
+@@ -387,22 +387,11 @@ public final class DnsOptions {
+          *
+          * @return the builder for chaining
+          */
+-        public Builder setPersistHostCachePeriodMillis(long persistHostCachePeriodMillis) {
+-            this.mPersistHostCachePeriodMillis = persistHostCachePeriodMillis;
++        public Builder setPersistHostCachePeriod(Duration persistHostCachePeriod) {
++            this.mPersistHostCachePeriod = persistHostCachePeriod;
+             return this;
+         }
+ 
+-        /**
+-         * Same as {@link #setPersistHostCachePeriodMillis(long)} but using {@link
+-         * java.time.Duration}.
+-         *
+-         * @return the builder for chaining
+-         */
+-        @RequiresApi(api = VERSION_CODES.O)
+-        public Builder setPersistDelay(Duration persistToDiskPeriod) {
+-            return setPersistHostCachePeriodMillis(persistToDiskPeriod.toMillis());
+-        }
+-
+         /**
+          * Creates and returns the final {@link DnsOptions} instance, based on the values in this
+          * builder.
+diff --git a/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java b/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java
+index 5f93c0b6..87faa43e 100644
+--- a/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java
++++ b/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java
+@@ -15,8 +15,8 @@ import java.io.IOException;
+ import java.net.Proxy;
+ import java.net.URL;
+ import java.net.URLConnection;
++import java.time.Instant;
+ import java.util.ArrayList;
+-import java.util.Date;
+ import java.util.List;
+ import java.util.Set;
+ import java.util.concurrent.Executor;
+@@ -269,24 +269,24 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
+                     quicOptions.put("disable_tls_zero_rtt", !options.getEnableTlsZeroRtt());
+                 }
+ 
+-                if (options.getPreCryptoHandshakeIdleTimeoutSeconds() != null) {
++                if (options.getPreCryptoHandshakeIdleTimeout() != null) {
+                     quicOptions.put("max_idle_time_before_crypto_handshake_seconds",
+-                            options.getPreCryptoHandshakeIdleTimeoutSeconds());
++                            options.getPreCryptoHandshakeIdleTimeout().toSeconds());
+                 }
+ 
+-                if (options.getCryptoHandshakeTimeoutSeconds() != null) {
++                if (options.getCryptoHandshakeTimeout() != null) {
+                     quicOptions.put("max_time_before_crypto_handshake_seconds",
+-                            options.getCryptoHandshakeTimeoutSeconds());
++                            options.getCryptoHandshakeTimeout().toSeconds());
+                 }
+ 
+-                if (options.getIdleConnectionTimeoutSeconds() != null) {
++                if (options.getIdleConnectionTimeout() != null) {
+                     quicOptions.put("idle_connection_timeout_seconds",
+-                            options.getIdleConnectionTimeoutSeconds());
++                            options.getIdleConnectionTimeout().toSeconds());
+                 }
+ 
+-                if (options.getRetransmittableOnWireTimeoutMillis() != null) {
++                if (options.getRetransmittableOnWireTimeout() != null) {
+                     quicOptions.put("retransmittable_on_wire_timeout_milliseconds",
+-                            options.getRetransmittableOnWireTimeoutMillis());
++                            options.getRetransmittableOnWireTimeout().toMillis());
+                 }
+ 
+                 if (options.getCloseSessionsOnIpChange() != null) {
+@@ -299,9 +299,9 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
+                             "goaway_sessions_on_ip_change", options.getGoawaySessionsOnIpChange());
+                 }
+ 
+-                if (options.getInitialBrokenServicePeriodSeconds() != null) {
++                if (options.getInitialBrokenServicePeriod() != null) {
+                     quicOptions.put("initial_delay_for_broken_alternative_service_seconds",
+-                            options.getInitialBrokenServicePeriodSeconds());
++                            options.getInitialBrokenServicePeriod().toSeconds());
+                 }
+ 
+                 if (options.getIncreaseBrokenServicePeriodExponentially() != null) {
+@@ -345,9 +345,9 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
+                     staleDnsOptions.put("persist_to_disk", options.getPersistHostCache());
+                 }
+ 
+-                if (options.getPersistHostCachePeriodMillis() != null) {
++                if (options.getPersistHostCachePeriod() != null) {
+                     staleDnsOptions.put(
+-                            "persist_delay_ms", options.getPersistHostCachePeriodMillis());
++                            "persist_delay_ms", options.getPersistHostCachePeriod().toMillis());
+                 }
+ 
+                 if (options.getStaleDnsOptions() != null) {
+@@ -407,17 +407,17 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
+                 if (options.getMigrateIdleConnections() != null) {
+                     quicOptions.put("migrate_idle_sessions", options.getMigrateIdleConnections());
+                 }
+-                if (options.getIdleMigrationPeriodSeconds() != null) {
++                if (options.getIdleMigrationPeriod() != null) {
+                     quicOptions.put("idle_session_migration_period_seconds",
+-                            options.getIdleMigrationPeriodSeconds());
++                            options.getIdleMigrationPeriod().toSeconds());
+                 }
+                 if (options.getRetryPreHandshakeErrorsOnNonDefaultNetwork() != null) {
+                     quicOptions.put("retry_on_alternate_network_before_handshake",
+                             options.getRetryPreHandshakeErrorsOnNonDefaultNetwork());
+                 }
+-                if (options.getMaxTimeOnNonDefaultNetworkSeconds() != null) {
++                if (options.getMaxTimeOnNonDefaultNetwork() != null) {
+                     quicOptions.put("max_time_on_non_default_network_seconds",
+-                            options.getMaxTimeOnNonDefaultNetworkSeconds());
++                            options.getMaxTimeOnNonDefaultNetwork().toSeconds());
+                 }
+                 if (options.getMaxPathDegradingNonDefaultMigrationsCount() != null) {
+                     quicOptions.put("max_migrations_to_non_default_network_on_path_degrading",
+@@ -477,8 +477,8 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
+ 
+         @Override
+         public Builder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
+-                boolean includeSubdomains, Date expirationDate) {
+-            super.addPublicKeyPins(hostName, pinsSha256, includeSubdomains, expirationDate);
++                boolean includeSubdomains, Instant expirationInstant) {
++            super.addPublicKeyPins(hostName, pinsSha256, includeSubdomains, expirationInstant);
+             return this;
+         }
+ 
+diff --git a/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java b/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
+index b7bac57c..b9f78129 100644
+--- a/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
++++ b/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
+@@ -3,8 +3,8 @@
+ // found in the LICENSE file.
+ package android.net.http;
+ 
++import java.time.Instant;
+ import java.util.Collections;
+-import java.util.Date;
+ import java.util.Set;
+ 
+ /**
+@@ -30,7 +30,7 @@ public abstract class ICronetEngineBuilder {
+ 
+     // Public API methods.
+     public abstract ICronetEngineBuilder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
+-            boolean includeSubdomains, Date expirationDate);
++            boolean includeSubdomains, Instant expirationInstant);
+ 
+     public abstract ICronetEngineBuilder addQuicHint(String host, int port, int alternatePort);
+ 
+diff --git a/components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java b/components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java
+index d22220b3..61ed98f1 100644
+--- a/components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java
++++ b/components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java
+@@ -4,6 +4,7 @@
+ 
+ package android.net.http;
+ 
++import java.time.Instant;
+ import java.util.concurrent.Executor;
+ 
+ /**
+@@ -37,8 +38,8 @@ public abstract class NetworkQualityRttListener {
+     /**
+      * Reports a new round trip time observation.
+      * @param rttMs the round trip time in milliseconds.
+-     * @param whenMs milliseconds since the Epoch (January 1st 1970, 00:00:00.000).
++     * @param observationInstant when the observation was recorded
+      * @param source the observation source from {@link NetworkQualityObservationSource}.
+      */
+-    public abstract void onRttObservation(int rttMs, long whenMs, int source);
++    public abstract void onRttObservation(int rttMs, Instant observationInstant, int source);
+ }
+diff --git a/components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java b/components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java
+index d812b00b..35c6495b 100644
+--- a/components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java
++++ b/components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java
+@@ -4,6 +4,7 @@
+ 
+ package android.net.http;
+ 
++import java.time.Instant;
+ import java.util.concurrent.Executor;
+ 
+ /**
+@@ -35,8 +36,8 @@ public abstract class NetworkQualityThroughputListener {
+     /**
+      * Reports a new throughput observation.
+      * @param throughputKbps the downstream throughput in kilobits per second.
+-     * @param whenMs milliseconds since the Epoch (January 1st 1970, 00:00:00.000).
++     * @param observationInstant when the observation was recorded
+      * @param source the observation source from {@link NetworkQualityObservationSource}.
+      */
+-    public abstract void onThroughputObservation(int throughputKbps, long whenMs, int source);
++    public abstract void onThroughputObservation(int throughputKbps, Instant observationInstant, int source);
+ }
+diff --git a/components/cronet/android/api/src/android/net/http/QuicOptions.java b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+index ecf131e4..7e9b9f70 100644
+--- a/components/cronet/android/api/src/android/net/http/QuicOptions.java
++++ b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+@@ -6,6 +6,7 @@ package android.net.http;
+ 
+ import androidx.annotation.Nullable;
+ 
++import java.time.Duration;
+ import java.util.Collections;
+ import java.util.LinkedHashSet;
+ import java.util.Set;
+@@ -14,7 +15,7 @@ import java.util.Set;
+  * Configuration options for QUIC in Cronet.
+  *
+  * <p>The settings in this class are only relevant if QUIC is enabled. Use
+- * {@link org.chromium.net.CronetEngine.Builder#enableQuic(boolean)} to enable / disable QUIC for
++ * {@link CronetEngine.Builder#enableQuic(boolean)} to enable / disable QUIC for
+  * the Cronet engine.
+  */
+ public class QuicOptions {
+@@ -33,14 +34,14 @@ public class QuicOptions {
+     private final Boolean mEnableTlsZeroRtt;
+ 
+     @Nullable
+-    private final Long mPreCryptoHandshakeIdleTimeoutSeconds;
++    private final Duration mPreCryptoHandshakeIdleTimeout;
+     @Nullable
+-    private final Long mCryptoHandshakeTimeoutSeconds;
++    private final Duration mCryptoHandshakeTimeout;
+ 
+     @Nullable
+-    private final Long mIdleConnectionTimeoutSeconds;
++    private final Duration mIdleConnectionTimeout;
+     @Nullable
+-    private final Long mRetransmittableOnWireTimeoutMillis;
++    private final Duration mRetransmittableOnWireTimeout;
+ 
+     @Nullable
+     private final Boolean mCloseSessionsOnIpChange;
+@@ -48,7 +49,7 @@ public class QuicOptions {
+     private final Boolean mGoawaySessionsOnIpChange;
+ 
+     @Nullable
+-    private final Long mInitialBrokenServicePeriodSeconds;
++    private final Duration mInitialBrokenServicePeriod;
+     @Nullable
+     private final Boolean mIncreaseBrokenServicePeriodExponentially;
+     @Nullable
+@@ -69,13 +70,13 @@ public class QuicOptions {
+         this.mHandshakeUserAgent = builder.mHandshakeUserAgent;
+         this.mRetryWithoutAltSvcOnQuicErrors = builder.mRetryWithoutAltSvcOnQuicErrors;
+         this.mEnableTlsZeroRtt = builder.mEnableTlsZeroRtt;
+-        this.mPreCryptoHandshakeIdleTimeoutSeconds = builder.mPreCryptoHandshakeIdleTimeoutSeconds;
+-        this.mCryptoHandshakeTimeoutSeconds = builder.mCryptoHandshakeTimeoutSeconds;
+-        this.mIdleConnectionTimeoutSeconds = builder.mIdleConnectionTimeoutSeconds;
+-        this.mRetransmittableOnWireTimeoutMillis = builder.mRetransmittableOnWireTimeoutMillis;
++        this.mPreCryptoHandshakeIdleTimeout = builder.mPreCryptoHandshakeIdleTimeout;
++        this.mCryptoHandshakeTimeout = builder.mCryptoHandshakeTimeout;
++        this.mIdleConnectionTimeout = builder.mIdleConnectionTimeout;
++        this.mRetransmittableOnWireTimeout = builder.mRetransmittableOnWireTimeout;
+         this.mCloseSessionsOnIpChange = builder.mCloseSessionsOnIpChange;
+         this.mGoawaySessionsOnIpChange = builder.mGoawaySessionsOnIpChange;
+-        this.mInitialBrokenServicePeriodSeconds = builder.mInitialBrokenServicePeriodSeconds;
++        this.mInitialBrokenServicePeriod = builder.mInitialBrokenServicePeriod;
+         this.mIncreaseBrokenServicePeriodExponentially =
+                 builder.mIncreaseBrokenServicePeriodExponentially;
+         this.mDelayJobsWithAvailableSpdySession = builder.mDelayJobsWithAvailableSpdySession;
+@@ -159,47 +160,47 @@ public class QuicOptions {
+     }
+ 
+     /**
+-     * See {@link Builder#setPreCryptoHandshakeIdleTimeoutSeconds}
++     * See {@link Builder#setPreCryptoHandshakeIdleTimeout}
+      *
+      * {@hide}
+      */
+     @Experimental
+     @Nullable
+-    public Long getPreCryptoHandshakeIdleTimeoutSeconds() {
+-        return mPreCryptoHandshakeIdleTimeoutSeconds;
++    public Duration getPreCryptoHandshakeIdleTimeout() {
++        return mPreCryptoHandshakeIdleTimeout;
+     }
+ 
+     /**
+-     * See {@link Builder#setCryptoHandshakeTimeoutSeconds}
++     * See {@link Builder#setCryptoHandshakeTimeout}
+      *
+      * {@hide}
+      */
+     @Experimental
+     @Nullable
+-    public Long getCryptoHandshakeTimeoutSeconds() {
+-        return mCryptoHandshakeTimeoutSeconds;
++    public Duration getCryptoHandshakeTimeout() {
++        return mCryptoHandshakeTimeout;
+     }
+ 
+     /**
+-     * See {@link Builder#setIdleConnectionTimeoutSeconds}
++     * See {@link Builder#setIdleConnectionTimeout}
+      *
+      * {@hide}
+      */
+     @Experimental
+     @Nullable
+-    public Long getIdleConnectionTimeoutSeconds() {
+-        return mIdleConnectionTimeoutSeconds;
++    public Duration getIdleConnectionTimeout() {
++        return mIdleConnectionTimeout;
+     }
+ 
+     /**
+-     * See {@link Builder#setRetransmittableOnWireTimeoutMillis}
++     * See {@link Builder#setRetransmittableOnWireTimeout}
+      *
+      * {@hide}
+      */
+     @Experimental
+     @Nullable
+-    public Long getRetransmittableOnWireTimeoutMillis() {
+-        return mRetransmittableOnWireTimeoutMillis;
++    public Duration getRetransmittableOnWireTimeout() {
++        return mRetransmittableOnWireTimeout;
+     }
+ 
+     /**
+@@ -231,8 +232,8 @@ public class QuicOptions {
+      */
+     @Experimental
+     @Nullable
+-    public Long getInitialBrokenServicePeriodSeconds() {
+-        return mInitialBrokenServicePeriodSeconds;
++    public Duration getInitialBrokenServicePeriod() {
++        return mInitialBrokenServicePeriod;
+     }
+ 
+     /**
+@@ -291,24 +292,23 @@ public class QuicOptions {
+         @Nullable
+         private Boolean mEnableTlsZeroRtt;
+         @Nullable
+-        private Long mPreCryptoHandshakeIdleTimeoutSeconds;
++        private Duration mPreCryptoHandshakeIdleTimeout;
+         @Nullable
+-        private Long mCryptoHandshakeTimeoutSeconds;
++        private Duration mCryptoHandshakeTimeout;
+         @Nullable
+-        private Long mIdleConnectionTimeoutSeconds;
++        private Duration mIdleConnectionTimeout;
+         @Nullable
+-        private Long mRetransmittableOnWireTimeoutMillis;
++        private Duration mRetransmittableOnWireTimeout;
+         @Nullable
+         private Boolean mCloseSessionsOnIpChange;
+         @Nullable
+         private Boolean mGoawaySessionsOnIpChange;
+         @Nullable
+-        private Long mInitialBrokenServicePeriodSeconds;
++        private Duration mInitialBrokenServicePeriod;
+         @Nullable
+         private Boolean mIncreaseBrokenServicePeriodExponentially;
+         @Nullable
+         private Boolean mDelayJobsWithAvailableSpdySession;
+-        @Nullable
+         private final Set<String> mExtraQuicheFlags = new LinkedHashSet<>();
+ 
+         Builder() {}
+@@ -453,9 +453,9 @@ public class QuicOptions {
+          * {@hide}
+          */
+         @Experimental
+-        public Builder setPreCryptoHandshakeIdleTimeoutSeconds(
+-                long preCryptoHandshakeIdleTimeoutSeconds) {
+-            this.mPreCryptoHandshakeIdleTimeoutSeconds = preCryptoHandshakeIdleTimeoutSeconds;
++        public Builder setPreCryptoHandshakeIdleTimeout(
++                Duration preCryptoHandshakeIdleTimeout) {
++            this.mPreCryptoHandshakeIdleTimeout = preCryptoHandshakeIdleTimeout;
+             return this;
+         }
+ 
+@@ -467,8 +467,8 @@ public class QuicOptions {
+          * {@hide}
+          */
+         @Experimental
+-        public Builder setCryptoHandshakeTimeoutSeconds(long cryptoHandshakeTimeoutSeconds) {
+-            this.mCryptoHandshakeTimeoutSeconds = cryptoHandshakeTimeoutSeconds;
++        public Builder setCryptoHandshakeTimeout(Duration cryptoHandshakeTimeoutSeconds) {
++            this.mCryptoHandshakeTimeout = cryptoHandshakeTimeoutSeconds;
+             return this;
+         }
+ 
+@@ -482,8 +482,8 @@ public class QuicOptions {
+          * {@hide}
+          */
+         @Experimental
+-        public Builder setIdleConnectionTimeoutSeconds(long idleConnectionTimeoutSeconds) {
+-            this.mIdleConnectionTimeoutSeconds = idleConnectionTimeoutSeconds;
++        public Builder setIdleConnectionTimeout(Duration idleConnectionTimeoutSeconds) {
++            this.mIdleConnectionTimeout = idleConnectionTimeoutSeconds;
+             return this;
+         }
+ 
+@@ -500,9 +500,9 @@ public class QuicOptions {
+          * {@hide}
+          */
+         @Experimental
+-        public Builder setRetransmittableOnWireTimeoutMillis(
+-                long retransmittableOnWireTimeoutMillis) {
+-            this.mRetransmittableOnWireTimeoutMillis = retransmittableOnWireTimeoutMillis;
++        public Builder setRetransmittableOnWireTimeout(
++                Duration retransmittableOnWireTimeout) {
++            this.mRetransmittableOnWireTimeout = retransmittableOnWireTimeout;
+             return this;
+         }
+ 
+@@ -558,8 +558,8 @@ public class QuicOptions {
+          */
+         @Experimental
+         public Builder setInitialBrokenServicePeriodSeconds(
+-                long initialBrokenServicePeriodSeconds) {
+-            this.mInitialBrokenServicePeriodSeconds = initialBrokenServicePeriodSeconds;
++                Duration initialBrokenServicePeriod) {
++            this.mInitialBrokenServicePeriod = initialBrokenServicePeriod;
+             return this;
+         }
+ 
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
+index b9f6337e..b0a98959 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
+@@ -18,7 +18,7 @@ import java.io.File;
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+ import java.net.IDN;
+-import java.util.Date;
++import java.time.Instant;
+ import java.util.HashMap;
+ import java.util.LinkedList;
+ import java.util.List;
+@@ -59,13 +59,13 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
+         // Should pin apply to subdomains?
+         final boolean mIncludeSubdomains;
+         // When the pin expires.
+-        final Date mExpirationDate;
++        final Instant mExpirationInsant;
+ 
+-        Pkp(String host, byte[][] hashes, boolean includeSubdomains, Date expirationDate) {
++        Pkp(String host, byte[][] hashes, boolean includeSubdomains, Instant expirationInstant) {
+             mHost = host;
+             mHashes = hashes;
+             mIncludeSubdomains = includeSubdomains;
+-            mExpirationDate = expirationDate;
++            mExpirationInsant = expirationInstant;
+         }
+     }
+ 
+@@ -295,14 +295,14 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
+ 
+     @Override
+     public CronetEngineBuilderImpl addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
+-            boolean includeSubdomains, Date expirationDate) {
++            boolean includeSubdomains, Instant expirationInstant) {
+         if (hostName == null) {
+             throw new NullPointerException("The hostname cannot be null");
+         }
+         if (pinsSha256 == null) {
+             throw new NullPointerException("The set of SHA256 pins cannot be null");
+         }
+-        if (expirationDate == null) {
++        if (expirationInstant == null) {
+             throw new NullPointerException("The pin expiration date cannot be null");
+         }
+         String idnHostName = validateHostNameForPinningAndConvert(hostName);
+@@ -316,7 +316,7 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
+         }
+         // Add new element to PKP list.
+         mPkps.add(new Pkp(idnHostName, hashes.values().toArray(new byte[hashes.size()][]),
+-                includeSubdomains, expirationDate));
++                includeSubdomains, expirationInstant));
+         return this;
+     }
+ 
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
+index d08fcd50..a9879198 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
+@@ -36,6 +36,7 @@ import java.net.Proxy;
+ import java.net.URL;
+ import java.net.URLConnection;
+ import java.net.URLStreamHandlerFactory;
++import java.time.Instant;
+ import java.util.ArrayList;
+ import java.util.Collection;
+ import java.util.HashMap;
+@@ -265,7 +266,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+         }
+         for (CronetEngineBuilderImpl.Pkp pkp : builder.publicKeyPins()) {
+             CronetUrlRequestContextJni.get().addPkp(urlRequestContextConfig, pkp.mHost, pkp.mHashes,
+-                    pkp.mIncludeSubdomains, pkp.mExpirationDate.getTime());
++                    pkp.mIncludeSubdomains, pkp.mExpirationInsant.toEpochMilli());
+         }
+         return urlRequestContextConfig;
+     }
+@@ -720,12 +721,8 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+         synchronized (mNetworkQualityLock) {
+             for (final VersionSafeCallbacks.NetworkQualityRttListenerWrapper listener :
+                     mRttListenerList) {
+-                Runnable task = new Runnable() {
+-                    @Override
+-                    public void run() {
+-                        listener.onRttObservation(rttMs, whenMs, source);
+-                    }
+-                };
++                Runnable task = () ->
++                        listener.onRttObservation(rttMs, Instant.ofEpochMilli(whenMs), source);
+                 postObservationTaskToExecutor(listener.getExecutor(), task);
+             }
+         }
+@@ -738,12 +735,8 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+         synchronized (mNetworkQualityLock) {
+             for (final VersionSafeCallbacks.NetworkQualityThroughputListenerWrapper listener :
+                     mThroughputListenerList) {
+-                Runnable task = new Runnable() {
+-                    @Override
+-                    public void run() {
+-                        listener.onThroughputObservation(throughputKbps, whenMs, source);
+-                    }
+-                };
++                Runnable task = () -> listener.onThroughputObservation(
++                        throughputKbps, Instant.ofEpochMilli(whenMs), source);
+                 postObservationTaskToExecutor(listener.getExecutor(), task);
+             }
+         }
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
+index 8746418f..ee353ad7 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
+@@ -16,6 +16,7 @@ import android.net.http.UrlResponseInfo;
+ 
+ import java.io.IOException;
+ import java.nio.ByteBuffer;
++import java.time.Instant;
+ import java.util.concurrent.Executor;
+ 
+ /**
+@@ -210,8 +211,8 @@ public class VersionSafeCallbacks {
+         }
+ 
+         @Override
+-        public void onRttObservation(int rttMs, long whenMs, int source) {
+-            mWrappedListener.onRttObservation(rttMs, whenMs, source);
++        public void onRttObservation(int rttMs, Instant observationInstant, int source) {
++            mWrappedListener.onRttObservation(rttMs, observationInstant, source);
+         }
+ 
+         @Override
+@@ -248,8 +249,8 @@ public class VersionSafeCallbacks {
+         }
+ 
+         @Override
+-        public void onThroughputObservation(int throughputKbps, long whenMs, int source) {
+-            mWrappedListener.onThroughputObservation(throughputKbps, whenMs, source);
++        public void onThroughputObservation(int throughputKbps, Instant observationInstant, int source) {
++            mWrappedListener.onThroughputObservation(throughputKbps, observationInstant, source);
+         }
+ 
+         @Override
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
+index 470c0d1f..005849cc 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
+@@ -36,9 +36,9 @@ import org.chromium.net.test.util.CertTestUtil;
+ import java.io.ByteArrayInputStream;
+ import java.security.cert.CertificateFactory;
+ import java.security.cert.X509Certificate;
++import java.time.Duration;
++import java.time.Instant;
+ import java.util.Arrays;
+-import java.util.Calendar;
+-import java.util.Date;
+ import java.util.HashSet;
+ import java.util.Set;
+ 
+@@ -47,7 +47,7 @@ import java.util.Set;
+  */
+ @RunWith(AndroidJUnit4.class)
+ public class PkpTest {
+-    private static final int DISTANT_FUTURE = Integer.MAX_VALUE;
++    private static final Duration DISTANT_FUTURE = Duration.ofDays(999999);
+     private static final boolean INCLUDE_SUBDOMAINS = true;
+     private static final boolean EXCLUDE_SUBDOMAINS = false;
+     private static final boolean KNOWN_ROOT = true;
+@@ -361,7 +361,7 @@ public class PkpTest {
+ 
+     /**
+      * Tests that NullPointerException is thrown if the host name or the collection of pins or
+-     * the expiration date is null.
++     * the expiration instant is null.
+      *
+      * @throws Exception
+      */
+@@ -457,10 +457,10 @@ public class PkpTest {
+ 
+     @SuppressWarnings("ArrayAsKeyOfSetOrMap")
+     private void addPkpSha256(
+-            String host, byte[] pinHashValue, boolean includeSubdomain, int maxAgeInSec) {
++            String host, byte[] pinHashValue, boolean includeSubdomain, Duration maxAge) {
+         Set<byte[]> hashes = new HashSet<>();
+         hashes.add(pinHashValue);
+-        mBuilder.addPublicKeyPins(host, hashes, includeSubdomain, dateInFuture(maxAgeInSec));
++        mBuilder.addPublicKeyPins(host, hashes, includeSubdomain, instantInFuture(maxAge));
+     }
+ 
+     private void sendRequestAndWaitForResult() {
+@@ -479,10 +479,8 @@ public class PkpTest {
+         return (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(certDer));
+     }
+ 
+-    private Date dateInFuture(int secondsIntoFuture) {
+-        Calendar cal = Calendar.getInstance();
+-        cal.add(Calendar.SECOND, secondsIntoFuture);
+-        return cal.getTime();
++    private Instant instantInFuture(Duration howFarFromNow) {
++        return Instant.now().plus(howFarFromNow);
+     }
+ 
+     private void assertNoExceptionWhenHostNameIsValid(String hostName) {
+@@ -506,14 +504,14 @@ public class PkpTest {
+ 
+     @SuppressWarnings("ArrayAsKeyOfSetOrMap")
+     private void verifyExceptionWhenAddPkpArgumentIsNull(
+-            boolean hostNameIsNull, boolean pinsAreNull, boolean expirationDataIsNull) {
++            boolean hostNameIsNull, boolean pinsAreNull, boolean expirationInstantIsNull) {
+         String hostName = hostNameIsNull ? null : "some-host.com";
+-        Set<byte[]> pins = pinsAreNull ? null : new HashSet<byte[]>();
+-        Date expirationDate = expirationDataIsNull ? null : new Date();
++        Set<byte[]> pins = pinsAreNull ? null : new HashSet<>();
++        Instant expirationInstant = expirationInstantIsNull ? null : Instant.now();
+ 
+-        boolean shouldThrowNpe = hostNameIsNull || pinsAreNull || expirationDataIsNull;
++        boolean shouldThrowNpe = hostNameIsNull || pinsAreNull || expirationInstantIsNull;
+         try {
+-            mBuilder.addPublicKeyPins(hostName, pins, INCLUDE_SUBDOMAINS, expirationDate);
++            mBuilder.addPublicKeyPins(hostName, pins, INCLUDE_SUBDOMAINS, expirationInstant);
+         } catch (NullPointerException ex) {
+             if (!shouldThrowNpe) {
+                 fail("Null pointer exception was not expected: " + ex.toString());
+-- 
+2.39.0.314.g84b9a713c41-goog
+

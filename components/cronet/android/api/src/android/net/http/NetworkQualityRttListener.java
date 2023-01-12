@@ -4,6 +4,7 @@
 
 package android.net.http;
 
+import java.time.Instant;
 import java.util.concurrent.Executor;
 
 /**
@@ -37,8 +38,8 @@ public abstract class NetworkQualityRttListener {
     /**
      * Reports a new round trip time observation.
      * @param rttMs the round trip time in milliseconds.
-     * @param whenMs milliseconds since the Epoch (January 1st 1970, 00:00:00.000).
+     * @param observationInstant when the observation was recorded
      * @param source the observation source from {@link NetworkQualityObservationSource}.
      */
-    public abstract void onRttObservation(int rttMs, long whenMs, int source);
+    public abstract void onRttObservation(int rttMs, Instant observationInstant, int source);
 }
