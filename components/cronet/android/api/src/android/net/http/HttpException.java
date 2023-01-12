@@ -9,7 +9,7 @@ import java.io.IOException;
 /**
  * Base exception passed to {@link UrlRequest.Callback#onFailed UrlRequest.Callback.onFailed()}.
  */
-public class CronetException extends IOException {
+public class HttpException extends IOException {
     /**
      * Constructs an exception that is caused by {@code cause}.
      *
@@ -18,7 +18,7 @@ public class CronetException extends IOException {
      *         java.io.IOException#getCause getCause()} method). A null value is permitted, and
      *         indicates that the cause is nonexistent or unknown.
      */
-    protected CronetException(String message, Throwable cause) {
+    protected HttpException(String message, Throwable cause) {
         super(message, cause);
     }
 }

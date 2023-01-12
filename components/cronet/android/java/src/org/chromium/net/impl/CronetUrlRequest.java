@@ -18,7 +18,7 @@ import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeClassQualifiedName;
 import org.chromium.base.annotations.NativeMethods;
 import android.net.http.CallbackException;
-import android.net.http.CronetException;
+import android.net.http.HttpException;
 import org.chromium.net.Idempotency;
 import android.net.http.InlineExecutionProhibitedException;
 import android.net.http.NetworkException;
@@ -109,7 +109,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
     // UrlRequest.Callback's and RequestFinishedInfo.Listener's executors after the last update.
     @RequestFinishedInfoImpl.FinishedReason
     private int mFinishedReason;
-    private CronetException mException;
+    private HttpException mException;
     private CronetMetrics mMetrics;
     private boolean mQuicConnectionMigrationAttempted;
     private boolean mQuicConnectionMigrationSuccessful;
@@ -552,7 +552,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
     /**
      * Fails the request with an exception on any thread.
      */
-    private void failWithException(final CronetException exception) {
+    private void failWithException(final HttpException exception) {
         synchronized (mUrlRequestAdapterLock) {
             if (isDoneLocked()) {
                 return;

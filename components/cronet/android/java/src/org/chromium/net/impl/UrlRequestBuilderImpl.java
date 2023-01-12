@@ -8,7 +8,7 @@ import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
 
-import android.net.http.CronetEngine;
+import android.net.http.HttpEngine;
 import android.net.http.ExperimentalUrlRequest;
 import android.net.http.RequestFinishedInfo;
 import android.net.http.UploadDataProvider;
@@ -75,7 +75,7 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
      * @param url URL for the generated requests.
      * @param callback callback object that gets invoked on different events.
      * @param executor {@link Executor} on which all callbacks will be invoked.
-     * @param cronetEngine {@link CronetEngine} used to execute this request.
+     * @param cronetEngine {@link HttpEngine} used to execute this request.
      */
     UrlRequestBuilderImpl(String url, UrlRequest.Callback callback, Executor executor,
             CronetEngineBase cronetEngine) {

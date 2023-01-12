@@ -6,8 +6,8 @@ package org.chromium.net;
 
 import static org.junit.Assume.assumeTrue;
 
-import android.net.http.CronetEngine;
-import android.net.http.ExperimentalCronetEngine;
+import android.net.http.HttpEngine;
+import android.net.http.ExperimentalHttpEngine;
 import android.net.http.UrlResponseInfo;
 import android.content.Context;
 import android.os.Build;
@@ -59,8 +59,8 @@ public class CronetTestRule implements TestRule {
      * Creates and holds pointer to CronetEngine.
      */
     public static class CronetTestFramework {
-        public ExperimentalCronetEngine mCronetEngine;
-        public ExperimentalCronetEngine.Builder mBuilder;
+        public ExperimentalHttpEngine mCronetEngine;
+        public ExperimentalHttpEngine.Builder mBuilder;
 
         private Context mContext;
 
@@ -73,7 +73,7 @@ public class CronetTestRule implements TestRule {
             return new CronetTestFramework(context);
         }
 
-        public ExperimentalCronetEngine startEngine() {
+        public ExperimentalHttpEngine startEngine() {
             assert mCronetEngine == null;
 
             mCronetEngine = mBuilder.build();
@@ -90,7 +90,7 @@ public class CronetTestRule implements TestRule {
             mCronetEngine = null;
         }
 
-        private ExperimentalCronetEngine.Builder createNativeEngineBuilder() {
+        private ExperimentalHttpEngine.Builder createNativeEngineBuilder() {
             return CronetTestRule.createNativeEngineBuilder(mContext).enableQuic(true);
         }
     }
@@ -268,13 +268,13 @@ public class CronetTestRule implements TestRule {
     }
 
     /**
-     * Creates and returns {@link ExperimentalCronetEngine.Builder} that creates
-     * Chromium (native) based {@link CronetEngine.Builder}.
+     * Creates and returns {@link ExperimentalHttpEngine.Builder} that creates
+     * Chromium (native) based {@link HttpEngine.Builder}.
      *
      * @return the {@code CronetEngine.Builder} that builds Chromium-based {@code Cronet engine}.
      */
-    public static ExperimentalCronetEngine.Builder createNativeEngineBuilder(Context context) {
-        return (ExperimentalCronetEngine.Builder) CronetEngine.builder(context);
+    public static ExperimentalHttpEngine.Builder createNativeEngineBuilder(Context context) {
+        return (ExperimentalHttpEngine.Builder) HttpEngine.builder(context);
     }
 
     public void assertResponseEquals(UrlResponseInfo expected, UrlResponseInfo actual) {
@@ -301,9 +301,9 @@ public class CronetTestRule implements TestRule {
         }
     }
 
-    public CronetEngine.Builder enableDiskCache(CronetEngine.Builder cronetEngineBuilder) {
+    public HttpEngine.Builder enableDiskCache(HttpEngine.Builder cronetEngineBuilder) {
         cronetEngineBuilder.setStoragePath(getTestStorage(getContext()));
-        cronetEngineBuilder.enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISK, 1000 * 1024);
+        cronetEngineBuilder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1000 * 1024);
         return cronetEngineBuilder;
     }
 
@@ -311,7 +311,7 @@ public class CronetTestRule implements TestRule {
      * Sets the {@link URLStreamHandlerFactory} from {@code cronetEngine}.  This should be called
      * during setUp() and is installed by {@link runTest()} as the default when Cronet is tested.
      */
-    public void setStreamHandlerFactory(CronetEngine cronetEngine) {
+    public void setStreamHandlerFactory(HttpEngine cronetEngine) {
         if (!testingSystemHttpURLConnection()) {
             URL.setURLStreamHandlerFactory(cronetEngine.createURLStreamHandlerFactory());
         }

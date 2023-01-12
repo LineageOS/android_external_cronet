@@ -13,7 +13,7 @@ import static org.chromium.base.CollectionUtil.newHashSet;
 import static org.chromium.net.CronetTestRule.getContext;
 
 import android.net.http.BidirectionalStream;
-import android.net.http.ExperimentalCronetEngine;
+import android.net.http.ExperimentalHttpEngine;
 import android.net.http.NetworkException;
 import android.net.http.QuicException;
 import android.net.http.RequestFinishedInfo;
@@ -44,7 +44,7 @@ public class BidirectionalStreamQuicTest {
     @Rule
     public final CronetTestRule mTestRule = new CronetTestRule();
 
-    private ExperimentalCronetEngine mCronetEngine;
+    private ExperimentalHttpEngine mCronetEngine;
     private enum QuicBidirectionalStreams {
         ENABLED,
         DISABLED,
@@ -53,8 +53,8 @@ public class BidirectionalStreamQuicTest {
     private void setUp(QuicBidirectionalStreams enabled) throws Exception {
         // Load library first to create MockCertVerifier.
         System.loadLibrary("cronet_tests");
-        ExperimentalCronetEngine.Builder builder =
-                new ExperimentalCronetEngine.Builder(getContext());
+        ExperimentalHttpEngine.Builder builder =
+                new ExperimentalHttpEngine.Builder(getContext());
 
         QuicTestServer.startQuicTestServer(getContext());
 
@@ -362,9 +362,9 @@ public class BidirectionalStreamQuicTest {
         assertNotNull(callback.mError);
         assertTrue(callback.mError instanceof NetworkException);
         NetworkException networkError = (NetworkException) callback.mError;
-        assertTrue(NetError.ERR_QUIC_PROTOCOL_ERROR == networkError.getCronetInternalErrorCode()
-                || NetError.ERR_CONNECTION_REFUSED == networkError.getCronetInternalErrorCode());
-        if (NetError.ERR_CONNECTION_REFUSED == networkError.getCronetInternalErrorCode()) return;
+        assertTrue(NetError.ERR_QUIC_PROTOCOL_ERROR == networkError.getInternalErrorCode()
+                || NetError.ERR_CONNECTION_REFUSED == networkError.getInternalErrorCode());
+        if (NetError.ERR_CONNECTION_REFUSED == networkError.getInternalErrorCode()) return;
         assertTrue(callback.mError instanceof QuicException);
     }
 
