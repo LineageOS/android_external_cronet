@@ -216,8 +216,6 @@ public class ConnectionMigrationOptions {
          * <p>Depending on other configuration, this can result to migrating the connections within
          * the same default network, or to a non-default network.
          *
-         * @see #allowNonDefaultNetworkUsage(boolean)
-         *
          * @return this builder for chaining
          */
         public Builder enablePathDegradationMigration(boolean enable) {
