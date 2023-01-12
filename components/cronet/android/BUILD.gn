@@ -103,7 +103,7 @@ _interface_api_level = read_file("interface_api_version.txt", "value")
 
 process_version("interface_api_version") {
   process_only = true
-  template_file = "api/src/org/chromium/net/ApiVersion.template"
+  template_file = "api/src/android/net/http/ApiVersion.template"
   sources = [
     "//chrome/VERSION",
     lastchange_file,
