@@ -4211,6 +4211,7 @@ java_library {
         "-Aorg.chromium.chrome.skipGenJni",
         "-Apackage_prefix=android.net.http.internal",
     ],
+    min_sdk_version: "30",
 }
 
 // GN: //base/android/jni_generator:jni_processor
