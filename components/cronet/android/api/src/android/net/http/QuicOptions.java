@@ -12,11 +12,11 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 
 /**
- * Configuration options for QUIC in Cronet.
+ * Configuration options for QUIC.
  *
  * <p>The settings in this class are only relevant if QUIC is enabled. Use
- * {@link CronetEngine.Builder#enableQuic(boolean)} to enable / disable QUIC for
- * the Cronet engine.
+ * {@link HttpEngine.Builder#enableQuic(boolean)} to enable / disable QUIC for
+ * the HTTP engine.
  */
 public class QuicOptions {
     private final Set<String> mQuicHostAllowlist;
@@ -317,7 +317,7 @@ public class QuicOptions {
          * Adds a host to the QUIC allowlist.
          *
          * <p>If no hosts are specified, the per-host allowlist functionality is disabled.
-         * Otherwise, Cronet will only use QUIC when talking to hosts on the allowlist.
+         * Otherwise, the HTTP stack will only use QUIC when talking to hosts on the allowlist.
          *
          * @return the builder for chaining
          */
@@ -329,13 +329,13 @@ public class QuicOptions {
         /**
          * Adds a QUIC version to the list of QUIC versions to enable.
          *
-         * <p>If no versions are specified, Cronet will use a list of default QUIC versions.
+         * <p>If no versions are specified, the HTTP stack will use a list of default QUIC versions.
          *
          * <p>The version format is specified by
          * <a
          * href="https://github.com/google/quiche/blob/main/quiche/quic/core/quic_versions.cc#L344">QUICHE</a>.
-         * Outside of filtering out values known to be obsolete, Cronet doesn't process the versions
-         * anyhow and simply passes them along to QUICHE.
+         * Outside of filtering out values known to be obsolete, the values are passed along
+         * to QUICHE without further processing.
          *
          * @return the builder for chaining
          *
@@ -354,10 +354,10 @@ public class QuicOptions {
          * (for instance, {@code NBHD}).
          *
          * <p>As the QUIC tags are under active development and some are only relevant to the
-         * server, Cronet doesn't attempt to maintain a complete list of all supported QUIC flags as
-         * a part of the API. The flags. Flags supported by QUICHE, a QUIC implementation used by
-         * Cronet and Google servers, can be found <a
-         * href=https://github.com/google/quiche/blob/main/quiche/quic/core/crypto/crypto_protocol.h">here</a>.
+         * server, the HTTP stack doesn't attempt to maintain a complete list of all supported QUIC
+         * flags as a part of the API. The flags. Flags supported by QUICHE, a QUIC implementation
+         * used by this HTTP stack and Google servers, can be found
+         * <a href=https://github.com/google/quiche/blob/main/quiche/quic/core/crypto/crypto_protocol.h">here</a>.
          *
          * @return the builder for chaining
          *
@@ -387,9 +387,8 @@ public class QuicOptions {
          * Sets how many server configurations (metadata like list of alt svc, whether QUIC is
          * supported, etc.) should be held in memory.
          *
-         * <p>If the storage path is set ({@link
-         * CronetEngine.Builder#setStoragePath(String)}, Cronet will also persist
-         * the server configurations on disk.
+         * <p>If the storage path is set ({@link HttpEngine.Builder#setStoragePath(String)},
+         * the HTTP stack will also persist the server configurations on disk.
          *
          * @return the builder for chaining
          */
@@ -403,7 +402,7 @@ public class QuicOptions {
          * handshakes).
          *
          * <p>To set the default user agent for HTTP requests, use
-         * {@link CronetEngine.Builder#setUserAgent(String)} instead.
+         * {@link HttpEngine.Builder#setUserAgent(String)} instead.
          *
          * @return the builder for chaining
          */
@@ -490,8 +489,8 @@ public class QuicOptions {
         /**
          * Sets the maximum desired time between packets on wire.
          *
-         * <p>When the retransmittable-on-wire time is exceeded Cronet will probe quality of the
-         * network using artificial traffic. Smaller timeouts will typically  result in faster
+         * <p>When the retransmittable-on-wire time is exceeded the HTTP stack will probe quality
+         * of the network using artificial traffic. Smaller timeouts will typically result in faster
          * discovery of a broken or degrading path, but also larger usage of resources (battery,
          * data).
          *
@@ -539,15 +538,15 @@ public class QuicOptions {
         }
 
         /**
-         * Sets the initial for which Cronet shouldn't attempt to use QUIC for a given server after
-         * the server's QUIC support turned out to be broken.
+         * Sets the initial for which the HTTP stack shouldn't attempt to use QUIC for a given
+         * server after the server's QUIC support turned out to be broken.
          *
-         * <p>Once Cronet detects that a server advertises QUIC but doesn't actually speak it, it
-         * marks the server as broken and doesn't attempt to use QUIC when talking to the server for
-         * an amount of time. Once Cronet is past this point it will try using QUIC again. This is
-         * to balance short term (there's no point wasting resources to try QUIC if the server is
-         * broken) and long term (the breakage might have been temporary, using QUIC is generally
-         * beneficial) interests.
+         * <p>Once the HTTP stack detects that a server advertises QUIC but doesn't actually speak
+         * it, it marks the server as broken and doesn't attempt to use QUIC when talking
+         * to the server for an amount of time. Once past this point it will try using QUIC again.
+         * This is to balance short term (there's no point wasting resources to try QUIC
+         * if the server is broken) and long term (the breakage might have been temporary, using
+         * QUIC is generally beneficial) interests.
          *
          * <p>The delay is increased every unsuccessful consecutive retry. See
          * {@link #increaseBrokenServicePeriodExponentially(boolean)} for details.
@@ -584,8 +583,8 @@ public class QuicOptions {
         }
 
         /**
-         * Sets whether Cronet should wait for the primary path (usually QUIC) to be ready even if
-         * there's a secondary path of reaching the server (SPDY / HTTP2) which is ready
+         * Sets whether the HTTP stack should wait for the primary path (usually QUIC) to be ready
+         * even if there's a secondary path of reaching the server (SPDY / HTTP2) which is ready
          * immediately.
          *
          * @return the builder for chaining

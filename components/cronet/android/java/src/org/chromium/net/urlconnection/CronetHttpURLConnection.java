@@ -9,8 +9,8 @@ import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
 
-import android.net.http.CronetEngine;
-import android.net.http.CronetException;
+import android.net.http.HttpEngine;
+import android.net.http.HttpException;
 import android.net.http.ExperimentalUrlRequest;
 import android.net.http.UrlRequest;
 import android.net.http.UrlResponseInfo;
@@ -40,7 +40,7 @@ import java.util.TreeMap;
 public class CronetHttpURLConnection extends HttpURLConnection {
     private static final String TAG = CronetHttpURLConnection.class.getSimpleName();
     private static final String CONTENT_LENGTH = "Content-Length";
-    private final CronetEngine mCronetEngine;
+    private final HttpEngine mCronetEngine;
     private final MessageLoop mMessageLoop;
     private UrlRequest mRequest;
     private final List<Pair<String, String>> mRequestHeaders;
@@ -59,7 +59,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
     private List<Map.Entry<String, String>> mResponseHeadersList;
     private Map<String, List<String>> mResponseHeadersMap;
 
-    public CronetHttpURLConnection(URL url, CronetEngine cronetEngine) {
+    public CronetHttpURLConnection(URL url, HttpEngine cronetEngine) {
         super(url);
         mCronetEngine = cronetEngine;
         mMessageLoop = new MessageLoop();
@@ -572,7 +572,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         }
 
         @Override
-        public void onFailed(UrlRequest request, UrlResponseInfo info, CronetException exception) {
+        public void onFailed(UrlRequest request, UrlResponseInfo info, HttpException exception) {
             if (exception == null) {
                 throw new IllegalStateException(
                         "Exception cannot be null in onFailed.");

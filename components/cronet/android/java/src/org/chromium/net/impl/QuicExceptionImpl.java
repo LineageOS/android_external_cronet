@@ -45,8 +45,8 @@ public class QuicExceptionImpl extends QuicException {
     }
 
     @Override
-    public int getCronetInternalErrorCode() {
-        return mNetworkException.getCronetInternalErrorCode();
+    public int getInternalErrorCode() {
+        return mNetworkException.getInternalErrorCode();
     }
 
     @Override

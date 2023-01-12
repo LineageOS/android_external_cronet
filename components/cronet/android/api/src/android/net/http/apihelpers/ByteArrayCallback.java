@@ -7,13 +7,13 @@ package android.net.http.apihelpers;
 import android.net.http.UrlResponseInfo;
 
 /**
- * A specialization of {@link InMemoryTransformCronetCallback} which returns the body bytes
+ * A specialization of {@link InMemoryTransformCallback} which returns the body bytes
  * verbatim without any interpretation.
  */
-public abstract class ByteArrayCronetCallback extends InMemoryTransformCronetCallback<byte[]> {
+public abstract class ByteArrayCallback extends InMemoryTransformCallback<byte[]> {
     @Override // Override to return the subtype
-    public ByteArrayCronetCallback addCompletionListener(
-            CronetRequestCompletionListener<? super byte[]> listener) {
+    public ByteArrayCallback addCompletionListener(
+            RequestCompletionListener<? super byte[]> listener) {
         super.addCompletionListener(listener);
         return this;
     }

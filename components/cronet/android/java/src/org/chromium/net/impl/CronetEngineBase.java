@@ -8,7 +8,7 @@ import androidx.annotation.Nullable;
 
 import android.net.http.BidirectionalStream;
 import android.net.http.ExperimentalBidirectionalStream;
-import android.net.http.ExperimentalCronetEngine;
+import android.net.http.ExperimentalHttpEngine;
 import android.net.http.ExperimentalUrlRequest;
 import android.net.http.RequestFinishedInfo;
 import android.net.http.UrlRequest;
@@ -24,7 +24,7 @@ import java.util.concurrent.Executor;
 /**
  * Base class of {@link CronetUrlRequestContext}.
  */
-public abstract class CronetEngineBase extends ExperimentalCronetEngine {
+public abstract class CronetEngineBase extends ExperimentalHttpEngine {
     /*
      * Network handle representing the default network. To be used when a network has not been
      * explicitly set.

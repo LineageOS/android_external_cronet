@@ -13,7 +13,7 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import static android.net.http.CronetEngine.Builder.HTTP_CACHE_DISK_NO_HTTP;
+import static android.net.http.HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP;
 
 import android.content.Context;
 import android.os.Build;
@@ -32,13 +32,13 @@ import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
 import org.chromium.base.test.util.Feature;
-import android.net.http.CronetEngine;
+import android.net.http.HttpEngine;
 import org.chromium.net.CronetLoggerTestRule;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestRule.RequiresMinAndroidApi;
-import android.net.http.ExperimentalCronetEngine;
+import android.net.http.ExperimentalHttpEngine;
 import org.chromium.net.NativeTestServer;
 import org.chromium.net.TestUrlRequestCallback;
 import android.net.http.UrlRequest;
@@ -202,9 +202,9 @@ public final class CronetLoggerTest {
     @SmallTest
     @Feature({"Cronet"})
     public void testHttpCacheModeEnum() {
-        final int publicBuilderHttpCacheModes[] = {CronetEngine.Builder.HTTP_CACHE_DISABLED,
-                CronetEngine.Builder.HTTP_CACHE_IN_MEMORY,
-                CronetEngine.Builder.HTTP_CACHE_DISK_NO_HTTP, CronetEngine.Builder.HTTP_CACHE_DISK};
+        final int publicBuilderHttpCacheModes[] = {HttpEngine.Builder.HTTP_CACHE_DISABLED,
+                HttpEngine.Builder.HTTP_CACHE_IN_MEMORY,
+                HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP, HttpEngine.Builder.HTTP_CACHE_DISK};
         for (int publicBuilderHttpCacheMode : publicBuilderHttpCacheModes) {
             HttpCacheMode cacheModeEnum =
                     HttpCacheMode.fromPublicBuilderCacheMode(publicBuilderHttpCacheMode);
@@ -237,10 +237,10 @@ public final class CronetLoggerTest {
         final String url = NativeTestServer.getEchoBodyURL();
         JSONObject jsonExperimentalOptions = new JSONObject().put("skip_logging", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
-        ExperimentalCronetEngine.Builder builder =
-                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder builder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
         builder.setExperimentalOptions(experimentalOptions);
-        CronetEngine engine = builder.build();
+        HttpEngine engine = builder.build();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder requestBuilder =
@@ -276,8 +276,8 @@ public final class CronetLoggerTest {
         final boolean isNetworkQualityEstimatorEnabled = true;
         final int threadPriority = THREAD_PRIORITY_DEFAULT;
 
-        ExperimentalCronetEngine.Builder builder =
-                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder builder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
 
         builder.setExperimentalOptions(experimentalOptions);
         builder.enablePublicKeyPinningBypassForLocalTrustAnchors(
@@ -291,7 +291,7 @@ public final class CronetLoggerTest {
         builder.enableNetworkQualityEstimator(isNetworkQualityEstimatorEnabled);
         builder.setThreadPriority(threadPriority);
 
-        CronetEngine engine = builder.build();
+        HttpEngine engine = builder.build();
         final CronetEngineBuilderInfo builderInfo = mTestLogger.getLastCronetEngineBuilderInfo();
         final CronetVersion version = mTestLogger.getLastCronetVersion();
         final CronetSource source = mTestLogger.getLastCronetSource();
@@ -324,7 +324,7 @@ public final class CronetLoggerTest {
     @Feature({"Cronet"})
     public void testEngineCreationAndTrafficInfoEngineId() {
         final String url = "www.example.com";
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
         final int engineId = mTestLogger.getLastCronetEngineId();
 
         TestUrlRequestCallback callback1 = new TestUrlRequestCallback();
@@ -358,11 +358,11 @@ public final class CronetLoggerTest {
     @Feature({"Cronet"})
     public void testMultipleEngineCreationAndTrafficInfoEngineId() {
         final String url = "www.example.com";
-        final CronetEngine.Builder engineBuilder = mTestFramework.mBuilder;
+        final HttpEngine.Builder engineBuilder = mTestFramework.mBuilder;
 
-        CronetEngine engine1 = engineBuilder.build();
+        HttpEngine engine1 = engineBuilder.build();
         final int engine1Id = mTestLogger.getLastCronetEngineId();
-        CronetEngine engine2 = engineBuilder.build();
+        HttpEngine engine2 = engineBuilder.build();
         final int engine2Id = mTestLogger.getLastCronetEngineId();
 
         TestUrlRequestCallback callback1 = new TestUrlRequestCallback();
@@ -397,7 +397,7 @@ public final class CronetLoggerTest {
     @OnlyRunNativeCronet
     public void testSuccessfulRequestNative() {
         final String url = NativeTestServer.getEchoBodyURL();
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder requestBuilder =
@@ -431,7 +431,7 @@ public final class CronetLoggerTest {
     @OnlyRunNativeCronet
     public void testFailedRequestNative() {
         final String url = "www.unreachable-url.com";
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder requestBuilder =
@@ -466,7 +466,7 @@ public final class CronetLoggerTest {
     @OnlyRunNativeCronet
     public void testCanceledRequestNative() {
         final String url = NativeTestServer.getEchoBodyURL();
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         callback.setAutoAdvance(false);

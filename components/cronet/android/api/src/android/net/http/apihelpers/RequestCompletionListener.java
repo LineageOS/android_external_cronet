@@ -6,18 +6,18 @@ package android.net.http.apihelpers;
 
 import androidx.annotation.Nullable;
 
-import android.net.http.CronetException;
+import android.net.http.HttpException;
 import android.net.http.UrlResponseInfo;
 
 /**
- * A completion listener for accepting the results of a Cronet request asynchronously.
+ * A completion listener for accepting the results of a the HTTP stack request asynchronously.
  *
- * <p>To attach to a Cronet request use {@link InMemoryTransformCronetCallback} and call {@link
- * InMemoryTransformCronetCallback#addCompletionListener}.
+ * <p>To attach to an HTTP request use {@link InMemoryTransformCallback} and call {@link
+ * InMemoryTransformCallback#addCompletionListener}.
  *
  * @param <T> the response body type
  */
-public interface CronetRequestCompletionListener<T> {
+public interface RequestCompletionListener<T> {
     /**
      * Invoked if request failed for any reason after starting the request. Once invoked, no other
      * methods will be invoked on this object. {@code exception} provides information
@@ -26,7 +26,7 @@ public interface CronetRequestCompletionListener<T> {
      * @param info Response information. May be {@code null} if no response was received.
      * @param exception detailed information about the error that occurred.
      */
-    void onFailed(@Nullable UrlResponseInfo info, CronetException exception);
+    void onFailed(@Nullable UrlResponseInfo info, HttpException exception);
 
     /**
      * Invoked if request was canceled via {@code UrlRequest#cancel}. Once invoked, no other

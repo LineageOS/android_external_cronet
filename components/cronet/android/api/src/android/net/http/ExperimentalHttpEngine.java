@@ -22,20 +22,14 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 /**
- * {@link CronetEngine} that exposes experimental features. To obtain an
- * instance of this class, cast a {@code CronetEngine} to this type. Every
- * instance of {@code CronetEngine} can be cast to an instance of this class,
- * as they are backed by the same implementation and hence perform identically.
- * Instances of this class are not meant for general use, but instead only
- * to access experimental features. Experimental features may be deprecated in the
- * future. Use at your own risk.
+ * {@link HttpEngine} that exposes experimental features.
  *
- * {@hide since this class exposes experimental features that should be hidden.}
+ * <p>{@hide since this class exposes experimental features that should be hidden.}
  *
  * @deprecated scheduled for deletion, don't use in new code.
  */
 @Deprecated
-public abstract class ExperimentalCronetEngine extends CronetEngine {
+public abstract class ExperimentalHttpEngine extends HttpEngine {
     /**
      * The value of a connection metric is unknown.
      */
@@ -83,32 +77,26 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
      */
     public static final int EFFECTIVE_CONNECTION_TYPE_4G = 5;
 
-    /**
-     * The value to be used to undo any previous network binding.
-     */
+    /** The value to be used to undo any previous network binding. */
     public static final long UNBIND_NETWORK_HANDLE = -1;
 
     /**
-     * A version of {@link CronetEngine.Builder} that exposes experimental
-     * features. Instances of this class are not meant for general use, but
-     * instead only to access experimental features. Experimental features
-     * may be deprecated in the future. Use at your own risk.
+     * A version of {@link HttpEngine.Builder} that exposes experimental features. Instances of
+     * this class are not meant for general use, but instead only to access experimental features.
+     * Experimental features may be deprecated in the future. Use at your own risk.
      */
-    public static class Builder extends CronetEngine.Builder {
+    public static class Builder extends HttpEngine.Builder {
         private JSONObject mParsedExperimentalOptions;
         private final List<ExperimentalOptionsPatch> mExperimentalOptionsPatches =
                 new ArrayList<>();
 
         /**
-         * Constructs a {@link Builder} object that facilitates creating a
-         * {@link CronetEngine}. The default configuration enables HTTP/2 and
-         * disables QUIC, SDCH and the HTTP cache.
+         * Constructs a {@link Builder} object that facilitates creating a {@link HttpEngine}. The
+         * default configuration enables HTTP/2 and disables QUIC, SDCH and the HTTP cache.
          *
-         * @param context Android {@link Context}, which is used by
-         *                {@link Builder} to retrieve the application
-         *                context. A reference to only the application
-         *                context will be kept, so as to avoid extending
-         *                the lifetime of {@code context} unnecessarily.
+         * @param context Android {@link Context}, which is used by the Builder to retrieve the
+         *     application context. A reference to only the application context will be kept, so as
+         * to avoid extending the lifetime of {@code context} unnecessarily.
          */
         public Builder(Context context) {
             super(context);
@@ -120,33 +108,14 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
          * implementation.
          *
          * @param builderDelegate delegate that provides the actual implementation.
-         *
-         * {@hide}
+         *     <p>{@hide}
          */
-        public Builder(ICronetEngineBuilder builderDelegate) {
+        public Builder(IHttpEngineBuilder builderDelegate) {
             super(builderDelegate);
         }
 
         /**
-         * Enables the network quality estimator, which collects and reports
-         * measurements of round trip time (RTT) and downstream throughput at
-         * various layers of the network stack. After enabling the estimator,
-         * listeners of RTT and throughput can be added with
-         * {@link #addRttListener} and {@link #addThroughputListener} and
-         * removed with {@link #removeRttListener} and
-         * {@link #removeThroughputListener}. The estimator uses memory and CPU
-         * only when enabled.
-         * @param value {@code true} to enable network quality estimator,
-         *            {@code false} to disable.
-         * @return the builder to facilitate chaining.
-         */
-        public Builder enableNetworkQualityEstimator(boolean value) {
-            mBuilderDelegate.enableNetworkQualityEstimator(value);
-            return this;
-        }
-
-        /**
-         * Sets experimental options to be used in Cronet.
+         * Sets experimental options to be used.
          *
          * @param options JSON formatted experimental options.
          * @return the builder to facilitate chaining.
@@ -161,9 +130,9 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
         }
 
         /**
-         * Sets the thread priority of Cronet's internal thread.
+         * Sets the thread priority of the internal thread.
          *
-         * @param priority the thread priority of Cronet's internal thread.
+         * @param priority the thread priority of the internal thread.
          *        A Linux priority level, from -20 for highest scheduling
          *        priority to 19 for lowest scheduling priority. For more
          *        information on values, see
@@ -183,7 +152,7 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
          * @hide
          */
         @VisibleForTesting
-        public ICronetEngineBuilder getBuilderDelegate() {
+        public IHttpEngineBuilder getBuilderDelegate() {
             return mBuilderDelegate;
         }
 
@@ -219,7 +188,7 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
         public Builder setQuicOptions(QuicOptions options) {
             // If the delegate builder supports enabling connection migration directly, just use it
             if (mBuilderDelegate.getSupportedConfigOptions().contains(
-                    ICronetEngineBuilder.QUIC_OPTIONS)) {
+                    IHttpEngineBuilder.QUIC_OPTIONS)) {
                 mBuilderDelegate.setQuicOptions(options);
                 return this;
             }
@@ -322,7 +291,7 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
         public Builder setDnsOptions(DnsOptions options) {
             // If the delegate builder supports enabling connection migration directly, just use it
             if (mBuilderDelegate.getSupportedConfigOptions().contains(
-                    ICronetEngineBuilder.DNS_OPTIONS)) {
+                    IHttpEngineBuilder.DNS_OPTIONS)) {
                 mBuilderDelegate.setDnsOptions(options);
                 return this;
             }
@@ -388,7 +357,7 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
         public Builder setConnectionMigrationOptions(ConnectionMigrationOptions options) {
             // If the delegate builder supports enabling connection migration directly, just use it
             if (mBuilderDelegate.getSupportedConfigOptions().contains(
-                    ICronetEngineBuilder.CONNECTION_MIGRATION_OPTIONS)) {
+                    IHttpEngineBuilder.CONNECTION_MIGRATION_OPTIONS)) {
                 mBuilderDelegate.setConnectionMigrationOptions(options);
                 return this;
             }
@@ -459,11 +428,6 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
         }
 
         @Override
-        public Builder enableSdch(boolean value) {
-            return this;
-        }
-
-        @Override
         public Builder enableHttpCache(int cacheMode, long maxSize) {
             super.enableHttpCache(cacheMode, maxSize);
             return this;
@@ -489,7 +453,7 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
         }
 
         @Override
-        public ExperimentalCronetEngine build() {
+        public ExperimentalHttpEngine build() {
             if (mParsedExperimentalOptions == null && mExperimentalOptionsPatches.isEmpty()) {
                 return mBuilderDelegate.build();
             }
@@ -650,12 +614,12 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
      * Establishes a new connection to the resource specified by the {@link URL} {@code url}
      * using the given proxy.
      * <p>
-     * <b>Note:</b> Cronet's {@link java.net.HttpURLConnection} implementation is subject to certain
+     * <b>Note:</b> this {@link java.net.HttpURLConnection} implementation is subject to certain
      * limitations, see {@link #createURLStreamHandlerFactory} for details.
      *
      * @param url URL of resource to connect to.
      * @param proxy proxy to use when establishing connection.
-     * @return an {@link java.net.HttpURLConnection} instance implemented by this CronetEngine.
+     * @return an {@link java.net.HttpURLConnection} instance implemented by this HttpEngine.
      * @throws IOException if an error occurs while opening the connection.
      */
     // TODO(pauljensen): Expose once implemented, http://crbug.com/418111

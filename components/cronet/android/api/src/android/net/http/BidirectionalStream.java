@@ -22,7 +22,7 @@ public abstract class BidirectionalStream {
     /**
      * Builder for {@link BidirectionalStream}s. Allows configuring stream before constructing
      * it via {@link Builder#build}. Created by
-     * {@link ExperimentalCronetEngine#newBidirectionalStreamBuilder}.
+     * {@link ExperimentalHttpEngine#newBidirectionalStreamBuilder}.
      */
     public abstract static class Builder {
         /**
@@ -191,7 +191,7 @@ public abstract class BidirectionalStream {
         /**
          * Invoked if the stream failed for any reason after {@link BidirectionalStream#start}.
          * <a href="https://tools.ietf.org/html/rfc7540#section-7">HTTP/2 error codes</a> are
-         * mapped to {@link UrlRequestException#getCronetInternalErrorCode} codes. Once invoked,
+         * mapped to {@link NetworkException#getInternalErrorCode} codes. Once invoked,
          * no further {@link BidirectionalStream.Callback} methods will be invoked.
          *
          * @param stream the stream which has failed
@@ -200,7 +200,7 @@ public abstract class BidirectionalStream {
          * @param error information about the failure
          */
         public abstract void onFailed(
-                BidirectionalStream stream, UrlResponseInfo info, CronetException error);
+                BidirectionalStream stream, UrlResponseInfo info, HttpException error);
 
         /**
          * Invoked if the stream was canceled via {@link BidirectionalStream#cancel}. Once
