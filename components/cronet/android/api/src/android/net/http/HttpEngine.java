@@ -353,10 +353,9 @@ public abstract class HttpEngine {
          * @return the created {@link IHttpEngineBuilder}.
          */
         private static IHttpEngineBuilder createBuilderDelegate(Context context) {
-            // TODO class name
             try {
                 Class<?> clazz = context.getClassLoader().loadClass(
-                        "org.chromium.net.impl.NativeCronetEngineBuilderImpl");
+                        "android.net.http.internal.org.chromium.net.impl.NativeCronetEngineBuilderImpl");
 
                 return (IHttpEngineBuilder) clazz.getConstructor(Context.class).newInstance(
                         context);
