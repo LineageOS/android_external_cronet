@@ -11,7 +11,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandlerFactory;
-import java.util.Date;
+import java.time.Instant;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -244,7 +244,7 @@ public abstract class CronetEngine {
          *                   lost, it is highly recommended to supply one.
          * @param includeSubdomains indicates whether the pinning policy should be applied to
          *                          subdomains of {@code hostName}.
-         * @param expirationDate specifies the expiration date for the pins.
+         * @param expirationInstant specifies the expiration instant for the pins.
          * @return the builder to facilitate chaining.
          * @throws NullPointerException if any of the input parameters are {@code null}.
          * @throws IllegalArgumentException if the given host name is invalid or {@code pinsSha256}
@@ -252,9 +252,9 @@ public abstract class CronetEngine {
          *                                  SHA-256 hash.
          */
         public Builder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
-                boolean includeSubdomains, Date expirationDate) {
+                boolean includeSubdomains, Instant expirationInstant) {
             mBuilderDelegate.addPublicKeyPins(
-                    hostName, pinsSha256, includeSubdomains, expirationDate);
+                    hostName, pinsSha256, includeSubdomains, expirationInstant);
             return this;
         }
 
