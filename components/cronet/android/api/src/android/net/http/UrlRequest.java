@@ -10,15 +10,15 @@ import java.util.concurrent.Executor;
 /**
  * Controls an HTTP request (GET, PUT, POST etc).
  * Created by {@link UrlRequest.Builder}, which can be obtained by calling
- * {@link CronetEngine#newUrlRequestBuilder}.
+ * {@link HttpEngine#newUrlRequestBuilder}.
  * Note: All methods must be called on the {@link Executor} passed to
- * {@link CronetEngine#newUrlRequestBuilder}.
+ * {@link HttpEngine#newUrlRequestBuilder}.
  */
 public abstract class UrlRequest {
     /**
      * Builder for {@link UrlRequest}s. Allows configuring requests before constructing them
      * with {@link Builder#build}. The builder can be created by calling
-     * {@link CronetEngine#newUrlRequestBuilder}.
+     * {@link HttpEngine#newUrlRequestBuilder}.
      */
     public abstract static class Builder {
         /**
@@ -120,7 +120,7 @@ public abstract class UrlRequest {
     }
 
     /**
-     * Users of Cronet extend this class to receive callbacks indicating the
+     * Users of the HTTP stack extend this class to receive callbacks indicating the
      * progress of a {@link UrlRequest} being processed. An instance of this class
      * is passed in to {@link UrlRequest.Builder}'s constructor when
      * constructing the {@code UrlRequest}.
@@ -215,7 +215,7 @@ public abstract class UrlRequest {
          * @param error information about error.
          */
         public abstract void onFailed(
-                UrlRequest request, UrlResponseInfo info, CronetException error);
+                UrlRequest request, UrlResponseInfo info, HttpException error);
 
         /**
          * Invoked if request was canceled via {@link UrlRequest#cancel}. Once

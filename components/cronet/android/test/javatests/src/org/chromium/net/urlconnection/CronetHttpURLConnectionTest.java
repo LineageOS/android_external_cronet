@@ -27,8 +27,8 @@ import org.junit.runner.RunWith;
 
 import org.chromium.base.Log;
 import org.chromium.base.test.util.Feature;
-import android.net.http.CronetEngine;
-import android.net.http.CronetException;
+import android.net.http.HttpEngine;
+import android.net.http.HttpException;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CompareDefaultWithCronet;
 import org.chromium.net.CronetTestRule.OnlyRunCronetHttpURLConnection;
@@ -75,11 +75,11 @@ public class CronetHttpURLConnectionTest {
     @Rule
     public final CronetTestRule mTestRule = new CronetTestRule();
 
-    private CronetEngine mCronetEngine;
+    private HttpEngine mCronetEngine;
 
     @Before
     public void setUp() throws Exception {
-        mCronetEngine = mTestRule.enableDiskCache(new CronetEngine.Builder(getContext())).build();
+        mCronetEngine = mTestRule.enableDiskCache(new HttpEngine.Builder(getContext())).build();
         mTestRule.setStreamHandlerFactory(mCronetEngine);
         assertTrue(NativeTestServer.startNativeTestServer(getContext()));
     }
@@ -321,7 +321,7 @@ public class CronetHttpURLConnectionTest {
             secondConnection.getResponseCode();
             fail();
         } catch (IOException e) {
-            assertTrue(e instanceof java.net.ConnectException || e instanceof CronetException);
+            assertTrue(e instanceof java.net.ConnectException || e instanceof HttpException);
             assertTrue(e.getMessage().contains("ECONNREFUSED")
                     || e.getMessage().contains("Connection refused")
                     || e.getMessage().contains("net::ERR_CONNECTION_REFUSED")
@@ -349,7 +349,7 @@ public class CronetHttpURLConnectionTest {
             urlConnection.getResponseCode();
             fail();
         } catch (IOException e) {
-            assertTrue(e instanceof java.net.ConnectException || e instanceof CronetException);
+            assertTrue(e instanceof java.net.ConnectException || e instanceof HttpException);
             assertTrue(e.getMessage().contains("ECONNREFUSED")
                     || e.getMessage().contains("Connection refused")
                     || e.getMessage().contains("net::ERR_CONNECTION_REFUSED")
@@ -375,7 +375,7 @@ public class CronetHttpURLConnectionTest {
             fail();
         } catch (java.net.UnknownHostException e) {
             // Expected.
-        } catch (CronetException e) {
+        } catch (HttpException e) {
             // Expected.
         }
         checkExceptionsAreThrown(urlConnection);

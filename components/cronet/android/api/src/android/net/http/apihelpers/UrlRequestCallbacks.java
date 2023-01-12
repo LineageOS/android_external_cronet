@@ -4,15 +4,17 @@
 
 package android.net.http.apihelpers;
 
-import android.net.http.CronetException;
+import android.net.http.HttpException;
 
 import androidx.annotation.Nullable;
 
 import org.json.JSONObject;
 
+import android.net.http.UrlRequest;
 import android.net.http.UrlResponseInfo;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 
 /**
@@ -25,47 +27,47 @@ import java.util.concurrent.Future;
  *
  * <p>The helper callbacks come in two flavors - either the caller provides a callback to be invoked
  * when the request finishes (successfully or not), or the caller is given a {@link Future} which
- * completes when Cronet finishes processing the request.
+ * completes when the HTTP stack finishes processing the request.
  */
 public class UrlRequestCallbacks {
-    public static ByteArrayCronetCallback forByteArrayBody(
-            RedirectHandler redirectHandler, CronetRequestCompletionListener<byte[]> listener) {
+    public static ByteArrayCallback forByteArrayBody(
+            RedirectHandler redirectHandler, RequestCompletionListener<byte[]> listener) {
         return newByteArrayCallback(redirectHandler).addCompletionListener(listener);
     }
 
-    public static CallbackAndResponseFuturePair<byte[], ByteArrayCronetCallback> forByteArrayBody(
+    public static CallbackAndResponseFuturePair<byte[], ByteArrayCallback> forByteArrayBody(
             RedirectHandler redirectHandler) {
-        ByteArrayCronetCallback callback = newByteArrayCallback(redirectHandler);
-        Future<CronetResponse<byte[]>> future = addResponseFutureListener(callback);
+        ByteArrayCallback callback = newByteArrayCallback(redirectHandler);
+        Future<HttpResponse<byte[]>> future = addResponseFutureListener(callback);
         return new CallbackAndResponseFuturePair<>(future, callback);
     }
 
-    public static StringCronetCallback forStringBody(
-            RedirectHandler redirectHandler, CronetRequestCompletionListener<String> listener) {
+    public static StringCallback forStringBody(
+            RedirectHandler redirectHandler, RequestCompletionListener<String> listener) {
         return newStringCallback(redirectHandler).addCompletionListener(listener);
     }
 
-    public static CallbackAndResponseFuturePair<String, StringCronetCallback> forStringBody(
+    public static CallbackAndResponseFuturePair<String, StringCallback> forStringBody(
             RedirectHandler redirectHandler) {
-        StringCronetCallback callback = newStringCallback(redirectHandler);
-        Future<CronetResponse<String>> future = addResponseFutureListener(callback);
+        StringCallback callback = newStringCallback(redirectHandler);
+        Future<HttpResponse<String>> future = addResponseFutureListener(callback);
         return new CallbackAndResponseFuturePair<>(future, callback);
     }
 
-    public static JsonCronetCallback forJsonBody(
-            RedirectHandler redirectHandler, CronetRequestCompletionListener<JSONObject> listener) {
+    public static JsonCallback forJsonBody(
+            RedirectHandler redirectHandler, RequestCompletionListener<JSONObject> listener) {
         return newJsonCallback(redirectHandler).addCompletionListener(listener);
     }
 
-    public static CallbackAndResponseFuturePair<JSONObject, JsonCronetCallback> forJsonBody(
+    public static CallbackAndResponseFuturePair<JSONObject, JsonCallback> forJsonBody(
             RedirectHandler redirectHandler) {
-        JsonCronetCallback callback = newJsonCallback(redirectHandler);
-        Future<CronetResponse<JSONObject>> future = addResponseFutureListener(callback);
+        JsonCallback callback = newJsonCallback(redirectHandler);
+        Future<HttpResponse<JSONObject>> future = addResponseFutureListener(callback);
         return new CallbackAndResponseFuturePair<>(future, callback);
     }
 
-    private static ByteArrayCronetCallback newByteArrayCallback(RedirectHandler redirectHandler) {
-        return new ByteArrayCronetCallback() {
+    private static ByteArrayCallback newByteArrayCallback(RedirectHandler redirectHandler) {
+        return new ByteArrayCallback() {
             @Override
             protected boolean shouldFollowRedirect(UrlResponseInfo info, String newLocationUrl)
                     throws Exception {
@@ -74,8 +76,8 @@ public class UrlRequestCallbacks {
         };
     }
 
-    private static StringCronetCallback newStringCallback(RedirectHandler redirectHandler) {
-        return new StringCronetCallback() {
+    private static StringCallback newStringCallback(RedirectHandler redirectHandler) {
+        return new StringCallback() {
             @Override
             protected boolean shouldFollowRedirect(UrlResponseInfo info, String newLocationUrl)
                     throws Exception {
@@ -84,8 +86,8 @@ public class UrlRequestCallbacks {
         };
     }
 
-    private static JsonCronetCallback newJsonCallback(RedirectHandler redirectHandler) {
-        return new JsonCronetCallback() {
+    private static JsonCallback newJsonCallback(RedirectHandler redirectHandler) {
+        return new JsonCallback() {
             @Override
             protected boolean shouldFollowRedirect(UrlResponseInfo info, String newLocationUrl)
                     throws Exception {
@@ -94,50 +96,50 @@ public class UrlRequestCallbacks {
         };
     }
 
-    private static <T> Future<CronetResponse<T>> addResponseFutureListener(
-            InMemoryTransformCronetCallback<T> callback) {
-        CompletableFuture<CronetResponse<T>> completableFuture = new CompletableFuture<>();
-        callback.addCompletionListener(new CronetRequestCompletionListener<T>() {
+    private static <T> Future<HttpResponse<T>> addResponseFutureListener(
+            InMemoryTransformCallback<T> callback) {
+        CompletableFuture<HttpResponse<T>> completableFuture = new CompletableFuture<>();
+        callback.addCompletionListener(new RequestCompletionListener<T>() {
             @Override
-            public void onFailed(@Nullable UrlResponseInfo info, CronetException exception) {
+            public void onFailed(@Nullable UrlResponseInfo info, HttpException exception) {
                 completableFuture.completeExceptionally(exception);
             }
 
             @Override
             public void onCanceled(@Nullable UrlResponseInfo info) {
                 completableFuture.completeExceptionally(
-                        new CronetException("The request was canceled!", null) {});
+                        new HttpException("The request was canceled!", null) {});
             }
 
             @Override
             public void onSucceeded(UrlResponseInfo info, T body) {
-                completableFuture.complete(new CronetResponse<>(info, body));
+                completableFuture.complete(new HttpResponse<>(info, body));
             }
         });
         return completableFuture;
     }
 
     /**
-     * A named pair-like structure encapsulating Cronet callbacks and associated response futures.
+     * A named pair-like structure encapsulating callbacks and associated response futures.
      *
-     * <p>The request should be used to pass to {@code CronetEngine.newUrlRequest()}, the future
+     * <p>The request should be used to pass to {@code HttpEngine#newUrlRequestBuilder}, the future
      * will contain the response to the request.
      *
      * @param <CallbackT> the subtype of the callback
      * @param <ResponseBodyT> The type of the deserialized response body
      */
     public static class CallbackAndResponseFuturePair<
-            ResponseBodyT, CallbackT extends InMemoryTransformCronetCallback<ResponseBodyT>> {
-        private final Future<CronetResponse<ResponseBodyT>> mFuture;
+            ResponseBodyT, CallbackT extends InMemoryTransformCallback<ResponseBodyT>> {
+        private final Future<HttpResponse<ResponseBodyT>> mFuture;
         private final CallbackT mCallback;
 
         CallbackAndResponseFuturePair(
-                Future<CronetResponse<ResponseBodyT>> future, CallbackT callback) {
+                Future<HttpResponse<ResponseBodyT>> future, CallbackT callback) {
             this.mFuture = future;
             this.mCallback = callback;
         }
 
-        public Future<CronetResponse<ResponseBodyT>> getFuture() {
+        public Future<HttpResponse<ResponseBodyT>> getFuture() {
             return mFuture;
         }
 

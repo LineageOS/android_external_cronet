@@ -7,7 +7,7 @@ package android.net.http.apihelpers;
 import android.net.http.UrlResponseInfo;
 
 /**
- * An interface for classes specifying how Cronet should behave on redirects.
+ * An interface for classes specifying how the HTTP stack should behave on redirects.
  */
 public interface RedirectHandler {
     /**
@@ -15,7 +15,7 @@ public interface RedirectHandler {
      *
      * @param info the response info of the redirect response
      * @param newLocationUrl the redirect location
-     * @return whether Cronet should follow teh redirect or not
+     * @return whether the redirect should be followed
      */
     boolean shouldFollowRedirect(UrlResponseInfo info, String newLocationUrl) throws Exception;
 }

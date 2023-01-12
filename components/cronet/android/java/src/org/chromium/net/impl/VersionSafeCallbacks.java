@@ -5,7 +5,7 @@
 package org.chromium.net.impl;
 
 import android.net.http.BidirectionalStream;
-import android.net.http.CronetException;
+import android.net.http.HttpException;
 import android.net.http.NetworkQualityRttListener;
 import android.net.http.NetworkQualityThroughputListener;
 import android.net.http.RequestFinishedInfo;
@@ -63,7 +63,7 @@ public class VersionSafeCallbacks {
         }
 
         @Override
-        public void onFailed(UrlRequest request, UrlResponseInfo info, CronetException error) {
+        public void onFailed(UrlRequest request, UrlResponseInfo info, HttpException error) {
             mWrappedCallback.onFailed(request, info, error);
         }
 
@@ -134,7 +134,7 @@ public class VersionSafeCallbacks {
 
         @Override
         public void onFailed(
-                BidirectionalStream stream, UrlResponseInfo info, CronetException error) {
+                BidirectionalStream stream, UrlResponseInfo info, HttpException error) {
             mWrappedCallback.onFailed(stream, info, error);
         }
 

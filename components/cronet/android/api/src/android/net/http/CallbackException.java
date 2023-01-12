@@ -10,7 +10,7 @@ package android.net.http;
  * case {@link java.io.IOException#getCause getCause()} can be used to find the thrown
  * exception.
  */
-public abstract class CallbackException extends CronetException {
+public abstract class CallbackException extends HttpException {
     /**
       * Constructs an exception that wraps {@code cause} thrown by a {@link UrlRequest.Callback}.
       *

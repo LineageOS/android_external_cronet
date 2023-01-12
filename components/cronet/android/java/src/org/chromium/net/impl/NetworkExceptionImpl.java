@@ -38,7 +38,7 @@ public class NetworkExceptionImpl extends NetworkException {
     }
 
     @Override
-    public int getCronetInternalErrorCode() {
+    public int getInternalErrorCode() {
         return mCronetInternalErrorCode;
     }
 

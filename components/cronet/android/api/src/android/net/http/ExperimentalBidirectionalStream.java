@@ -80,14 +80,14 @@ public abstract class ExperimentalBidirectionalStream extends BidirectionalStrea
         }
 
         /**
-         * Binds the request to the specified network handle. Cronet will send this request only
-         * using the network associated to this handle. If this network disconnects the request will
-         * fail, the exact error will depend on the stage of request processing when the network
-         * disconnects. Network handles can be obtained through {@code Network#getNetworkHandle}.
-         * Only available starting from Android Marshmallow.
+         * Binds the request to the specified network handle. The HTTP stack will send this request
+         * only using the network associated to this handle. If this network disconnects the request
+         * will  fail, the exact error will depend on the stage of request processing when
+         * the network disconnects. Network handles can be obtained
+         * through {@code Network#getNetworkHandle}.
          *
          * @param networkHandle the network handle to bind the request to. Specify
-         *        {@link ExperimentalCronetEngine#UNBIND_NETWORK_HANDLE} to unbind.
+         *        {@link ExperimentalHttpEngine#UNBIND_NETWORK_HANDLE} to unbind.
          * @return the builder to facilitate chaining.
          */
         public Builder bindToNetwork(long networkHandle) {
