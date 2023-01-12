@@ -1,0 +1,4512 @@
+From abc7e04a65541d7ce99ee9943bd9076bb29d073c Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Tue, 10 Jan 2023 10:31:27 +0000
+Subject: [PATCH] Remove fake Cronet classes.
+
+Test: m
+
+Change-Id: I6a2641acd3ee9d09b72ed24ec2479364542a034e
+---
+ components/cronet/android/BUILD.gn            |   72 +-
+ .../net/test/FakeCronetController.java        |  211 ---
+ .../chromium/net/test/FakeCronetEngine.java   |  320 ----
+ .../chromium/net/test/FakeCronetProvider.java |   69 -
+ .../org/chromium/net/test/FakeUrlRequest.java |  745 --------
+ .../chromium/net/test/FakeUrlResponse.java    |  296 ---
+ .../chromium/net/test/ResponseMatcher.java    |   30 -
+ .../chromium/net/test/UrlResponseMatcher.java |   41 -
+ .../net/test/FakeCronetControllerTest.java    |  254 ---
+ .../net/test/FakeCronetEngineTest.java        |  291 ---
+ .../net/test/FakeCronetProviderTest.java      |   67 -
+ .../chromium/net/test/FakeUrlRequestTest.java | 1631 -----------------
+ .../net/test/FakeUrlResponseTest.java         |  219 ---
+ .../net/test/UrlResponseMatcherTest.java      |   75 -
+ 14 files changed, 1 insertion(+), 4320 deletions(-)
+ delete mode 100644 components/cronet/android/fake/java/org/chromium/net/test/FakeCronetController.java
+ delete mode 100644 components/cronet/android/fake/java/org/chromium/net/test/FakeCronetEngine.java
+ delete mode 100644 components/cronet/android/fake/java/org/chromium/net/test/FakeCronetProvider.java
+ delete mode 100644 components/cronet/android/fake/java/org/chromium/net/test/FakeUrlRequest.java
+ delete mode 100644 components/cronet/android/fake/java/org/chromium/net/test/FakeUrlResponse.java
+ delete mode 100644 components/cronet/android/fake/java/org/chromium/net/test/ResponseMatcher.java
+ delete mode 100644 components/cronet/android/fake/java/org/chromium/net/test/UrlResponseMatcher.java
+ delete mode 100644 components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java
+ delete mode 100644 components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetEngineTest.java
+ delete mode 100644 components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetProviderTest.java
+ delete mode 100644 components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java
+ delete mode 100644 components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlResponseTest.java
+ delete mode 100644 components/cronet/android/fake/javatests/org/chromium/net/test/UrlResponseMatcherTest.java
+
+diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
+index a9c4939a..dec5587e 100644
+--- a/components/cronet/android/BUILD.gn
++++ b/components/cronet/android/BUILD.gn
+@@ -314,25 +314,6 @@ android_library("cronet_impl_common_base_java") {
+   srcjar_deps = cronet_impl_common_java_srcjar_deps
+ }
+ 
+-# cronet_impl_fake_base_java.jar - Fake implementation of Cronet.
+-android_library("cronet_impl_fake_base_java") {
+-  sources = [
+-    "fake/java/org/chromium/net/test/FakeCronetController.java",
+-    "fake/java/org/chromium/net/test/FakeCronetEngine.java",
+-    "fake/java/org/chromium/net/test/FakeUrlRequest.java",
+-    "fake/java/org/chromium/net/test/FakeUrlResponse.java",
+-    "fake/java/org/chromium/net/test/ResponseMatcher.java",
+-    "fake/java/org/chromium/net/test/UrlResponseMatcher.java",
+-  ]
+-
+-  deps = [
+-    ":cronet_api_java",
+-    ":cronet_impl_common_base_java",
+-    ":cronet_impl_java_util_java",
+-    "//third_party/androidx:androidx_annotation_annotation_java",
+-  ]
+-}
+-
+ android_library("cronet_urlconnection_impl_java") {
+   sources = [
+     "java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java",
+@@ -539,15 +520,6 @@ android_java_prebuilt("package_impl_platform_java") {
+   ]
+ }
+ 
+-android_java_prebuilt("package_impl_fake_java") {
+-  jar_path = "$_package_dir/cronet_impl_fake_java.jar"
+-  deps = [
+-    ":package_api_java",
+-    ":package_impl_common_java",
+-    ":repackage_fake",
+-  ]
+-}
+-
+ template("jar_src") {
+   action_with_pydeps(target_name) {
+     _rebased_src_search_dirs =
+@@ -637,12 +609,6 @@ jar_src("jar_cronet_impl_common_java_source") {
+   jar_path = "$_package_dir/cronet_impl_common_java-src.jar"
+ }
+ 
+-jar_src("jar_cronet_impl_fake_java_source") {
+-  src_search_dirs = [ "fake/java" ]
+-  source_deps = [ ":cronet_impl_fake_base_java" ]
+-  jar_path = "$_package_dir/cronet_impl_fake_java-src.jar"
+-}
+-
+ jar_src("jar_cronet_impl_util_java_source") {
+   src_search_dirs = [ "java/src" ]
+   source_deps = [ ":cronet_impl_java_util_java" ]
+@@ -683,11 +649,6 @@ repackage_jars("repackage_api") {
+   deps = [ ":cronet_api_java" ]
+ }
+ 
+-repackage_jars("repackage_fake") {
+-  output = "$_package_dir/cronet_impl_fake_java.jar"
+-  deps = [ ":cronet_impl_fake_base_java" ]
+-}
+-
+ repackage_jars("repackage_util") {
+   output = "$_package_dir/cronet_impl_util_java.jar"
+   deps = [ ":cronet_impl_java_util_java" ]
+@@ -912,35 +873,8 @@ if (!is_component_build) {
+     ]
+   }
+ 
+-  # cronet_fake_javatests.jar - Java tests for the fake implementation of Cronet.
+-  android_library("cronet_fake_javatests") {
+-    testonly = true
+-    sources = [
+-      "fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java",
+-      "fake/javatests/org/chromium/net/test/FakeCronetEngineTest.java",
+-      "fake/javatests/org/chromium/net/test/FakeCronetProviderTest.java",
+-      "fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java",
+-      "fake/javatests/org/chromium/net/test/FakeUrlResponseTest.java",
+-      "fake/javatests/org/chromium/net/test/UrlResponseMatcherTest.java",
+-    ]
+-
+-    deps = [
+-      ":cronet_api_java",
+-      ":cronet_common_javatests",
+-      ":cronet_impl_common_base_java",
+-      ":cronet_impl_fake_base_java",
+-      "//base:base_java_test_support",
+-      "//third_party/android_sdk:android_test_base_java",
+-      "//third_party/android_support_test_runner:runner_java",
+-      "//third_party/androidx:androidx_test_runner_java",
+-      "//third_party/junit",
+-      "//third_party/mockito:mockito_java",
+-    ]
+-  }
+-
+   cronet_javatests_deps_to_package = [
+     ":cronet_common_javatests",
+-    ":cronet_fake_javatests",
+     ":cronet_test_apk_java",
+     "//base:base_java",
+     "//base:jni_java",
+@@ -1373,7 +1307,6 @@ if (!is_component_build) {
+       "//AUTHORS",
+       "//chrome/VERSION",
+       "cronet_impl_common_proguard.cfg",
+-      "cronet_impl_fake_proguard.cfg",
+       "cronet_impl_platform_proguard.cfg",
+       "implementation_api_version.txt",
+       "interface_api_version.txt",
+@@ -1384,7 +1317,6 @@ if (!is_component_build) {
+       ":cronet_api_java",
+       ":cronet_combine_proguard_flags",
+       ":cronet_impl_common_base_java",
+-      ":cronet_impl_fake_base_java",
+     ]
+   }
+ 
+@@ -1551,13 +1483,11 @@ if (!is_component_build) {
+         ":generate_licenses",
+         ":jar_cronet_api_source",
+         ":jar_cronet_impl_common_java_source",
+-        ":jar_cronet_impl_fake_java_source",
+         ":jar_cronet_impl_native_java_source",
+         ":jar_cronet_impl_platform_java_source",
+         ":jar_cronet_sample_source",
+         ":repackage_api",
+         ":repackage_common",
+-        ":repackage_fake",
+         ":repackage_native",
+         ":repackage_platform",
+       ]
+@@ -1604,4 +1534,4 @@ if (!is_component_build) {
+       ]
+     }
+   }
+-}
+\ No newline at end of file
++}
+diff --git a/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetController.java b/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetController.java
+deleted file mode 100644
+index d9800615..00000000
+--- a/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetController.java
++++ /dev/null
+@@ -1,211 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import android.content.Context;
+-
+-import org.chromium.net.CronetEngine;
+-import org.chromium.net.ExperimentalCronetEngine;
+-import org.chromium.net.UrlRequest;
+-
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.List;
+-import java.util.Map;
+-
+-/**
+- * Controller for fake Cronet implementation. Allows a test to setup responses for
+- * {@link UrlRequest}s. If multiple {@link ResponseMatcher}s match a specific request, the first
+- * {@link ResponseMatcher} added takes precedence.
+- */
+-public final class FakeCronetController {
+-    // List of FakeCronetEngines so that FakeCronetEngine can be accessed when created with
+-    // the {@link FakeCronetProvider}.
+-    private static final List<CronetEngine> sInstances =
+-            Collections.synchronizedList(new ArrayList<>());
+-
+-    // List of ResponseMatchers to be checked for a response to a request in place of a server.
+-    private final List<ResponseMatcher> mResponseMatchers =
+-            Collections.synchronizedList(new ArrayList<>());
+-
+-    /**
+-     * Creates a fake {@link CronetEngine.Builder} that creates {@link CronetEngine}s that return
+-     * fake {@link UrlRequests}. Once built, the {@link CronetEngine}'s {@link UrlRequest}s will
+-     * retrieve responses from this {@link FakeCronetController}.
+-     *
+-     * @param context the Android context to build the fake {@link CronetEngine} from.
+-     * @return a fake CronetEngine.Builder that uses this {@link FakeCronetController} to manage
+-     * responses once it is built.
+-     */
+-    public CronetEngine.Builder newFakeCronetEngineBuilder(Context context) {
+-        FakeCronetEngine.Builder builder = new FakeCronetEngine.Builder(context);
+-        builder.setController(this);
+-        // FakeCronetEngine.Builder is not actually a CronetEngine.Builder, so construct one with
+-        // the child of CronetEngine.Builder: ExperimentalCronetEngine.Builder.
+-        return new ExperimentalCronetEngine.Builder(builder);
+-    }
+-
+-    /**
+-     * Adds a {@link UrlResponseMatcher} that will respond to the provided URL with the provided
+-     * {@link FakeUrlResponse}. Equivalent to:
+-     * addResponseMatcher(new UrlResponseMatcher(url, response)).
+-     *
+-     * @param response a {@link FakeUrlResponse} to respond with
+-     * @param url      a url for which the response should be returned
+-     */
+-    public void addResponseForUrl(FakeUrlResponse response, String url) {
+-        addResponseMatcher(new UrlResponseMatcher(url, response));
+-    }
+-
+-    /**
+-     * Adds a {@link ResponseMatcher} to the list of {@link ResponseMatcher}s.
+-     *
+-     * @param matcher the {@link ResponseMatcher} that should be matched against a request
+-     */
+-    public void addResponseMatcher(ResponseMatcher matcher) {
+-        mResponseMatchers.add(matcher);
+-    }
+-
+-    /**
+-     * Removes a specific {@link ResponseMatcher} from the list of {@link ResponseMatcher}s.
+-     *
+-     * @param matcher the {@link ResponseMatcher} to remove
+-     */
+-    public void removeResponseMatcher(ResponseMatcher matcher) {
+-        mResponseMatchers.remove(matcher);
+-    }
+-
+-    /**
+-     * Removes all {@link ResponseMatcher}s from the list of {@link ResponseMatcher}s.
+-     */
+-    public void clearResponseMatchers() {
+-        mResponseMatchers.clear();
+-    }
+-
+-    /**
+-     * Adds a {@link FakeUrlResponse} to the list of responses that will redirect a
+-     * {@link UrlRequest} to the specified URL.
+-     *
+-     * @param redirectLocation the URL to redirect the {@link UrlRequest} to
+-     * @param url              the URL that will trigger the redirect
+-     */
+-    public void addRedirectResponse(String redirectLocation, String url) {
+-        FakeUrlResponse redirectResponse = new FakeUrlResponse.Builder()
+-                                                   .setHttpStatusCode(302)
+-                                                   .addHeader("location", redirectLocation)
+-                                                   .build();
+-        addResponseForUrl(redirectResponse, url);
+-    }
+-
+-    /**
+-     * Adds an {@link FakeUrlResponse} that fails with the specified HTTP code for the specified
+-     * URL.
+-     *
+-     * @param statusCode the code for the {@link FakeUrlResponse}
+-     * @param url        the URL that should trigger the error response when requested by a
+-     *                   {@link UrlRequest}
+-     * @throws IllegalArgumentException if the HTTP status code is not an error code (code >= 400)
+-     */
+-    public void addHttpErrorResponse(int statusCode, String url) {
+-        addResponseForUrl(getFailedResponse(statusCode), url);
+-    }
+-
+-    // TODO(kirchman): Create a function to add a response that takes a CronetException.
+-
+-    /**
+-     * Adds a successful 200 code {@link FakeUrlResponse} that will match the specified
+-     * URL when requested by a {@link UrlRequest}.
+-     *
+-     * @param url the URL that triggers the successful response
+-     * @param body the body of the response as a byte array
+-     */
+-    public void addSuccessResponse(String url, byte[] body) {
+-        addResponseForUrl(new FakeUrlResponse.Builder().setResponseBody(body).build(), url);
+-    }
+-
+-    /**
+-     * Returns the {@link CronetEngineController} for a specified {@link CronetEngine}. This method
+-     * should be used in conjunction with {@link FakeCronetController.getInstances}.
+-     *
+-     * @param engine the fake {@link CronetEngine} to get the controller for.
+-     * @return the controller for the specified fake {@link CronetEngine}.
+-     */
+-    public static FakeCronetController getControllerForFakeEngine(CronetEngine engine) {
+-        if (engine instanceof FakeCronetEngine) {
+-            FakeCronetEngine fakeEngine = (FakeCronetEngine) engine;
+-            return fakeEngine.getController();
+-        }
+-        throw new IllegalArgumentException("Provided CronetEngine is not a fake CronetEngine");
+-    }
+-
+-    /**
+-     * Returns all created fake instances of {@link CronetEngine} that have not been shut down with
+-     * {@link CronetEngine.shutdown()} in order of creation. Can be used to retrieve a controller
+-     * in conjunction with {@link FakeCronetController.getControllerForFakeEngine}.
+-     *
+-     * @return a list of all fake {@link CronetEngine}s that have been created
+-     */
+-    public static List<CronetEngine> getFakeCronetEngines() {
+-        synchronized (sInstances) {
+-            return new ArrayList<>(sInstances);
+-        }
+-    }
+-
+-    /**
+-     * Removes a fake {@link CronetEngine} from the list of {@link CronetEngine} instances.
+-     *
+-     * @param cronetEngine the instance to remove
+-     */
+-    static void removeFakeCronetEngine(CronetEngine cronetEngine) {
+-        sInstances.remove(cronetEngine);
+-    }
+-
+-    /**
+-     * Add a CronetEngine to the list of CronetEngines.
+-     *
+-     * @param engine the {@link CronetEngine} to add
+-     */
+-    static void addFakeCronetEngine(FakeCronetEngine engine) {
+-        sInstances.add(engine);
+-    }
+-
+-    /**
+-     * Gets a response for specified request details if there is one, or a "404" failed response
+-     * if there is no {@link ResponseMatcher} with a {@link FakeUrlResponse} for this request.
+-     *
+-     * @param url        the URL that the {@link UrlRequest} is connecting to
+-     * @param httpMethod the HTTP method that the {@link UrlRequest} is using to connect with
+-     * @param headers    the headers supplied by the {@link UrlRequest}
+-     * @param body       the body of the fake HTTP request
+-     * @return a {@link FakeUrlResponse} if there is one, or a failed "404" response if none found
+-     */
+-    FakeUrlResponse getResponse(
+-            String url, String httpMethod, List<Map.Entry<String, String>> headers, byte[] body) {
+-        synchronized (mResponseMatchers) {
+-            for (ResponseMatcher responseMatcher : mResponseMatchers) {
+-                FakeUrlResponse matchedResponse =
+-                        responseMatcher.getMatchingResponse(url, httpMethod, headers, body);
+-                if (matchedResponse != null) {
+-                    return matchedResponse;
+-                }
+-            }
+-        }
+-        return getFailedResponse(404);
+-    }
+-
+-    /**
+-     * Creates and returns a failed response with the specified HTTP status code.
+-     *
+-     * @param statusCode the HTTP code that the returned response will have
+-     * @return a {@link FakeUrlResponse} with the specified code
+-     */
+-    private static FakeUrlResponse getFailedResponse(int statusCode) {
+-        if (statusCode < 400) {
+-            throw new IllegalArgumentException(
+-                    "Expected HTTP error code (code >= 400), but was: " + statusCode);
+-        }
+-        return new FakeUrlResponse.Builder().setHttpStatusCode(statusCode).build();
+-    }
+-}
+diff --git a/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetEngine.java b/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetEngine.java
+deleted file mode 100644
+index 7f61acef..00000000
+--- a/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetEngine.java
++++ /dev/null
+@@ -1,320 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import android.content.Context;
+-
+-import androidx.annotation.GuardedBy;
+-
+-import org.chromium.net.BidirectionalStream;
+-import org.chromium.net.CronetEngine;
+-import org.chromium.net.ExperimentalBidirectionalStream;
+-import org.chromium.net.NetworkQualityRttListener;
+-import org.chromium.net.NetworkQualityThroughputListener;
+-import org.chromium.net.RequestFinishedInfo;
+-import org.chromium.net.UrlRequest;
+-import org.chromium.net.impl.CronetEngineBase;
+-import org.chromium.net.impl.CronetEngineBuilderImpl;
+-import org.chromium.net.impl.ImplVersion;
+-import org.chromium.net.impl.UrlRequestBase;
+-
+-import java.io.IOException;
+-import java.net.Proxy;
+-import java.net.URL;
+-import java.net.URLConnection;
+-import java.net.URLStreamHandlerFactory;
+-import java.util.Collection;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.concurrent.Executor;
+-import java.util.concurrent.ExecutorService;
+-import java.util.concurrent.Executors;
+-import java.util.concurrent.LinkedBlockingQueue;
+-import java.util.concurrent.ThreadFactory;
+-import java.util.concurrent.ThreadPoolExecutor;
+-import java.util.concurrent.TimeUnit;
+-
+-/**
+- * Fake {@link CronetEngine}. This implements CronetEngine.
+- */
+-final class FakeCronetEngine extends CronetEngineBase {
+-    /**
+-     * Builds a {@link FakeCronetEngine}. This implements CronetEngine.Builder.
+-     */
+-    static class Builder extends CronetEngineBuilderImpl {
+-        private FakeCronetController mController;
+-
+-        /**
+-         * Builder for {@link FakeCronetEngine}.
+-         *
+-         * @param context Android {@link Context}.
+-         */
+-        Builder(Context context) {
+-            super(context);
+-        }
+-
+-        @Override
+-        public FakeCronetEngine build() {
+-            return new FakeCronetEngine(this);
+-        }
+-
+-        void setController(FakeCronetController controller) {
+-            mController = controller;
+-        }
+-    }
+-
+-    private final FakeCronetController mController;
+-    private final ExecutorService mExecutorService;
+-
+-    private final Object mLock = new Object();
+-
+-    @GuardedBy("mLock")
+-    private boolean mIsShutdown;
+-
+-    @GuardedBy("mLock")
+-    private int mActiveRequestCount;
+-
+-    /**
+-     * Creates a {@link FakeCronetEngine}. Used when {@link FakeCronetEngine} is created with the
+-     * {@link FakeCronetEngine.Builder}.
+-     *
+-     * @param builder a {@link CronetEngineBuilderImpl} to build this {@link CronetEngine}
+-     *                implementation from.
+-     */
+-    private FakeCronetEngine(FakeCronetEngine.Builder builder) {
+-        if (builder.mController != null) {
+-            mController = builder.mController;
+-        } else {
+-            mController = new FakeCronetController();
+-        }
+-        mExecutorService = new ThreadPoolExecutor(
+-                /* corePoolSize= */ 1,
+-                /* maximumPoolSize= */ 5,
+-                /* keepAliveTime= */ 50, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>(),
+-                new ThreadFactory() {
+-                    @Override
+-                    public Thread newThread(final Runnable r) {
+-                        return Executors.defaultThreadFactory().newThread(new Runnable() {
+-                            @Override
+-                            public void run() {
+-                                Thread.currentThread().setName("FakeCronetEngine");
+-                                r.run();
+-                            }
+-                        });
+-                    }
+-                });
+-        FakeCronetController.addFakeCronetEngine(this);
+-    }
+-
+-    /**
+-     * Gets the controller associated with this instance that will be used for responses to
+-     * {@link UrlRequest}s.
+-     *
+-     * @return the {@link FakeCronetCntroller} that controls this {@link FakeCronetEngine}.
+-     */
+-    FakeCronetController getController() {
+-        return mController;
+-    }
+-
+-    @Override
+-    public ExperimentalBidirectionalStream.Builder newBidirectionalStreamBuilder(
+-            String url, BidirectionalStream.Callback callback, Executor executor) {
+-        synchronized (mLock) {
+-            if (mIsShutdown) {
+-                throw new IllegalStateException(
+-                        "This instance of CronetEngine has been shutdown and can no longer be "
+-                        + "used.");
+-            }
+-            throw new UnsupportedOperationException(
+-                    "The bidirectional stream API is not supported by the Fake implementation "
+-                    + "of CronetEngine.");
+-        }
+-    }
+-
+-    @Override
+-    public String getVersionString() {
+-        return "FakeCronet/" + ImplVersion.getCronetVersionWithLastChange();
+-    }
+-
+-    @Override
+-    public void shutdown() {
+-        synchronized (mLock) {
+-            if (mActiveRequestCount != 0) {
+-                throw new IllegalStateException("Cannot shutdown with active requests.");
+-            } else {
+-                mIsShutdown = true;
+-            }
+-        }
+-        mExecutorService.shutdown();
+-        FakeCronetController.removeFakeCronetEngine(this);
+-    }
+-
+-    @Override
+-    public void startNetLogToFile(String fileName, boolean logAll) {}
+-
+-    @Override
+-    public void startNetLogToDisk(String dirPath, boolean logAll, int maxSize) {}
+-
+-    @Override
+-    public void stopNetLog() {}
+-
+-    @Override
+-    public byte[] getGlobalMetricsDeltas() {
+-        return new byte[0];
+-    }
+-
+-    @Override
+-    public int getEffectiveConnectionType() {
+-        return EFFECTIVE_CONNECTION_TYPE_UNKNOWN;
+-    }
+-
+-    @Override
+-    public int getHttpRttMs() {
+-        return CONNECTION_METRIC_UNKNOWN;
+-    }
+-
+-    @Override
+-    public int getTransportRttMs() {
+-        return CONNECTION_METRIC_UNKNOWN;
+-    }
+-
+-    @Override
+-    public int getDownstreamThroughputKbps() {
+-        return CONNECTION_METRIC_UNKNOWN;
+-    }
+-
+-    @Override
+-    public void bindToNetwork(long networkHandle) {
+-        throw new UnsupportedOperationException(
+-                "The multi-network API is not supported by the Fake implementation "
+-                + "of Cronet Engine");
+-    }
+-
+-    @Override
+-    public void configureNetworkQualityEstimatorForTesting(boolean useLocalHostRequests,
+-            boolean useSmallerResponses, boolean disableOfflineCheck) {}
+-
+-    @Override
+-    public void addRttListener(NetworkQualityRttListener listener) {}
+-
+-    @Override
+-    public void removeRttListener(NetworkQualityRttListener listener) {}
+-
+-    @Override
+-    public void addThroughputListener(NetworkQualityThroughputListener listener) {}
+-
+-    @Override
+-    public void removeThroughputListener(NetworkQualityThroughputListener listener) {}
+-
+-    @Override
+-    public void addRequestFinishedListener(RequestFinishedInfo.Listener listener) {}
+-
+-    @Override
+-    public void removeRequestFinishedListener(RequestFinishedInfo.Listener listener) {}
+-
+-    // TODO(crbug.com/669707) Instantiate a fake CronetHttpUrlConnection wrapping a FakeUrlRequest
+-    // here.
+-    @Override
+-    public URLConnection openConnection(URL url) throws IOException {
+-        throw new UnsupportedOperationException(
+-                "The openConnection API is not supported by the Fake implementation of "
+-                + "CronetEngine.");
+-    }
+-
+-    @Override
+-    public URLConnection openConnection(URL url, Proxy proxy) throws IOException {
+-        throw new UnsupportedOperationException(
+-                "The openConnection API is not supported by the Fake implementation of "
+-                + "CronetEngine.");
+-    }
+-
+-    @Override
+-    public URLStreamHandlerFactory createURLStreamHandlerFactory() {
+-        throw new UnsupportedOperationException(
+-                "The URLStreamHandlerFactory API is not supported by the Fake implementation of "
+-                + "CronetEngine.");
+-    }
+-
+-    @Override
+-    protected UrlRequestBase createRequest(String url, UrlRequest.Callback callback,
+-            Executor userExecutor, int priority, Collection<Object> connectionAnnotations,
+-            boolean disableCache, boolean disableConnectionMigration, boolean allowDirectExecutor,
+-            boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
+-            int trafficStatsUid, RequestFinishedInfo.Listener requestFinishedListener,
+-            int idempotency, long networkHandle) {
+-        if (networkHandle != DEFAULT_NETWORK_HANDLE) {
+-            throw new UnsupportedOperationException(
+-                    "The multi-network API is not supported by the Fake implementation "
+-                    + "of Cronet Engine");
+-        }
+-
+-        synchronized (mLock) {
+-            if (mIsShutdown) {
+-                throw new IllegalStateException(
+-                        "This instance of CronetEngine has been shutdown and can no longer be "
+-                        + "used.");
+-            }
+-            return new FakeUrlRequest(callback, userExecutor, mExecutorService, url,
+-                    allowDirectExecutor, trafficStatsTagSet, trafficStatsTag, trafficStatsUidSet,
+-                    trafficStatsUid, mController, this);
+-        }
+-    }
+-
+-    @Override
+-    protected ExperimentalBidirectionalStream createBidirectionalStream(String url,
+-            BidirectionalStream.Callback callback, Executor executor, String httpMethod,
+-            List<Map.Entry<String, String>> requestHeaders, @StreamPriority int priority,
+-            boolean delayRequestHeadersUntilFirstFlush, Collection<Object> connectionAnnotations,
+-            boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
+-            int trafficStatsUid, long networkHandle) {
+-        if (networkHandle != DEFAULT_NETWORK_HANDLE) {
+-            throw new UnsupportedOperationException(
+-                    "The multi-network API is not supported by the Fake implementation "
+-                    + "of Cronet Engine");
+-        }
+-        synchronized (mLock) {
+-            if (mIsShutdown) {
+-                throw new IllegalStateException(
+-                        "This instance of CronetEngine has been shutdown and can no longer be "
+-                        + "used.");
+-            }
+-            throw new UnsupportedOperationException(
+-                    "The BidirectionalStream API is not supported by the Fake implementation of "
+-                    + "CronetEngine.");
+-        }
+-    }
+-
+-    /**
+-     * Mark request as started to prevent shutdown when there are active
+-     * requests, only if the engine is not shutdown.
+-     *
+-     * @return true if the engine is not shutdown and the request is marked as started.
+-     */
+-    boolean startRequest() {
+-        synchronized (mLock) {
+-            if (!mIsShutdown) {
+-                mActiveRequestCount++;
+-                return true;
+-            }
+-            return false;
+-        }
+-    }
+-
+-    /**
+-     * Mark request as finished to allow shutdown when there are no active
+-     * requests.
+-     */
+-    void onRequestDestroyed() {
+-        synchronized (mLock) {
+-            // Sanity check. We should not be able to shutdown if there are still running requests.
+-            if (mIsShutdown) {
+-                throw new IllegalStateException(
+-                        "This instance of CronetEngine was shutdown. All requests must have been "
+-                        + "complete.");
+-            }
+-            mActiveRequestCount--;
+-        }
+-    }
+-}
+diff --git a/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetProvider.java b/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetProvider.java
+deleted file mode 100644
+index da16d245..00000000
+--- a/components/cronet/android/fake/java/org/chromium/net/test/FakeCronetProvider.java
++++ /dev/null
+@@ -1,69 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import android.content.Context;
+-
+-import org.chromium.net.CronetEngine;
+-import org.chromium.net.ExperimentalCronetEngine;
+-import org.chromium.net.ICronetEngineBuilder;
+-import org.chromium.net.impl.ImplVersion;
+-
+-import java.util.Arrays;
+-
+-/**
+- * Implementation of {@link CronetProvider} that creates {@link CronetEngine.Builder}
+- * for building the Fake implementation of {@link CronetEngine}.
+- * {@hide}
+- */
+-public class FakeCronetProvider extends CronetProvider {
+-    /**
+-     * String returned by {@link CronetProvider#getName} for {@link CronetProvider}
+-     * that provides the fake Cronet implementation.
+-     */
+-    public static final String PROVIDER_NAME_FAKE = "Fake-Cronet-Provider";
+-
+-    /**
+-     * Constructs a {@link FakeCronetProvider}.
+-     *
+-     * @param context Android context to use
+-     */
+-    public FakeCronetProvider(Context context) {
+-        super(context);
+-    }
+-
+-    @Override
+-    public CronetEngine.Builder createBuilder() {
+-        ICronetEngineBuilder impl = new FakeCronetEngine.Builder(mContext);
+-        return new ExperimentalCronetEngine.Builder(impl);
+-    }
+-
+-    @Override
+-    public String getName() {
+-        return PROVIDER_NAME_FAKE;
+-    }
+-
+-    @Override
+-    public String getVersion() {
+-        return ImplVersion.getCronetVersion();
+-    }
+-
+-    @Override
+-    public boolean isEnabled() {
+-        return true;
+-    }
+-
+-    @Override
+-    public int hashCode() {
+-        return Arrays.hashCode(new Object[] {FakeCronetProvider.class, mContext});
+-    }
+-
+-    @Override
+-    public boolean equals(Object other) {
+-        return other == this
+-                || (other instanceof FakeCronetProvider
+-                        && this.mContext.equals(((FakeCronetProvider) other).mContext));
+-    }
+-}
+diff --git a/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlRequest.java b/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlRequest.java
+deleted file mode 100644
+index bdbaa12c..00000000
+--- a/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlRequest.java
++++ /dev/null
+@@ -1,745 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import android.util.Log;
+-
+-import androidx.annotation.GuardedBy;
+-import androidx.annotation.VisibleForTesting;
+-
+-import org.chromium.net.CronetException;
+-import org.chromium.net.InlineExecutionProhibitedException;
+-import org.chromium.net.UploadDataProvider;
+-import org.chromium.net.UrlResponseInfo;
+-import org.chromium.net.impl.CallbackExceptionImpl;
+-import org.chromium.net.impl.CronetExceptionImpl;
+-import org.chromium.net.impl.Preconditions;
+-import org.chromium.net.impl.UrlRequestBase;
+-import org.chromium.net.impl.UrlResponseInfoImpl;
+-
+-import java.io.ByteArrayOutputStream;
+-import java.io.IOException;
+-import java.net.URI;
+-import java.nio.ByteBuffer;
+-import java.nio.channels.Channels;
+-import java.nio.channels.WritableByteChannel;
+-import java.util.AbstractMap;
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.HashMap;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.concurrent.Executor;
+-import java.util.concurrent.RejectedExecutionException;
+-
+-/**
+- * Fake UrlRequest that retrieves responses from the associated FakeCronetController. Used for
+- * testing Cronet usage on Android.
+- */
+-final class FakeUrlRequest extends UrlRequestBase {
+-    private static final int DEFAULT_UPLOAD_BUFFER_SIZE = 8192;
+-    // Used for logging errors.
+-    private static final String TAG = FakeUrlRequest.class.getSimpleName();
+-    // Callback used to report responses to the client.
+-    private final Callback mCallback;
+-    // The {@link Executor} provided by the user to be used for callbacks.
+-    private final Executor mUserExecutor;
+-    // The {@link Executor} provided by the engine used to break up callback loops.
+-    private final Executor mExecutor;
+-    // The {@link FakeCronetController} that will provide responses for this request.
+-    private final FakeCronetController mFakeCronetController;
+-    // The fake {@link CronetEngine} that should be notified when this request starts and stops.
+-    private final FakeCronetEngine mFakeCronetEngine;
+-    // Source of thread safety for this class.
+-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+-    final Object mLock = new Object();
+-    // True if direct execution is allowed for this request.
+-    private final boolean mAllowDirectExecutor;
+-    // The chain of URL's this request has received.
+-    @GuardedBy("mLock")
+-    private final List<String> mUrlChain = new ArrayList<>();
+-    // The list of HTTP headers used by this request to establish a connection.
+-    @GuardedBy("mLock")
+-    private final ArrayList<Map.Entry<String, String>> mAllHeadersList = new ArrayList<>();
+-    // The current URL this request is connecting to.
+-    @GuardedBy("mLock")
+-    private String mCurrentUrl;
+-    // The {@link FakeUrlResponse} for the current URL.
+-    @GuardedBy("mLock")
+-    private FakeUrlResponse mCurrentFakeResponse;
+-    // The body of the request from UploadDataProvider.
+-    @GuardedBy("mLock")
+-    private byte[] mRequestBody;
+-    // The {@link UploadDataProvider} to retrieve a request body from.
+-    @GuardedBy("mLock")
+-    private UploadDataProvider mUploadDataProvider;
+-    // The executor to call the {@link UploadDataProvider}'s callback methods with.
+-    @GuardedBy("mLock")
+-    private Executor mUploadExecutor;
+-    // The {@link UploadDataSink} for the {@link UploadDataProvider}.
+-    @GuardedBy("mLock")
+-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+-    FakeDataSink mFakeDataSink;
+-    // The {@link UrlResponseInfo} for the current request.
+-    @GuardedBy("mLock")
+-    private UrlResponseInfo mUrlResponseInfo;
+-    // The response from the current request that needs to be sent.
+-    @GuardedBy("mLock")
+-    private ByteBuffer mResponse;
+-    // The HTTP method used by this request to establish a connection.
+-    @GuardedBy("mLock")
+-    private String mHttpMethod;
+-    // True after the {@link UploadDataProvider} for this request has been closed.
+-    @GuardedBy("mLock")
+-    private boolean mUploadProviderClosed;
+-
+-    @GuardedBy("mLock")
+-    @State
+-    private int mState = State.NOT_STARTED;
+-
+-    /**
+-     * Holds a subset of StatusValues - {@link State#STARTED} can represent
+-     * {@link Status#SENDING_REQUEST} or {@link Status#WAITING_FOR_RESPONSE}. While the distinction
+-     * isn't needed to implement the logic in this class, it is needed to implement
+-     * {@link #getStatus(StatusListener)}.
+-     */
+-    @StatusValues
+-    private volatile int mAdditionalStatusDetails = Status.INVALID;
+-
+-    /**
+-     * Used to map from HTTP status codes to the corresponding human-readable text.
+-     */
+-    private static final Map<Integer, String> HTTP_STATUS_CODE_TO_TEXT;
+-    static {
+-        Map<Integer, String> httpCodeMap = new HashMap<>();
+-        httpCodeMap.put(100, "Continue");
+-        httpCodeMap.put(101, "Switching Protocols");
+-        httpCodeMap.put(102, "Processing");
+-        httpCodeMap.put(103, "Early Hints");
+-        httpCodeMap.put(200, "OK");
+-        httpCodeMap.put(201, "Created");
+-        httpCodeMap.put(202, "Accepted");
+-        httpCodeMap.put(203, "Non-Authoritative Information");
+-        httpCodeMap.put(204, "No Content");
+-        httpCodeMap.put(205, "Reset Content");
+-        httpCodeMap.put(206, "Partial Content");
+-        httpCodeMap.put(207, "Multi-Status");
+-        httpCodeMap.put(208, "Already Reported");
+-        httpCodeMap.put(226, "IM Used");
+-        httpCodeMap.put(300, "Multiple Choices");
+-        httpCodeMap.put(301, "Moved Permanently");
+-        httpCodeMap.put(302, "Found");
+-        httpCodeMap.put(303, "See Other");
+-        httpCodeMap.put(304, "Not Modified");
+-        httpCodeMap.put(305, "Use Proxy");
+-        httpCodeMap.put(306, "Unused");
+-        httpCodeMap.put(307, "Temporary Redirect");
+-        httpCodeMap.put(308, "Permanent Redirect");
+-        httpCodeMap.put(400, "Bad Request");
+-        httpCodeMap.put(401, "Unauthorized");
+-        httpCodeMap.put(402, "Payment Required");
+-        httpCodeMap.put(403, "Forbidden");
+-        httpCodeMap.put(404, "Not Found");
+-        httpCodeMap.put(405, "Method Not Allowed");
+-        httpCodeMap.put(406, "Not Acceptable");
+-        httpCodeMap.put(407, "Proxy Authentication Required");
+-        httpCodeMap.put(408, "Request Timeout");
+-        httpCodeMap.put(409, "Conflict");
+-        httpCodeMap.put(410, "Gone");
+-        httpCodeMap.put(411, "Length Required");
+-        httpCodeMap.put(412, "Precondition Failed");
+-        httpCodeMap.put(413, "Payload Too Large");
+-        httpCodeMap.put(414, "URI Too Long");
+-        httpCodeMap.put(415, "Unsupported Media Type");
+-        httpCodeMap.put(416, "Range Not Satisfiable");
+-        httpCodeMap.put(417, "Expectation Failed");
+-        httpCodeMap.put(421, "Misdirected Request");
+-        httpCodeMap.put(422, "Unprocessable Entity");
+-        httpCodeMap.put(423, "Locked");
+-        httpCodeMap.put(424, "Failed Dependency");
+-        httpCodeMap.put(425, "Too Early");
+-        httpCodeMap.put(426, "Upgrade Required");
+-        httpCodeMap.put(428, "Precondition Required");
+-        httpCodeMap.put(429, "Too Many Requests");
+-        httpCodeMap.put(431, "Request Header Fields Too Large");
+-        httpCodeMap.put(451, "Unavailable For Legal Reasons");
+-        httpCodeMap.put(500, "Internal Server Error");
+-        httpCodeMap.put(501, "Not Implemented");
+-        httpCodeMap.put(502, "Bad Gateway");
+-        httpCodeMap.put(503, "Service Unavailable");
+-        httpCodeMap.put(504, "Gateway Timeout");
+-        httpCodeMap.put(505, "HTTP Version Not Supported");
+-        httpCodeMap.put(506, "Variant Also Negotiates");
+-        httpCodeMap.put(507, "Insufficient Storage");
+-        httpCodeMap.put(508, "Loop Denied");
+-        httpCodeMap.put(510, "Not Extended");
+-        httpCodeMap.put(511, "Network Authentication Required");
+-        HTTP_STATUS_CODE_TO_TEXT = Collections.unmodifiableMap(httpCodeMap);
+-    }
+-
+-    FakeUrlRequest(Callback callback, Executor userExecutor, Executor executor, String url,
+-            boolean allowDirectExecutor, boolean trafficStatsTagSet, int trafficStatsTag,
+-            final boolean trafficStatsUidSet, final int trafficStatsUid,
+-            FakeCronetController fakeCronetController, FakeCronetEngine fakeCronetEngine) {
+-        if (url == null) {
+-            throw new NullPointerException("URL is required");
+-        }
+-        if (callback == null) {
+-            throw new NullPointerException("Listener is required");
+-        }
+-        if (executor == null) {
+-            throw new NullPointerException("Executor is required");
+-        }
+-        mCallback = callback;
+-        mUserExecutor =
+-                allowDirectExecutor ? userExecutor : new DirectPreventingExecutor(userExecutor);
+-        mExecutor = executor;
+-        mCurrentUrl = url;
+-        mFakeCronetController = fakeCronetController;
+-        mFakeCronetEngine = fakeCronetEngine;
+-        mAllowDirectExecutor = allowDirectExecutor;
+-    }
+-
+-    @Override
+-    public void setUploadDataProvider(UploadDataProvider uploadDataProvider, Executor executor) {
+-        if (uploadDataProvider == null) {
+-            throw new NullPointerException("Invalid UploadDataProvider.");
+-        }
+-        synchronized (mLock) {
+-            if (!checkHasContentTypeHeader()) {
+-                throw new IllegalArgumentException(
+-                        "Requests with upload data must have a Content-Type.");
+-            }
+-            checkNotStarted();
+-            if (mHttpMethod == null) {
+-                mHttpMethod = "POST";
+-            }
+-            mUploadExecutor =
+-                    mAllowDirectExecutor ? executor : new DirectPreventingExecutor(executor);
+-            mUploadDataProvider = uploadDataProvider;
+-        }
+-    }
+-
+-    @Override
+-    public void setHttpMethod(String method) {
+-        synchronized (mLock) {
+-            checkNotStarted();
+-            if (method == null) {
+-                throw new NullPointerException("Method is required.");
+-            }
+-            if ("OPTIONS".equalsIgnoreCase(method) || "GET".equalsIgnoreCase(method)
+-                    || "HEAD".equalsIgnoreCase(method) || "POST".equalsIgnoreCase(method)
+-                    || "PUT".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method)
+-                    || "TRACE".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method)) {
+-                mHttpMethod = method;
+-            } else {
+-                throw new IllegalArgumentException("Invalid http method: " + method);
+-            }
+-        }
+-    }
+-
+-    @Override
+-    public void addHeader(String header, String value) {
+-        synchronized (mLock) {
+-            checkNotStarted();
+-            mAllHeadersList.add(new AbstractMap.SimpleEntry<String, String>(header, value));
+-        }
+-    }
+-
+-    /**
+-     * Verifies that the request is not already started and throws an exception if it is.
+-     */
+-    @GuardedBy("mLock")
+-    private void checkNotStarted() {
+-        if (mState != State.NOT_STARTED) {
+-            throw new IllegalStateException("Request is already started. State is: " + mState);
+-        }
+-    }
+-
+-    @Override
+-    public void start() {
+-        synchronized (mLock) {
+-            if (mFakeCronetEngine.startRequest()) {
+-                boolean transitionedState = false;
+-                try {
+-                    transitionStates(State.NOT_STARTED, State.STARTED);
+-                    mAdditionalStatusDetails = Status.CONNECTING;
+-                    transitionedState = true;
+-                } finally {
+-                    if (!transitionedState) {
+-                        cleanup();
+-                    }
+-                }
+-                mUrlChain.add(mCurrentUrl);
+-                if (mUploadDataProvider != null) {
+-                    mFakeDataSink =
+-                            new FakeDataSink(mUploadExecutor, mExecutor, mUploadDataProvider);
+-                    mFakeDataSink.start(/* firstTime= */ true);
+-                } else {
+-                    fakeConnect();
+-                }
+-            } else {
+-                throw new IllegalStateException("This request's CronetEngine is already shutdown.");
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Fakes a request to a server by retrieving a response to this {@link UrlRequest} from the
+-     * {@link FakeCronetController}.
+-     */
+-    @GuardedBy("mLock")
+-    private void fakeConnect() {
+-        mAdditionalStatusDetails = Status.WAITING_FOR_RESPONSE;
+-        mCurrentFakeResponse = mFakeCronetController.getResponse(
+-                mCurrentUrl, mHttpMethod, mAllHeadersList, mRequestBody);
+-        int responseCode = mCurrentFakeResponse.getHttpStatusCode();
+-        mUrlResponseInfo = new UrlResponseInfoImpl(
+-                Collections.unmodifiableList(new ArrayList<>(mUrlChain)), responseCode,
+-                getDescriptionByCode(responseCode), mCurrentFakeResponse.getAllHeadersList(),
+-                mCurrentFakeResponse.getWasCached(), mCurrentFakeResponse.getNegotiatedProtocol(),
+-                mCurrentFakeResponse.getProxyServer(),
+-                mCurrentFakeResponse.getResponseBody().length);
+-        mResponse = ByteBuffer.wrap(mCurrentFakeResponse.getResponseBody());
+-        // Check for a redirect.
+-        if (responseCode >= 300 && responseCode < 400) {
+-            processRedirectResponse();
+-        } else {
+-            closeUploadDataProvider();
+-            final UrlResponseInfo info = mUrlResponseInfo;
+-            transitionStates(State.STARTED, State.AWAITING_READ);
+-            executeCheckedRunnable(new CheckedRunnable() {
+-                @Override
+-                public void run() throws Exception {
+-                    mCallback.onResponseStarted(FakeUrlRequest.this, info);
+-                }
+-            });
+-        }
+-    }
+-
+-    /**
+-     * Retrieves the redirect location from the response headers and responds to the
+-     * {@link UrlRequest.Callback#onRedirectReceived} method. Adds the redirect URL to the chain.
+-     *
+-     * @param url the URL that the {@link FakeUrlResponse} redirected this request to
+-     */
+-    @GuardedBy("mLock")
+-    private void processRedirectResponse() {
+-        transitionStates(State.STARTED, State.REDIRECT_RECEIVED);
+-        if (mUrlResponseInfo.getAllHeaders().get("location") == null) {
+-            // Response did not have a location header, so this request must fail.
+-            final String prevUrl = mCurrentUrl;
+-            mUserExecutor.execute(new Runnable() {
+-                @Override
+-                public void run() {
+-                    tryToFailWithException(new CronetExceptionImpl(
+-                            "Request failed due to bad redirect HTTP headers",
+-                            new IllegalStateException("Response recieved from URL: " + prevUrl
+-                                    + " was a redirect, but lacked a location header.")));
+-                }
+-            });
+-            return;
+-        }
+-        String pendingRedirectUrl =
+-                URI.create(mCurrentUrl)
+-                        .resolve(mUrlResponseInfo.getAllHeaders().get("location").get(0))
+-                        .toString();
+-        mCurrentUrl = pendingRedirectUrl;
+-        mUrlChain.add(mCurrentUrl);
+-        transitionStates(State.REDIRECT_RECEIVED, State.AWAITING_FOLLOW_REDIRECT);
+-        final UrlResponseInfo info = mUrlResponseInfo;
+-        mExecutor.execute(new Runnable() {
+-            @Override
+-            public void run() {
+-                executeCheckedRunnable(new CheckedRunnable() {
+-                    @Override
+-                    public void run() throws Exception {
+-                        mCallback.onRedirectReceived(FakeUrlRequest.this, info, pendingRedirectUrl);
+-                    }
+-                });
+-            }
+-        });
+-    }
+-
+-    @Override
+-    public void read(ByteBuffer buffer) {
+-        // Entering {@link #State.READING} is somewhat redundant because the entire response is
+-        // already acquired. We should still transition so that the fake {@link UrlRequest} follows
+-        // the same state flow as a real request.
+-        Preconditions.checkHasRemaining(buffer);
+-        Preconditions.checkDirect(buffer);
+-        synchronized (mLock) {
+-            transitionStates(State.AWAITING_READ, State.READING);
+-            final UrlResponseInfo info = mUrlResponseInfo;
+-            if (mResponse.hasRemaining()) {
+-                transitionStates(State.READING, State.AWAITING_READ);
+-                fillBufferWithResponse(buffer);
+-                mExecutor.execute(new Runnable() {
+-                    @Override
+-                    public void run() {
+-                        executeCheckedRunnable(new CheckedRunnable() {
+-                            @Override
+-                            public void run() throws Exception {
+-                                mCallback.onReadCompleted(FakeUrlRequest.this, info, buffer);
+-                            }
+-                        });
+-                    }
+-                });
+-            } else {
+-                if (setTerminalState(State.COMPLETE)) {
+-                    mUserExecutor.execute(new Runnable() {
+-                        @Override
+-                        public void run() {
+-                            mCallback.onSucceeded(FakeUrlRequest.this, info);
+-                        }
+-                    });
+-                }
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Puts as much of the remaining response as will fit into the {@link ByteBuffer} and removes
+-     * that part of the string from the response left to send.
+-     *
+-     * @param buffer the {@link ByteBuffer} to put the response into
+-     * @return the buffer with the response that we want to send back in it
+-     */
+-    @GuardedBy("mLock")
+-    private void fillBufferWithResponse(ByteBuffer buffer) {
+-        final int maxTransfer = Math.min(buffer.remaining(), mResponse.remaining());
+-        ByteBuffer temp = mResponse.duplicate();
+-        temp.limit(temp.position() + maxTransfer);
+-        buffer.put(temp);
+-        mResponse.position(mResponse.position() + maxTransfer);
+-    }
+-
+-    @Override
+-    public void followRedirect() {
+-        synchronized (mLock) {
+-            transitionStates(State.AWAITING_FOLLOW_REDIRECT, State.STARTED);
+-            if (mFakeDataSink != null) {
+-                mFakeDataSink = new FakeDataSink(mUploadExecutor, mExecutor, mUploadDataProvider);
+-                mFakeDataSink.start(/* firstTime= */ false);
+-            } else {
+-                fakeConnect();
+-            }
+-        }
+-    }
+-
+-    @Override
+-    public void cancel() {
+-        synchronized (mLock) {
+-            final UrlResponseInfo info = mUrlResponseInfo;
+-            if (setTerminalState(State.CANCELLED)) {
+-                mUserExecutor.execute(new Runnable() {
+-                    @Override
+-                    public void run() {
+-                        mCallback.onCanceled(FakeUrlRequest.this, info);
+-                    }
+-                });
+-            }
+-        }
+-    }
+-
+-    @Override
+-    public void getStatus(final StatusListener listener) {
+-        synchronized (mLock) {
+-            int extraStatus = mAdditionalStatusDetails;
+-
+-            @StatusValues
+-            final int status;
+-            switch (mState) {
+-                case State.ERROR:
+-                case State.COMPLETE:
+-                case State.CANCELLED:
+-                case State.NOT_STARTED:
+-                    status = Status.INVALID;
+-                    break;
+-                case State.STARTED:
+-                    status = extraStatus;
+-                    break;
+-                case State.REDIRECT_RECEIVED:
+-                case State.AWAITING_FOLLOW_REDIRECT:
+-                case State.AWAITING_READ:
+-                    status = Status.IDLE;
+-                    break;
+-                case State.READING:
+-                    status = Status.READING_RESPONSE;
+-                    break;
+-                default:
+-                    throw new IllegalStateException("Switch is exhaustive: " + mState);
+-            }
+-            mUserExecutor.execute(new Runnable() {
+-                @Override
+-                public void run() {
+-                    listener.onStatus(status);
+-                }
+-            });
+-        }
+-    }
+-
+-    @Override
+-    public boolean isDone() {
+-        synchronized (mLock) {
+-            return mState == State.COMPLETE || mState == State.ERROR || mState == State.CANCELLED;
+-        }
+-    }
+-
+-    /**
+-     * Swaps from the expected state to a new state. If the swap fails, and it's not
+-     * due to an earlier error or cancellation, throws an exception.
+-     */
+-    @GuardedBy("mLock")
+-    private void transitionStates(@State int expected, @State int newState) {
+-        if (mState == expected) {
+-            mState = newState;
+-        } else {
+-            if (!(mState == State.CANCELLED || mState == State.ERROR)) {
+-                throw new IllegalStateException(
+-                        "Invalid state transition - expected " + expected + " but was " + mState);
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Calls the callback's onFailed method if this request is not complete. Should be executed on
+-     * the {@code mUserExecutor}, unless the error is a {@link InlineExecutionProhibitedException}
+-     * produced by the {@code mUserExecutor}.
+-     *
+-     * @param e the {@link CronetException} that the request should pass to the callback.
+-     *
+-     */
+-    private void tryToFailWithException(CronetException e) {
+-        synchronized (mLock) {
+-            if (setTerminalState(State.ERROR)) {
+-                mCallback.onFailed(FakeUrlRequest.this, mUrlResponseInfo, e);
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Execute a {@link CheckedRunnable} and call the {@link UrlRequest.Callback#onFailed} method
+-     * if there is an exception and we can change to {@link State.ERROR}. Used to communicate with
+-     * the {@link UrlRequest.Callback} methods using the executor provided by the constructor. This
+-     * should be the last call in the critical section. If this is not the last call in a critical
+-     * section, we risk modifying shared resources in a recursive call to another method
+-     * guarded by the {@code mLock}. This is because in Java synchronized blocks are reentrant.
+-     *
+-     * @param checkedRunnable the runnable to execute
+-     */
+-    private void executeCheckedRunnable(JavaUrlRequestUtils.CheckedRunnable checkedRunnable) {
+-        try {
+-            mUserExecutor.execute(new Runnable() {
+-                @Override
+-                public void run() {
+-                    try {
+-                        checkedRunnable.run();
+-                    } catch (Exception e) {
+-                        tryToFailWithException(new CallbackExceptionImpl(
+-                                "Exception received from UrlRequest.Callback", e));
+-                    }
+-                }
+-            });
+-        } catch (InlineExecutionProhibitedException e) {
+-            // Don't try to fail using the {@code mUserExecutor} because it produced this error.
+-            tryToFailWithException(
+-                    new CronetExceptionImpl("Exception posting task to executor", e));
+-        }
+-    }
+-
+-    /**
+-     * Check the current state and if the request is started, but not complete, failed, or
+-     * cancelled, change to the terminal state and call {@link FakeCronetEngine#onDestroyed}. This
+-     * method ensures {@link FakeCronetEngine#onDestroyed} is only called once.
+-     *
+-     * @param terminalState the terminal state to set; one of {@link State.ERROR},
+-     * {@link State.COMPLETE}, or {@link State.CANCELLED}
+-     * @return true if the terminal state has been set.
+-     */
+-    @GuardedBy("mLock")
+-    private boolean setTerminalState(@State int terminalState) {
+-        switch (mState) {
+-            case State.NOT_STARTED:
+-                throw new IllegalStateException("Can't enter terminal state before start");
+-            case State.ERROR: // fallthrough
+-            case State.COMPLETE: // fallthrough
+-            case State.CANCELLED:
+-                return false; // Already in a terminal state
+-            default: {
+-                mState = terminalState;
+-                cleanup();
+-                return true;
+-            }
+-        }
+-    }
+-
+-    @GuardedBy("mLock")
+-    private void cleanup() {
+-        closeUploadDataProvider();
+-        mFakeCronetEngine.onRequestDestroyed();
+-    }
+-
+-    /**
+-     * Executed only once after the request has finished using the {@link UploadDataProvider}.
+-     * Closes the {@link UploadDataProvider} if it exists and has not already been closed.
+-     */
+-    @GuardedBy("mLock")
+-    private void closeUploadDataProvider() {
+-        if (mUploadDataProvider != null && !mUploadProviderClosed) {
+-            try {
+-                mUploadExecutor.execute(uploadErrorSetting(new CheckedRunnable() {
+-                    @Override
+-                    public void run() throws Exception {
+-                        synchronized (mLock) {
+-                            mUploadDataProvider.close();
+-                            mUploadProviderClosed = true;
+-                        }
+-                    }
+-                }));
+-            } catch (RejectedExecutionException e) {
+-                Log.e(TAG, "Exception when closing uploadDataProvider", e);
+-            }
+-        }
+-    }
+-
+-    /**
+-     * Wraps a {@link CheckedRunnable} in a runnable that will attempt to fail the request if there
+-     * is an exception.
+-     *
+-     * @param delegate the {@link CheckedRunnable} to try to run
+-     * @return a {@link Runnable} that wraps the delegate runnable.
+-     */
+-    private Runnable uploadErrorSetting(final CheckedRunnable delegate) {
+-        return new Runnable() {
+-            @Override
+-            public void run() {
+-                try {
+-                    delegate.run();
+-                } catch (Throwable t) {
+-                    enterUploadErrorState(t);
+-                }
+-            }
+-        };
+-    }
+-
+-    /**
+-     * Fails the request with an error. Called when uploading the request body using an
+-     * {@link UploadDataProvider} fails.
+-     *
+-     * @param error the error that caused this request to fail which should be returned to the
+-     *              {@link UrlRequest.Callback}
+-     */
+-    private void enterUploadErrorState(final Throwable error) {
+-        synchronized (mLock) {
+-            mUserExecutor.execute(new Runnable() {
+-                @Override
+-                public void run() {
+-                    tryToFailWithException(new CronetExceptionImpl(
+-                            "Exception received from UploadDataProvider", error));
+-                }
+-            });
+-        }
+-    }
+-
+-    /**
+-     * Adapted from {@link JavaUrlRequest.OutputStreamDataSink}. Stores the received message in a
+-     * {@link ByteArrayOutputStream} and transfers it to the {@code mRequestBody} when the response
+-     * has been fully acquired.
+-     */
+-    @VisibleForTesting(otherwise = VisibleForTesting.PRIVATE)
+-    final class FakeDataSink extends JavaUploadDataSinkBase {
+-        private final ByteArrayOutputStream mBodyStream = new ByteArrayOutputStream();
+-        private final WritableByteChannel mBodyChannel = Channels.newChannel(mBodyStream);
+-
+-        FakeDataSink(final Executor userExecutor, Executor executor, UploadDataProvider provider) {
+-            super(userExecutor, executor, provider);
+-        }
+-
+-        @Override
+-        public Runnable getErrorSettingRunnable(JavaUrlRequestUtils.CheckedRunnable runnable) {
+-            return new Runnable() {
+-                @Override
+-                public void run() {
+-                    try {
+-                        runnable.run();
+-                    } catch (Throwable t) {
+-                        mUserExecutor.execute(new Runnable() {
+-                            @Override
+-                            public void run() {
+-                                tryToFailWithException(new CronetExceptionImpl("System error", t));
+-                            }
+-                        });
+-                    }
+-                }
+-            };
+-        }
+-
+-        @Override
+-        protected Runnable getUploadErrorSettingRunnable(
+-                JavaUrlRequestUtils.CheckedRunnable runnable) {
+-            return uploadErrorSetting(runnable);
+-        }
+-
+-        @Override
+-        protected void processUploadError(final Throwable error) {
+-            enterUploadErrorState(error);
+-        }
+-
+-        @Override
+-        protected int processSuccessfulRead(ByteBuffer buffer) throws IOException {
+-            return mBodyChannel.write(buffer);
+-        }
+-
+-        /**
+-         * Terminates the upload stage of the request. Writes the received bytes to the byte array:
+-         * {@code mRequestBody}. Connects to the current URL for this request.
+-         */
+-        @Override
+-        protected void finish() throws IOException {
+-            synchronized (mLock) {
+-                mRequestBody = mBodyStream.toByteArray();
+-                fakeConnect();
+-            }
+-        }
+-
+-        @Override
+-        protected void initializeRead() throws IOException {
+-            // Nothing to do before every read in this implementation.
+-        }
+-
+-        @Override
+-        protected void initializeStart(long totalBytes) {
+-            // Nothing to do to initialize the upload in this implementation.
+-        }
+-    }
+-
+-    /**
+-     * Verifies that the "content-type" header is present. Must be checked before an
+-     * {@link UploadDataProvider} is premitted to be set.
+-     *
+-     * @return true if the "content-type" header is present in the request headers.
+-     */
+-    @GuardedBy("mLock")
+-    private boolean checkHasContentTypeHeader() {
+-        for (Map.Entry<String, String> entry : mAllHeadersList) {
+-            if (entry.getKey().equalsIgnoreCase("content-type")) {
+-                return true;
+-            }
+-        }
+-        return false;
+-    }
+-
+-    /**
+-     * Gets a human readable description for a HTTP status code.
+-     *
+-     * @param code the code to retrieve the status for
+-     * @return the HTTP status text as a string
+-     */
+-    private static String getDescriptionByCode(Integer code) {
+-        return HTTP_STATUS_CODE_TO_TEXT.containsKey(code) ? HTTP_STATUS_CODE_TO_TEXT.get(code)
+-                                                          : "Unassigned";
+-    }
+-}
+diff --git a/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlResponse.java b/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlResponse.java
+deleted file mode 100644
+index 7a0b3287..00000000
+--- a/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlResponse.java
++++ /dev/null
+@@ -1,296 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import org.chromium.net.UrlResponseInfo;
+-
+-import java.io.UnsupportedEncodingException;
+-import java.util.AbstractMap;
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.Collections;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Objects;
+-
+-// TODO(kirchman): Update this to explain inter-class usage once other classes land.
+-/**
+- *
+- * Fake response model for UrlRequest used by Fake Cronet.
+- */
+-public class FakeUrlResponse {
+-    private final int mHttpStatusCode;
+-    // Entries to mAllHeadersList should never be mutated.
+-    private final List<Map.Entry<String, String>> mAllHeadersList;
+-    private final boolean mWasCached;
+-    private final String mNegotiatedProtocol;
+-    private final String mProxyServer;
+-    private final byte[] mResponseBody;
+-
+-    private static <T extends Object> T getNullableOrDefault(T nullableObject, T defaultObject) {
+-        if (nullableObject != null) {
+-            return nullableObject;
+-        }
+-        return defaultObject;
+-    }
+-
+-    /**
+-     * Constructs a {@link FakeUrlResponse} from a {@link FakeUrlResponse.Builder}.
+-     * @param builder the {@link FakeUrlResponse.Builder} to create the response from
+-     */
+-    private FakeUrlResponse(Builder builder) {
+-        mHttpStatusCode = builder.mHttpStatusCode;
+-        mAllHeadersList = Collections.unmodifiableList(new ArrayList<>(builder.mAllHeadersList));
+-        mWasCached = builder.mWasCached;
+-        mNegotiatedProtocol = builder.mNegotiatedProtocol;
+-        mProxyServer = builder.mProxyServer;
+-        mResponseBody = builder.mResponseBody;
+-    }
+-
+-    /**
+-     * Constructs a {@link FakeUrlResponse} from a {@link UrlResponseInfo}. All nullable fields in
+-     * the {@link UrlResponseInfo} are initialized to the default value if the provided value is
+-     * null.
+-     *
+-     * @param info the {@link UrlResponseInfo} used to initialize this object's fields
+-     */
+-    public FakeUrlResponse(UrlResponseInfo info) {
+-        mHttpStatusCode = info.getHttpStatusCode();
+-        mAllHeadersList = Collections.unmodifiableList(new ArrayList<>(info.getAllHeadersAsList()));
+-        mWasCached = info.wasCached();
+-        mNegotiatedProtocol = getNullableOrDefault(
+-                info.getNegotiatedProtocol(), Builder.DEFAULT_NEGOTIATED_PROTOCOL);
+-        mProxyServer = getNullableOrDefault(info.getProxyServer(), Builder.DEFAULT_PROXY_SERVER);
+-        mResponseBody = Builder.DEFAULT_RESPONSE_BODY;
+-    }
+-
+-    /**
+-     * Builds a {@link FakeUrlResponse}.
+-     */
+-    public static class Builder {
+-        private static final int DEFAULT_HTTP_STATUS_CODE = 200;
+-        private static final List<Map.Entry<String, String>> INTERNAL_INITIAL_HEADERS_LIST =
+-                new ArrayList<>();
+-        private static final boolean DEFAULT_WAS_CACHED = false;
+-        private static final String DEFAULT_NEGOTIATED_PROTOCOL = "";
+-        private static final String DEFAULT_PROXY_SERVER = "";
+-        private static final byte[] DEFAULT_RESPONSE_BODY = new byte[0];
+-
+-        private int mHttpStatusCode = DEFAULT_HTTP_STATUS_CODE;
+-        // Entries to mAllHeadersList should never be mutated.
+-        private List<Map.Entry<String, String>> mAllHeadersList =
+-                new ArrayList<>(INTERNAL_INITIAL_HEADERS_LIST);
+-        private boolean mWasCached = DEFAULT_WAS_CACHED;
+-        private String mNegotiatedProtocol = DEFAULT_NEGOTIATED_PROTOCOL;
+-        private String mProxyServer = DEFAULT_PROXY_SERVER;
+-        private byte[] mResponseBody = DEFAULT_RESPONSE_BODY;
+-
+-        /**
+-         * Constructs a {@link FakeUrlResponse.Builder} with the default parameters.
+-         */
+-        public Builder() {}
+-
+-        /**
+-         * Constructs a {@link FakeUrlResponse.Builder} from a source {@link FakeUrlResponse}.
+-         *
+-         * @param source a {@link FakeUrlResponse} to copy into this {@link FakeUrlResponse.Builder}
+-         */
+-        private Builder(FakeUrlResponse source) {
+-            mHttpStatusCode = source.getHttpStatusCode();
+-            mAllHeadersList = new ArrayList<>(source.getAllHeadersList());
+-            mWasCached = source.getWasCached();
+-            mNegotiatedProtocol = source.getNegotiatedProtocol();
+-            mProxyServer = source.getProxyServer();
+-            mResponseBody = source.getResponseBody();
+-        }
+-
+-        /**
+-         * Sets the HTTP status code. The default value is 200.
+-         *
+-         * @param httpStatusCode for {@link UrlResponseInfo.getHttpStatusCode()}
+-         * @return the builder with the corresponding HTTP status code set
+-         */
+-        public Builder setHttpStatusCode(int httpStatusCode) {
+-            mHttpStatusCode = httpStatusCode;
+-            return this;
+-        }
+-
+-        /**
+-         * Adds a response header to built {@link FakeUrlResponse}s.
+-         *
+-         * @param name  the name of the header key, for example, "location" for a redirect header
+-         * @param value the header value
+-         * @return the builder with the corresponding header set
+-         */
+-        public Builder addHeader(String name, String value) {
+-            mAllHeadersList.add(new AbstractMap.SimpleEntry<>(name, value));
+-            return this;
+-        }
+-
+-        /**
+-         * Sets result of {@link UrlResponseInfo.wasCached()}. The default wasCached value is false.
+-         *
+-         * @param wasCached for {@link UrlResponseInfo.wasCached()}
+-         * @return the builder with the corresponding wasCached field set
+-         */
+-        public Builder setWasCached(boolean wasCached) {
+-            mWasCached = wasCached;
+-            return this;
+-        }
+-
+-        /**
+-         * Sets result of {@link UrlResponseInfo.getNegotiatedProtocol()}. The default negotiated
+-         * protocol is an empty string.
+-         *
+-         * @param negotiatedProtocol for {@link UrlResponseInfo.getNegotiatedProtocol()}
+-         * @return the builder with the corresponding negotiatedProtocol field set
+-         */
+-        public Builder setNegotiatedProtocol(String negotiatedProtocol) {
+-            mNegotiatedProtocol = negotiatedProtocol;
+-            return this;
+-        }
+-
+-        /**
+-         * Sets result of {@link UrlResponseInfo.getProxyServer()}. The default proxy server is an
+-         * empty string.
+-         *
+-         * @param proxyServer for {@link UrlResponseInfo.getProxyServer()}
+-         * @return the builder with the corresponding proxyServer field set
+-         */
+-        public Builder setProxyServer(String proxyServer) {
+-            mProxyServer = proxyServer;
+-            return this;
+-        }
+-
+-        /**
+-         * Sets the response body for a response. The default response body is an empty byte array.
+-         *
+-         * @param body all the information the server returns
+-         * @return the builder with the corresponding responseBody field set
+-         */
+-        public Builder setResponseBody(byte[] body) {
+-            mResponseBody = body;
+-            return this;
+-        }
+-
+-        /**
+-         * Constructs a {@link FakeUrlResponse} from this {@link FakeUrlResponse.Builder}.
+-         *
+-         * @return a FakeUrlResponse with all fields set according to this builder
+-         */
+-        public FakeUrlResponse build() {
+-            return new FakeUrlResponse(this);
+-        }
+-    }
+-
+-    /**
+-     * Returns the HTTP status code.
+-     *
+-     * @return the HTTP status code.
+-     */
+-    int getHttpStatusCode() {
+-        return mHttpStatusCode;
+-    }
+-
+-    /**
+-     * Returns an unmodifiable list of the response header key and value pairs.
+-     *
+-     * @return an unmodifiable list of response header key and value pairs
+-     */
+-    List<Map.Entry<String, String>> getAllHeadersList() {
+-        return mAllHeadersList;
+-    }
+-
+-    /**
+-     * Returns the wasCached value for this response.
+-     *
+-     * @return the wasCached value for this response
+-     */
+-    boolean getWasCached() {
+-        return mWasCached;
+-    }
+-
+-    /**
+-     * Returns the protocol (for example 'quic/1+spdy/3') negotiated with the server.
+-     *
+-     * @return the protocol negotiated with the server
+-     */
+-    String getNegotiatedProtocol() {
+-        return mNegotiatedProtocol;
+-    }
+-
+-    /**
+-     * Returns the proxy server that was used for the request.
+-     *
+-     * @return the proxy server that was used for the request
+-     */
+-    String getProxyServer() {
+-        return mProxyServer;
+-    }
+-
+-    /**
+-     * Returns the body of the response as a byte array. Used for {@link UrlRequest.Callback}
+-     * {@code read()} callback.
+-     *
+-     * @return the response body
+-     */
+-    byte[] getResponseBody() {
+-        return mResponseBody;
+-    }
+-
+-    /**
+-     * Returns a mutable builder representation of this {@link FakeUrlResponse}
+-     *
+-     * @return a {@link FakeUrlResponse.Builder} with all fields copied from this instance.
+-     */
+-    public Builder toBuilder() {
+-        return new Builder(this);
+-    }
+-
+-    @Override
+-    public boolean equals(Object otherObj) {
+-        if (!(otherObj instanceof FakeUrlResponse)) {
+-            return false;
+-        }
+-        FakeUrlResponse other = (FakeUrlResponse) otherObj;
+-        return (mHttpStatusCode == other.mHttpStatusCode
+-                && mAllHeadersList.equals(other.mAllHeadersList) && mWasCached == other.mWasCached
+-                && mNegotiatedProtocol.equals(other.mNegotiatedProtocol)
+-                && mProxyServer.equals(other.mProxyServer)
+-                && Arrays.equals(mResponseBody, other.mResponseBody));
+-    }
+-
+-    @Override
+-    public int hashCode() {
+-        return Objects.hash(mHttpStatusCode, mAllHeadersList, mWasCached, mNegotiatedProtocol,
+-                mProxyServer, Arrays.hashCode(mResponseBody));
+-    }
+-
+-    @Override
+-    public String toString() {
+-        StringBuilder outputString = new StringBuilder();
+-        outputString.append("HTTP Status Code: " + mHttpStatusCode);
+-        outputString.append(" Headers: " + mAllHeadersList.toString());
+-        outputString.append(" Was Cached: " + mWasCached);
+-        outputString.append(" Negotiated Protocol: " + mNegotiatedProtocol);
+-        outputString.append(" Proxy Server: " + mProxyServer);
+-        outputString.append(" Response Body ");
+-        try {
+-            String bodyString = new String(mResponseBody, "UTF-8");
+-            outputString.append("(UTF-8): " + bodyString);
+-        } catch (UnsupportedEncodingException e) {
+-            outputString.append("(hexadecimal): " + getHexStringFromBytes(mResponseBody));
+-        }
+-        return outputString.toString();
+-    }
+-
+-    private String getHexStringFromBytes(byte[] bytes) {
+-        StringBuilder bytesToHexStringBuilder = new StringBuilder();
+-        for (byte b : mResponseBody) {
+-            bytesToHexStringBuilder.append(String.format("%02x", b));
+-        }
+-        return bytesToHexStringBuilder.toString();
+-    }
+-}
+diff --git a/components/cronet/android/fake/java/org/chromium/net/test/ResponseMatcher.java b/components/cronet/android/fake/java/org/chromium/net/test/ResponseMatcher.java
+deleted file mode 100644
+index 3597f964..00000000
+--- a/components/cronet/android/fake/java/org/chromium/net/test/ResponseMatcher.java
++++ /dev/null
+@@ -1,30 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import androidx.annotation.Nullable;
+-
+-import org.chromium.net.UrlRequest;
+-
+-import java.util.List;
+-import java.util.Map;
+-
+-/**
+- * An interface for matching {@link UrlRequest}s to {@link FakeUrlResponse}s.
+- */
+-public interface ResponseMatcher {
+-    /**
+-     * Optionally gets a response based on the request parameters.
+-     *
+-     * @param url the URL the {@link UrlRequest} is connecting to
+-     * @param httpMethod the HTTP method the {@link UrlRequest} is connecting with
+-     * @param headers the {@link UrlRequest} headers
+-     * @param body the body of the request
+-     * @return a {@link FakeUrlResponse} if there is a matching response, or {@code null} otherwise
+-     */
+-    @Nullable
+-    FakeUrlResponse getMatchingResponse(
+-            String url, String httpMethod, List<Map.Entry<String, String>> headers, byte[] body);
+-}
+diff --git a/components/cronet/android/fake/java/org/chromium/net/test/UrlResponseMatcher.java b/components/cronet/android/fake/java/org/chromium/net/test/UrlResponseMatcher.java
+deleted file mode 100644
+index 42e1442f..00000000
+--- a/components/cronet/android/fake/java/org/chromium/net/test/UrlResponseMatcher.java
++++ /dev/null
+@@ -1,41 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import org.chromium.net.UrlRequest;
+-
+-import java.util.List;
+-import java.util.Map;
+-
+-/**
+- * A {@link ResponseMatcher} that matches {@link UrlRequest}s with a particular URL.
+- */
+-public class UrlResponseMatcher implements ResponseMatcher {
+-    private final String mUrl;
+-    private final FakeUrlResponse mResponse;
+-
+-    /**
+-     * Constructs a {@link UrlResponseMatcher} that responds to requests for URL {@code url} with
+-     * {@code response}.
+-     * @param url the URL that the response should be returned for
+-     * @param response the response to return if the URL matches the request's URL
+-     */
+-    public UrlResponseMatcher(String url, FakeUrlResponse response) {
+-        if (url == null) {
+-            throw new NullPointerException("URL is required.");
+-        }
+-        if (response == null) {
+-            throw new NullPointerException("Response is required.");
+-        }
+-        mUrl = url;
+-        mResponse = response;
+-    }
+-
+-    @Override
+-    public FakeUrlResponse getMatchingResponse(
+-            String url, String httpMethod, List<Map.Entry<String, String>> headers, byte[] body) {
+-        return mUrl.equals(url) ? mResponse : null;
+-    }
+-}
+diff --git a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java
+deleted file mode 100644
+index bfa04134..00000000
+--- a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java
++++ /dev/null
+@@ -1,254 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import static org.junit.Assert.assertEquals;
+-import static org.junit.Assert.assertFalse;
+-import static org.junit.Assert.assertNotEquals;
+-import static org.junit.Assert.assertNotNull;
+-import static org.junit.Assert.assertTrue;
+-import static org.junit.Assert.fail;
+-
+-import android.content.Context;
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+-
+-import androidx.test.filters.SmallTest;
+-
+-import org.junit.Before;
+-import org.junit.Test;
+-import org.junit.runner.RunWith;
+-
+-import org.chromium.net.CronetEngine;
+-
+-import java.util.AbstractMap;
+-import java.util.List;
+-import java.util.Map;
+-
+-/**
+- * Test functionality of {@link FakeCronetController}.
+- */
+-@RunWith(AndroidJUnit4.class)
+-public class FakeCronetControllerTest {
+-    Context mContext;
+-    FakeCronetController mFakeCronetController;
+-
+-    @Before
+-    public void setUp() {
+-        mContext = InstrumentationRegistry.getTargetContext();
+-        mFakeCronetController = new FakeCronetController();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetFakeCronetEnginesStartsEmpty() {
+-        List<CronetEngine> engines = FakeCronetController.getFakeCronetEngines();
+-        assertEquals(0, engines.size());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetFakeCronetEnginesIncludesCreatedEngineInOrder() {
+-        // Create an instance with the controller.
+-        CronetEngine engine = mFakeCronetController.newFakeCronetEngineBuilder(mContext).build();
+-        // Create an instance with the provider.
+-        FakeCronetProvider provider = new FakeCronetProvider(mContext);
+-        CronetEngine providerEngine = provider.createBuilder().build();
+-        List<CronetEngine> engines = FakeCronetController.getFakeCronetEngines();
+-
+-        assertTrue(engines.contains(engine));
+-        assertTrue(engines.contains(providerEngine));
+-        assertEquals(engine, engines.get(0));
+-        assertEquals(providerEngine, engines.get(1));
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetControllerGetsCorrectController() {
+-        // Create an instance with the controller.
+-        CronetEngine engine = mFakeCronetController.newFakeCronetEngineBuilder(mContext).build();
+-        CronetEngine engine2 = mFakeCronetController.newFakeCronetEngineBuilder(mContext).build();
+-
+-        // Create two engines with a second controller.
+-        FakeCronetController newController = new FakeCronetController();
+-        CronetEngine newControllerEngine =
+-                newController.newFakeCronetEngineBuilder(mContext).build();
+-        CronetEngine newControllerEngine2 =
+-                newController.newFakeCronetEngineBuilder(mContext).build();
+-
+-        // Create an instance with the provider.
+-        FakeCronetProvider provider = new FakeCronetProvider(mContext);
+-        CronetEngine providerEngine = provider.createBuilder().build();
+-
+-        assertEquals(
+-                mFakeCronetController, FakeCronetController.getControllerForFakeEngine(engine));
+-        assertEquals(
+-                mFakeCronetController, FakeCronetController.getControllerForFakeEngine(engine2));
+-        assertEquals(newController,
+-                FakeCronetController.getControllerForFakeEngine(newControllerEngine));
+-        assertEquals(newController,
+-                FakeCronetController.getControllerForFakeEngine(newControllerEngine2));
+-
+-        // TODO(kirchman): Test which controller the provider-created engine uses once the fake
+-        // UrlRequest class has been implemented.
+-        assertNotEquals(mFakeCronetController,
+-                FakeCronetController.getControllerForFakeEngine(providerEngine));
+-        assertNotEquals(
+-                newController, FakeCronetController.getControllerForFakeEngine(providerEngine));
+-        assertNotNull(FakeCronetController.getControllerForFakeEngine(providerEngine));
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddNonFakeCronetEngineNotAllowed() {
+-        CronetEngine javaEngine = new JavaCronetEngineBuilderImpl(mContext).build();
+-
+-        try {
+-            FakeCronetController.getControllerForFakeEngine(javaEngine);
+-            fail("Should not be able to get a controller for a non-fake CronetEngine.");
+-        } catch (IllegalArgumentException e) {
+-            assertEquals("Provided CronetEngine is not a fake CronetEngine", e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testShutdownRemovesCronetEngine() {
+-        CronetEngine engine = mFakeCronetController.newFakeCronetEngineBuilder(mContext).build();
+-        CronetEngine engine2 = mFakeCronetController.newFakeCronetEngineBuilder(mContext).build();
+-        List<CronetEngine> engines = FakeCronetController.getFakeCronetEngines();
+-        assertTrue(engines.contains(engine));
+-        assertTrue(engines.contains(engine2));
+-
+-        engine.shutdown();
+-        engines = FakeCronetController.getFakeCronetEngines();
+-
+-        assertFalse(engines.contains(engine));
+-        assertTrue(engines.contains(engine2));
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testResponseMatchersConsultedInOrderOfAddition() {
+-        String url = "url";
+-        FakeUrlResponse response =
+-                new FakeUrlResponse.Builder().setResponseBody("body text".getBytes()).build();
+-        ResponseMatcher matcher = new UrlResponseMatcher(url, response);
+-        mFakeCronetController.addResponseMatcher(matcher);
+-        mFakeCronetController.addSuccessResponse(url, "different text".getBytes());
+-
+-        FakeUrlResponse foundResponse =
+-                mFakeCronetController.getResponse(new String(url), null, null, null);
+-
+-        assertEquals(response, foundResponse);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRemoveResponseMatcher() {
+-        String url = "url";
+-        FakeUrlResponse response =
+-                new FakeUrlResponse.Builder().setResponseBody("body text".getBytes()).build();
+-        ResponseMatcher matcher = new UrlResponseMatcher(url, response);
+-        mFakeCronetController.addResponseMatcher(matcher);
+-        mFakeCronetController.removeResponseMatcher(matcher);
+-
+-        FakeUrlResponse foundResponse = mFakeCronetController.getResponse(url, null, null, null);
+-
+-        assertEquals(404, foundResponse.getHttpStatusCode());
+-        assertNotEquals(response, foundResponse);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testClearResponseMatchers() {
+-        String url = "url";
+-        FakeUrlResponse response =
+-                new FakeUrlResponse.Builder().setResponseBody("body text".getBytes()).build();
+-        ResponseMatcher matcher = new UrlResponseMatcher(url, response);
+-        mFakeCronetController.addResponseMatcher(matcher);
+-        mFakeCronetController.clearResponseMatchers();
+-
+-        FakeUrlResponse foundResponse = mFakeCronetController.getResponse(url, null, null, null);
+-
+-        assertEquals(404, foundResponse.getHttpStatusCode());
+-        assertNotEquals(response, foundResponse);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddUrlResponseMatcher() {
+-        String url = "url";
+-        FakeUrlResponse response =
+-                new FakeUrlResponse.Builder().setResponseBody("body text".getBytes()).build();
+-        mFakeCronetController.addResponseForUrl(response, url);
+-
+-        FakeUrlResponse foundResponse = mFakeCronetController.getResponse(url, null, null, null);
+-
+-        assertEquals(foundResponse, response);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testDefaultResponseIs404() {
+-        FakeUrlResponse foundResponse = mFakeCronetController.getResponse("url", null, null, null);
+-
+-        assertEquals(404, foundResponse.getHttpStatusCode());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddRedirectResponse() {
+-        String url = "url";
+-        String location = "/TEST_REDIRECT_LOCATION";
+-        mFakeCronetController.addRedirectResponse(location, url);
+-
+-        FakeUrlResponse foundResponse = mFakeCronetController.getResponse("url", null, null, null);
+-        Map.Entry<String, String> headerEntry = new AbstractMap.SimpleEntry<>("location", location);
+-
+-        assertTrue(foundResponse.getAllHeadersList().contains(headerEntry));
+-        assertTrue(foundResponse.getHttpStatusCode() >= 300);
+-        assertTrue(foundResponse.getHttpStatusCode() < 400);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddErrorResponse() {
+-        String url = "url";
+-        int httpStatusCode = 400;
+-        mFakeCronetController.addHttpErrorResponse(httpStatusCode, url);
+-
+-        FakeUrlResponse foundResponse = mFakeCronetController.getResponse(url, null, null, null);
+-
+-        assertEquals(foundResponse.getHttpStatusCode(), httpStatusCode);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddErrorResponseWithNonErrorCodeThrowsException() {
+-        int nonErrorCode = 200;
+-        try {
+-            mFakeCronetController.addHttpErrorResponse(nonErrorCode, "url");
+-            fail("Should not be able to add an error response with a non-error code.");
+-        } catch (IllegalArgumentException e) {
+-            assertEquals("Expected HTTP error code (code >= 400), but was: " + nonErrorCode,
+-                    e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddSuccessResponse() {
+-        String url = "url";
+-        String body = "TEST_BODY";
+-        mFakeCronetController.addSuccessResponse(url, body.getBytes());
+-
+-        FakeUrlResponse foundResponse = mFakeCronetController.getResponse(url, null, null, null);
+-
+-        assertTrue(foundResponse.getHttpStatusCode() >= 200);
+-        assertTrue(foundResponse.getHttpStatusCode() < 300);
+-        assertEquals(body, new String(foundResponse.getResponseBody()));
+-    }
+-}
+diff --git a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetEngineTest.java b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetEngineTest.java
+deleted file mode 100644
+index b5639525..00000000
+--- a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetEngineTest.java
++++ /dev/null
+@@ -1,291 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-import static org.junit.Assert.assertEquals;
+-import static org.junit.Assert.assertFalse;
+-import static org.junit.Assert.assertTrue;
+-import static org.junit.Assert.fail;
+-
+-import android.content.Context;
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+-
+-import androidx.test.filters.SmallTest;
+-
+-import org.junit.Before;
+-import org.junit.Test;
+-import org.junit.runner.RunWith;
+-
+-import org.chromium.net.CronetException;
+-import org.chromium.net.UrlRequest;
+-import org.chromium.net.UrlResponseInfo;
+-import org.chromium.net.impl.ImplVersion;
+-
+-import java.net.Proxy;
+-import java.nio.ByteBuffer;
+-import java.util.concurrent.ExecutorService;
+-import java.util.concurrent.Executors;
+-
+-/**
+- * Test functionality of {@link FakeCronetEngine}.
+- */
+-@RunWith(AndroidJUnit4.class)
+-public class FakeCronetEngineTest {
+-    Context mContext;
+-    FakeCronetEngine mFakeCronetEngine;
+-    UrlRequest.Callback mCallback;
+-    ExecutorService mExecutor;
+-
+-    @Before
+-    public void setUp() {
+-        mContext = InstrumentationRegistry.getTargetContext();
+-        mFakeCronetEngine =
+-                (FakeCronetEngine) new FakeCronetProvider(mContext).createBuilder().build();
+-        mCallback = new UrlRequest.Callback() {
+-            @Override
+-            public void onRedirectReceived(
+-                    UrlRequest request, UrlResponseInfo info, String newLocationUrl) {}
+-
+-            @Override
+-            public void onResponseStarted(UrlRequest request, UrlResponseInfo info) {}
+-
+-            @Override
+-            public void onReadCompleted(
+-                    UrlRequest request, UrlResponseInfo info, ByteBuffer byteBuffer) {}
+-
+-            @Override
+-            public void onSucceeded(UrlRequest request, UrlResponseInfo info) {}
+-
+-            @Override
+-            public void onFailed(UrlRequest request, UrlResponseInfo info, CronetException error) {}
+-
+-            @Override
+-            public void onCanceled(UrlRequest request, UrlResponseInfo info) {}
+-        };
+-        mExecutor = Executors.newSingleThreadExecutor();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testShutdownEngineThrowsExceptionWhenApiCalled() {
+-        mFakeCronetEngine.shutdown();
+-
+-        try {
+-            mFakeCronetEngine.newUrlRequestBuilder("", mCallback, mExecutor).build();
+-            fail("newUrlRequestBuilder API not checked for shutdown engine.");
+-        } catch (IllegalStateException e) {
+-            assertEquals(
+-                    "This instance of CronetEngine has been shutdown and can no longer be used.",
+-                    e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testShutdownEngineThrowsExceptionWhenBidirectionalStreamApiCalled() {
+-        mFakeCronetEngine.shutdown();
+-
+-        try {
+-            mFakeCronetEngine.newBidirectionalStreamBuilder("", null, null);
+-            fail("newBidirectionalStreamBuilder API not checked for shutdown engine.");
+-        } catch (IllegalStateException e) {
+-            assertEquals(
+-                    "This instance of CronetEngine has been shutdown and can no longer be used.",
+-                    e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testExceptionForNewBidirectionalStreamApi() {
+-        try {
+-            mFakeCronetEngine.newBidirectionalStreamBuilder("", null, null);
+-            fail("newBidirectionalStreamBuilder API should not be available.");
+-        } catch (UnsupportedOperationException e) {
+-            assertEquals("The bidirectional stream API is not supported by the Fake implementation "
+-                            + "of CronetEngine.",
+-                    e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testExceptionForOpenConnectionApi() {
+-        try {
+-            mFakeCronetEngine.openConnection(null);
+-            fail("openConnection API should not be available.");
+-        } catch (Exception e) {
+-            assertEquals("The openConnection API is not supported by the Fake implementation of "
+-                            + "CronetEngine.",
+-                    e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testExceptionForOpenConnectionApiWithProxy() {
+-        try {
+-            mFakeCronetEngine.openConnection(null, Proxy.NO_PROXY);
+-            fail("openConnection API  should not be available.");
+-        } catch (Exception e) {
+-            assertEquals("The openConnection API is not supported by the Fake implementation of "
+-                            + "CronetEngine.",
+-                    e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testExceptionForCreateStreamHandlerFactoryApi() {
+-        try {
+-            mFakeCronetEngine.createURLStreamHandlerFactory();
+-            fail("createURLStreamHandlerFactory API  should not be available.");
+-        } catch (UnsupportedOperationException e) {
+-            assertEquals(
+-                    "The URLStreamHandlerFactory API is not supported by the Fake implementation of"
+-                            + " CronetEngine.",
+-                    e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetVersionString() {
+-        assertEquals("FakeCronet/" + ImplVersion.getCronetVersionWithLastChange(),
+-                mFakeCronetEngine.getVersionString());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testStartNetLogToFile() {
+-        mFakeCronetEngine.startNetLogToFile("", false);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testStartNetLogToDisk() {
+-        mFakeCronetEngine.startNetLogToDisk("", false, 0);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testStopNetLog() {
+-        mFakeCronetEngine.stopNetLog();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetGlobalMetricsDeltas() {
+-        assertTrue(mFakeCronetEngine.getGlobalMetricsDeltas().length == 0);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetEffectiveConnectionType() {
+-        assertEquals(FakeCronetEngine.EFFECTIVE_CONNECTION_TYPE_UNKNOWN,
+-                mFakeCronetEngine.getEffectiveConnectionType());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetHttpRttMs() {
+-        assertEquals(FakeCronetEngine.CONNECTION_METRIC_UNKNOWN, mFakeCronetEngine.getHttpRttMs());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetTransportRttMs() {
+-        assertEquals(
+-                FakeCronetEngine.CONNECTION_METRIC_UNKNOWN, mFakeCronetEngine.getTransportRttMs());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetDownstreamThroughputKbps() {
+-        assertEquals(FakeCronetEngine.CONNECTION_METRIC_UNKNOWN,
+-                mFakeCronetEngine.getDownstreamThroughputKbps());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testConfigureNetworkQualityEstimatorForTesting() {
+-        mFakeCronetEngine.configureNetworkQualityEstimatorForTesting(false, false, false);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddRttListener() {
+-        mFakeCronetEngine.addRttListener(null);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRemoveRttListener() {
+-        mFakeCronetEngine.removeRttListener(null);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddThroughputListener() {
+-        mFakeCronetEngine.addThroughputListener(null);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRemoveThroughputListener() {
+-        mFakeCronetEngine.removeThroughputListener(null);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddRequestFinishedListener() {
+-        mFakeCronetEngine.addRequestFinishedListener(null);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRemoveRequestFinishedListener() {
+-        mFakeCronetEngine.removeRequestFinishedListener(null);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testShutdownBlockedWhenRequestCountNotZero() {
+-        // Start a request and verify the engine can't be shutdown.
+-        assertTrue(mFakeCronetEngine.startRequest());
+-        try {
+-            mFakeCronetEngine.shutdown();
+-            fail("Shutdown not checked for active requests.");
+-        } catch (IllegalStateException e) {
+-            assertEquals("Cannot shutdown with active requests.", e.getMessage());
+-        }
+-
+-        // Finish the request and verify the engine can be shutdown.
+-        mFakeCronetEngine.onRequestDestroyed();
+-        mFakeCronetEngine.shutdown();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testCantStartRequestAfterEngineShutdown() {
+-        mFakeCronetEngine.shutdown();
+-        assertFalse(mFakeCronetEngine.startRequest());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testCantDecrementOnceShutdown() {
+-        mFakeCronetEngine.shutdown();
+-
+-        try {
+-            mFakeCronetEngine.onRequestDestroyed();
+-            fail("onRequestDestroyed not checked for shutdown engine");
+-        } catch (IllegalStateException e) {
+-            assertEquals("This instance of CronetEngine was shutdown. All requests must have been "
+-                            + "complete.",
+-                    e.getMessage());
+-        }
+-    }
+-}
+diff --git a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetProviderTest.java b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetProviderTest.java
+deleted file mode 100644
+index e9781445..00000000
+--- a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetProviderTest.java
++++ /dev/null
+@@ -1,67 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import static org.junit.Assert.assertEquals;
+-import static org.junit.Assert.assertTrue;
+-
+-import android.content.Context;
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+-
+-import androidx.test.filters.SmallTest;
+-
+-import org.junit.Before;
+-import org.junit.Test;
+-import org.junit.runner.RunWith;
+-
+-import org.chromium.net.impl.ImplVersion;
+-
+-/**
+- * Test functionality of {@link FakeCronetProvider}.
+- */
+-@RunWith(AndroidJUnit4.class)
+-public class FakeCronetProviderTest {
+-    Context mContext;
+-    FakeCronetProvider mProvider;
+-
+-    @Before
+-    public void setUp() {
+-        mContext = InstrumentationRegistry.getTargetContext();
+-        mProvider = new FakeCronetProvider(mContext);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetName() {
+-        String expectedName = "Fake-Cronet-Provider";
+-        assertEquals(expectedName, mProvider.getName());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetVersion() {
+-        assertEquals(ImplVersion.getCronetVersion(), mProvider.getVersion());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testIsEnabled() {
+-        assertTrue(mProvider.isEnabled());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testHashCode() {
+-        FakeCronetProvider otherProvider = new FakeCronetProvider(mContext);
+-        assertEquals(otherProvider.hashCode(), mProvider.hashCode());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testEquals() {
+-        assertTrue(mProvider.equals(new FakeCronetProvider(mContext)));
+-    }
+-}
+diff --git a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java
+deleted file mode 100644
+index 8baf3a1f..00000000
+--- a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java
++++ /dev/null
+@@ -1,1631 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import static org.junit.Assert.assertEquals;
+-import static org.junit.Assert.assertNotNull;
+-import static org.junit.Assert.assertTrue;
+-import static org.junit.Assert.fail;
+-import static org.mockito.ArgumentMatchers.any;
+-import static org.mockito.Mockito.times;
+-
+-import static org.chromium.net.CronetTestRule.assertContains;
+-import static org.chromium.net.TestUrlRequestCallback.ResponseStep.ON_CANCELED;
+-
+-import android.content.Context;
+-import android.os.ConditionVariable;
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+-
+-import androidx.test.filters.SmallTest;
+-
+-import org.junit.After;
+-import org.junit.Before;
+-import org.junit.Test;
+-import org.junit.runner.RunWith;
+-import org.mockito.Mockito;
+-
+-import org.chromium.base.test.util.DisabledTest;
+-import org.chromium.net.CronetEngine;
+-import org.chromium.net.CronetException;
+-import org.chromium.net.InlineExecutionProhibitedException;
+-import org.chromium.net.TestUploadDataProvider;
+-import org.chromium.net.TestUrlRequestCallback;
+-import org.chromium.net.UploadDataProvider;
+-import org.chromium.net.UploadDataSink;
+-import org.chromium.net.UrlRequest;
+-import org.chromium.net.UrlRequest.Status;
+-import org.chromium.net.UrlRequest.StatusListener;
+-import org.chromium.net.UrlResponseInfo;
+-
+-import java.io.IOException;
+-import java.net.URI;
+-import java.nio.ByteBuffer;
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.Objects;
+-import java.util.concurrent.Executor;
+-import java.util.concurrent.Executors;
+-import java.util.concurrent.atomic.AtomicBoolean;
+-
+-/**
+- * Test functionality of FakeUrlRequest.
+- */
+-@RunWith(AndroidJUnit4.class)
+-public class FakeUrlRequestTest {
+-    private CronetEngine mFakeCronetEngine;
+-    private FakeCronetController mFakeCronetController;
+-
+-    private static Context getContext() {
+-        return InstrumentationRegistry.getTargetContext();
+-    }
+-
+-    private static void checkStatus(FakeUrlRequest request, final int expectedStatus) {
+-        ConditionVariable foundStatus = new ConditionVariable();
+-        request.getStatus(new StatusListener() {
+-            @Override
+-            public void onStatus(int status) {
+-                assertEquals(expectedStatus, status);
+-                foundStatus.open();
+-            }
+-        });
+-        foundStatus.block();
+-    }
+-
+-    private class EchoBodyResponseMatcher implements ResponseMatcher {
+-        private final String mUrl;
+-
+-        EchoBodyResponseMatcher(String url) {
+-            mUrl = url;
+-        }
+-
+-        EchoBodyResponseMatcher() {
+-            this(null);
+-        }
+-
+-        @Override
+-        public FakeUrlResponse getMatchingResponse(String url, String httpMethod,
+-                List<Map.Entry<String, String>> headers, byte[] body) {
+-            if (mUrl == null || mUrl.equals(url)) {
+-                return new FakeUrlResponse.Builder().setResponseBody(body).build();
+-            }
+-            return null;
+-        }
+-    }
+-
+-    @Before
+-    public void setUp() {
+-        mFakeCronetController = new FakeCronetController();
+-        mFakeCronetEngine = mFakeCronetController.newFakeCronetEngineBuilder(getContext()).build();
+-    }
+-
+-    @After
+-    public void tearDown() {
+-        mFakeCronetEngine.shutdown();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testDefaultResponse() {
+-        // Setup the basic response.
+-        String responseText = "response text";
+-        FakeUrlResponse response =
+-                new FakeUrlResponse.Builder().setResponseBody(responseText.getBytes()).build();
+-        String url = "www.response.com";
+-        mFakeCronetController.addResponseForUrl(response, url);
+-
+-        // Run the request.
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(url, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        // Verify correct callback methods called and correct response returned.
+-        Mockito.verify(callback, times(1)).onResponseStarted(any(), any());
+-        Mockito.verify(callback, times(1)).onReadCompleted(any(), any(), any());
+-        Mockito.verify(callback, times(1)).onSucceeded(any(), any());
+-        assertEquals(callback.mResponseAsString, responseText);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testBuilderChecks() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        try {
+-            mFakeCronetEngine.newUrlRequestBuilder(null, callback, callback.getExecutor());
+-            fail("URL not null-checked");
+-        } catch (NullPointerException e) {
+-            assertEquals("URL is required.", e.getMessage());
+-        }
+-        try {
+-            mFakeCronetEngine.newUrlRequestBuilder("url", null, callback.getExecutor());
+-            fail("Callback not null-checked");
+-        } catch (NullPointerException e) {
+-            assertEquals("Callback is required.", e.getMessage());
+-        }
+-        try {
+-            mFakeCronetEngine.newUrlRequestBuilder("url", callback, null);
+-            fail("Executor not null-checked");
+-        } catch (NullPointerException e) {
+-            assertEquals("Executor is required.", e.getMessage());
+-        }
+-        // Verify successful creation doesn't throw.
+-        mFakeCronetEngine.newUrlRequestBuilder("url", callback, callback.getExecutor());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testSetHttpMethodWhenNullFails() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("url", callback, callback.getExecutor())
+-                        .build();
+-        // Check exception thrown for null method.
+-        try {
+-            request.setHttpMethod(null);
+-            fail("Method not null-checked");
+-        } catch (NullPointerException e) {
+-            assertEquals("Method is required.", e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testSetHttpMethodWhenInvalidFails() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("url", callback, callback.getExecutor())
+-                        .build();
+-
+-        // Check exception thrown for invalid method.
+-        String method = "BADMETHOD";
+-        try {
+-            request.setHttpMethod(method);
+-            fail("Method not checked for validity");
+-        } catch (IllegalArgumentException e) {
+-            assertEquals("Invalid http method: " + method, e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testSetHttpMethodSetsMethodToCorrectMethod() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("url", callback, callback.getExecutor())
+-                        .build();
+-        String testMethod = "PUT";
+-        // Use an atomic because it is set in an inner class. We do not actually need atomic for a
+-        // multi-threaded operation here.
+-        AtomicBoolean foundMethod = new AtomicBoolean();
+-
+-        mFakeCronetController.addResponseMatcher(new ResponseMatcher() {
+-            @Override
+-            public FakeUrlResponse getMatchingResponse(String url, String httpMethod,
+-                    List<Map.Entry<String, String>> headers, byte[] body) {
+-                assertEquals(testMethod, httpMethod);
+-                foundMethod.set(true);
+-                // It doesn't matter if a response is actually returned.
+-                return null;
+-            }
+-        });
+-
+-        // Check no exception for correct method.
+-        request.setHttpMethod(testMethod);
+-
+-        // Run the request so that the ResponseMatcher we set is checked.
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertTrue(foundMethod.get());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddHeader() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("TEST_URL", callback, callback.getExecutor())
+-                        .build();
+-        String headerKey = "HEADERNAME";
+-        String headerValue = "HEADERVALUE";
+-        request.addHeader(headerKey, headerValue);
+-        // Use an atomic because it is set in an inner class. We do not actually need atomic for a
+-        // multi-threaded operation here.
+-        AtomicBoolean foundEntry = new AtomicBoolean();
+-        mFakeCronetController.addResponseMatcher(new ResponseMatcher() {
+-            @Override
+-            public FakeUrlResponse getMatchingResponse(String url, String httpMethod,
+-                    List<Map.Entry<String, String>> headers, byte[] body) {
+-                assertEquals(1, headers.size());
+-                assertEquals(headerKey, headers.get(0).getKey());
+-                assertEquals(headerValue, headers.get(0).getValue());
+-                foundEntry.set(true);
+-                // It doesn't matter if a response is actually returned.
+-                return null;
+-            }
+-        });
+-        // Run the request so that the ResponseMatcher we set is checked.
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertTrue(foundEntry.get());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRequestDoesNotStartWhenEngineShutDown() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("TEST_URL", callback, callback.getExecutor())
+-                        .build();
+-
+-        mFakeCronetEngine.shutdown();
+-        try {
+-            request.start();
+-            fail("Request should check that the CronetEngine is not shutdown before starting.");
+-        } catch (IllegalStateException e) {
+-            assertEquals("This request's CronetEngine is already shutdown.", e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRequestStopsWhenCanceled() {
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("TEST_URL", callback, callback.getExecutor())
+-                        .build();
+-        callback.setAutoAdvance(false);
+-        request.start();
+-        callback.waitForNextStep();
+-        request.cancel();
+-
+-        callback.blockForDone();
+-
+-        Mockito.verify(callback, times(1)).onCanceled(any(), any());
+-        Mockito.verify(callback, times(1)).onResponseStarted(any(), any());
+-        Mockito.verify(callback, times(0)).onReadCompleted(any(), any(), any());
+-        assertEquals(callback.mResponseStep, ON_CANCELED);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRecievedByteCountInUrlResponseInfoIsEqualToResponseLength() {
+-        // Setup the basic response.
+-        String responseText = "response text";
+-        FakeUrlResponse response =
+-                new FakeUrlResponse.Builder().setResponseBody(responseText.getBytes()).build();
+-        String url = "TEST_URL";
+-        mFakeCronetController.addResponseForUrl(response, url);
+-
+-        // Run the request.
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(url, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(responseText.length(), callback.mResponseInfo.getReceivedByteCount());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRedirectResponse() {
+-        // Setup the basic response.
+-        String responseText = "response text";
+-        String redirectLocation = "/redirect_location";
+-        FakeUrlResponse response = new FakeUrlResponse.Builder()
+-                                           .setResponseBody(responseText.getBytes())
+-                                           .addHeader("location", redirectLocation)
+-                                           .setHttpStatusCode(300)
+-                                           .build();
+-
+-        String url = "TEST_URL";
+-        mFakeCronetController.addResponseForUrl(response, url);
+-
+-        String redirectText = "redirect text";
+-        FakeUrlResponse redirectToResponse =
+-                new FakeUrlResponse.Builder().setResponseBody(redirectText.getBytes()).build();
+-        String redirectUrl = URI.create(url).resolve(redirectLocation).toString();
+-
+-        mFakeCronetController.addResponseForUrl(redirectToResponse, redirectUrl);
+-
+-        // Run the request.
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(url, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        // Verify response from redirected URL is returned.
+-        assertTrue(Objects.equals(callback.mResponseAsString, redirectText));
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testRedirectResponseWithNoHeaderFails() {
+-        // Setup the basic response.
+-        String responseText = "response text";
+-        FakeUrlResponse response = new FakeUrlResponse.Builder()
+-                                           .setResponseBody(responseText.getBytes())
+-                                           .setHttpStatusCode(300)
+-                                           .build();
+-
+-        String url = "TEST_URL";
+-        mFakeCronetController.addResponseForUrl(response, url);
+-
+-        // Run the request.
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(url, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        // Verify response from redirected URL is returned.
+-        assertEquals(TestUrlRequestCallback.ResponseStep.ON_FAILED, callback.mResponseStep);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testResponseLongerThanBuffer() {
+-        // Build a long response string that is 3x the buffer size.
+-        final int bufferStringLengthMultiplier = 3;
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        String longResponseString =
+-                new String(new char[callback.mReadBufferSize * bufferStringLengthMultiplier]);
+-
+-        String longResponseUrl = "https://www.longResponseUrl.com";
+-
+-        FakeUrlResponse reallyLongResponse = new FakeUrlResponse.Builder()
+-                                                     .setResponseBody(longResponseString.getBytes())
+-                                                     .build();
+-        mFakeCronetController.addResponseForUrl(reallyLongResponse, longResponseUrl);
+-
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(longResponseUrl, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        Mockito.verify(callback, times(1)).onResponseStarted(any(), any());
+-        Mockito.verify(callback, times(bufferStringLengthMultiplier))
+-                .onReadCompleted(any(), any(), any());
+-        Mockito.verify(callback, times(1)).onSucceeded(any(), any());
+-        assertTrue(Objects.equals(callback.mResponseAsString, longResponseString));
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testStatusInvalidBeforeStart() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("URL", callback, callback.getExecutor())
+-                        .build();
+-
+-        checkStatus(request, Status.INVALID);
+-        request.start();
+-        callback.blockForDone();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testStatusIdleWhenWaitingForRead() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        callback.setAutoAdvance(false);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("URL", callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        checkStatus(request, Status.IDLE);
+-        callback.setAutoAdvance(true);
+-        callback.startNextRead(request);
+-        callback.blockForDone();
+-    }
+-
+-    @DisabledTest(message = "crbug.com/994722")
+-    @Test
+-    @SmallTest
+-    public void testStatusIdleWhenWaitingForRedirect() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        callback.setAutoAdvance(false);
+-        String initialURL = "initialURL";
+-        String secondURL = "secondURL";
+-        mFakeCronetController.addRedirectResponse(secondURL, initialURL);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(initialURL, callback, callback.getExecutor())
+-                        .build();
+-
+-        request.start();
+-        checkStatus(request, Status.IDLE);
+-        callback.setAutoAdvance(true);
+-        request.followRedirect();
+-        callback.blockForDone();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testStatusInvalidWhenDone() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("URL", callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-        checkStatus(request, Status.INVALID);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testIsDoneWhenComplete() {
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        FakeUrlRequest request = (FakeUrlRequest) mFakeCronetEngine
+-                                         .newUrlRequestBuilder("", callback, callback.getExecutor())
+-                                         .build();
+-
+-        request.start();
+-        callback.blockForDone();
+-
+-        Mockito.verify(callback, times(1)).onSucceeded(any(), any());
+-        assertTrue(request.isDone());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testSetUploadDataProviderAfterStart() {
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        FakeUrlRequest request = (FakeUrlRequest) mFakeCronetEngine
+-                                         .newUrlRequestBuilder("", callback, callback.getExecutor())
+-                                         .addHeader("Content-Type", "useless/string")
+-                                         .build();
+-        String body = "body";
+-        request.setUploadDataProvider(
+-                UploadDataProviders.create(body.getBytes()), callback.getExecutor());
+-        request.start();
+-        // Must wait for the request to prevent a race in the State since it is reported in the
+-        // error.
+-        callback.blockForDone();
+-
+-        try {
+-            request.setUploadDataProvider(
+-                    UploadDataProviders.create(body.getBytes()), callback.getExecutor());
+-            fail("UploadDataProvider cannot be changed after request has started");
+-        } catch (IllegalStateException e) {
+-            assertEquals("Request is already started. State is: 7", e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUrlChainIsCorrectForSuccessRequest() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String testUrl = "TEST_URL";
+-        List<String> expectedUrlChain = new ArrayList<>();
+-        expectedUrlChain.add(testUrl);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(testUrl, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(expectedUrlChain, callback.mResponseInfo.getUrlChain());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUrlChainIsCorrectForRedirectRequest() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String testUrl1 = "TEST_URL1";
+-        String testUrl2 = "TEST_URL2";
+-        mFakeCronetController.addRedirectResponse(testUrl2, testUrl1);
+-        List<String> expectedUrlChain = new ArrayList<>();
+-        expectedUrlChain.add(testUrl1);
+-        expectedUrlChain.add(testUrl2);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(testUrl1, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(expectedUrlChain, callback.mResponseInfo.getUrlChain());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testResponseCodeCorrect() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String testUrl = "TEST_URL";
+-        int expectedResponseCode = 208;
+-        mFakeCronetController.addResponseForUrl(
+-                new FakeUrlResponse.Builder().setHttpStatusCode(expectedResponseCode).build(),
+-                testUrl);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(testUrl, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(expectedResponseCode, callback.mResponseInfo.getHttpStatusCode());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testResponseTextCorrect() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String testUrl = "TEST_URL";
+-        int expectedResponseCode = 208;
+-        String expectedResponseText = "Already Reported";
+-        mFakeCronetController.addResponseForUrl(
+-                new FakeUrlResponse.Builder().setHttpStatusCode(expectedResponseCode).build(),
+-                testUrl);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(testUrl, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(expectedResponseText, callback.mResponseInfo.getHttpStatusText());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testResponseWasCachedCorrect() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String testUrl = "TEST_URL";
+-        boolean expectedWasCached = true;
+-        mFakeCronetController.addResponseForUrl(
+-                new FakeUrlResponse.Builder().setWasCached(expectedWasCached).build(), testUrl);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(testUrl, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(expectedWasCached, callback.mResponseInfo.wasCached());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testResponseNegotiatedProtocolCorrect() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String testUrl = "TEST_URL";
+-        String expectedNegotiatedProtocol = "TEST_NEGOTIATED_PROTOCOL";
+-        mFakeCronetController.addResponseForUrl(
+-                new FakeUrlResponse.Builder()
+-                        .setNegotiatedProtocol(expectedNegotiatedProtocol)
+-                        .build(),
+-                testUrl);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(testUrl, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(expectedNegotiatedProtocol, callback.mResponseInfo.getNegotiatedProtocol());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testResponseProxyServerCorrect() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String testUrl = "TEST_URL";
+-        String expectedProxyServer = "TEST_PROXY_SERVER";
+-        mFakeCronetController.addResponseForUrl(
+-                new FakeUrlResponse.Builder().setProxyServer(expectedProxyServer).build(), testUrl);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(testUrl, callback, callback.getExecutor())
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(expectedProxyServer, callback.mResponseInfo.getProxyServer());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testDirectExecutorDisabledByDefault() {
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        callback.setAllowDirectExecutor(true);
+-        Executor myExecutor = new Executor() {
+-            @Override
+-            public void execute(Runnable command) {
+-                command.run();
+-            }
+-        };
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine.newUrlRequestBuilder("url", callback, myExecutor)
+-                        .build();
+-
+-        request.start();
+-        Mockito.verify(callback).onFailed(any(), any(), any());
+-        // Checks that the exception from {@link DirectPreventingExecutor} was successfully returned
+-        // to the callabck in the onFailed method.
+-        assertTrue(callback.mError.getCause() instanceof InlineExecutionProhibitedException);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testLotsOfCallsToReadDoesntOverflow() {
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        // Make the buffer size small so there are lots of calls to read().
+-        callback.mReadBufferSize = 1;
+-        String testUrl = "TEST_URL";
+-        int responseLength = 1024;
+-        byte[] byteArray = new byte[responseLength];
+-        Arrays.fill(byteArray, (byte) 1);
+-        String longResponseString = new String(byteArray);
+-        mFakeCronetController.addResponseForUrl(
+-                new FakeUrlResponse.Builder()
+-                        .setResponseBody(longResponseString.getBytes())
+-                        .build(),
+-                testUrl);
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(testUrl, callback, callback.getExecutor())
+-                        .allowDirectExecutor()
+-                        .build();
+-        request.start();
+-        callback.blockForDone();
+-        assertEquals(longResponseString, callback.mResponseAsString);
+-        Mockito.verify(callback, times(responseLength)).onReadCompleted(any(), any(), any());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testLotsOfCallsToReadDoesntOverflowWithDirectExecutor() {
+-        TestUrlRequestCallback callback = Mockito.spy(new TestUrlRequestCallback());
+-        callback.setAllowDirectExecutor(true);
+-        // Make the buffer size small so there are lots of calls to read().
+-        callback.mReadBufferSize = 1;
+-        String testUrl = "TEST_URL";
+-        int responseLength = 1024;
+-        byte[] byteArray = new byte[responseLength];
+-        Arrays.fill(byteArray, (byte) 1);
+-        String longResponseString = new String(byteArray);
+-        Executor myExecutor = new Executor() {
+-            @Override
+-            public void execute(Runnable command) {
+-                command.run();
+-            }
+-        };
+-        mFakeCronetController.addResponseForUrl(
+-                new FakeUrlResponse.Builder()
+-                        .setResponseBody(longResponseString.getBytes())
+-                        .build(),
+-                testUrl);
+-        FakeUrlRequest request = (FakeUrlRequest) mFakeCronetEngine
+-                                         .newUrlRequestBuilder(testUrl, callback, myExecutor)
+-                                         .allowDirectExecutor()
+-                                         .build();
+-        request.start();
+-        callback.blockForDone();
+-        assertEquals(longResponseString, callback.mResponseAsString);
+-        Mockito.verify(callback, times(responseLength)).onReadCompleted(any(), any(), any());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testDoubleReadFails() throws Exception {
+-        UrlRequest.Callback callback = new StubCallback();
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder("url", callback, Executors.newSingleThreadExecutor())
+-                        .build();
+-        ByteBuffer buffer = ByteBuffer.allocateDirect(32 * 1024);
+-        request.start();
+-
+-        request.read(buffer);
+-        try {
+-            request.read(buffer);
+-            fail("Double read() should be disallowed.");
+-        } catch (IllegalStateException e) {
+-            assertEquals("Invalid state transition - expected 4 but was 7", e.getMessage());
+-        }
+-    }
+-
+-    @DisabledTest(message = "crbug.com/994722")
+-    @Test
+-    @SmallTest
+-    public void testReadWhileRedirectingFails() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        callback.setAutoAdvance(false);
+-        String url = "url";
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(url, callback, callback.getExecutor())
+-                        .build();
+-        mFakeCronetController.addRedirectResponse("location", url);
+-        request.start();
+-        try {
+-            callback.startNextRead(request);
+-            fail("Read should be disallowed while waiting for redirect.");
+-        } catch (IllegalStateException e) {
+-            assertEquals("Invalid state transition - expected 4 but was 3", e.getMessage());
+-        }
+-        callback.setAutoAdvance(true);
+-        request.followRedirect();
+-        callback.blockForDone();
+-    }
+-
+-    @DisabledTest(message = "crbug.com/994722")
+-    @Test
+-    @SmallTest
+-    public void testShuttingDownCronetEngineWithActiveRequestFails() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        callback.setAutoAdvance(false);
+-        String url = "url";
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(url, callback, callback.getExecutor())
+-                        .build();
+-
+-        request.start();
+-
+-        try {
+-            mFakeCronetEngine.shutdown();
+-            fail("Shutdown not checked for active requests.");
+-        } catch (IllegalStateException e) {
+-            assertEquals("Cannot shutdown with active requests.", e.getMessage());
+-        }
+-        callback.setAutoAdvance(true);
+-        callback.startNextRead(request);
+-        callback.blockForDone();
+-        mFakeCronetEngine.shutdown();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testDefaultResponseIs404() {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest request =
+-                (FakeUrlRequest) mFakeCronetEngine
+-                        .newUrlRequestBuilder(url, callback, callback.getExecutor())
+-                        .build();
+-
+-        request.start();
+-        callback.blockForDone();
+-
+-        assertEquals(404, callback.mResponseInfo.getHttpStatusCode());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadSetDataProviderChecksForNullUploadDataProvider() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        try {
+-            builder.setUploadDataProvider(null, callback.getExecutor());
+-            fail("Exception not thrown");
+-        } catch (NullPointerException e) {
+-            assertEquals("Invalid UploadDataProvider.", e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadSetDataProviderChecksForContentTypeHeader() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        try {
+-            builder.build().start();
+-            fail("Exception not thrown");
+-        } catch (IllegalArgumentException e) {
+-            assertEquals("Requests with upload data must have a Content-Type.", e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadWithEmptyBody() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-
+-        assertNotNull(callback.mResponseInfo);
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("", callback.mResponseAsString);
+-        dataProvider.assertClosed();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadSync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        String body = "test";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-        dataProvider.addRead(body.getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(4, dataProvider.getUploadedLength());
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("test", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadSyncReadWrongState() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        String body = "test";
+-        callback.setAutoAdvance(false);
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-
+-        // Add a redirect response so the request keeps the UploadDataProvider open while waiting
+-        // to follow the redirect.
+-        mFakeCronetController.addRedirectResponse("newUrl", url);
+-        dataProvider.addRead(body.getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        FakeUrlRequest request = (FakeUrlRequest) builder.build();
+-        request.start();
+-        callback.waitForNextStep();
+-        try {
+-            synchronized (request.mLock) {
+-                request.mFakeDataSink.onReadSucceeded(false);
+-            }
+-            fail("Cannot read before upload has started");
+-        } catch (IllegalStateException e) {
+-            assertEquals("onReadSucceeded() called when not awaiting a read result; in state: 2",
+-                    e.getMessage());
+-        }
+-        request.cancel();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadSyncRewindWrongState() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        String body = "test";
+-        callback.setAutoAdvance(false);
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-
+-        // Add a redirect response so the request keeps the UploadDataProvider open while waiting
+-        // to follow the redirect.
+-        mFakeCronetController.addRedirectResponse("newUrl", url);
+-        dataProvider.addRead(body.getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        FakeUrlRequest request = (FakeUrlRequest) builder.build();
+-        request.start();
+-        callback.waitForNextStep();
+-        try {
+-            synchronized (request.mLock) {
+-                request.mFakeDataSink.onRewindSucceeded();
+-            }
+-            fail("Cannot rewind before upload has started");
+-        } catch (IllegalStateException e) {
+-            assertEquals("onRewindSucceeded() called when not awaiting a rewind; in state: 2",
+-                    e.getMessage());
+-        }
+-        request.cancel();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadMultiplePiecesSync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-        dataProvider.addRead("Y".getBytes());
+-        dataProvider.addRead("et ".getBytes());
+-        dataProvider.addRead("another ".getBytes());
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(16, dataProvider.getUploadedLength());
+-        assertEquals(4, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("Yet another test", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadMultiplePiecesAsync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.ASYNC, callback.getExecutor());
+-        dataProvider.addRead("Y".getBytes());
+-        dataProvider.addRead("et ".getBytes());
+-        dataProvider.addRead("another ".getBytes());
+-        dataProvider.addRead("test".getBytes());
+-
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(16, dataProvider.getUploadedLength());
+-        assertEquals(4, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("Yet another test", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadChangesDefaultMethod() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new ResponseMatcher() {
+-            @Override
+-            public FakeUrlResponse getMatchingResponse(String url, String httpMethod,
+-                    List<Map.Entry<String, String>> headers, byte[] body) {
+-                return new FakeUrlResponse.Builder().setResponseBody(httpMethod.getBytes()).build();
+-            }
+-        });
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("POST", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadWithSetMethod() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new ResponseMatcher() {
+-            @Override
+-            public FakeUrlResponse getMatchingResponse(String url, String httpMethod,
+-                    List<Map.Entry<String, String>> headers, byte[] body) {
+-                return new FakeUrlResponse.Builder().setResponseBody(httpMethod.getBytes()).build();
+-            }
+-        });
+-        final String method = "PUT";
+-        builder.setHttpMethod(method);
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("PUT", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadRedirectSync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String redirectUrl = "redirectUrl";
+-        String echoBodyUrl = "echobody";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        redirectUrl, callback, callback.getExecutor());
+-        mFakeCronetController.addRedirectResponse(echoBodyUrl, redirectUrl);
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher(echoBodyUrl));
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        // 1 read call before the rewind, 1 after.
+-        assertEquals(2, dataProvider.getNumReadCalls());
+-        assertEquals(1, dataProvider.getNumRewindCalls());
+-
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("test", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadRedirectAsync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String redirectUrl = "redirectUrl";
+-        String echoBodyUrl = "echobody";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        redirectUrl, callback, callback.getExecutor());
+-        mFakeCronetController.addRedirectResponse(echoBodyUrl, redirectUrl);
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher(echoBodyUrl));
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.ASYNC, callback.getExecutor());
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        // 1 read call before the rewind, 1 after.
+-        assertEquals(2, dataProvider.getNumReadCalls());
+-        assertEquals(1, dataProvider.getNumRewindCalls());
+-
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("test", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadWithBadLength() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor()) {
+-            @Override
+-            public long getLength() throws IOException {
+-                return 1;
+-            }
+-
+-            @Override
+-            public void read(UploadDataSink uploadDataSink, ByteBuffer byteBuffer)
+-                    throws IOException {
+-                byteBuffer.put("12".getBytes());
+-                uploadDataSink.onReadSucceeded(false);
+-            }
+-        };
+-
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Read upload data length 2 exceeds expected length 1",
+-                callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadWithBadLengthBufferAligned() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor()) {
+-            @Override
+-            public long getLength() throws IOException {
+-                return 8191;
+-            }
+-
+-            @Override
+-            public void read(UploadDataSink uploadDataSink, ByteBuffer byteBuffer)
+-                    throws IOException {
+-                byteBuffer.put("0123456789abcdef".getBytes());
+-                uploadDataSink.onReadSucceeded(false);
+-            }
+-        };
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Read upload data length 8192 exceeds expected length 8191",
+-                callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadLengthFailSync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.setLengthFailure();
+-        // This will never be read, but if the length is 0, read may never be
+-        // called.
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(0, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Sync length failure", callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadReadFailSync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.setReadFailure(
+-                /* readFailIndex= */ 0, TestUploadDataProvider.FailMode.CALLBACK_SYNC);
+-        // This will never be read, but if the length is 0, read may never be
+-        // called.
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Sync read failure", callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadReadFailAsync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.setReadFailure(
+-                /* readFailIndex= */ 0, TestUploadDataProvider.FailMode.CALLBACK_ASYNC);
+-        // This will never be read, but if the length is 0, read may never be
+-        // called.
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Async read failure", callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadReadFailThrown() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.setReadFailure(/* readFailIndex= */ 0, TestUploadDataProvider.FailMode.THROWN);
+-        // This will never be read, but if the length is 0, read may never be
+-        // called.
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Thrown read failure", callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    /** This test uses a direct executor for upload, and non direct for callbacks */
+-    @Test
+-    @SmallTest
+-    public void testDirectExecutorUploadProhibitedByDefault() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        Executor myExecutor = new Executor() {
+-            @Override
+-            public void execute(Runnable command) {
+-                command.run();
+-            }
+-        };
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, myExecutor);
+-        // This will never be read, but if the length is 0, read may never be
+-        // called.
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, myExecutor);
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-
+-        assertEquals(0, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Inline execution is prohibited for this request",
+-                callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    /** This test uses a direct executor for callbacks, and non direct for upload */
+-    @Test
+-    @SmallTest
+-    public void testDirectExecutorProhibitedByDefault() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        Executor myExecutor = new Executor() {
+-            @Override
+-            public void execute(Runnable command) {
+-                command.run();
+-            }
+-        };
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, myExecutor);
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        // This will never be read, but if the length is 0, read may never be
+-        // called.
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals(0, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception posting task to executor", callback.mError.getMessage());
+-        assertContains("Inline execution is prohibited for this request",
+-                callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-        dataProvider.assertClosed();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testDirectExecutorAllowed() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        callback.setAllowDirectExecutor(true);
+-        Executor myExecutor = new Executor() {
+-            @Override
+-            public void execute(Runnable command) {
+-                command.run();
+-            }
+-        };
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-        UploadDataProvider dataProvider = UploadDataProviders.create("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, myExecutor);
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.allowDirectExecutor();
+-        builder.build().start();
+-        callback.blockForDone();
+-
+-        if (callback.mOnErrorCalled) {
+-            throw callback.mError;
+-        }
+-
+-        assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
+-        assertEquals("test", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadRewindFailSync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String redirectUrl = "redirectUrl";
+-        String echoBodyUrl = "echobody";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        redirectUrl, callback, callback.getExecutor());
+-        mFakeCronetController.addRedirectResponse(echoBodyUrl, redirectUrl);
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher(echoBodyUrl));
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.setRewindFailure(TestUploadDataProvider.FailMode.CALLBACK_SYNC);
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals(1, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Sync rewind failure", callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadRewindFailAsync() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String redirectUrl = "redirectUrl";
+-        String echoBodyUrl = "echobody";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        redirectUrl, callback, callback.getExecutor());
+-        mFakeCronetController.addRedirectResponse(echoBodyUrl, redirectUrl);
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher(echoBodyUrl));
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.ASYNC, callback.getExecutor());
+-        dataProvider.setRewindFailure(TestUploadDataProvider.FailMode.CALLBACK_ASYNC);
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals(1, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Async rewind failure", callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadRewindFailThrown() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String redirectUrl = "redirectUrl";
+-        String echoBodyUrl = "echobody";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        redirectUrl, callback, callback.getExecutor());
+-        mFakeCronetController.addRedirectResponse(echoBodyUrl, redirectUrl);
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher(echoBodyUrl));
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.setRewindFailure(TestUploadDataProvider.FailMode.THROWN);
+-        dataProvider.addRead("test".getBytes());
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals(1, dataProvider.getNumRewindCalls());
+-
+-        assertContains("Exception received from UploadDataProvider", callback.mError.getMessage());
+-        assertContains("Thrown rewind failure", callback.mError.getCause().getMessage());
+-        assertEquals(null, callback.mResponseInfo);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadChunked() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        dataProvider.addRead("test hello".getBytes());
+-        dataProvider.setChunked(true);
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-
+-        assertEquals(-1, dataProvider.getUploadedLength());
+-
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        // 1 read call for one data chunk.
+-        assertEquals(1, dataProvider.getNumReadCalls());
+-        assertEquals("test hello", callback.mResponseAsString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUploadChunkedLastReadZeroLengthBody() throws Exception {
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        String url = "url";
+-        FakeUrlRequest.Builder builder =
+-                (FakeUrlRequest.Builder) mFakeCronetEngine.newUrlRequestBuilder(
+-                        url, callback, callback.getExecutor());
+-        mFakeCronetController.addResponseMatcher(new EchoBodyResponseMatcher());
+-
+-        TestUploadDataProvider dataProvider = new TestUploadDataProvider(
+-                TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+-        // Add 3 reads. The last read has a 0-length body.
+-        dataProvider.addRead("hello there".getBytes());
+-        dataProvider.addRead("!".getBytes());
+-        dataProvider.addRead("".getBytes());
+-        dataProvider.setChunked(true);
+-        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+-        builder.addHeader("Content-Type", "useless/string");
+-
+-        assertEquals(-1, dataProvider.getUploadedLength());
+-
+-        builder.build().start();
+-        callback.blockForDone();
+-        dataProvider.assertClosed();
+-
+-        // 2 read call for the first two data chunks, and 1 for final chunk.
+-        assertEquals(3, dataProvider.getNumReadCalls());
+-        assertEquals("hello there!", callback.mResponseAsString);
+-    }
+-
+-    /**
+-     * A Cronet callback that does nothing.
+-     */
+-
+-    private static class StubCallback extends UrlRequest.Callback {
+-        @Override
+-        public void onRedirectReceived(org.chromium.net.UrlRequest urlRequest,
+-                UrlResponseInfo urlResponseInfo, String s) {}
+-
+-        @Override
+-        public void onResponseStarted(
+-                org.chromium.net.UrlRequest urlRequest, UrlResponseInfo urlResponseInfo) {}
+-
+-        @Override
+-        public void onReadCompleted(org.chromium.net.UrlRequest urlRequest,
+-                UrlResponseInfo urlResponseInfo, ByteBuffer byteBuffer) {}
+-
+-        @Override
+-        public void onSucceeded(
+-                org.chromium.net.UrlRequest urlRequest, UrlResponseInfo urlResponseInfo) {}
+-
+-        @Override
+-        public void onFailed(org.chromium.net.UrlRequest urlRequest,
+-                UrlResponseInfo urlResponseInfo, CronetException e) {}
+-    }
+-}
+diff --git a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlResponseTest.java b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlResponseTest.java
+deleted file mode 100644
+index 48c6ec24..00000000
+--- a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlResponseTest.java
++++ /dev/null
+@@ -1,219 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import static org.junit.Assert.assertEquals;
+-import static org.junit.Assert.assertFalse;
+-import static org.junit.Assert.assertNotEquals;
+-import static org.junit.Assert.assertTrue;
+-
+-import android.support.test.runner.AndroidJUnit4;
+-
+-import androidx.test.filters.SmallTest;
+-
+-import org.junit.Before;
+-import org.junit.Test;
+-import org.junit.runner.RunWith;
+-
+-import org.chromium.net.UrlResponseInfo;
+-import org.chromium.net.impl.UrlResponseInfoImpl;
+-
+-import java.io.UnsupportedEncodingException;
+-import java.util.AbstractMap;
+-import java.util.ArrayList;
+-import java.util.Arrays;
+-import java.util.List;
+-import java.util.Locale;
+-import java.util.Map;
+-
+-/**
+- * Test functionality of FakeUrlResponse.
+- */
+-@RunWith(AndroidJUnit4.class)
+-public class FakeUrlResponseTest {
+-    private static final int TEST_HTTP_STATUS_CODE = 201;
+-    private static final String TEST_HEADER_NAME = "name";
+-    private static final String TEST_HEADER_VALUE = "value";
+-    private static final boolean TEST_WAS_CACHED = true;
+-    private static final String TEST_NEGOTIATED_PROTOCOL = "test_negotiated_protocol";
+-    private static final String TEST_PROXY_SERVER = "test_proxy_server";
+-    private static final String TEST_BODY = "test_body";
+-
+-    List<Map.Entry<String, String>> mTestHeaders;
+-    AbstractMap.SimpleEntry<String, String> mTestHeaderEntry;
+-    FakeUrlResponse mTestResponse;
+-
+-    @Before
+-    public void setUp() {
+-        mTestHeaders = new ArrayList<>();
+-        mTestHeaderEntry = new AbstractMap.SimpleEntry<>(TEST_HEADER_NAME, TEST_HEADER_VALUE);
+-        mTestHeaders.add(mTestHeaderEntry);
+-        mTestResponse = new FakeUrlResponse.Builder()
+-                                .setHttpStatusCode(TEST_HTTP_STATUS_CODE)
+-                                .setWasCached(TEST_WAS_CACHED)
+-                                .addHeader(TEST_HEADER_NAME, TEST_HEADER_VALUE)
+-                                .setNegotiatedProtocol(TEST_NEGOTIATED_PROTOCOL)
+-                                .setProxyServer(TEST_PROXY_SERVER)
+-                                .setResponseBody(TEST_BODY.getBytes())
+-                                .build();
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testAddHeader() {
+-        FakeUrlResponse response = new FakeUrlResponse.Builder()
+-                                           .addHeader(TEST_HEADER_NAME, TEST_HEADER_VALUE)
+-                                           .build();
+-
+-        List<Map.Entry<String, String>> responseHeadersList = response.getAllHeadersList();
+-
+-        // mTestHeaderEntry is header entry of TEST_HEADER_NAME, TEST_HEADER_VALUE.
+-        assertTrue(responseHeadersList.contains(mTestHeaderEntry));
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testEquals() {
+-        FakeUrlResponse responseEqualToTestResponse = mTestResponse.toBuilder().build();
+-        FakeUrlResponse responseNotEqualToTestResponse =
+-                mTestResponse.toBuilder().setResponseBody("Not equal".getBytes()).build();
+-
+-        assertEquals(mTestResponse, mTestResponse);
+-        assertEquals(mTestResponse, responseEqualToTestResponse);
+-        assertNotEquals(mTestResponse, responseNotEqualToTestResponse);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testResponseBodyIsSame() {
+-        try {
+-            FakeUrlResponse responseWithBodySetAsBytes =
+-                    mTestResponse.toBuilder().setResponseBody(TEST_BODY.getBytes("UTF-8")).build();
+-            assertTrue(Arrays.equals(
+-                    mTestResponse.getResponseBody(), responseWithBodySetAsBytes.getResponseBody()));
+-        } catch (UnsupportedEncodingException e) {
+-            throw new RuntimeException(
+-                    "Exception occurred while encoding response body: " + TEST_BODY);
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testHeadersNotShared() {
+-        FakeUrlResponse.Builder responseBuilder = new FakeUrlResponse.Builder();
+-        FakeUrlResponse response = responseBuilder.build();
+-        FakeUrlResponse responseWithHeader =
+-                responseBuilder.addHeader(TEST_HEADER_NAME, TEST_HEADER_VALUE).build();
+-        List<Map.Entry<String, String>> responseHeadersList = response.getAllHeadersList();
+-        List<Map.Entry<String, String>> responseHeadersListWithHeader =
+-                responseWithHeader.getAllHeadersList();
+-
+-        assertNotEquals(responseHeadersListWithHeader, responseHeadersList);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testSettingAllHeadersCopiesHeaderList() {
+-        String nameNotInOriginalList = "nameNotInOriginalList";
+-        String valueNotInOriginalList = "valueNotInOriginalList";
+-        AbstractMap.SimpleEntry<String, String> entryNotInOriginalList =
+-                new AbstractMap.SimpleEntry<>(nameNotInOriginalList, valueNotInOriginalList);
+-
+-        FakeUrlResponse testResponseWithHeader =
+-                mTestResponse.toBuilder()
+-                        .addHeader(nameNotInOriginalList, valueNotInOriginalList)
+-                        .build();
+-
+-        assertFalse(mTestHeaders.contains(entryNotInOriginalList));
+-        assertTrue(testResponseWithHeader.getAllHeadersList().contains(entryNotInOriginalList));
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testHashCodeReturnsSameIntForEqualObjects() {
+-        FakeUrlResponse responseEqualToTest = mTestResponse.toBuilder().build();
+-
+-        assertEquals(mTestResponse.hashCode(), mTestResponse.hashCode());
+-        assertEquals(mTestResponse.hashCode(), responseEqualToTest.hashCode());
+-        // Two non-equivalent values can map to the same hashCode.
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testToString() {
+-        String expectedString = "HTTP Status Code: " + TEST_HTTP_STATUS_CODE
+-                + " Headers: " + mTestHeaders.toString() + " Was Cached: " + TEST_WAS_CACHED
+-                + " Negotiated Protocol: " + TEST_NEGOTIATED_PROTOCOL
+-                + " Proxy Server: " + TEST_PROXY_SERVER + " Response Body (UTF-8): " + TEST_BODY;
+-        String responseToString = mTestResponse.toString();
+-
+-        assertEquals(expectedString, responseToString);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetResponseWithUrlResponseInfo() {
+-        UrlResponseInfo info = new UrlResponseInfoImpl(new ArrayList<>(), TEST_HTTP_STATUS_CODE, "",
+-                mTestHeaders, TEST_WAS_CACHED, TEST_NEGOTIATED_PROTOCOL, TEST_PROXY_SERVER, 0);
+-        FakeUrlResponse expectedResponse = new FakeUrlResponse.Builder()
+-                                                   .setHttpStatusCode(TEST_HTTP_STATUS_CODE)
+-                                                   .addHeader(TEST_HEADER_NAME, TEST_HEADER_VALUE)
+-                                                   .setWasCached(TEST_WAS_CACHED)
+-                                                   .setNegotiatedProtocol(TEST_NEGOTIATED_PROTOCOL)
+-                                                   .setProxyServer(TEST_PROXY_SERVER)
+-                                                   .build();
+-
+-        FakeUrlResponse constructedResponse = new FakeUrlResponse(info);
+-
+-        assertEquals(expectedResponse, constructedResponse);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetResponesWithNullUrlResponseInfoGetsDefault() {
+-        // Set params that cannot be null in UrlResponseInfo in the expected response so that the
+-        // parameters found in the constructed response from UrlResponseInfo are the same
+-        // as the expected.
+-        FakeUrlResponse expectedResponse = new FakeUrlResponse.Builder()
+-                                                   .setHttpStatusCode(TEST_HTTP_STATUS_CODE)
+-                                                   .setWasCached(TEST_WAS_CACHED)
+-                                                   .addHeader(TEST_HEADER_NAME, TEST_HEADER_VALUE)
+-                                                   .build();
+-        // UnmodifiableList cannot be null.
+-        UrlResponseInfo info = new UrlResponseInfoImpl(/* UrlChain */ new ArrayList<>(),
+-                TEST_HTTP_STATUS_CODE, null, mTestHeaders, TEST_WAS_CACHED, null, null, 0);
+-
+-        FakeUrlResponse constructedResponse = new FakeUrlResponse(info);
+-
+-        assertEquals(expectedResponse, constructedResponse);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testInternalInitialHeadersListCantBeModified() {
+-        FakeUrlResponse defaultResponseWithHeader =
+-                new FakeUrlResponse.Builder()
+-                        .addHeader(TEST_HEADER_NAME, TEST_HEADER_VALUE)
+-                        .build();
+-        FakeUrlResponse defaultResponse = new FakeUrlResponse.Builder().build();
+-
+-        assertNotEquals(
+-                defaultResponse.getAllHeadersList(), defaultResponseWithHeader.getAllHeadersList());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testUrlResponseInfoHeadersMapIsCaseInsensitve() {
+-        UrlResponseInfo info = new UrlResponseInfoImpl(new ArrayList<>(), 200, "OK",
+-                mTestResponse.getAllHeadersList(), mTestResponse.getWasCached(),
+-                mTestResponse.getNegotiatedProtocol(), mTestResponse.getProxyServer(),
+-                mTestResponse.getResponseBody().length);
+-
+-        Map infoMap = info.getAllHeaders();
+-
+-        assertTrue(infoMap.containsKey(TEST_HEADER_NAME.toLowerCase(Locale.ROOT)));
+-        assertTrue(infoMap.containsKey(TEST_HEADER_NAME.toUpperCase(Locale.ROOT)));
+-    }
+-}
+diff --git a/components/cronet/android/fake/javatests/org/chromium/net/test/UrlResponseMatcherTest.java b/components/cronet/android/fake/javatests/org/chromium/net/test/UrlResponseMatcherTest.java
+deleted file mode 100644
+index f3c1bbf2..00000000
+--- a/components/cronet/android/fake/javatests/org/chromium/net/test/UrlResponseMatcherTest.java
++++ /dev/null
+@@ -1,75 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.test;
+-
+-import static org.junit.Assert.assertEquals;
+-import static org.junit.Assert.assertNotNull;
+-import static org.junit.Assert.assertNull;
+-import static org.junit.Assert.fail;
+-
+-import android.support.test.runner.AndroidJUnit4;
+-
+-import androidx.test.filters.SmallTest;
+-
+-import org.junit.Test;
+-import org.junit.runner.RunWith;
+-
+-/**
+- * Test functionality of UrlResponseMatcher.
+- */
+-@RunWith(AndroidJUnit4.class)
+-public class UrlResponseMatcherTest {
+-    @Test
+-    @SmallTest
+-    public void testCheckUrlNotNull() {
+-        try {
+-            UrlResponseMatcher matcher =
+-                    new UrlResponseMatcher(null, new FakeUrlResponse.Builder().build());
+-            fail("URL not null-checked");
+-        } catch (NullPointerException e) {
+-            assertEquals("URL is required.", e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testCheckResponseNotNull() {
+-        try {
+-            UrlResponseMatcher matcher = new UrlResponseMatcher("url", null);
+-            fail("Response not null-checked");
+-        } catch (NullPointerException e) {
+-            assertEquals("Response is required.", e.getMessage());
+-        }
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetMatchingUrlResponse() {
+-        String url = "url";
+-        FakeUrlResponse response =
+-                new FakeUrlResponse.Builder().setResponseBody("TestBody".getBytes()).build();
+-        ResponseMatcher matcher = new UrlResponseMatcher(url, response);
+-
+-        FakeUrlResponse found = matcher.getMatchingResponse(url, null, null, null);
+-
+-        assertNotNull(found);
+-        assertEquals(found, response);
+-    }
+-
+-    @Test
+-    @SmallTest
+-    public void testGetResponseWithBadUrlReturnsNull() {
+-        String url = "url";
+-        String urlWithoutResponse = "NO_RESPONSE";
+-        FakeUrlResponse response =
+-                new FakeUrlResponse.Builder().setResponseBody("TestBody".getBytes()).build();
+-        ResponseMatcher matcher = new UrlResponseMatcher(url, response);
+-
+-        FakeUrlResponse notFound =
+-                matcher.getMatchingResponse(urlWithoutResponse, null, null, null);
+-
+-        assertNull(notFound);
+-    }
+-}
+-- 
+2.39.0.314.g84b9a713c41-goog
+
