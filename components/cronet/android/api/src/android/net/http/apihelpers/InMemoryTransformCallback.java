@@ -6,7 +6,7 @@ package android.net.http.apihelpers;
 
 import androidx.annotation.Nullable;
 
-import android.net.http.CronetException;
+import android.net.http.HttpException;
 import android.net.http.UrlResponseInfo;
 
 import java.io.ByteArrayOutputStream;
@@ -18,16 +18,16 @@ import java.util.List;
 import java.util.Set;
 
 /**
- * An abstract Cronet callback that reads the entire body to memory and optionally deserializes the
+ * An abstract callback that reads the entire body to memory and optionally deserializes the
  * body before passing it back to the issuer of the HTTP request.
  *
- * <p>The requester can subscribe for updates about the request by adding completion mListeners on
- * the callback. When the request reaches a terminal state, the mListeners are informed in order of
+ * <p>The requester can subscribe for updates about the request by adding completion listeners on
+ * the callback. When the request reaches a terminal state, the listeners are informed in order of
  * addition.
  *
  * @param <T> the response body type
  */
-public abstract class InMemoryTransformCronetCallback<T> extends ImplicitFlowControlCallback {
+public abstract class InMemoryTransformCallback<T> extends ImplicitFlowControlCallback {
     private static final String CONTENT_LENGTH_HEADER_NAME = "Content-Length";
     // See ArrayList.MAX_ARRAY_SIZE for reasoning.
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
@@ -36,14 +36,14 @@ public abstract class InMemoryTransformCronetCallback<T> extends ImplicitFlowCon
     private WritableByteChannel mResponseBodyChannel;
 
     /** The set of listeners observing the associated request. */
-    private final Set<CronetRequestCompletionListener<? super T>> mListeners =
+    private final Set<RequestCompletionListener<? super T>> mListeners =
             new LinkedHashSet<>();
 
     /**
      * Transforms (deserializes) the plain full body into a user-defined object.
      *
      * <p>It is assumed that the implementing classes handle edge cases (such as empty and malformed
-     * bodies) appropriately. Cronet doesn't inspects the objects and passes them (or any
+     * bodies) appropriately. The HTTP stack doesn't inspect the objects and passes them (or any
      * exceptions) along to the issuer of the request.
      */
     protected abstract T transformBodyBytes(UrlResponseInfo info, byte[] bodyBytes);
@@ -53,10 +53,10 @@ public abstract class InMemoryTransformCronetCallback<T> extends ImplicitFlowCon
      * state, in order of addition. If a listener is added multiple times, it will only be called
      * once according to the first time it was added.
      *
-     * @see CronetRequestCompletionListener
+     * @see RequestCompletionListener
      */
     public ImplicitFlowControlCallback addCompletionListener(
-            CronetRequestCompletionListener<? super T> listener) {
+            RequestCompletionListener<? super T> listener) {
         mListeners.add(listener);
         return this;
     }
@@ -81,21 +81,21 @@ public abstract class InMemoryTransformCronetCallback<T> extends ImplicitFlowCon
     @Override
     protected final void onSucceeded(UrlResponseInfo info) {
         T body = transformBodyBytes(info, mResponseBodyStream.toByteArray());
-        for (CronetRequestCompletionListener<? super T> callback : mListeners) {
+        for (RequestCompletionListener<? super T> callback : mListeners) {
             callback.onSucceeded(info, body);
         }
     }
 
     @Override
-    protected final void onFailed(@Nullable UrlResponseInfo info, CronetException exception) {
-        for (CronetRequestCompletionListener<? super T> callback : mListeners) {
+    protected final void onFailed(@Nullable UrlResponseInfo info, HttpException exception) {
+        for (RequestCompletionListener<? super T> callback : mListeners) {
             callback.onFailed(info, exception);
         }
     }
 
     @Override
     protected final void onCanceled(@Nullable UrlResponseInfo info) {
-        for (CronetRequestCompletionListener<? super T> callback : mListeners) {
+        for (RequestCompletionListener<? super T> callback : mListeners) {
             callback.onCanceled(info);
         }
     }

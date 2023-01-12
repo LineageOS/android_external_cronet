@@ -19,11 +19,11 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Feature;
-import android.net.http.CronetEngine;
+import android.net.http.HttpEngine;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestUtil;
-import android.net.http.ExperimentalCronetEngine;
+import android.net.http.ExperimentalHttpEngine;
 import org.chromium.net.QuicTestServer;
 
 import java.io.OutputStream;
@@ -39,14 +39,14 @@ public class QuicUploadTest {
     @Rule
     public final CronetTestRule mTestRule = new CronetTestRule();
 
-    private CronetEngine mCronetEngine;
+    private HttpEngine mCronetEngine;
 
     @Before
     public void setUp() throws Exception {
         // Load library first to create MockCertVerifier.
         System.loadLibrary("cronet_tests");
-        ExperimentalCronetEngine.Builder builder =
-                new ExperimentalCronetEngine.Builder(getContext());
+        ExperimentalHttpEngine.Builder builder =
+                new ExperimentalHttpEngine.Builder(getContext());
 
         QuicTestServer.startQuicTestServer(getContext());
 

@@ -12,13 +12,13 @@ import androidx.annotation.RequiresApi;
 import java.time.Duration;
 
 /**
- * A class configuring Cronet's host resolution functionality. Note that while we refer to {@code
+ * A class configuring the host resolution functionality. Note that while we refer to {@code
  * DNS} as the most common mechanism being used for brevity, settings apply to other means of
  * resolving hostnames like hosts file resolution.
  *
- * <p>Cronet resolve hostnames in two ways - either by using the system resolver (using {@code
+ * <p>Hostnames can be resolved in two ways - either by using the system resolver (using {@code
  * getaddrinfo} provided by system libraries), or by using a custom resolver which is built into the
- * networking stack Cronet uses.
+ * HTTP networking stack.
  *
  * <p>The built-in stack provides several advantages over using the system resolver:
  *
@@ -31,8 +31,6 @@ import java.time.Duration;
  *   <li>{@code struct addrinfo} provides no TTL (Time To Live) of the returned addresses. This
  *       restricts flexibility of handling caching (e.g. allowing the use of stale DNS records) and
  *       requires us to either rely on OS DNS caches, or be extremely conservative with the TTL.
- *   <li>As part of the OS, {@code getaddrinfo} evolves slowly. Using a custom stack enables Cronet
- *       to introduce features like encrypted DNS faster.
  * </ul>
  *
  * <p>Most configuration in this class is only applicable if the built-in DNS resolver is used.
@@ -124,7 +122,7 @@ public final class DnsOptions {
     }
 
     /**
-     * A class configuring Cronet's stale DNS functionality.
+     * A class configuring the stale DNS functionality.
      *
      * <p>DNS resolution is one of the steps on the critical path to making a URL request, but it
      * can be slow for various reasons (underlying network latency, buffer bloat, packet loss,
@@ -246,8 +244,8 @@ public final class DnsOptions {
 
             /**
              * Sets whether to return results originating from other networks or not. Normally,
-             * Cronet clears the DNS cache entirely when switching connections, e.g. between two
-             * Wi-Fi networks or from Wi-Fi to 4G.
+             * the HTTP stack clears the DNS cache entirely when switching connections, e.g. between
+             * two Wi-Fi networks or from Wi-Fi to 4G.
              *
              * @return the builder for chaining
              */
@@ -260,10 +258,10 @@ public final class DnsOptions {
              * Sets whether to allow use of stale DNS results when network resolver fails to resolve
              * the hostname.
              *
-             * <p>Depending on the use case, if Cronet quickly sees a fresh failure, it may be
-             * desirable to use the failure as it is technically the fresher result, and we had such
-             * a fresh result quickly; or, prefer having any result (even if stale) to use over
-             * having a failure.
+             * <p>Depending on the use case, if the DNS resolver quickly sees a fresh failure, it
+             * may be desirable to use the failure as it is technically the fresher result, and we
+             * had such a fresh result quickly; or, prefer having any result (even if stale) to use
+             * over dealing with a DNS failure.
              *
              * @return the builder for chaining
              */
@@ -370,7 +368,7 @@ public final class DnsOptions {
         /**
          * Sets whether the DNS cache should be persisted to disk.
          *
-         * <p>Only relevant if {@link CronetEngine.Builder#setStoragePath(String)} is
+         * <p>Only relevant if {@link HttpEngine.Builder#setStoragePath(String)} is
          * set.
          *
          * @return the builder for chaining

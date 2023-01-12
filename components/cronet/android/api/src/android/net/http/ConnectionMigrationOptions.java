@@ -9,7 +9,7 @@ import androidx.annotation.Nullable;
 import java.time.Duration;
 
 /**
- * A class configuring Cronet's connection migration functionality.
+ * A class configuring the HTTP connection migration functionality.
  *
  * <p>Connection migration stops open connections to servers from being destroyed when the
  * client device switches its L4 connectivity (typically the IP address as a result of using

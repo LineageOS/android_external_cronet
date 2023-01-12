@@ -26,7 +26,7 @@ import org.junit.rules.ExpectedException;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.test.util.Feature;
-import android.net.http.CronetEngine;
+import android.net.http.HttpEngine;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CompareDefaultWithCronet;
 import org.chromium.net.CronetTestRule.OnlyRunCronetHttpURLConnection;
@@ -59,7 +59,7 @@ public class CronetFixedModeOutputStreamTest {
 
     @Before
     public void setUp() throws Exception {
-        mTestRule.setStreamHandlerFactory(new CronetEngine.Builder(getContext()).build());
+        mTestRule.setStreamHandlerFactory(new HttpEngine.Builder(getContext()).build());
         assertTrue(NativeTestServer.startNativeTestServer(getContext()));
     }
 

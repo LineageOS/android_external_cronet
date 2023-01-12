@@ -5,7 +5,7 @@
 package android.net.http.apihelpers;
 
 import android.net.http.CallbackException;
-import android.net.http.CronetException;
+import android.net.http.HttpException;
 import android.net.http.UrlRequest;
 
 import androidx.annotation.Nullable;
@@ -37,8 +37,8 @@ public abstract class ImplicitFlowControlCallback extends UrlRequest.Callback {
 
     /**
      * Invoked when the final set of headers, after all redirects, is received. Will only be invoked
-     * once for each request. It's guaranteed that Cronet doesn't start reading the body until this
-     * method returns.
+     * once for each request. It's guaranteed that the HTTP stack doesn't start reading the body
+     * until this method returns.
      *
      * @param info Response information.
      * @throws Exception if an error occurs while processing response start. {@link #onFailed} will
@@ -79,7 +79,7 @@ public abstract class ImplicitFlowControlCallback extends UrlRequest.Callback {
      * @param info Response information. May be {@code null} if no response was received.
      * @param exception information about error.
      */
-    protected abstract void onFailed(@Nullable UrlResponseInfo info, CronetException exception);
+    protected abstract void onFailed(@Nullable UrlResponseInfo info, HttpException exception);
 
     /**
      * Invoked if request was canceled via {@link UrlRequest#cancel}. Once invoked, no other {@link
@@ -120,7 +120,7 @@ public abstract class ImplicitFlowControlCallback extends UrlRequest.Callback {
     }
 
     @Override
-    public final void onFailed(UrlRequest request, UrlResponseInfo info, CronetException error) {
+    public final void onFailed(UrlRequest request, UrlResponseInfo info, HttpException error) {
         onFailed(info, error);
     }
 

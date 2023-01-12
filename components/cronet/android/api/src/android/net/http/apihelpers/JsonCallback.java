@@ -10,11 +10,11 @@ import org.json.JSONObject;
 import android.net.http.UrlResponseInfo;
 
 /**
- * A specialization of {@link InMemoryTransformCronetCallback} that interprets the response body as
+ * A specialization of {@link InMemoryTransformCallback} that interprets the response body as
  * JSON.
  */
-public abstract class JsonCronetCallback extends InMemoryTransformCronetCallback<JSONObject> {
-    private static final StringCronetCallback STRING_CALLBACK = new StringCronetCallback() {
+public abstract class JsonCallback extends InMemoryTransformCallback<JSONObject> {
+    private static final StringCallback STRING_CALLBACK = new StringCallback() {
         @Override
         protected boolean shouldFollowRedirect(UrlResponseInfo info, String newLocationUrl) {
             throw new UnsupportedOperationException();
@@ -22,8 +22,8 @@ public abstract class JsonCronetCallback extends InMemoryTransformCronetCallback
     };
 
     @Override // Override to return the subtype
-    public JsonCronetCallback addCompletionListener(
-            CronetRequestCompletionListener<? super JSONObject> listener) {
+    public JsonCallback addCompletionListener(
+            RequestCompletionListener<? super JSONObject> listener) {
         super.addCompletionListener(listener);
         return this;
     }

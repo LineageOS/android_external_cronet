@@ -11,19 +11,19 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A specialization of {@link InMemoryTransformCronetCallback} that interprets the response body as
+ * A specialization of {@link InMemoryTransformCallback} that interprets the response body as
  * a string.
  *
  * <p>The charset used to decode the string is derived from the {@code Content-Type} header.
  */
-public abstract class StringCronetCallback extends InMemoryTransformCronetCallback<String> {
+public abstract class StringCallback extends InMemoryTransformCallback<String> {
     private static final String CONTENT_TYPE_HEADER_NAME = "Content-Type";
 
-    StringCronetCallback() {}
+    StringCallback() {}
 
     @Override
-    public StringCronetCallback addCompletionListener(
-            CronetRequestCompletionListener<? super String> listener) {
+    public StringCallback addCompletionListener(
+            RequestCompletionListener<? super String> listener) {
         super.addCompletionListener(listener);
         return this;
     }

@@ -18,7 +18,7 @@ import org.chromium.base.annotations.NativeClassQualifiedName;
 import org.chromium.base.annotations.NativeMethods;
 import org.chromium.build.annotations.UsedByReflection;
 import android.net.http.BidirectionalStream;
-import android.net.http.CronetEngine;
+import android.net.http.HttpEngine;
 import org.chromium.net.EffectiveConnectionType;
 import android.net.http.ExperimentalBidirectionalStream;
 import android.net.http.NetworkQualityRttListener;
@@ -240,7 +240,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
     }
 
     static CronetSource getCronetSource() {
-        ClassLoader apiClassLoader = CronetEngine.class.getClassLoader();
+        ClassLoader apiClassLoader = HttpEngine.class.getClassLoader();
         ClassLoader implClassLoader = CronetUrlRequest.class.getClassLoader();
         return apiClassLoader.equals(implClassLoader) ? CronetSource.CRONET_SOURCE_STATICALLY_LINKED
                                                       : CronetSource.CRONET_SOURCE_PLAY_SERVICES;

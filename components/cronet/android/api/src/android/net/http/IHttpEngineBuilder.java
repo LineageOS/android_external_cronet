@@ -8,15 +8,15 @@ import java.util.Collections;
 import java.util.Set;
 
 /**
- * Defines methods that the actual implementation of {@link CronetEngine.Builder} has to implement.
- * {@code CronetEngine.Builder} uses this interface to delegate the calls.
+ * Defines methods that the actual implementation of {@link HttpEngine.Builder} has to implement.
+ * {@link HttpEngine.Builder} uses this interface to delegate the calls.
  * For the documentation of individual methods, please see the identically named methods in
- * {@link CronetEngine.Builder} and
- * {@link ExperimentalCronetEngine.Builder}.
+ * {@link HttpEngine.Builder} and
+ * {@link ExperimentalHttpEngine.Builder}.
  *
  * <p>{@hide internal class}
  */
-public abstract class ICronetEngineBuilder {
+public abstract class IHttpEngineBuilder {
     // The fields below list values which are known to getSupportedConfigOptions().
     //
     // Given the fields are final the constant value associated with them is compiled into
@@ -29,48 +29,48 @@ public abstract class ICronetEngineBuilder {
     public static final int QUIC_OPTIONS = 3;
 
     // Public API methods.
-    public abstract ICronetEngineBuilder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
+    public abstract IHttpEngineBuilder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
             boolean includeSubdomains, Instant expirationInstant);
 
-    public abstract ICronetEngineBuilder addQuicHint(String host, int port, int alternatePort);
+    public abstract IHttpEngineBuilder addQuicHint(String host, int port, int alternatePort);
 
-    public abstract ICronetEngineBuilder enableHttp2(boolean value);
+    public abstract IHttpEngineBuilder enableHttp2(boolean value);
 
-    public abstract ICronetEngineBuilder enableHttpCache(int cacheMode, long maxSize);
+    public abstract IHttpEngineBuilder enableHttpCache(int cacheMode, long maxSize);
 
-    public abstract ICronetEngineBuilder enablePublicKeyPinningBypassForLocalTrustAnchors(
+    public abstract IHttpEngineBuilder enablePublicKeyPinningBypassForLocalTrustAnchors(
             boolean value);
 
-    public abstract ICronetEngineBuilder enableQuic(boolean value);
+    public abstract IHttpEngineBuilder enableQuic(boolean value);
 
-    public abstract ICronetEngineBuilder enableSdch(boolean value);
+    public abstract IHttpEngineBuilder enableSdch(boolean value);
 
-    public ICronetEngineBuilder enableBrotli(boolean value) {
+    public IHttpEngineBuilder enableBrotli(boolean value) {
         // Do nothing for older implementations.
         return this;
     }
 
-    public ICronetEngineBuilder setQuicOptions(QuicOptions quicOptions) {
+    public IHttpEngineBuilder setQuicOptions(QuicOptions quicOptions) {
         return this;
     }
 
-    public ICronetEngineBuilder setDnsOptions(DnsOptions dnsOptions) {
+    public IHttpEngineBuilder setDnsOptions(DnsOptions dnsOptions) {
         return this;
     }
 
-    public ICronetEngineBuilder setConnectionMigrationOptions(
+    public IHttpEngineBuilder setConnectionMigrationOptions(
             ConnectionMigrationOptions connectionMigrationOptions) {
         return this;
     }
 
-    public abstract ICronetEngineBuilder setExperimentalOptions(String options);
-    public abstract ICronetEngineBuilder setStoragePath(String value);
+    public abstract IHttpEngineBuilder setExperimentalOptions(String options);
+    public abstract IHttpEngineBuilder setStoragePath(String value);
 
-    public abstract ICronetEngineBuilder setUserAgent(String userAgent);
+    public abstract IHttpEngineBuilder setUserAgent(String userAgent);
 
     public abstract String getDefaultUserAgent();
 
-    public abstract ExperimentalCronetEngine build();
+    public abstract ExperimentalHttpEngine build();
 
     /**
      * Returns the set of configuration options the builder is able to support natively. This is
@@ -89,11 +89,11 @@ public abstract class ICronetEngineBuilder {
     // removing the experimental methods from the implementation layer without breaking
     // the client.
 
-    public ICronetEngineBuilder enableNetworkQualityEstimator(boolean value) {
+    public IHttpEngineBuilder enableNetworkQualityEstimator(boolean value) {
         return this;
     }
 
-    public ICronetEngineBuilder setThreadPriority(int priority) {
+    public IHttpEngineBuilder setThreadPriority(int priority) {
         return this;
     }
 }
