@@ -59,7 +59,6 @@ public abstract class NetworkException extends HttpException {
     public static final int ERROR_QUIC_PROTOCOL_FAILED = 10;
     /**
      * Error code indicating another type of error was encountered.
-     * {@link #getInternalErrorCode} can be consulted to get a more specific cause.
      */
     public static final int ERROR_OTHER = 11;
 
