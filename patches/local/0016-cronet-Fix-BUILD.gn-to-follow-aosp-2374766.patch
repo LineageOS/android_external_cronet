@@ -1,0 +1,75 @@
+From cb6d8b05ad036a971ad429f42832ce979e7315c9 Mon Sep 17 00:00:00 2001
+From: Motomu Utsumi <motomuman@google.com>
+Date: Thu, 12 Jan 2023 14:51:55 +0900
+Subject: [PATCH] cronet: Fix BUILD.gn to follow aosp/2374766
+
+aosp/2374766 removed some targets from the BUILD.gn but there are some
+targets that depend on the removed targets, which makes gn gen fail.
+This CL fixes clean up targets to fix this issue.
+
+Test: gn gen
+---
+ components/cronet/BUILD.gn         | 1 -
+ components/cronet/android/BUILD.gn | 6 +-----
+ 2 files changed, 1 insertion(+), 6 deletions(-)
+
+diff --git a/components/cronet/BUILD.gn b/components/cronet/BUILD.gn
+index c616b514868f5..d386f567ed305 100644
+--- a/components/cronet/BUILD.gn
++++ b/components/cronet/BUILD.gn
+@@ -7,7 +7,6 @@ import("//build/toolchain/toolchain.gni")
+ import("//build/util/lastchange.gni")
+ import("//build/util/process_version.gni")
+ import("//chrome/version.gni")
+-import("//components/cronet/native/include/headers.gni")
+ import("//components/grpc_support/include/headers.gni")
+ import("//testing/test.gni")
+ 
+diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
+index e6efd114da6d7..d99ea15d5af13 100644
+--- a/components/cronet/android/BUILD.gn
++++ b/components/cronet/android/BUILD.gn
+@@ -10,7 +10,6 @@ import("//build/config/zip.gni")
+ import("//build/util/lastchange.gni")
+ import("//build/util/process_version.gni")
+ import("//chrome/version.gni")
+-import("//components/cronet/native/include/headers.gni")
+ import("//components/grpc_support/include/headers.gni")
+ import("//testing/test.gni")
+ import("//third_party/netty4/netty4.gni")
+@@ -146,7 +145,6 @@ source_set("cronet_static") {
+     "//components/cronet:cronet_common",
+     "//components/cronet:cronet_version_header",
+     "//components/cronet:metrics_util",
+-    "//components/cronet/native:cronet_native_impl",
+     "//components/prefs",
+     "//net",
+     "//third_party/zlib:zlib",
+@@ -1137,7 +1135,6 @@ if (!is_component_build) {
+       "//base",
+       "//base/test:test_support",
+       "//components/cronet:cronet_common_unittests",
+-      "//components/cronet/native:cronet_native_unittests",
+       "//components/prefs:test_support",
+       "//net",
+       "//net:test_support",
+@@ -1160,7 +1157,6 @@ if (!is_component_build) {
+       ":cronet_static",
+       "//base",
+       "//base/test:test_support",
+-      "//components/cronet/native/test:cronet_native_tests",
+       "//components/prefs:test_support",
+       "//net",
+       "//net:test_support",
+@@ -1321,7 +1317,7 @@ if (!is_component_build) {
+   }
+ 
+   copy("cronet_package_copy_native_headers") {
+-    sources = cronet_native_public_headers + grpc_public_headers
++    sources = grpc_public_headers
+ 
+     outputs = [ "$_package_dir/include/{{source_file_part}}" ]
+   }
+-- 
+2.39.0.314.g84b9a713c41-goog
+

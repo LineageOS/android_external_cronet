@@ -5,9 +5,10 @@
 package org.chromium.base;
 
 import android.text.TextUtils;
+import android.util.Log;
 import android.util.Patterns;
 
-import org.chromium.build.annotations.UsedByReflection;
+import org.chromium.base.annotations.CalledByNative;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -217,7 +218,6 @@ public class PiiElider {
      * @param stacktrace Multiline stacktrace as a string.
      * @return Stacktrace with elided URLs.
      */
-    @UsedByReflection("jni_android.cc")
     public static String sanitizeStacktrace(String stacktrace) {
         String[] frames = stacktrace.split("\\n");
         // Sanitize first stacktrace line which contains the exception message.
@@ -229,5 +229,14 @@ public class PiiElider {
             }
         }
         return TextUtils.join("\n", frames);
+    }
+
+    /**
+     * Returns a sanitized stacktrace (per {@link #sanitizeStacktrace(String)}) for the given
+     * throwable.
+     */
+    @CalledByNative
+    public static String getSanitizedStacktrace(Throwable throwable) {
+        return sanitizeStacktrace(Log.getStackTraceString(throwable));
     }
 }

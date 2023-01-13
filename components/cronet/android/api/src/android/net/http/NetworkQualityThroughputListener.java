@@ -4,6 +4,7 @@
 
 package android.net.http;
 
+import java.time.Instant;
 import java.util.concurrent.Executor;
 
 /**
@@ -35,8 +36,8 @@ public abstract class NetworkQualityThroughputListener {
     /**
      * Reports a new throughput observation.
      * @param throughputKbps the downstream throughput in kilobits per second.
-     * @param whenMs milliseconds since the Epoch (January 1st 1970, 00:00:00.000).
+     * @param observationInstant when the observation was recorded
      * @param source the observation source from {@link NetworkQualityObservationSource}.
      */
-    public abstract void onThroughputObservation(int throughputKbps, long whenMs, int source);
+    public abstract void onThroughputObservation(int throughputKbps, Instant observationInstant, int source);
 }

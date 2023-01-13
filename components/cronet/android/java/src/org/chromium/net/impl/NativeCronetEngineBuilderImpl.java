@@ -6,11 +6,11 @@ package org.chromium.net.impl;
 
 import android.content.Context;
 
-import android.net.http.ExperimentalCronetEngine;
-import android.net.http.ICronetEngineBuilder;
+import android.net.http.ExperimentalHttpEngine;
+import android.net.http.IHttpEngineBuilder;
 
 /**
- * Implementation of {@link ICronetEngineBuilder} that builds native Cronet engine.
+ * Implementation of {@link IHttpEngineBuilder} that builds native Cronet engine.
  */
 public class NativeCronetEngineBuilderImpl extends CronetEngineBuilderImpl {
     /**
@@ -24,12 +24,12 @@ public class NativeCronetEngineBuilderImpl extends CronetEngineBuilderImpl {
     }
 
     @Override
-    public ExperimentalCronetEngine build() {
+    public ExperimentalHttpEngine build() {
         if (getUserAgent() == null) {
             setUserAgent(getDefaultUserAgent());
         }
 
-        ExperimentalCronetEngine builder = new CronetUrlRequestContext(this);
+        ExperimentalHttpEngine builder = new CronetUrlRequestContext(this);
 
         // Clear MOCK_CERT_VERIFIER reference if there is any, since
         // the ownership has been transferred to the engine.

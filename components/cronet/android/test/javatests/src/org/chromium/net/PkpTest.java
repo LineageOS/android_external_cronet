@@ -14,8 +14,8 @@ import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
 import static org.chromium.net.CronetTestRule.getContext;
 import static org.chromium.net.CronetTestRule.getTestStorage;
 
-import android.net.http.CronetEngine;
-import android.net.http.ExperimentalCronetEngine;
+import android.net.http.HttpEngine;
+import android.net.http.ExperimentalHttpEngine;
 import android.net.http.NetworkException;
 import android.net.http.UrlRequest;
 import android.support.test.runner.AndroidJUnit4;
@@ -36,9 +36,9 @@ import org.chromium.net.test.util.CertTestUtil;
 import java.io.ByteArrayInputStream;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -47,7 +47,7 @@ import java.util.Set;
  */
 @RunWith(AndroidJUnit4.class)
 public class PkpTest {
-    private static final int DISTANT_FUTURE = Integer.MAX_VALUE;
+    private static final Duration DISTANT_FUTURE = Duration.ofDays(999999);
     private static final boolean INCLUDE_SUBDOMAINS = true;
     private static final boolean EXCLUDE_SUBDOMAINS = false;
     private static final boolean KNOWN_ROOT = true;
@@ -58,8 +58,8 @@ public class PkpTest {
     @Rule
     public final CronetTestRule mTestRule = new CronetTestRule();
 
-    private CronetEngine mCronetEngine;
-    private ExperimentalCronetEngine.Builder mBuilder;
+    private HttpEngine mCronetEngine;
+    private ExperimentalHttpEngine.Builder mBuilder;
     private TestUrlRequestCallback mListener;
     private String mServerUrl; // https://test.example.com:8443
     private String mServerHost; // test.example.com
@@ -361,7 +361,7 @@ public class PkpTest {
 
     /**
      * Tests that NullPointerException is thrown if the host name or the collection of pins or
-     * the expiration date is null.
+     * the expiration instant is null.
      *
      * @throws Exception
      */
@@ -401,7 +401,7 @@ public class PkpTest {
      */
     private void assertErrorResponse() {
         assertNotNull("Expected an error", mListener.mError);
-        int errorCode = ((NetworkException) mListener.mError).getCronetInternalErrorCode();
+        int errorCode = ((NetworkException) mListener.mError).getInternalErrorCode();
         Set<Integer> expectedErrors = new HashSet<>();
         expectedErrors.add(NetError.ERR_CONNECTION_REFUSED);
         expectedErrors.add(NetError.ERR_SSL_PINNED_KEY_NOT_IN_CERT_CHAIN);
@@ -416,7 +416,7 @@ public class PkpTest {
     private void assertSuccessfulResponse() {
         if (mListener.mError != null) {
             fail("Did not expect an error but got error code "
-                    + ((NetworkException) mListener.mError).getCronetInternalErrorCode());
+                    + ((NetworkException) mListener.mError).getInternalErrorCode());
         }
         assertNotNull("Expected non-null response from the server", mListener.mResponseInfo);
         assertEquals(200, mListener.mResponseInfo.getHttpStatusCode());
@@ -425,14 +425,14 @@ public class PkpTest {
     private void createCronetEngineBuilder(boolean bypassPinningForLocalAnchors, boolean knownRoot)
             throws Exception {
         // Set common CronetEngine parameters
-        mBuilder = new ExperimentalCronetEngine.Builder(getContext());
+        mBuilder = new ExperimentalHttpEngine.Builder(getContext());
         mBuilder.enablePublicKeyPinningBypassForLocalTrustAnchors(bypassPinningForLocalAnchors);
         JSONObject hostResolverParams = CronetTestUtil.generateHostResolverRules();
         JSONObject experimentalOptions = new JSONObject()
                                                  .put("HostResolverRules", hostResolverParams);
         mBuilder.setExperimentalOptions(experimentalOptions.toString());
         mBuilder.setStoragePath(getTestStorage(getContext()));
-        mBuilder.enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISK_NO_HTTP, 1000 * 1024);
+        mBuilder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP, 1000 * 1024);
         final String[] server_certs = {SERVER_CERT_PEM};
         CronetTestUtil.setMockCertVerifierForTesting(
                 mBuilder, MockCertVerifier.createMockCertVerifier(server_certs, knownRoot));
@@ -457,10 +457,10 @@ public class PkpTest {
 
     @SuppressWarnings("ArrayAsKeyOfSetOrMap")
     private void addPkpSha256(
-            String host, byte[] pinHashValue, boolean includeSubdomain, int maxAgeInSec) {
+            String host, byte[] pinHashValue, boolean includeSubdomain, Duration maxAge) {
         Set<byte[]> hashes = new HashSet<>();
         hashes.add(pinHashValue);
-        mBuilder.addPublicKeyPins(host, hashes, includeSubdomain, dateInFuture(maxAgeInSec));
+        mBuilder.addPublicKeyPins(host, hashes, includeSubdomain, instantInFuture(maxAge));
     }
 
     private void sendRequestAndWaitForResult() {
@@ -479,10 +479,8 @@ public class PkpTest {
         return (X509Certificate) certFactory.generateCertificate(new ByteArrayInputStream(certDer));
     }
 
-    private Date dateInFuture(int secondsIntoFuture) {
-        Calendar cal = Calendar.getInstance();
-        cal.add(Calendar.SECOND, secondsIntoFuture);
-        return cal.getTime();
+    private Instant instantInFuture(Duration howFarFromNow) {
+        return Instant.now().plus(howFarFromNow);
     }
 
     private void assertNoExceptionWhenHostNameIsValid(String hostName) {
@@ -506,14 +504,14 @@ public class PkpTest {
 
     @SuppressWarnings("ArrayAsKeyOfSetOrMap")
     private void verifyExceptionWhenAddPkpArgumentIsNull(
-            boolean hostNameIsNull, boolean pinsAreNull, boolean expirationDataIsNull) {
+            boolean hostNameIsNull, boolean pinsAreNull, boolean expirationInstantIsNull) {
         String hostName = hostNameIsNull ? null : "some-host.com";
-        Set<byte[]> pins = pinsAreNull ? null : new HashSet<byte[]>();
-        Date expirationDate = expirationDataIsNull ? null : new Date();
+        Set<byte[]> pins = pinsAreNull ? null : new HashSet<>();
+        Instant expirationInstant = expirationInstantIsNull ? null : Instant.now();
 
-        boolean shouldThrowNpe = hostNameIsNull || pinsAreNull || expirationDataIsNull;
+        boolean shouldThrowNpe = hostNameIsNull || pinsAreNull || expirationInstantIsNull;
         try {
-            mBuilder.addPublicKeyPins(hostName, pins, INCLUDE_SUBDOMAINS, expirationDate);
+            mBuilder.addPublicKeyPins(hostName, pins, INCLUDE_SUBDOMAINS, expirationInstant);
         } catch (NullPointerException ex) {
             if (!shouldThrowNpe) {
                 fail("Null pointer exception was not expected: " + ex.toString());
