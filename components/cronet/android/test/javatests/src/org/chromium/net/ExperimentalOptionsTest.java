@@ -198,7 +198,7 @@ public class ExperimentalOptionsTest {
         String testUrl = new URL("http", testHost, realPort, javaUrl.getPath()).toString();
 
         mBuilder.setStoragePath(getTestStorage(getContext()))
-                .enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 0);
+                .setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 0);
 
         // Set a short delay so the pref gets written quickly.
         JSONObject staleDns = new JSONObject()
