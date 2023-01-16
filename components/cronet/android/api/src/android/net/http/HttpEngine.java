@@ -23,6 +23,16 @@ import javax.net.ssl.HttpsURLConnection;
  */
 public abstract class HttpEngine {
 
+    /**
+     * {@hide}
+     */
+    protected HttpEngine() {}
+
+    /**
+     * Returns a new {@link Builder} object that facilitates creating a {@link HttpEngine}.
+     *
+     * {@hide}
+     */
     public static Builder builder(Context context) {
         return new Builder(context);
     }
@@ -53,7 +63,7 @@ public abstract class HttpEngine {
          *                context will be kept, so as to avoid extending
          *                the lifetime of {@code context} unnecessarily.
          */
-        Builder(Context context) {
+        public Builder(Context context) {
             this(createBuilderDelegate(context));
         }
 
@@ -117,7 +127,7 @@ public abstract class HttpEngine {
          * @param value {@code true} to enable QUIC, {@code false} to disable.
          * @return the builder to facilitate chaining.
          */
-        public Builder enableQuic(boolean value) {
+        public Builder setEnableQuic(boolean value) {
             mBuilderDelegate.enableQuic(value);
             return this;
         }
@@ -128,7 +138,7 @@ public abstract class HttpEngine {
          * @param value {@code true} to enable HTTP/2, {@code false} to disable.
          * @return the builder to facilitate chaining.
          */
-        public Builder enableHttp2(boolean value) {
+        public Builder setEnableHttp2(boolean value) {
             mBuilderDelegate.enableHttp2(value);
             return this;
         }
@@ -140,34 +150,34 @@ public abstract class HttpEngine {
          * @param value {@code true} to enable Brotli, {@code false} to disable.
          * @return the builder to facilitate chaining.
          */
-        public Builder enableBrotli(boolean value) {
+        public Builder setEnableBrotli(boolean value) {
             mBuilderDelegate.enableBrotli(value);
             return this;
         }
 
         /**
          * Setting to disable HTTP cache. Some data may still be temporarily stored in memory.
-         * Passed to {@link #enableHttpCache}.
+         * Passed to {@link #setEnableHttpCache}.
          */
         public static final int HTTP_CACHE_DISABLED = 0;
 
         /**
          * Setting to enable in-memory HTTP cache, including HTTP data.
-         * Passed to {@link #enableHttpCache}.
+         * Passed to {@link #setEnableHttpCache}.
          */
         public static final int HTTP_CACHE_IN_MEMORY = 1;
 
         /**
          * Setting to enable on-disk cache, excluding HTTP data.
          * {@link #setStoragePath} must be called prior to passing this constant to
-         * {@link #enableHttpCache}.
+         * {@link #setEnableHttpCache}.
          */
         public static final int HTTP_CACHE_DISK_NO_HTTP = 2;
 
         /**
          * Setting to enable on-disk cache, including HTTP data.
          * {@link #setStoragePath} must be called prior to passing this constant to
-         * {@link #enableHttpCache}.
+         * {@link #setEnableHttpCache}.
          */
         public static final int HTTP_CACHE_DISK = 3;
 
@@ -180,14 +190,14 @@ public abstract class HttpEngine {
          * exceeded at times).
          * @return the builder to facilitate chaining.
          */
-        public Builder enableHttpCache(int cacheMode, long maxSize) {
+        public Builder setEnableHttpCache(int cacheMode, long maxSize) {
             mBuilderDelegate.enableHttpCache(cacheMode, maxSize);
             return this;
         }
 
         /**
          * Adds hint that {@code host} supports QUIC.
-         * Note that {@link #enableHttpCache enableHttpCache}
+         * Note that {@link #setEnableHttpCache enableHttpCache}
          * ({@link #HTTP_CACHE_DISK}) is needed to take advantage of 0-RTT
          * connection establishment between sessions.
          *
@@ -272,7 +282,7 @@ public abstract class HttpEngine {
          * documentation of {@link QuicOptions} and the individual methods
          * of {@link QuicOptions.Builder}.
          *
-         * <p>Only relevant if {@link #enableQuic(boolean)} is enabled.
+         * <p>Only relevant if {@link #setEnableQuic(boolean)} is enabled.
          *
          * @return the builder to facilitate chaining.
          */
@@ -284,6 +294,8 @@ public abstract class HttpEngine {
 
         /**
          * @see #setQuicOptions(QuicOptions)
+         *
+         * {@hide}
          */
         @QuicOptions.Experimental
         public Builder setQuicOptions(QuicOptions.Builder quicOptionsBuilder) {
@@ -294,7 +306,7 @@ public abstract class HttpEngine {
          * Configures the behavior of hostname lookup. For more details, see documentation
          * of {@link DnsOptions} and the individual methods of {@link DnsOptions.Builder}.
          *
-         * <p>Only relevant if {@link #enableQuic(boolean)} is enabled.
+         * <p>Only relevant if {@link #setEnableQuic(boolean)} is enabled.
          *
          * @return the builder to facilitate chaining.
          */
@@ -306,6 +318,8 @@ public abstract class HttpEngine {
 
         /**
          * @see #setDnsOptions(DnsOptions)
+         *
+         * {@hide}
          */
         @DnsOptions.Experimental
         public Builder setDnsOptions(DnsOptions.Builder dnsOptions) {
@@ -317,7 +331,7 @@ public abstract class HttpEngine {
          * of {@link ConnectionMigrationOptions} and the individual methods of {@link
          * ConnectionMigrationOptions.Builder}.
          *
-         * <p>Only relevant if {@link #enableQuic(boolean)} is enabled.
+         * <p>Only relevant if {@link #setEnableQuic(boolean)} is enabled.
          *
          * @return the builder to facilitate chaining.
          */
@@ -330,6 +344,8 @@ public abstract class HttpEngine {
 
         /**
          * @see #setConnectionMigrationOptions(ConnectionMigrationOptions)
+         *
+         * {@hide}
          */
         @ConnectionMigrationOptions.Experimental
         public Builder setConnectionMigrationOptions(

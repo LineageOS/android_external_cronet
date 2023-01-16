@@ -75,7 +75,7 @@ public class DiskStorageTest {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
         builder.setStoragePath(mReadOnlyStoragePath);
-        builder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
+        builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
 
         HttpEngine cronetEngine = builder.build();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -139,7 +139,7 @@ public class DiskStorageTest {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
         builder.setStoragePath(getTestStorage(getContext()));
-        builder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
+        builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
 
         HttpEngine cronetEngine = builder.build();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -181,7 +181,7 @@ public class DiskStorageTest {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
         builder.setStoragePath(getTestStorage(getContext()));
-        builder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
+        builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
 
         HttpEngine cronetEngine = builder.build();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -244,7 +244,7 @@ public class DiskStorageTest {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
         try {
-            builder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
+            builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
             fail("Enabling http cache without a storage path should throw an exception");
         } catch (IllegalArgumentException e) {
             // Expected

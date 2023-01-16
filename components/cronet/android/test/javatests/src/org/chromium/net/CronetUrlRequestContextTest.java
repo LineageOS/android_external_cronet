@@ -712,7 +712,7 @@ public class CronetUrlRequestContextTest {
                 || cacheType == HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP) {
             builder.setStoragePath(getTestStorage(getContext()));
         }
-        builder.enableHttpCache(cacheType, 100 * 1024);
+        builder.setEnableHttpCache(cacheType, 100 * 1024);
         // Don't check the return value here, because startNativeTestServer() returns false when the
         // NativeTestServer is already running and this method needs to be called twice without
         // shutting down the NativeTestServer in between.
@@ -1366,10 +1366,10 @@ public class CronetUrlRequestContextTest {
         // Verify CronetEngine.Builder config is passed down accurately to native code.
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
-        builder.enableHttp2(false);
-        builder.enableQuic(true);
+        builder.setEnableHttp2(false);
+        builder.setEnableQuic(true);
         builder.addQuicHint("example.com", 12, 34);
-        builder.enableHttpCache(HTTP_CACHE_IN_MEMORY, 54321);
+        builder.setEnableHttpCache(HTTP_CACHE_IN_MEMORY, 54321);
         builder.setUserAgent("efgh");
         builder.setExperimentalOptions("");
         builder.setStoragePath(getTestStorage(getContext()));
@@ -1393,11 +1393,11 @@ public class CronetUrlRequestContextTest {
         // Verify CronetEngine.Builder config is passed down accurately to native code.
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
-        builder.enableHttp2(false);
+        builder.setEnableHttp2(false);
         // QUIC is on by default. Disabling it here to make sure the built config can correctly
         // reflect the change.
-        builder.enableQuic(false);
-        builder.enableHttpCache(HTTP_CACHE_IN_MEMORY, 54321);
+        builder.setEnableQuic(false);
+        builder.setEnableHttpCache(HTTP_CACHE_IN_MEMORY, 54321);
         builder.setExperimentalOptions("");
         builder.setUserAgent("efgh");
         builder.setStoragePath(getTestStorage(getContext()));

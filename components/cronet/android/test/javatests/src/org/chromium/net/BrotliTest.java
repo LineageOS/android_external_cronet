@@ -62,7 +62,7 @@ public class BrotliTest {
     public void testBrotliAdvertised() throws Exception {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
-        builder.enableBrotli(true);
+        builder.setEnableBrotli(true);
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
         mCronetEngine = builder.build();
@@ -95,7 +95,7 @@ public class BrotliTest {
     public void testBrotliDecoded() throws Exception {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
-        builder.enableBrotli(true);
+        builder.setEnableBrotli(true);
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
         mCronetEngine = builder.build();
