@@ -50,7 +50,7 @@ public class QuicUploadTest {
 
         QuicTestServer.startQuicTestServer(getContext());
 
-        builder.enableQuic(true);
+        builder.setEnableQuic(true);
         JSONObject hostResolverParams = CronetTestUtil.generateHostResolverRules();
         JSONObject experimentalOptions = new JSONObject()
                                                  .put("HostResolverRules", hostResolverParams);

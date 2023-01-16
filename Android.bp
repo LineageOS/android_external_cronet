@@ -22,15 +22,38 @@ java_library {
     ],
     libs: [
         "androidx.annotation_annotation",
+        "framework-annotations-lib",
     ],
     sdk_version: "module_current",
 }
 
 // GN: //components/cronet/android:cronet_api_java
 filegroup {
+    name: "cronet_aml_api_helpers_sources",
+    srcs: [
+        ":cronet_aml_components_cronet_android_interface_api_version",
+        "components/cronet/android/api/src/android/net/http/apihelpers/ByteArrayCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/ContentTypeParametersParser.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/RequestCompletionListener.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/HttpResponse.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/ImplicitFlowControlCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/InMemoryTransformCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/JsonCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandler.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandlers.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/StringCallback.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/UploadDataProviders.java",
+        "components/cronet/android/api/src/android/net/http/apihelpers/UrlRequestCallbacks.java",
+    ],
+}
+
+filegroup {
     name: "cronet_aml_api_sources",
     srcs: [
         ":cronet_aml_components_cronet_android_interface_api_version",
+        // TODO(danstahr): add the API helpers separately after the main API is checked in
+        // and thoroughly reviewed
+        // ":cronet_aml_api_helpers_sources",
         "components/cronet/android/api/src/android/net/http/BidirectionalStream.java",
         "components/cronet/android/api/src/android/net/http/CallbackException.java",
         "components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java",
@@ -52,18 +75,6 @@ filegroup {
         "components/cronet/android/api/src/android/net/http/UploadDataSink.java",
         "components/cronet/android/api/src/android/net/http/UrlRequest.java",
         "components/cronet/android/api/src/android/net/http/UrlResponseInfo.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/ByteArrayCallback.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/ContentTypeParametersParser.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/HttpResponse.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/ImplicitFlowControlCallback.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/InMemoryTransformCallback.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/JsonCallback.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandler.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandlers.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/RequestCompletionListener.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/StringCallback.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/UploadDataProviders.java",
-        "components/cronet/android/api/src/android/net/http/apihelpers/UrlRequestCallbacks.java",
     ],
 }
 

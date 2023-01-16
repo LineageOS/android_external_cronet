@@ -49,7 +49,7 @@ public class ConnectionMigrationOptions {
     private final Integer mMaxPathDegradingNonDefaultMigrationsCount;
 
     /**
-     * See {@link Builder#enableDefaultNetworkMigration}
+     * See {@link Builder#setEnableDefaultNetworkMigration}
      */
     @Nullable
     public Boolean getEnableDefaultNetworkMigration() {
@@ -57,7 +57,7 @@ public class ConnectionMigrationOptions {
     }
 
     /**
-     * See {@link Builder#enablePathDegradationMigration}
+     * See {@link Builder#setEnablePathDegradationMigration}
      */
     @Nullable
     public Boolean getEnablePathDegradationMigration() {
@@ -65,7 +65,7 @@ public class ConnectionMigrationOptions {
     }
 
     /**
-     * See {@link Builder#allowServerMigration}
+     * See {@link Builder#setAllowServerMigration}
      *
      * {@hide}
      */
@@ -76,7 +76,7 @@ public class ConnectionMigrationOptions {
     }
 
     /**
-     * See {@link Builder#migrateIdleConnections}
+     * See {@link Builder#setMigrateIdleConnections}
      *
      * {@hide}
      */
@@ -98,7 +98,7 @@ public class ConnectionMigrationOptions {
     }
 
     /**
-     * See {@link Builder#retryPreHandshakeErrorsOnNonDefaultNetwork}
+     * See {@link Builder#setRetryPreHandshakeErrorsOnNonDefaultNetwork}
      *
      * {@hide}
      */
@@ -109,7 +109,7 @@ public class ConnectionMigrationOptions {
     }
 
     /**
-     * See {@link Builder#allowNonDefaultNetworkUsage}
+     * See {@link Builder#setAllowNonDefaultNetworkUsage}
      *
      * {@hide}
      */
@@ -191,7 +191,7 @@ public class ConnectionMigrationOptions {
         @Nullable
         private Integer mMaxPathDegradingNonDefaultMigrationsCount;
 
-        Builder() {}
+        public Builder() {}
 
         /**
          * Enables the possibility of migrating connections on default network change. If enabled,
@@ -203,7 +203,7 @@ public class ConnectionMigrationOptions {
          *
          * @return this builder for chaining
          */
-        public Builder enableDefaultNetworkMigration(
+        public Builder setEnableDefaultNetworkMigration(
                 boolean enableDefaultNetworkConnectionMigration) {
             this.mEnableDefaultNetworkMigration = enableDefaultNetworkConnectionMigration;
             return this;
@@ -218,7 +218,7 @@ public class ConnectionMigrationOptions {
          *
          * @return this builder for chaining
          */
-        public Builder enablePathDegradationMigration(boolean enable) {
+        public Builder setEnablePathDegradationMigration(boolean enable) {
             this.mEnablePathDegradationMigration = enable;
             return this;
         }
@@ -232,7 +232,7 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
-        public Builder allowServerMigration(boolean allowServerMigration) {
+        public Builder setAllowServerMigration(boolean allowServerMigration) {
             this.mAllowServerMigration = allowServerMigration;
             return this;
         }
@@ -250,7 +250,7 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
-        public Builder migrateIdleConnections(boolean migrateIdleConnections) {
+        public Builder setMigrateIdleConnections(boolean migrateIdleConnections) {
             this.mMigrateIdleConnections = migrateIdleConnections;
             return this;
         }
@@ -259,7 +259,7 @@ public class ConnectionMigrationOptions {
          * Sets the maximum idle period for which connections will still be migrated, in seconds.
          * The setting is shared for all connection migration types.
          *
-         * <p>Only relevant if {@link #migrateIdleConnections(boolean)} is enabled.
+         * <p>Only relevant if {@link #setMigrateIdleConnections(boolean)} is enabled.
          *
          * @return this builder for chaining
          *
@@ -287,7 +287,7 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
-        public Builder allowNonDefaultNetworkUsage(boolean enable) {
+        public Builder setAllowNonDefaultNetworkUsage(boolean enable) {
             this.mAllowNonDefaultNetworkUsage = enable;
             return this;
         }
@@ -297,7 +297,7 @@ public class ConnectionMigrationOptions {
          * there before they're migrated back. This time is not cumulative - each migration off
          * the default network for each connection measures and compares to this value separately.
          *
-         * <p>Only relevant if {@link #allowNonDefaultNetworkUsage(boolean)} is enabled.
+         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsage(boolean)} is enabled.
          *
          * @return this builder for chaining
          *
@@ -314,7 +314,7 @@ public class ConnectionMigrationOptions {
          * Sets the maximum number of migrations to the non-default network upon encountering write
          * errors. Counted cumulatively per network per connection.
          *
-         * <p>Only relevant if {@link #allowNonDefaultNetworkUsage(boolean)} is enabled.
+         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsage(boolean)} is enabled.
          *
          * @return this builder for chaining
          *
@@ -331,7 +331,7 @@ public class ConnectionMigrationOptions {
          * Sets the maximum number of migrations to the non-default network upon encountering path
          * degradation for the existing connection. Counted cumulatively per network per connection.
          *
-         * <p>Only relevant if {@link #allowNonDefaultNetworkUsage(boolean)} is enabled.
+         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsage(boolean)} is enabled.
          *
          * @return this builder for chaining
          *
@@ -351,7 +351,7 @@ public class ConnectionMigrationOptions {
          * <p>If true, a new connection may be established an alternate network if it fails
          * on the default network before handshake is confirmed.
          *
-         * <p>Note: similarly to {@link #allowNonDefaultNetworkUsage(boolean)} this setting can
+         * <p>Note: similarly to {@link #setAllowNonDefaultNetworkUsage(boolean)} this setting can
          * result in requests being sent on non-default metered networks. Use with caution!
          *
          * @return this builder for chaining
@@ -359,7 +359,7 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
-        public Builder retryPreHandshakeErrorsOnNonDefaultNetwork(
+        public Builder setRetryPreHandshakeErrorsOnNonDefaultNetwork(
                 boolean retryPreHandshakeErrorsOnAlternateNetwork) {
             this.mRetryPreHandshakeErrorsOnAlternateNetwork =
                     retryPreHandshakeErrorsOnAlternateNetwork;
@@ -375,6 +375,11 @@ public class ConnectionMigrationOptions {
         }
     }
 
+    /**
+     * Creates a new builder for {@link ConnectionMigrationOptions}.
+     *
+     * {@hide}
+     */
     public static Builder builder() {
         return new Builder();
     }

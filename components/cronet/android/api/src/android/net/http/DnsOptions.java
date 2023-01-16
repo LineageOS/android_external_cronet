@@ -61,7 +61,9 @@ public final class DnsOptions {
     }
 
     /**
-     * See {@link Builder#useBuiltInDnsResolver}
+     * See {@link Builder#setUseBuiltInDnsResolver}
+     *
+     * {@hide}
      */
     @Nullable
     public Boolean getUseBuiltInDnsResolver() {
@@ -69,7 +71,7 @@ public final class DnsOptions {
     }
 
     /**
-     * See {@link Builder#persistHostCache}
+     * See {@link Builder#setPersistHostCache}
      */
     @Nullable
     public Boolean getPersistHostCache() {
@@ -77,7 +79,7 @@ public final class DnsOptions {
     }
 
     /**
-     * See {@link Builder#enableStaleDns}
+     * See {@link Builder#setEnableStaleDns}
      *
      * {@hide}
      */
@@ -96,7 +98,7 @@ public final class DnsOptions {
     }
 
     /**
-     * See {@link Builder#preestablishConnectionsToStaleDnsResults}
+     * See {@link Builder#setPreestablishConnectionsToStaleDnsResults}
      *
      * {@hide}
      */
@@ -117,6 +119,11 @@ public final class DnsOptions {
         return mStaleDnsOptions;
     }
 
+    /**
+     * Returns a new builder for {@link DnsOptions}.
+     *
+     * @hide
+     */
     public static Builder builder() {
         return new Builder();
     }
@@ -249,7 +256,7 @@ public final class DnsOptions {
              *
              * @return the builder for chaining
              */
-            public Builder allowCrossNetworkUsage(boolean allowCrossNetworkUsage) {
+            public Builder setAllowCrossNetworkUsage(boolean allowCrossNetworkUsage) {
                 this.mAllowCrossNetworkUsage = allowCrossNetworkUsage;
                 return this;
             }
@@ -265,7 +272,7 @@ public final class DnsOptions {
              *
              * @return the builder for chaining
              */
-            public Builder useStaleOnNameNotResolved(boolean useStaleOnNameNotResolved) {
+            public Builder setUseStaleOnNameNotResolved(boolean useStaleOnNameNotResolved) {
                 this.mUseStaleOnNameNotResolved = useStaleOnNameNotResolved;
                 return this;
             }
@@ -297,9 +304,12 @@ public final class DnsOptions {
         @Nullable
         private Boolean mPreestablishConnectionsToStaleDnsResults;
 
-        Builder() {}
+        public Builder() {}
 
-        public Builder useBuiltInDnsResolver(boolean enable) {
+        /**
+         * {@hide}
+         */
+        public Builder setUseBuiltInDnsResolver(boolean enable) {
             this.mUseBuiltInDnsResolver = enable;
             return this;
         }
@@ -312,7 +322,7 @@ public final class DnsOptions {
          * {@hide}
          */
         @Experimental
-        public Builder enableStaleDns(boolean enable) {
+        public Builder setEnableStaleDns(boolean enable) {
             this.mEnableStaleDns = enable;
             return this;
         }
@@ -320,7 +330,7 @@ public final class DnsOptions {
         /**
          * Sets detailed configuration for stale DNS.
          *
-         * Only relevant if {@link #enableStaleDns(boolean)} is set.
+         * Only relevant if {@link #setEnableStaleDns(boolean)} is set.
          *
          * @return this builder for chaining.
          *
@@ -350,7 +360,7 @@ public final class DnsOptions {
          * expired. Such connections won't be used further until a new DNS lookup confirms the
          * cached record was up to date.
          *
-         * <p>To use cached DNS records straight away, use {@link #enableStaleDns} and {@link
+         * <p>To use cached DNS records straight away, use {@link #setEnableStaleDns} and {@link
          * StaleDnsOptions} configuration options.
          *
          * <p>This option may not be available for all networking protocols.
@@ -360,7 +370,7 @@ public final class DnsOptions {
          * {@hide}
          */
         @Experimental
-        public Builder preestablishConnectionsToStaleDnsResults(boolean enable) {
+        public Builder setPreestablishConnectionsToStaleDnsResults(boolean enable) {
             this.mPreestablishConnectionsToStaleDnsResults = enable;
             return this;
         }
@@ -373,7 +383,7 @@ public final class DnsOptions {
          *
          * @return the builder for chaining
          */
-        public Builder persistHostCache(boolean persistHostCache) {
+        public Builder setPersistHostCache(boolean persistHostCache) {
             this.mPersistHostCache = persistHostCache;
             return this;
         }
@@ -381,7 +391,7 @@ public final class DnsOptions {
         /**
          * Sets the minimum period between subsequent writes to disk for DNS cache persistence.
          *
-         * <p>Only relevant if {@link #persistHostCache(boolean)} is set to true.
+         * <p>Only relevant if {@link #setPersistHostCache(boolean)} is set to true.
          *
          * @return the builder for chaining
          */
