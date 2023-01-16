@@ -1,0 +1,62 @@
+From edb2e99c13de62d4a936af953918180be9e3f963 Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Thu, 12 Jan 2023 16:23:28 +0000
+Subject: [PATCH] Remove javadoc references from methods which are not hidden
+ to those that are.
+
+Also, reflect the jarjar setup we'll have in the Tethering module in the
+class name HttpEngine uses to load the implementation.
+
+Test: m
+
+Change-Id: I20f0d2d500390300b07342abc2ed3cc8fa67ac73
+---
+ .../api/src/android/net/http/ConnectionMigrationOptions.java   | 2 --
+ .../cronet/android/api/src/android/net/http/HttpEngine.java    | 3 +--
+ .../android/api/src/android/net/http/NetworkException.java     | 1 -
+ 3 files changed, 1 insertion(+), 5 deletions(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+index b07607be..5ccc7441 100644
+--- a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
++++ b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+@@ -216,8 +216,6 @@ public class ConnectionMigrationOptions {
+          * <p>Depending on other configuration, this can result to migrating the connections within
+          * the same default network, or to a non-default network.
+          *
+-         * @see #allowNonDefaultNetworkUsage(boolean)
+-         *
+          * @return this builder for chaining
+          */
+         public Builder enablePathDegradationMigration(boolean enable) {
+diff --git a/components/cronet/android/api/src/android/net/http/HttpEngine.java b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+index 45c2260f..886e9344 100644
+--- a/components/cronet/android/api/src/android/net/http/HttpEngine.java
++++ b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+@@ -353,10 +353,9 @@ public abstract class HttpEngine {
+          * @return the created {@link IHttpEngineBuilder}.
+          */
+         private static IHttpEngineBuilder createBuilderDelegate(Context context) {
+-            // TODO class name
+             try {
+                 Class<?> clazz = context.getClassLoader().loadClass(
+-                        "org.chromium.net.impl.NativeCronetEngineBuilderImpl");
++                        "android.net.http.internal.org.chromium.net.impl.NativeCronetEngineBuilderImpl");
+ 
+                 return (IHttpEngineBuilder) clazz.getConstructor(Context.class).newInstance(
+                         context);
+diff --git a/components/cronet/android/api/src/android/net/http/NetworkException.java b/components/cronet/android/api/src/android/net/http/NetworkException.java
+index 4e5c0301..db61b68c 100644
+--- a/components/cronet/android/api/src/android/net/http/NetworkException.java
++++ b/components/cronet/android/api/src/android/net/http/NetworkException.java
+@@ -59,7 +59,6 @@ public abstract class NetworkException extends HttpException {
+     public static final int ERROR_QUIC_PROTOCOL_FAILED = 10;
+     /**
+      * Error code indicating another type of error was encountered.
+-     * {@link #getInternalErrorCode} can be consulted to get a more specific cause.
+      */
+     public static final int ERROR_OTHER = 11;
+ 
+-- 
+2.39.0.314.g84b9a713c41-goog
+
