@@ -15,7 +15,7 @@ import java.util.Set;
  * Configuration options for QUIC.
  *
  * <p>The settings in this class are only relevant if QUIC is enabled. Use
- * {@link HttpEngine.Builder#enableQuic(boolean)} to enable / disable QUIC for
+ * {@link HttpEngine.Builder#setEnableQuic(boolean)} to enable / disable QUIC for
  * the HTTP engine.
  */
 public class QuicOptions {
@@ -138,7 +138,7 @@ public class QuicOptions {
     }
 
     /**
-     * See {@link Builder#retryWithoutAltSvcOnQuicErrors}
+     * See {@link Builder#setRetryWithoutAltSvcOnQuicErrors}
      *
      * {@hide}
      */
@@ -149,7 +149,7 @@ public class QuicOptions {
     }
 
     /**
-     * See {@link Builder#enableTlsZeroRtt}
+     * See {@link Builder#setEnableTlsZeroRtt}
      *
      * {@hide}
      */
@@ -204,7 +204,7 @@ public class QuicOptions {
     }
 
     /**
-     * See {@link Builder#closeSessionsOnIpChange}
+     * See {@link Builder#setCloseSessionsOnIpChange}
      *
      * {@hide}
      */
@@ -215,7 +215,7 @@ public class QuicOptions {
     }
 
     /**
-     * See {@link Builder#goawaySessionsOnIpChange}
+     * See {@link Builder#setGoawaySessionsOnIpChange}
      *
      * {@hide}
      */
@@ -237,7 +237,7 @@ public class QuicOptions {
     }
 
     /**
-     * See {@link Builder#increaseBrokenServicePeriodExponentially}
+     * See {@link Builder#setIncreaseBrokenServicePeriodExponentially}
      *
      * {@hide}
      */
@@ -248,7 +248,7 @@ public class QuicOptions {
     }
 
     /**
-     * See {@link Builder#delayJobsWithAvailableSpdySession}
+     * See {@link Builder#setDelayJobsWithAvailableSpdySession}
      *
      * {@hide}
      */
@@ -270,6 +270,8 @@ public class QuicOptions {
 
     /**
      * Create a new {@code QuicOptions} builder.
+     *
+     * {@hide}
      */
     public static Builder builder() {
         return new Builder();
@@ -311,7 +313,7 @@ public class QuicOptions {
         private Boolean mDelayJobsWithAvailableSpdySession;
         private final Set<String> mExtraQuicheFlags = new LinkedHashSet<>();
 
-        Builder() {}
+        public Builder() {}
 
         /**
          * Adds a host to the QUIC allowlist.
@@ -420,7 +422,7 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder retryWithoutAltSvcOnQuicErrors(boolean retryWithoutAltSvcOnQuicErrors) {
+        public Builder setRetryWithoutAltSvcOnQuicErrors(boolean retryWithoutAltSvcOnQuicErrors) {
             this.mRetryWithoutAltSvcOnQuicErrors = retryWithoutAltSvcOnQuicErrors;
             return this;
         }
@@ -439,7 +441,7 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder enableTlsZeroRtt(boolean enableTlsZeroRtt) {
+        public Builder setEnableTlsZeroRtt(boolean enableTlsZeroRtt) {
             this.mEnableTlsZeroRtt = enableTlsZeroRtt;
             return this;
         }
@@ -516,7 +518,7 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder closeSessionsOnIpChange(boolean closeSessionsOnIpChange) {
+        public Builder setCloseSessionsOnIpChange(boolean closeSessionsOnIpChange) {
             this.mCloseSessionsOnIpChange = closeSessionsOnIpChange;
             return this;
         }
@@ -532,7 +534,7 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder goawaySessionsOnIpChange(boolean goawaySessionsOnIpChange) {
+        public Builder setGoawaySessionsOnIpChange(boolean goawaySessionsOnIpChange) {
             this.mGoawaySessionsOnIpChange = goawaySessionsOnIpChange;
             return this;
         }
@@ -549,7 +551,7 @@ public class QuicOptions {
          * QUIC is generally beneficial) interests.
          *
          * <p>The delay is increased every unsuccessful consecutive retry. See
-         * {@link #increaseBrokenServicePeriodExponentially(boolean)} for details.
+         * {@link #setIncreaseBrokenServicePeriodExponentially(boolean)} for details.
          *
          * @return the builder for chaining
          *
@@ -575,7 +577,7 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder increaseBrokenServicePeriodExponentially(
+        public Builder setIncreaseBrokenServicePeriodExponentially(
                 boolean increaseBrokenServicePeriodExponentially) {
             this.mIncreaseBrokenServicePeriodExponentially =
                     increaseBrokenServicePeriodExponentially;
@@ -592,7 +594,7 @@ public class QuicOptions {
          * {@hide}
          */
         @Experimental
-        public Builder delayJobsWithAvailableSpdySession(
+        public Builder setDelayJobsWithAvailableSpdySession(
                 boolean delayJobsWithAvailableSpdySession) {
             this.mDelayJobsWithAvailableSpdySession = delayJobsWithAvailableSpdySession;
             return this;

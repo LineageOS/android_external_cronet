@@ -172,14 +172,14 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
         }
 
         @Override
-        public Builder enableQuic(boolean value) {
-            super.enableQuic(value);
+        public Builder setEnableQuic(boolean value) {
+            super.setEnableQuic(value);
             return this;
         }
 
         @Override
-        public Builder enableHttp2(boolean value) {
-            super.enableHttp2(value);
+        public Builder setEnableHttp2(boolean value) {
+            super.setEnableHttp2(value);
             return this;
         }
 
@@ -428,8 +428,8 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
         }
 
         @Override
-        public Builder enableHttpCache(int cacheMode, long maxSize) {
-            super.enableHttpCache(cacheMode, maxSize);
+        public Builder setEnableHttpCache(int cacheMode, long maxSize) {
+            super.setEnableHttpCache(cacheMode, maxSize);
             return this;
         }
 

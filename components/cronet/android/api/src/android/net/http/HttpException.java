@@ -18,7 +18,7 @@ public class HttpException extends IOException {
      *         java.io.IOException#getCause getCause()} method). A null value is permitted, and
      *         indicates that the cause is nonexistent or unknown.
      */
-    protected HttpException(String message, Throwable cause) {
+    public HttpException(String message, Throwable cause) {
         super(message, cause);
     }
 }

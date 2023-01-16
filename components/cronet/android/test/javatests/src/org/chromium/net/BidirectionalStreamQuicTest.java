@@ -58,7 +58,7 @@ public class BidirectionalStreamQuicTest {
 
         QuicTestServer.startQuicTestServer(getContext());
 
-        builder.enableQuic(true);
+        builder.setEnableQuic(true);
         JSONObject quicParams = new JSONObject();
         if (enabled == QuicBidirectionalStreams.DISABLED) {
             quicParams.put("quic_disable_bidirectional_streams", true);

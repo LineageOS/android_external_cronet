@@ -4,6 +4,8 @@
 
 package android.net.http;
 
+import android.annotation.IntDef;
+
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
 
@@ -15,12 +17,18 @@ import java.util.concurrent.Executor;
  * {@link HttpEngine#newUrlRequestBuilder}.
  */
 public abstract class UrlRequest {
+
+    UrlRequest() {}
+
     /**
      * Builder for {@link UrlRequest}s. Allows configuring requests before constructing them
      * with {@link Builder#build}. The builder can be created by calling
      * {@link HttpEngine#newUrlRequestBuilder}.
      */
     public abstract static class Builder {
+
+        Builder() {}
+
         /**
          * Sets the HTTP method verb to use for this request.
          *
@@ -229,6 +237,26 @@ public abstract class UrlRequest {
         public void onCanceled(UrlRequest request, UrlResponseInfo info) {}
     }
 
+    @IntDef({
+            Status.INVALID,
+            Status.IDLE,
+            Status.WAITING_FOR_STALLED_SOCKET_POOL,
+            Status.WAITING_FOR_AVAILABLE_SOCKET,
+            Status.WAITING_FOR_DELEGATE,
+            Status.WAITING_FOR_CACHE,
+            Status.DOWNLOADING_PAC_FILE,
+            Status.RESOLVING_PROXY_FOR_URL,
+            Status.RESOLVING_PROXY_FOR_URL,
+            Status.RESOLVING_HOST_IN_PAC_FILE,
+            Status.ESTABLISHING_PROXY_TUNNEL,
+            Status.RESOLVING_HOST,
+            Status.CONNECTING,
+            Status.SSL_HANDSHAKE,
+            Status.SENDING_REQUEST,
+            Status.WAITING_FOR_RESPONSE,
+            Status.READING_RESPONSE})
+    public @interface UrlRequestStatus {}
+
     /**
      * Request status values returned by {@link #getStatus}.
      */
@@ -350,7 +378,7 @@ public abstract class UrlRequest {
          * @param status integer representing the status of the request. It is
          *         one of the values defined in {@link Status}.
          */
-        public abstract void onStatus(int status);
+        public abstract void onStatus(@UrlRequestStatus int status);
     }
 
     /**
@@ -409,10 +437,17 @@ public abstract class UrlRequest {
 
     /**
      * Queries the status of the request.
+     *
+     * <p>This is most useful to query the status of the request before any of the
+     * {@link UrlRequest.Callback} methods are called by Cronet.
+     *
+     * <p>The {@code listener} will be invoked back on the {@link Executor} passed in when
+     * the request was created. While you can assume the callback will be invoked in a timely
+     * fashion, the API doesn't make any guarantees about the latency, nor does it specify the
+     * order in which the listener and other callbacks will be invoked.
+     *
      * @param listener a {@link StatusListener} that will be invoked with
-     *         the request's current status. {@code listener} will be invoked
-     *         back on the {@link Executor} passed in when the request was
-     *         created.
+     *         the request's current status.
      */
     public abstract void getStatus(final StatusListener listener);
 
