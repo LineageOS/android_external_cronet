@@ -1,0 +1,56 @@
+From 5759a1be87216cbf759c5940c56d60a010c8faa7 Mon Sep 17 00:00:00 2001
+From: Stefano Duo <stefanoduo@google.com>
+Date: Mon, 9 Jan 2023 10:54:36 +0000
+Subject: [PATCH] cronet: Use Mainline's SdkLevel instead of AndroidX's
+ BuildCompat
+
+Test: m
+Change-Id: If922911fc1209e40c380547dff45b47311ea8329
+---
+ base/android/java/src/org/chromium/base/BuildInfo.java | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/base/android/java/src/org/chromium/base/BuildInfo.java b/base/android/java/src/org/chromium/base/BuildInfo.java
+index fee8007c..824b5e51 100644
+--- a/base/android/java/src/org/chromium/base/BuildInfo.java
++++ b/base/android/java/src/org/chromium/base/BuildInfo.java
+@@ -18,12 +18,13 @@ import android.text.TextUtils;
+ 
+ import androidx.annotation.OptIn;
+ import androidx.annotation.VisibleForTesting;
+-import androidx.core.os.BuildCompat;
+ 
+ import org.chromium.base.annotations.CalledByNative;
+ import org.chromium.base.compat.ApiHelperForP;
+ import org.chromium.build.BuildConfig;
+ 
++import com.android.modules.utils.build.SdkLevel;
++
+ /**
+  * BuildInfo is a utility class providing easy access to {@link PackageInfo} information. This is
+  * primarily of use for accessing package information from native code.
+@@ -251,11 +252,10 @@ public class BuildInfo {
+     }
+ 
+     /**
+-     * Wrap BuildCompat.isAtLeastT. This enables it to be shadowed in Robolectric tests.
++     * Wrap SdkLevel.isAtLeastT. This enables it to be shadowed in Robolectric tests.
+      */
+-    @OptIn(markerClass = androidx.core.os.BuildCompat.PrereleaseSdkCheck.class)
+     public static boolean isAtLeastT() {
+-        return BuildCompat.isAtLeastT();
++        return SdkLevel.isAtLeastT();
+     }
+ 
+     /**
+@@ -263,7 +263,6 @@ public class BuildInfo {
+      * This must be manually maintained as the SDK goes through finalization!
+      * Avoid depending on this if possible; this is only intended for WebView.
+      */
+-    @OptIn(markerClass = androidx.core.os.BuildCompat.PrereleaseSdkCheck.class)
+     public static boolean targetsAtLeastT() {
+         int target = ContextUtils.getApplicationContext().getApplicationInfo().targetSdkVersion;
+ 
+-- 
+2.39.0.314.g84b9a713c41-goog
+

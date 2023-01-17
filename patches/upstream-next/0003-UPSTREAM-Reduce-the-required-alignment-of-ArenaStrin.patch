@@ -1,0 +1,44 @@
+From 37a0cee0f127cf1791ff37dd9838d8f1144c2064 Mon Sep 17 00:00:00 2001
+From: Yash Tibrewal <yashkt@google.com>
+Date: Mon, 25 Jul 2022 12:46:40 -0700
+Subject: [PATCH] UPSTREAM: Reduce the required alignment of ArenaString from 8
+ to 4 (#10298)
+
+Cherry-pick of upstream change:
+https://github.com/protocolbuffers/protobuf/commit/c2548258b9e0a6713ae368888628137b1ac50735.
+
+Test: cd external/cronet && USE_HOST_MUSL=true && mm
+Bug: 264959376
+Change-Id: Idb6b8d2bcc1b0233f04a4fbd05b4fffab105b44c
+---
+ third_party/protobuf/src/google/protobuf/arenastring.cc | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/third_party/protobuf/src/google/protobuf/arenastring.cc b/third_party/protobuf/src/google/protobuf/arenastring.cc
+index d886ddad66a5c..ef27b9c401c16 100644
+--- a/third_party/protobuf/src/google/protobuf/arenastring.cc
++++ b/third_party/protobuf/src/google/protobuf/arenastring.cc
+@@ -50,7 +50,8 @@ namespace internal {
+ 
+ namespace  {
+ 
+-// Enforce that allocated data aligns to at least 8 bytes, and that
++// TaggedStringPtr::Flags uses the lower 2 bits as tags.
++// Enforce that allocated data aligns to at least 4 bytes, and that
+ // the alignment of the global const string value does as well.
+ // The alignment guaranteed by `new std::string` depends on both:
+ // - new align = __STDCPP_DEFAULT_NEW_ALIGNMENT__ / max_align_t
+@@ -64,8 +65,8 @@ constexpr size_t kNewAlign = alignof(std::max_align_t);
+ #endif
+ constexpr size_t kStringAlign = alignof(std::string);
+ 
+-static_assert((kStringAlign > kNewAlign ? kStringAlign : kNewAlign) >= 8, "");
+-static_assert(alignof(ExplicitlyConstructedArenaString) >= 8, "");
++static_assert((kStringAlign > kNewAlign ? kStringAlign : kNewAlign) >= 4, "");
++static_assert(alignof(ExplicitlyConstructedArenaString) >= 4, "");
+ 
+ }  // namespace
+ 
+-- 
+2.39.0.314.g84b9a713c41-goog
+

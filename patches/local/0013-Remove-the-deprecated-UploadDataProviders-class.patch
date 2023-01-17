@@ -1,0 +1,194 @@
+From c6453a76451a923a5b819d7cd545db7fb1d91dce Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Tue, 3 Jan 2023 16:36:44 +0000
+Subject: [PATCH] Remove the deprecated UploadDataProviders class.
+
+Test: m
+
+Change-Id: If27cf2f7089f541a41f66c606a2db39bf8bc4673
+---
+ components/cronet/android/BUILD.gn            |  1 -
+ components/cronet/android/api.txt             |  7 --
+ .../src/org/chromium/net/CronetException.java |  2 +-
+ .../org/chromium/net/UploadDataProviders.java | 74 -------------------
+ .../chromium/net/test/FakeUrlRequestTest.java |  1 -
+ .../CronetSampleActivity.java                 |  1 -
+ .../org/chromium/net/CronetStressTest.java    |  1 +
+ .../chromium/net/CronetUrlRequestTest.java    |  1 +
+ 9 files changed, 3 insertions(+), 86 deletions(-)
+ delete mode 100644 components/cronet/android/api/src/org/chromium/net/UploadDataProviders.java
+
+diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
+index d6159e409eca8..a0b89b7e8e6f7 100644
+--- a/components/cronet/android/BUILD.gn
++++ b/components/cronet/android/BUILD.gn
+@@ -244,7 +244,6 @@ android_library("cronet_api_java") {
+     "api/src/org/chromium/net/QuicException.java",
+     "api/src/org/chromium/net/RequestFinishedInfo.java",
+     "api/src/org/chromium/net/UploadDataProvider.java",
+-    "api/src/org/chromium/net/UploadDataProviders.java",
+     "api/src/org/chromium/net/UploadDataSink.java",
+     "api/src/org/chromium/net/UrlRequest.java",
+     "api/src/org/chromium/net/UrlResponseInfo.java",
+diff --git a/components/cronet/android/api.txt b/components/cronet/android/api.txt
+index 20187639346eb..1c5db8078e7f1 100644
+--- a/components/cronet/android/api.txt
++++ b/components/cronet/android/api.txt
+@@ -301,13 +301,6 @@ public abstract class org.chromium.net.UploadDataProvider implements java.io.Clo
+   public abstract void rewind(org.chromium.net.UploadDataSink) throws java.io.IOException;
+   public void close() throws java.io.IOException;
+ }
+-public final class org.chromium.net.UploadDataProviders {
+-  public static org.chromium.net.UploadDataProvider create(java.io.File);
+-  public static org.chromium.net.UploadDataProvider create(android.os.ParcelFileDescriptor);
+-  public static org.chromium.net.UploadDataProvider create(java.nio.ByteBuffer);
+-  public static org.chromium.net.UploadDataProvider create(byte[], int, int);
+-  public static org.chromium.net.UploadDataProvider create(byte[]);
+-}
+ public abstract class org.chromium.net.UploadDataSink {
+   public org.chromium.net.UploadDataSink();
+   public abstract void onReadSucceeded(boolean);
+diff --git a/components/cronet/android/api/src/org/chromium/net/CronetException.java b/components/cronet/android/api/src/org/chromium/net/CronetException.java
+index 37fd4e15d0295..f3804070546f1 100644
+--- a/components/cronet/android/api/src/org/chromium/net/CronetException.java
++++ b/components/cronet/android/api/src/org/chromium/net/CronetException.java
+@@ -9,7 +9,7 @@ import java.io.IOException;
+ /**
+  * Base exception passed to {@link UrlRequest.Callback#onFailed UrlRequest.Callback.onFailed()}.
+  */
+-public abstract class CronetException extends IOException {
++public class CronetException extends IOException {
+     /**
+      * Constructs an exception that is caused by {@code cause}.
+      *
+diff --git a/components/cronet/android/api/src/org/chromium/net/UploadDataProviders.java b/components/cronet/android/api/src/org/chromium/net/UploadDataProviders.java
+deleted file mode 100644
+index b9f7b7753e6c4..0000000000000
+--- a/components/cronet/android/api/src/org/chromium/net/UploadDataProviders.java
++++ /dev/null
+@@ -1,74 +0,0 @@
+-// Copyright 2016 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net;
+-
+-import android.os.ParcelFileDescriptor;
+-
+-import java.io.File;
+-import java.nio.ByteBuffer;
+-
+-/**
+- * Provides implementations of {@link UploadDataProvider} for common use cases.
+- *
+- * @deprecated use {@link org.chromium.net.apihelpers.UploadDataProviders} instead
+- */
+-@Deprecated
+-public final class UploadDataProviders {
+-    /**
+-     * Uploads an entire file.
+-     *
+-     * @param file The file to upload
+-     * @return A new UploadDataProvider for the given file
+-     */
+-    public static UploadDataProvider create(final File file) {
+-        return org.chromium.net.apihelpers.UploadDataProviders.create(file);
+-    }
+-
+-    /**
+-     * Uploads an entire file, closing the descriptor when it is no longer needed.
+-     *
+-     * @param fd The file descriptor to upload
+-     * @throws IllegalArgumentException if {@code fd} is not a file.
+-     * @return A new UploadDataProvider for the given file descriptor
+-     */
+-    public static UploadDataProvider create(final ParcelFileDescriptor fd) {
+-        return org.chromium.net.apihelpers.UploadDataProviders.create(fd);
+-    }
+-
+-    /**
+-     * Uploads a ByteBuffer, from the current {@code buffer.position()} to {@code buffer.limit()}
+-     *
+-     * @param buffer The data to upload
+-     * @return A new UploadDataProvider for the given buffer
+-     */
+-    public static UploadDataProvider create(ByteBuffer buffer) {
+-        return org.chromium.net.apihelpers.UploadDataProviders.create(buffer);
+-    }
+-
+-    /**
+-     * Uploads {@code length} bytes from {@code data}, starting from {@code offset}
+-     *
+-     * @param data Array containing data to upload
+-     * @param offset Offset within data to start with
+-     * @param length Number of bytes to upload
+-     * @return A new UploadDataProvider for the given data
+-     */
+-    public static UploadDataProvider create(byte[] data, int offset, int length) {
+-        return org.chromium.net.apihelpers.UploadDataProviders.create(data, offset, length);
+-    }
+-
+-    /**
+-     * Uploads the contents of {@code data}
+-     *
+-     * @param data Array containing data to upload
+-     * @return A new UploadDataProvider for the given data
+-     */
+-    public static UploadDataProvider create(byte[] data) {
+-        return org.chromium.net.apihelpers.UploadDataProviders.create(data);
+-    }
+-
+-    // Prevent instantiation
+-    private UploadDataProviders() {}
+-}
+diff --git a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java
+index 088b17ffd44b8..8baf3a1f37656 100644
+--- a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java
++++ b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeUrlRequestTest.java
+@@ -34,7 +34,6 @@ import org.chromium.net.InlineExecutionProhibitedException;
+ import org.chromium.net.TestUploadDataProvider;
+ import org.chromium.net.TestUrlRequestCallback;
+ import org.chromium.net.UploadDataProvider;
+-import org.chromium.net.UploadDataProviders;
+ import org.chromium.net.UploadDataSink;
+ import org.chromium.net.UrlRequest;
+ import org.chromium.net.UrlRequest.Status;
+diff --git a/components/cronet/android/sample/src/org/chromium/cronet_sample_apk/CronetSampleActivity.java b/components/cronet/android/sample/src/org/chromium/cronet_sample_apk/CronetSampleActivity.java
+index 5d3a93c519b2b..5389385486446 100644
+--- a/components/cronet/android/sample/src/org/chromium/cronet_sample_apk/CronetSampleActivity.java
++++ b/components/cronet/android/sample/src/org/chromium/cronet_sample_apk/CronetSampleActivity.java
+@@ -17,7 +17,6 @@ import androidx.appcompat.app.AlertDialog;
+ 
+ import org.chromium.net.CronetEngine;
+ import org.chromium.net.CronetException;
+-import org.chromium.net.UploadDataProviders;
+ import org.chromium.net.UrlRequest;
+ import org.chromium.net.UrlResponseInfo;
+ 
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
+index c60ae47faf47d..60822dbf10fd4 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
+@@ -13,6 +13,7 @@ import android.support.test.runner.AndroidJUnit4;
+ 
+ import androidx.test.filters.LargeTest;
+ 
++import org.chromium.net.apihelpers.UploadDataProviders;
+ import org.junit.After;
+ import org.junit.Before;
+ import org.junit.Rule;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
+index 23cd5c70d5359..a7a8b06f3e23a 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
+@@ -22,6 +22,7 @@ import android.support.test.runner.AndroidJUnit4;
+ 
+ import androidx.test.filters.SmallTest;
+ 
++import org.chromium.net.apihelpers.UploadDataProviders;
+ import org.junit.After;
+ import org.junit.Before;
+ import org.junit.Rule;
+-- 
+2.39.0.314.g84b9a713c41-goog
+

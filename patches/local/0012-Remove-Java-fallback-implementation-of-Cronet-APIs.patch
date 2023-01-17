@@ -1,0 +1,2323 @@
+From de589e03627c963399a78fd7dac82d64decce11c Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Tue, 3 Jan 2023 16:33:27 +0000
+Subject: [PATCH] Remove Java fallback implementation of Cronet APIs.
+
+Test: m
+
+Change-Id: Ie119db4827f3e4029b244a6e7b3337f8b38d7b07
+---
+ components/cronet/android/BUILD.gn            |   56 +-
+ .../org/chromium/net/test/FakeUrlRequest.java |    5 -
+ .../net/test/FakeCronetControllerTest.java    |    1 -
+ .../chromium/net/impl/CronetEngineBase.java   |    3 +-
+ .../chromium/net/impl/InputStreamChannel.java |   77 --
+ .../chromium/net/impl/JavaCronetEngine.java   |  236 ----
+ .../net/impl/JavaCronetEngineBuilderImpl.java |   32 -
+ .../net/impl/JavaUploadDataSinkBase.java      |  255 ----
+ .../org/chromium/net/impl/JavaUrlRequest.java | 1044 -----------------
+ .../net/impl/JavaUrlRequestUtils.java         |  121 --
+ .../org/chromium/net/impl/UrlRequestBase.java |    2 +-
+ .../src/org/chromium/net/CronetTestRule.java  |   11 +-
+ .../org/chromium/net/CronetTestRuleTest.java  |   27 +-
+ .../chromium/net/impl/CronetLoggerTest.java   |  148 ---
+ components/cronet/android/test/proguard.cfg   |    4 -
+ 16 files changed, 5 insertions(+), 2023 deletions(-)
+ delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/InputStreamChannel.java
+ delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngine.java
+ delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngineBuilderImpl.java
+ delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/JavaUploadDataSinkBase.java
+ delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequest.java
+ delete mode 100644 components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequestUtils.java
+
+diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
+index 242e33c4a5c40..8bfa7a32e0875 100644
+--- a/components/cronet/android/BUILD.gn
++++ b/components/cronet/android/BUILD.gn
+@@ -315,38 +315,6 @@ android_library("cronet_impl_common_base_java") {
+   srcjar_deps = cronet_impl_common_java_srcjar_deps
+ }
+ 
+-# cronet_impl_java_util_java.jar - Classes shared between Java Cronet implementations.
+-android_library("cronet_impl_java_util_java") {
+-  sources = [
+-    "java/src/org/chromium/net/impl/JavaUploadDataSinkBase.java",
+-    "java/src/org/chromium/net/impl/JavaUrlRequestUtils.java",
+-  ]
+-
+-  deps = [
+-    ":cronet_api_java",
+-    "//third_party/androidx:androidx_annotation_annotation_java",
+-  ]
+-}
+-
+-# cronet_impl_platform_base_java.jar - Java platform based implementation of the Cronet engine.
+-android_library("cronet_impl_platform_base_java") {
+-  sources = [
+-    "java/src/org/chromium/net/impl/InputStreamChannel.java",
+-    "java/src/org/chromium/net/impl/JavaCronetEngine.java",
+-    "java/src/org/chromium/net/impl/JavaCronetEngineBuilderImpl.java",
+-    "java/src/org/chromium/net/impl/JavaUrlRequest.java",
+-  ]
+-
+-  deps = [
+-    ":cronet_api_java",
+-    ":cronet_impl_common_base_java",
+-    ":cronet_impl_java_util_java",
+-    "//net/android:net_thread_stats_uid_java",
+-    "//third_party/android_deps:com_google_code_findbugs_jsr305_java",
+-    "//third_party/androidx:androidx_annotation_annotation_java",
+-  ]
+-}
+-
+ # cronet_impl_fake_base_java.jar - Fake implementation of Cronet.
+ android_library("cronet_impl_fake_base_java") {
+   sources = [
+@@ -435,7 +403,6 @@ java_group("cronet_impl_all_java") {
+   deps = [
+     ":cronet_impl_common_base_java",
+     ":cronet_impl_native_base_java",
+-    ":cronet_impl_platform_base_java",
+   ]
+ }
+ 
+@@ -671,12 +638,6 @@ jar_src("jar_cronet_impl_common_java_source") {
+   jar_path = "$_package_dir/cronet_impl_common_java-src.jar"
+ }
+ 
+-jar_src("jar_cronet_impl_platform_java_source") {
+-  src_search_dirs = [ "java/src" ]
+-  source_deps = [ ":cronet_impl_platform_base_java" ]
+-  jar_path = "$_package_dir/cronet_impl_platform_java-src.jar"
+-}
+-
+ jar_src("jar_cronet_impl_fake_java_source") {
+   src_search_dirs = [ "fake/java" ]
+   source_deps = [ ":cronet_impl_fake_base_java" ]
+@@ -723,11 +684,6 @@ repackage_jars("repackage_api") {
+   deps = [ ":cronet_api_java" ]
+ }
+ 
+-repackage_jars("repackage_platform") {
+-  output = "$_package_dir/cronet_impl_platform_java.jar"
+-  deps = [ ":cronet_impl_platform_base_java" ]
+-}
+-
+ repackage_jars("repackage_fake") {
+   output = "$_package_dir/cronet_impl_fake_java.jar"
+   deps = [ ":cronet_impl_fake_base_java" ]
+@@ -974,7 +930,6 @@ if (!is_component_build) {
+       ":cronet_common_javatests",
+       ":cronet_impl_common_base_java",
+       ":cronet_impl_fake_base_java",
+-      ":cronet_impl_platform_base_java",
+       "//base:base_java_test_support",
+       "//third_party/android_sdk:android_test_base_java",
+       "//third_party/android_support_test_runner:runner_java",
+@@ -1146,7 +1101,6 @@ if (!is_component_build) {
+     deps = [
+       ":cronet_api_java",
+       ":cronet_impl_common_base_java",
+-      ":cronet_impl_platform_base_java",
+       ":cronet_smoketests_platform_only_apk_resources",
+       "//base:base_java_test_support",
+       "//third_party/android_sdk:android_test_base_java",
+@@ -1178,7 +1132,6 @@ if (!is_component_build) {
+       ":cronet_api_java",
+       ":cronet_combine_proguard_flags",
+       ":cronet_impl_common_base_java",
+-      ":cronet_impl_platform_base_java",
+       ":cronet_test_apk_java",
+       ":cronet_test_apk_resources",
+       "//base:base_java",
+@@ -1433,7 +1386,6 @@ if (!is_component_build) {
+       ":cronet_combine_proguard_flags",
+       ":cronet_impl_common_base_java",
+       ":cronet_impl_fake_base_java",
+-      ":cronet_impl_platform_base_java",
+     ]
+   }
+ 
+@@ -1550,8 +1502,6 @@ if (!is_component_build) {
+     outputs = [ "$target_gen_dir/$target_name.stamp" ]
+     _api_jar = "$target_out_dir/cronet_api_java.processed.jar"
+     _common_jar = "$target_out_dir/cronet_impl_common_base_java.processed.jar"
+-    _platform_jar =
+-        "$target_out_dir/cronet_impl_platform_base_java.processed.jar"
+     _native_jar = "$target_out_dir/cronet_impl_native_base_java.processed.jar"
+     args = [
+       "--api_jar",
+@@ -1559,8 +1509,6 @@ if (!is_component_build) {
+       "--impl_jar",
+       rebase_path(_common_jar, root_build_dir),
+       "--impl_jar",
+-      rebase_path(_platform_jar, root_build_dir),
+-      "--impl_jar",
+       rebase_path(_native_jar, root_build_dir),
+       "--stamp",
+       rebase_path(outputs[0], root_build_dir),
+@@ -1569,12 +1517,10 @@ if (!is_component_build) {
+       ":cronet_api_java",
+       ":cronet_impl_common_base_java",
+       ":cronet_impl_native_base_java",
+-      ":cronet_impl_platform_base_java",
+     ]
+     inputs = [
+       _api_jar,
+       _common_jar,
+-      _platform_jar,
+       _native_jar,
+       "//components/cronet/tools/update_api.py",
+     ]
+@@ -1659,4 +1605,4 @@ if (!is_component_build) {
+       ]
+     }
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlRequest.java b/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlRequest.java
+index 0a60b64410e11..bdbaa12cc427c 100644
+--- a/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlRequest.java
++++ b/components/cronet/android/fake/java/org/chromium/net/test/FakeUrlRequest.java
+@@ -15,11 +15,6 @@ import org.chromium.net.UploadDataProvider;
+ import org.chromium.net.UrlResponseInfo;
+ import org.chromium.net.impl.CallbackExceptionImpl;
+ import org.chromium.net.impl.CronetExceptionImpl;
+-import org.chromium.net.impl.JavaUploadDataSinkBase;
+-import org.chromium.net.impl.JavaUrlRequestUtils;
+-import org.chromium.net.impl.JavaUrlRequestUtils.CheckedRunnable;
+-import org.chromium.net.impl.JavaUrlRequestUtils.DirectPreventingExecutor;
+-import org.chromium.net.impl.JavaUrlRequestUtils.State;
+ import org.chromium.net.impl.Preconditions;
+ import org.chromium.net.impl.UrlRequestBase;
+ import org.chromium.net.impl.UrlResponseInfoImpl;
+diff --git a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java
+index 70b9e18e621fa..bfa041348de84 100644
+--- a/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java
++++ b/components/cronet/android/fake/javatests/org/chromium/net/test/FakeCronetControllerTest.java
+@@ -22,7 +22,6 @@ import org.junit.Test;
+ import org.junit.runner.RunWith;
+ 
+ import org.chromium.net.CronetEngine;
+-import org.chromium.net.impl.JavaCronetEngineBuilderImpl;
+ 
+ import java.util.AbstractMap;
+ import java.util.List;
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
+index 3adaf15e78809..9ae4482789994 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
+@@ -22,8 +22,7 @@ import java.util.Map;
+ import java.util.concurrent.Executor;
+ 
+ /**
+- * Base class of {@link CronetUrlRequestContext} and {@link JavaCronetEngine} that contains
+- * shared logic.
++ * Base class of {@link CronetUrlRequestContext}.
+  */
+ public abstract class CronetEngineBase extends ExperimentalCronetEngine {
+     /*
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/InputStreamChannel.java b/components/cronet/android/java/src/org/chromium/net/impl/InputStreamChannel.java
+deleted file mode 100644
+index b86b4ef07e541..0000000000000
+--- a/components/cronet/android/java/src/org/chromium/net/impl/InputStreamChannel.java
++++ /dev/null
+@@ -1,77 +0,0 @@
+-// Copyright 2015 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.impl;
+-
+-import androidx.annotation.NonNull;
+-
+-import java.io.FileInputStream;
+-import java.io.IOException;
+-import java.io.InputStream;
+-import java.nio.ByteBuffer;
+-import java.nio.channels.ReadableByteChannel;
+-import java.util.concurrent.atomic.AtomicBoolean;
+-
+-/**
+- * Adapts an {@link InputStream} into a {@link ReadableByteChannel}, exactly like
+- * {@link java.nio.channels.Channels#newChannel(InputStream)} does, but more efficiently, since it
+- * does not allocate a temporary buffer if it doesn't have to, and it freely takes advantage of
+- * {@link FileInputStream}'s trivial conversion to {@link java.nio.channels.FileChannel}.
+- */
+-final class InputStreamChannel implements ReadableByteChannel {
+-    private static final int MAX_TMP_BUFFER_SIZE = 16384;
+-    private static final int MIN_TMP_BUFFER_SIZE = 4096;
+-    private final InputStream mInputStream;
+-    private final AtomicBoolean mIsOpen = new AtomicBoolean(true);
+-
+-    private InputStreamChannel(@NonNull InputStream inputStream) {
+-        mInputStream = inputStream;
+-    }
+-
+-    static ReadableByteChannel wrap(@NonNull InputStream inputStream) {
+-        if (inputStream instanceof FileInputStream) {
+-            return ((FileInputStream) inputStream).getChannel();
+-        }
+-        return new InputStreamChannel(inputStream);
+-    }
+-
+-    @Override
+-    public int read(ByteBuffer dst) throws IOException {
+-        final int read;
+-        if (dst.hasArray()) {
+-            read = mInputStream.read(
+-                    dst.array(), dst.arrayOffset() + dst.position(), dst.remaining());
+-            if (read > 0) {
+-                dst.position(dst.position() + read);
+-            }
+-        } else {
+-            // Since we're allocating a buffer for every read, we want to choose a good size - on
+-            // Android, the only case where a ByteBuffer won't have a backing byte[] is if it was
+-            // created wrapping a void * in native code, or if it represents a memory-mapped file.
+-            // Especially in the latter case, we want to avoid allocating a buffer that could be
+-            // very large.
+-            final int possibleToRead = Math.min(
+-                    Math.max(mInputStream.available(), MIN_TMP_BUFFER_SIZE), dst.remaining());
+-            final int reasonableToRead = Math.min(MAX_TMP_BUFFER_SIZE, possibleToRead);
+-            byte[] tmpBuf = new byte[reasonableToRead];
+-            read = mInputStream.read(tmpBuf);
+-            if (read > 0) {
+-                dst.put(tmpBuf, 0, read);
+-            }
+-        }
+-        return read;
+-    }
+-
+-    @Override
+-    public boolean isOpen() {
+-        return mIsOpen.get();
+-    }
+-
+-    @Override
+-    public void close() throws IOException {
+-        if (mIsOpen.compareAndSet(true, false)) {
+-            mInputStream.close();
+-        }
+-    }
+-}
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngine.java b/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngine.java
+deleted file mode 100644
+index 7e128431b2cd0..0000000000000
+--- a/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngine.java
++++ /dev/null
+@@ -1,236 +0,0 @@
+-// Copyright 2015 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.impl;
+-
+-import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
+-import static android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE;
+-
+-import android.util.Log;
+-
+-import org.chromium.net.BidirectionalStream;
+-import org.chromium.net.ExperimentalBidirectionalStream;
+-import org.chromium.net.NetworkQualityRttListener;
+-import org.chromium.net.NetworkQualityThroughputListener;
+-import org.chromium.net.RequestFinishedInfo;
+-import org.chromium.net.UrlRequest;
+-import org.chromium.net.impl.CronetLogger.CronetEngineBuilderInfo;
+-import org.chromium.net.impl.CronetLogger.CronetSource;
+-import org.chromium.net.impl.CronetLogger.CronetVersion;
+-
+-import java.io.IOException;
+-import java.net.Proxy;
+-import java.net.URL;
+-import java.net.URLConnection;
+-import java.net.URLStreamHandler;
+-import java.net.URLStreamHandlerFactory;
+-import java.util.Collection;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.concurrent.Executor;
+-import java.util.concurrent.ExecutorService;
+-import java.util.concurrent.Executors;
+-import java.util.concurrent.LinkedBlockingQueue;
+-import java.util.concurrent.ThreadFactory;
+-import java.util.concurrent.ThreadPoolExecutor;
+-import java.util.concurrent.TimeUnit;
+-/**
+- * {@link java.net.HttpURLConnection} backed CronetEngine.
+- *
+- * <p>Does not support netlogs, transferred data measurement, bidistream, cache, or priority.
+- */
+-public final class JavaCronetEngine extends CronetEngineBase {
+-    private static final String TAG = JavaCronetEngine.class.getSimpleName();
+-
+-    private final String mUserAgent;
+-    private final ExecutorService mExecutorService;
+-    private final int mCronetEngineId;
+-    private final CronetLogger mLogger;
+-
+-    public JavaCronetEngine(CronetEngineBuilderImpl builder) {
+-        mCronetEngineId = hashCode();
+-        // On android, all background threads (and all threads that are part
+-        // of background processes) are put in a cgroup that is allowed to
+-        // consume up to 5% of CPU - these worker threads spend the vast
+-        // majority of their time waiting on I/O, so making them contend with
+-        // background applications for a slice of CPU doesn't make much sense.
+-        // We want to hurry up and get idle.
+-        final int threadPriority =
+-                builder.threadPriority(THREAD_PRIORITY_BACKGROUND + THREAD_PRIORITY_MORE_FAVORABLE);
+-        this.mUserAgent = builder.getUserAgent();
+-        // For unbounded work queues, the effective maximum pool size is
+-        // equivalent to the core pool size.
+-        this.mExecutorService = new ThreadPoolExecutor(10, 10, 50, TimeUnit.SECONDS,
+-                new LinkedBlockingQueue<Runnable>(), new ThreadFactory() {
+-                    @Override
+-                    public Thread newThread(final Runnable r) {
+-                        return Executors.defaultThreadFactory().newThread(new Runnable() {
+-                            @Override
+-                            public void run() {
+-                                Thread.currentThread().setName("JavaCronetEngine");
+-                                android.os.Process.setThreadPriority(threadPriority);
+-                                r.run();
+-                            }
+-                        });
+-                    }
+-                });
+-        mLogger = CronetLoggerFactory.createLogger(
+-                builder.getContext(), CronetSource.CRONET_SOURCE_FALLBACK);
+-        try {
+-            mLogger.logCronetEngineCreation(mCronetEngineId, new CronetEngineBuilderInfo(builder),
+-                    buildCronetVersion(), CronetSource.CRONET_SOURCE_FALLBACK);
+-        } catch (RuntimeException e) {
+-            // Handle any issue gracefully, we should never crash due failures while logging.
+-            Log.e(TAG, "Error while trying to log JavaCronetEngine creation: ", e);
+-        }
+-    }
+-
+-    int getCronetEngineId() {
+-        return mCronetEngineId;
+-    }
+-
+-    CronetLogger getCronetLogger() {
+-        return mLogger;
+-    }
+-
+-    @Override
+-    public UrlRequestBase createRequest(String url, UrlRequest.Callback callback, Executor executor,
+-            int priority, Collection<Object> connectionAnnotations, boolean disableCache,
+-            boolean disableConnectionMigration, boolean allowDirectExecutor,
+-            boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
+-            int trafficStatsUid, RequestFinishedInfo.Listener requestFinishedListener,
+-            int idempotency, long networkHandle) {
+-        if (networkHandle != DEFAULT_NETWORK_HANDLE) {
+-            throw new UnsupportedOperationException(
+-                    "The multi-network API is not supported by the Java implementation "
+-                    + "of Cronet Engine");
+-        }
+-        return new JavaUrlRequest(this, callback, mExecutorService, executor, url, mUserAgent,
+-                allowDirectExecutor, trafficStatsTagSet, trafficStatsTag, trafficStatsUidSet,
+-                trafficStatsUid);
+-    }
+-
+-    @Override
+-    protected ExperimentalBidirectionalStream createBidirectionalStream(String url,
+-            BidirectionalStream.Callback callback, Executor executor, String httpMethod,
+-            List<Map.Entry<String, String>> requestHeaders, @StreamPriority int priority,
+-            boolean delayRequestHeadersUntilFirstFlush, Collection<Object> connectionAnnotations,
+-            boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
+-            int trafficStatsUid, long networkHandle) {
+-        throw new UnsupportedOperationException(
+-                "Can't create a bidi stream - httpurlconnection doesn't have those APIs");
+-    }
+-
+-    @Override
+-    public ExperimentalBidirectionalStream.Builder newBidirectionalStreamBuilder(
+-            String url, BidirectionalStream.Callback callback, Executor executor) {
+-        throw new UnsupportedOperationException(
+-                "The bidirectional stream API is not supported by the Java implementation "
+-                + "of Cronet Engine");
+-    }
+-
+-    @Override
+-    public String getVersionString() {
+-        return "CronetHttpURLConnection/" + ImplVersion.getCronetVersionWithLastChange();
+-    }
+-
+-    private CronetVersion buildCronetVersion() {
+-        String version = getVersionString();
+-        // getVersionString()'s output looks like "Cronet/w.x.y.z@hash". CronetVersion only cares
+-        // about the "w.x.y.z" bit.
+-        version = version.split("/")[1];
+-        version = version.split("@")[0];
+-        return new CronetVersion(version);
+-    }
+-
+-    @Override
+-    public void shutdown() {
+-        mExecutorService.shutdown();
+-    }
+-
+-    @Override
+-    public void startNetLogToFile(String fileName, boolean logAll) {}
+-
+-    @Override
+-    public void startNetLogToDisk(String dirPath, boolean logAll, int maxSize) {}
+-
+-    @Override
+-    public void stopNetLog() {}
+-
+-    @Override
+-    public byte[] getGlobalMetricsDeltas() {
+-        return new byte[0];
+-    }
+-
+-    @Override
+-    public int getEffectiveConnectionType() {
+-        return EFFECTIVE_CONNECTION_TYPE_UNKNOWN;
+-    }
+-
+-    @Override
+-    public int getHttpRttMs() {
+-        return CONNECTION_METRIC_UNKNOWN;
+-    }
+-
+-    @Override
+-    public int getTransportRttMs() {
+-        return CONNECTION_METRIC_UNKNOWN;
+-    }
+-
+-    @Override
+-    public int getDownstreamThroughputKbps() {
+-        return CONNECTION_METRIC_UNKNOWN;
+-    }
+-
+-    @Override
+-    public void bindToNetwork(long networkHandle) {
+-        throw new UnsupportedOperationException(
+-                "The multi-network API is not supported by the Java implementation "
+-                + "of Cronet Engine");
+-    }
+-
+-    @Override
+-    public void configureNetworkQualityEstimatorForTesting(boolean useLocalHostRequests,
+-            boolean useSmallerResponses, boolean disableOfflineCheck) {}
+-
+-    @Override
+-    public void addRttListener(NetworkQualityRttListener listener) {}
+-
+-    @Override
+-    public void removeRttListener(NetworkQualityRttListener listener) {}
+-
+-    @Override
+-    public void addThroughputListener(NetworkQualityThroughputListener listener) {}
+-
+-    @Override
+-    public void removeThroughputListener(NetworkQualityThroughputListener listener) {}
+-
+-    @Override
+-    public void addRequestFinishedListener(RequestFinishedInfo.Listener listener) {}
+-
+-    @Override
+-    public void removeRequestFinishedListener(RequestFinishedInfo.Listener listener) {}
+-
+-    @Override
+-    public URLConnection openConnection(URL url) throws IOException {
+-        return url.openConnection();
+-    }
+-
+-    @Override
+-    public URLConnection openConnection(URL url, Proxy proxy) throws IOException {
+-        return url.openConnection(proxy);
+-    }
+-
+-    @Override
+-    public URLStreamHandlerFactory createURLStreamHandlerFactory() {
+-        // Returning null causes this factory to pass though, which ends up using the platform's
+-        // implementation.
+-        return new URLStreamHandlerFactory() {
+-            @Override
+-            public URLStreamHandler createURLStreamHandler(String protocol) {
+-                return null;
+-            }
+-        };
+-    }
+-}
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngineBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngineBuilderImpl.java
+deleted file mode 100644
+index 1aa75fdcaf925..0000000000000
+--- a/components/cronet/android/java/src/org/chromium/net/impl/JavaCronetEngineBuilderImpl.java
++++ /dev/null
+@@ -1,32 +0,0 @@
+-// Copyright 2017 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.impl;
+-
+-import android.content.Context;
+-
+-import org.chromium.net.ExperimentalCronetEngine;
+-import org.chromium.net.ICronetEngineBuilder;
+-
+-/**
+- * Implementation of {@link ICronetEngineBuilder} that builds Java-based Cronet engine.
+- */
+-public class JavaCronetEngineBuilderImpl extends CronetEngineBuilderImpl {
+-    /**
+-     * Builder for Platform Cronet Engine.
+-     *
+-     * @param context Android {@link Context} for engine to use.
+-     */
+-    public JavaCronetEngineBuilderImpl(Context context) {
+-        super(context);
+-    }
+-
+-    @Override
+-    public ExperimentalCronetEngine build() {
+-        if (getUserAgent() == null) {
+-            setUserAgent(getDefaultUserAgent());
+-        }
+-        return new JavaCronetEngine(this);
+-    }
+-}
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/JavaUploadDataSinkBase.java b/components/cronet/android/java/src/org/chromium/net/impl/JavaUploadDataSinkBase.java
+deleted file mode 100644
+index 6069ceae02dfd..0000000000000
+--- a/components/cronet/android/java/src/org/chromium/net/impl/JavaUploadDataSinkBase.java
++++ /dev/null
+@@ -1,255 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.impl;
+-
+-import androidx.annotation.IntDef;
+-
+-import org.chromium.net.UploadDataProvider;
+-import org.chromium.net.UploadDataSink;
+-
+-import java.io.IOException;
+-import java.lang.annotation.Retention;
+-import java.lang.annotation.RetentionPolicy;
+-import java.nio.ByteBuffer;
+-import java.util.Locale;
+-import java.util.concurrent.Executor;
+-import java.util.concurrent.RejectedExecutionException;
+-import java.util.concurrent.atomic.AtomicInteger;
+-
+-/**
+- * Base class for Java UrlRequest implementations of UploadDataSink. Handles asynchronicity and
+- * manages the executors for this upload.
+- */
+-public abstract class JavaUploadDataSinkBase extends UploadDataSink {
+-    @IntDef({SinkState.AWAITING_READ_RESULT, SinkState.AWAITING_REWIND_RESULT, SinkState.UPLOADING,
+-            SinkState.NOT_STARTED})
+-    @Retention(RetentionPolicy.SOURCE)
+-    @interface SinkState {
+-        int AWAITING_READ_RESULT = 0;
+-        int AWAITING_REWIND_RESULT = 1;
+-        int UPLOADING = 2;
+-        int NOT_STARTED = 3;
+-    }
+-
+-    public static final int DEFAULT_UPLOAD_BUFFER_SIZE = 8192;
+-
+-    private final AtomicInteger /*SinkState*/ mSinkState = new AtomicInteger(SinkState.NOT_STARTED);
+-    private final Executor mUserUploadExecutor;
+-    private final Executor mExecutor;
+-    private final UploadDataProvider mUploadProvider;
+-    private ByteBuffer mBuffer;
+-    /** This holds the total bytes to send (the content-length). -1 if unknown. */
+-    private long mTotalBytes;
+-    /** This holds the bytes written so far */
+-    private long mWrittenBytes;
+-
+-    public JavaUploadDataSinkBase(
+-            final Executor userExecutor, Executor executor, UploadDataProvider provider) {
+-        mUserUploadExecutor = new Executor() {
+-            @Override
+-            public void execute(Runnable runnable) {
+-                try {
+-                    userExecutor.execute(runnable);
+-                } catch (RejectedExecutionException e) {
+-                    processUploadError(e);
+-                }
+-            }
+-        };
+-        mExecutor = executor;
+-        mUploadProvider = provider;
+-    }
+-
+-    @Override
+-    public void onReadSucceeded(final boolean finalChunk) {
+-        if (!mSinkState.compareAndSet(/* expected= */ SinkState.AWAITING_READ_RESULT,
+-                    /* updated= */ SinkState.UPLOADING)) {
+-            throw new IllegalStateException(
+-                    "onReadSucceeded() called when not awaiting a read result; in state: "
+-                    + mSinkState.get());
+-        }
+-        mExecutor.execute(getErrorSettingRunnable(new JavaUrlRequestUtils.CheckedRunnable() {
+-            @Override
+-            public void run() throws Exception {
+-                mBuffer.flip();
+-                if (mTotalBytes != -1 && mTotalBytes - mWrittenBytes < mBuffer.remaining()) {
+-                    processUploadError(
+-                            new IllegalArgumentException(String.format(Locale.getDefault(),
+-                                    "Read upload data length %d exceeds expected length %d",
+-                                    mWrittenBytes + mBuffer.remaining(), mTotalBytes)));
+-                    return;
+-                }
+-
+-                mWrittenBytes += processSuccessfulRead(mBuffer);
+-
+-                if (mWrittenBytes < mTotalBytes || (mTotalBytes == -1 && !finalChunk)) {
+-                    mBuffer.clear();
+-                    mSinkState.set(SinkState.AWAITING_READ_RESULT);
+-                    executeOnUploadExecutor(new JavaUrlRequestUtils.CheckedRunnable() {
+-                        @Override
+-                        public void run() throws Exception {
+-                            mUploadProvider.read(JavaUploadDataSinkBase.this, mBuffer);
+-                        }
+-                    });
+-                } else if (mTotalBytes == -1) {
+-                    finish();
+-                } else if (mTotalBytes == mWrittenBytes) {
+-                    finish();
+-                } else {
+-                    processUploadError(
+-                            new IllegalArgumentException(String.format(Locale.getDefault(),
+-                                    "Read upload data length %d exceeds expected length %d",
+-                                    mWrittenBytes, mTotalBytes)));
+-                }
+-            }
+-        }));
+-    }
+-
+-    @Override
+-    public void onRewindSucceeded() {
+-        if (!mSinkState.compareAndSet(/* expected= */ SinkState.AWAITING_REWIND_RESULT,
+-                    /* updated= */ SinkState.UPLOADING)) {
+-            throw new IllegalStateException(
+-                    "onRewindSucceeded() called when not awaiting a rewind; in state: "
+-                    + mSinkState.get());
+-        }
+-        startRead();
+-    }
+-
+-    @Override
+-    public void onReadError(Exception exception) {
+-        processUploadError(exception);
+-    }
+-
+-    @Override
+-    public void onRewindError(Exception exception) {
+-        processUploadError(exception);
+-    }
+-
+-    private void startRead() {
+-        mExecutor.execute(getErrorSettingRunnable(new JavaUrlRequestUtils.CheckedRunnable() {
+-            @Override
+-            public void run() throws Exception {
+-                initializeRead();
+-                mSinkState.set(SinkState.AWAITING_READ_RESULT);
+-                executeOnUploadExecutor(new JavaUrlRequestUtils.CheckedRunnable() {
+-                    @Override
+-                    public void run() throws Exception {
+-                        mUploadProvider.read(JavaUploadDataSinkBase.this, mBuffer);
+-                    }
+-                });
+-            }
+-        }));
+-    }
+-
+-    /**
+-     * Helper method to execute a checked runnable on the upload executor and process any errors
+-     * that occur as upload errors.
+-     *
+-     * @param runnable the runnable to attempt to run and check for errors
+-     */
+-    private void executeOnUploadExecutor(JavaUrlRequestUtils.CheckedRunnable runnable) {
+-        try {
+-            mUserUploadExecutor.execute(getUploadErrorSettingRunnable(runnable));
+-        } catch (RejectedExecutionException e) {
+-            processUploadError(e);
+-        }
+-    }
+-
+-    /**
+-     * Starts the upload. This method can be called multiple times. If it is not the first time it
+-     * is called the {@link UploadDataProvider} must rewind.
+-     *
+-     * @param firstTime true if this is the first time this {@link UploadDataSink} has started an
+-     *                  upload
+-     */
+-    public void start(final boolean firstTime) {
+-        executeOnUploadExecutor(new JavaUrlRequestUtils.CheckedRunnable() {
+-            @Override
+-            public void run() throws Exception {
+-                mTotalBytes = mUploadProvider.getLength();
+-                if (mTotalBytes == 0) {
+-                    finish();
+-                } else {
+-                    // If we know how much data we have to upload, and it's small, we can save
+-                    // memory by allocating a reasonably sized buffer to read into.
+-                    if (mTotalBytes > 0 && mTotalBytes < DEFAULT_UPLOAD_BUFFER_SIZE) {
+-                        // Allocate one byte more than necessary, to detect callers uploading
+-                        // more bytes than they specified in length.
+-                        mBuffer = ByteBuffer.allocateDirect((int) mTotalBytes + 1);
+-                    } else {
+-                        mBuffer = ByteBuffer.allocateDirect(DEFAULT_UPLOAD_BUFFER_SIZE);
+-                    }
+-
+-                    initializeStart(mTotalBytes);
+-
+-                    if (firstTime) {
+-                        startRead();
+-                    } else {
+-                        mSinkState.set(SinkState.AWAITING_REWIND_RESULT);
+-                        mUploadProvider.rewind(JavaUploadDataSinkBase.this);
+-                    }
+-                }
+-            }
+-        });
+-    }
+-
+-    /**
+-     * Gets a runnable that checks for errors and processes them by setting an error state when
+-     * executing a {@link CheckedRunnable}.
+-     *
+-     * @param runnable The runnable to run.
+-     * @return a runnable that checks for errors
+-     */
+-    protected abstract Runnable getErrorSettingRunnable(
+-            JavaUrlRequestUtils.CheckedRunnable runnable);
+-
+-    /**
+-     * Gets a runnable that checks for errors and processes them by setting an upload error state
+-     * when executing a {@link CheckedRunnable}.
+-     *
+-     * @param runnable The runnable to run.
+-     * @return a runnable that checks for errors
+-     */
+-    protected abstract Runnable getUploadErrorSettingRunnable(
+-            JavaUrlRequestUtils.CheckedRunnable runnable);
+-
+-    /**
+-     * Processes an error encountered while uploading data.
+-     *
+-     * @param error the {@link Throwable} to process
+-     */
+-    protected abstract void processUploadError(final Throwable error);
+-
+-    /**
+-     * Called when a successful read has occurred and there is new data in the {@code mBuffer} to
+-     * process.
+-     *
+-     * @return the number of bytes processed in this read
+-     * @throws IOException
+-     */
+-    protected abstract int processSuccessfulRead(ByteBuffer buffer) throws IOException;
+-
+-    /**
+-     * Finishes this upload. Called when the upload is complete.
+-     *
+-     * @throws IOException
+-     */
+-    protected abstract void finish() throws IOException;
+-
+-    /**
+-     * Initializes the {@link UploadDataSink} before each call to {@code read} in the
+-     * {@link UploadDataProvider}.
+-     *
+-     * @throws IOException
+-     */
+-    protected abstract void initializeRead() throws IOException;
+-
+-    /**
+-     * Initializes the {@link UploadDataSink} at the start of the upload.
+-     *
+-     * @param totalBytes the total number of bytes to be retrieved in this upload
+-     */
+-    protected abstract void initializeStart(long totalBytes);
+-}
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequest.java b/components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequest.java
+deleted file mode 100644
+index 9520340d31b28..0000000000000
+--- a/components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequest.java
++++ /dev/null
+@@ -1,1044 +0,0 @@
+-// Copyright 2015 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.impl;
+-
+-import android.annotation.TargetApi;
+-import android.net.TrafficStats;
+-import android.os.Build;
+-import android.util.Log;
+-
+-import androidx.annotation.Nullable;
+-import androidx.annotation.RequiresApi;
+-import androidx.annotation.VisibleForTesting;
+-
+-import org.chromium.net.CronetException;
+-import org.chromium.net.InlineExecutionProhibitedException;
+-import org.chromium.net.ThreadStatsUid;
+-import org.chromium.net.UploadDataProvider;
+-import org.chromium.net.UrlResponseInfo;
+-import org.chromium.net.impl.CronetLogger.CronetTrafficInfo;
+-import org.chromium.net.impl.JavaUrlRequestUtils.CheckedRunnable;
+-import org.chromium.net.impl.JavaUrlRequestUtils.DirectPreventingExecutor;
+-import org.chromium.net.impl.JavaUrlRequestUtils.State;
+-
+-import java.io.IOException;
+-import java.io.InputStream;
+-import java.io.OutputStream;
+-import java.net.HttpURLConnection;
+-import java.net.URI;
+-import java.net.URL;
+-import java.nio.ByteBuffer;
+-import java.nio.channels.Channels;
+-import java.nio.channels.ReadableByteChannel;
+-import java.nio.channels.WritableByteChannel;
+-import java.time.Duration;
+-import java.util.AbstractMap.SimpleEntry;
+-import java.util.ArrayDeque;
+-import java.util.ArrayList;
+-import java.util.Collections;
+-import java.util.List;
+-import java.util.Map;
+-import java.util.TreeMap;
+-import java.util.concurrent.Executor;
+-import java.util.concurrent.RejectedExecutionException;
+-import java.util.concurrent.atomic.AtomicBoolean;
+-import java.util.concurrent.atomic.AtomicInteger;
+-
+-import javax.annotation.concurrent.GuardedBy;
+-
+-/**
+- * Pure java UrlRequest, backed by {@link HttpURLConnection}.
+- */
+-@TargetApi(Build.VERSION_CODES.ICE_CREAM_SANDWICH) // TrafficStats only available on ICS
+-final class JavaUrlRequest extends UrlRequestBase {
+-    private static final String X_ANDROID = "X-Android";
+-    private static final String X_ANDROID_SELECTED_TRANSPORT = "X-Android-Selected-Transport";
+-    private static final String TAG = JavaUrlRequest.class.getSimpleName();
+-    private static final int DEFAULT_CHUNK_LENGTH =
+-            JavaUploadDataSinkBase.DEFAULT_UPLOAD_BUFFER_SIZE;
+-    private static final String USER_AGENT = "User-Agent";
+-    private final AsyncUrlRequestCallback mCallbackAsync;
+-    private final Executor mExecutor;
+-    private final String mUserAgent;
+-    private final Map<String, String> mRequestHeaders =
+-            new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
+-    private final List<String> mUrlChain = new ArrayList<>();
+-    /**
+-     * This is the source of thread safety in this class - no other synchronization is performed.
+-     * By compare-and-swapping from one state to another, we guarantee that operations aren't
+-     * running concurrently. Only the winner of a CAS proceeds.
+-     *
+-     * <p>A caller can lose a CAS for three reasons - user error (two calls to read() without
+-     * waiting for the read to succeed), runtime error (network code or user code throws an
+-     * exception), or cancellation.
+-     */
+-    private final AtomicInteger /* State */ mState = new AtomicInteger(State.NOT_STARTED);
+-    private final AtomicBoolean mUploadProviderClosed = new AtomicBoolean(false);
+-
+-    private final boolean mAllowDirectExecutor;
+-
+-    /* These don't change with redirects */
+-    private String mInitialMethod;
+-    private VersionSafeCallbacks.UploadDataProviderWrapper mUploadDataProvider;
+-    private Executor mUploadExecutor;
+-
+-    /**
+-     * Holds a subset of StatusValues - {@link State#STARTED} can represent
+-     * {@link Status#SENDING_REQUEST} or {@link Status#WAITING_FOR_RESPONSE}. While the distinction
+-     * isn't needed to implement the logic in this class, it is needed to implement
+-     * {@link #getStatus(StatusListener)}.
+-     *
+-     * <p>Concurrency notes - this value is not atomically updated with mState, so there is some
+-     * risk that we'd get an inconsistent snapshot of both - however, it also happens that this
+-     * value is only used with the STARTED state, so it's inconsequential.
+-     */
+-    @StatusValues
+-    private volatile int mAdditionalStatusDetails = Status.INVALID;
+-
+-    /* These change with redirects. */
+-    private String mCurrentUrl;
+-    @Nullable
+-    private ReadableByteChannel mResponseChannel; // Only accessed on mExecutor.
+-    private UrlResponseInfoImpl mUrlResponseInfo;
+-    private String mPendingRedirectUrl;
+-    private HttpURLConnection mCurrentUrlConnection; // Only accessed on mExecutor.
+-    private OutputStreamDataSink mOutputStreamDataSink; // Only accessed on mExecutor.
+-    private final int mCronetEngineId;
+-    private final CronetLogger mLogger;
+-
+-    // Executor that runs one task at a time on an underlying Executor.
+-    // NOTE: Do not use to wrap user supplied Executor as lock is held while underlying execute()
+-    // is called.
+-    private static final class SerializingExecutor implements Executor {
+-        private final Executor mUnderlyingExecutor;
+-        private final Runnable mRunTasks = new Runnable() {
+-            @Override
+-            public void run() {
+-                Runnable task;
+-                synchronized (mTaskQueue) {
+-                    if (mRunning) {
+-                        return;
+-                    }
+-                    task = mTaskQueue.pollFirst();
+-                    mRunning = task != null;
+-                }
+-                while (task != null) {
+-                    boolean threw = true;
+-                    try {
+-                        task.run();
+-                        threw = false;
+-                    } finally {
+-                        synchronized (mTaskQueue) {
+-                            if (threw) {
+-                                // If task.run() threw, this method will abort without looping
+-                                // again, so repost to keep running tasks.
+-                                mRunning = false;
+-                                try {
+-                                    mUnderlyingExecutor.execute(mRunTasks);
+-                                } catch (RejectedExecutionException e) {
+-                                    // Give up if a task run at shutdown throws.
+-                                }
+-                            } else {
+-                                task = mTaskQueue.pollFirst();
+-                                mRunning = task != null;
+-                            }
+-                        }
+-                    }
+-                }
+-            }
+-        };
+-        // Queue of tasks to run.  Tasks are added to the end and taken from the front.
+-        // Synchronized on itself.
+-        @GuardedBy("mTaskQueue")
+-        private final ArrayDeque<Runnable> mTaskQueue = new ArrayDeque<>();
+-        // Indicates if mRunTasks is actively running tasks.  Synchronized on mTaskQueue.
+-        @GuardedBy("mTaskQueue")
+-        private boolean mRunning;
+-
+-        SerializingExecutor(Executor underlyingExecutor) {
+-            mUnderlyingExecutor = underlyingExecutor;
+-        }
+-
+-        @Override
+-        public void execute(Runnable command) {
+-            synchronized (mTaskQueue) {
+-                mTaskQueue.addLast(command);
+-                try {
+-                    mUnderlyingExecutor.execute(mRunTasks);
+-                } catch (RejectedExecutionException e) {
+-                    // If shutting down, do not add new tasks to the queue.
+-                    mTaskQueue.removeLast();
+-                }
+-            }
+-};
+-    }
+-
+-    /**
+-     * @param executor The executor used for reading and writing from sockets
+-     * @param userExecutor The executor used to dispatch to {@code callback}
+-     */
+-    JavaUrlRequest(JavaCronetEngine engine, Callback callback, final Executor executor,
+-            Executor userExecutor, String url, String userAgent, boolean allowDirectExecutor,
+-            boolean trafficStatsTagSet, int trafficStatsTag, final boolean trafficStatsUidSet,
+-            final int trafficStatsUid) {
+-        if (url == null) {
+-            throw new NullPointerException("URL is required");
+-        }
+-        if (callback == null) {
+-            throw new NullPointerException("Listener is required");
+-        }
+-        if (executor == null) {
+-            throw new NullPointerException("Executor is required");
+-        }
+-        if (userExecutor == null) {
+-            throw new NullPointerException("userExecutor is required");
+-        }
+-
+-        mAllowDirectExecutor = allowDirectExecutor;
+-        mCallbackAsync = new AsyncUrlRequestCallback(callback, userExecutor);
+-        final int trafficStatsTagToUse =
+-                trafficStatsTagSet ? trafficStatsTag : TrafficStats.getThreadStatsTag();
+-        mExecutor = new SerializingExecutor(new Executor() {
+-            @Override
+-            public void execute(final Runnable command) {
+-                executor.execute(new Runnable() {
+-                    @Override
+-                    public void run() {
+-                        int oldTag = TrafficStats.getThreadStatsTag();
+-                        TrafficStats.setThreadStatsTag(trafficStatsTagToUse);
+-                        if (trafficStatsUidSet) {
+-                            ThreadStatsUid.set(trafficStatsUid);
+-                        }
+-                        try {
+-                            command.run();
+-                        } finally {
+-                            if (trafficStatsUidSet) {
+-                                ThreadStatsUid.clear();
+-                            }
+-                            TrafficStats.setThreadStatsTag(oldTag);
+-                        }
+-                    }
+-                });
+-            }
+-        });
+-        mCronetEngineId = engine.getCronetEngineId();
+-        mLogger = engine.getCronetLogger();
+-        mCurrentUrl = url;
+-        mUserAgent = userAgent;
+-    }
+-
+-    @Override
+-    public void setHttpMethod(String method) {
+-        checkNotStarted();
+-        if (method == null) {
+-            throw new NullPointerException("Method is required.");
+-        }
+-        if ("OPTIONS".equalsIgnoreCase(method) || "GET".equalsIgnoreCase(method)
+-                || "HEAD".equalsIgnoreCase(method) || "POST".equalsIgnoreCase(method)
+-                || "PUT".equalsIgnoreCase(method) || "DELETE".equalsIgnoreCase(method)
+-                || "TRACE".equalsIgnoreCase(method) || "PATCH".equalsIgnoreCase(method)) {
+-            mInitialMethod = method;
+-        } else {
+-            throw new IllegalArgumentException("Invalid http method " + method);
+-        }
+-    }
+-
+-    private void checkNotStarted() {
+-        @State
+-        int state = mState.get();
+-        if (state != State.NOT_STARTED) {
+-            throw new IllegalStateException("Request is already started. State is: " + state);
+-        }
+-    }
+-
+-    @Override
+-    public void addHeader(String header, String value) {
+-        checkNotStarted();
+-        if (!isValidHeaderName(header) || value.contains("\r\n")) {
+-            throw new IllegalArgumentException("Invalid header " + header + "=" + value);
+-        }
+-        if (mRequestHeaders.containsKey(header)) {
+-            mRequestHeaders.remove(header);
+-        }
+-        mRequestHeaders.put(header, value);
+-    }
+-
+-    private boolean isValidHeaderName(String header) {
+-        for (int i = 0; i < header.length(); i++) {
+-            char c = header.charAt(i);
+-            switch (c) {
+-                case '(':
+-                case ')':
+-                case '<':
+-                case '>':
+-                case '@':
+-                case ',':
+-                case ';':
+-                case ':':
+-                case '\\':
+-                case '\'':
+-                case '/':
+-                case '[':
+-                case ']':
+-                case '?':
+-                case '=':
+-                case '{':
+-                case '}':
+-                    return false;
+-                default: {
+-                    if (Character.isISOControl(c) || Character.isWhitespace(c)) {
+-                        return false;
+-                    }
+-                }
+-            }
+-        }
+-        return true;
+-    }
+-
+-    @Override
+-    public void setUploadDataProvider(UploadDataProvider uploadDataProvider, Executor executor) {
+-        if (uploadDataProvider == null) {
+-            throw new NullPointerException("Invalid UploadDataProvider.");
+-        }
+-        if (!mRequestHeaders.containsKey("Content-Type")) {
+-            throw new IllegalArgumentException(
+-                    "Requests with upload data must have a Content-Type.");
+-        }
+-        checkNotStarted();
+-        if (mInitialMethod == null) {
+-            mInitialMethod = "POST";
+-        }
+-        this.mUploadDataProvider =
+-                new VersionSafeCallbacks.UploadDataProviderWrapper(uploadDataProvider);
+-        if (mAllowDirectExecutor) {
+-            this.mUploadExecutor = executor;
+-        } else {
+-            this.mUploadExecutor = new DirectPreventingExecutor(executor);
+-        }
+-    }
+-
+-    private final class OutputStreamDataSink extends JavaUploadDataSinkBase {
+-        private final HttpURLConnection mUrlConnection;
+-        private final AtomicBoolean mOutputChannelClosed = new AtomicBoolean(false);
+-        private WritableByteChannel mOutputChannel;
+-        private OutputStream mUrlConnectionOutputStream;
+-
+-        OutputStreamDataSink(final Executor userExecutor, Executor executor,
+-                HttpURLConnection urlConnection,
+-                VersionSafeCallbacks.UploadDataProviderWrapper provider) {
+-            super(userExecutor, executor, provider);
+-            mUrlConnection = urlConnection;
+-        }
+-
+-        @Override
+-        protected void initializeRead() throws IOException {
+-            if (mOutputChannel == null) {
+-                mAdditionalStatusDetails = Status.CONNECTING;
+-                mUrlConnection.setDoOutput(true);
+-                mUrlConnection.connect();
+-                mAdditionalStatusDetails = Status.SENDING_REQUEST;
+-                mUrlConnectionOutputStream = mUrlConnection.getOutputStream();
+-                mOutputChannel = Channels.newChannel(mUrlConnectionOutputStream);
+-            }
+-        }
+-
+-        void closeOutputChannel() throws IOException {
+-            if (mOutputChannel != null
+-                    && mOutputChannelClosed.compareAndSet(
+-                            /* expected= */ false, /* updated= */ true)) {
+-                mOutputChannel.close();
+-            }
+-        }
+-
+-        @Override
+-        protected void finish() throws IOException {
+-            closeOutputChannel();
+-            fireGetHeaders();
+-        }
+-
+-        @Override
+-        protected void initializeStart(long totalBytes) {
+-            if (totalBytes > 0) {
+-                mUrlConnection.setFixedLengthStreamingMode(totalBytes);
+-            } else {
+-                mUrlConnection.setChunkedStreamingMode(DEFAULT_CHUNK_LENGTH);
+-            }
+-        }
+-
+-        @Override
+-        protected int processSuccessfulRead(ByteBuffer buffer) throws IOException {
+-            int totalBytesProcessed = 0;
+-            while (buffer.hasRemaining()) {
+-                totalBytesProcessed += mOutputChannel.write(buffer);
+-            }
+-            // Forces a chunk to be sent, rather than buffering to the DEFAULT_CHUNK_LENGTH.
+-            // This allows clients to trickle-upload bytes as they become available without
+-            // introducing latency due to buffering.
+-            mUrlConnectionOutputStream.flush();
+-            return totalBytesProcessed;
+-        }
+-
+-        @Override
+-        protected Runnable getErrorSettingRunnable(CheckedRunnable runnable) {
+-            return errorSetting(runnable);
+-        }
+-
+-        @Override
+-        protected Runnable getUploadErrorSettingRunnable(CheckedRunnable runnable) {
+-            return uploadErrorSetting(runnable);
+-        }
+-
+-        @Override
+-        protected void processUploadError(Throwable exception) {
+-            enterUploadErrorState(exception);
+-        }
+-    }
+-
+-    @Override
+-    public void start() {
+-        mAdditionalStatusDetails = Status.CONNECTING;
+-        transitionStates(State.NOT_STARTED, State.STARTED, new Runnable() {
+-            @Override
+-            public void run() {
+-                mUrlChain.add(mCurrentUrl);
+-                fireOpenConnection();
+-            }
+-        });
+-    }
+-
+-    private void enterErrorState(final CronetException error) {
+-        if (setTerminalState(State.ERROR)) {
+-            fireDisconnect();
+-            fireCloseUploadDataProvider();
+-            mCallbackAsync.onFailed(mUrlResponseInfo, error);
+-        }
+-    }
+-
+-    private boolean setTerminalState(@State int error) {
+-        while (true) {
+-            @State
+-            int oldState = mState.get();
+-            switch (oldState) {
+-                case State.NOT_STARTED:
+-                    throw new IllegalStateException("Can't enter error state before start");
+-                case State.ERROR: // fallthrough
+-                case State.COMPLETE: // fallthrough
+-                case State.CANCELLED:
+-                    return false; // Already in a terminal state
+-                default: {
+-                    if (mState.compareAndSet(/* expected= */ oldState, /* updated= */ error)) {
+-                        return true;
+-                    }
+-                }
+-            }
+-        }
+-    }
+-
+-    /** Ends the request with an error, caused by an exception thrown from user code. */
+-    private void enterUserErrorState(final Throwable error) {
+-        enterErrorState(
+-                new CallbackExceptionImpl("Exception received from UrlRequest.Callback", error));
+-    }
+-
+-    /** Ends the request with an error, caused by an exception thrown from user code. */
+-    private void enterUploadErrorState(final Throwable error) {
+-        enterErrorState(
+-                new CallbackExceptionImpl("Exception received from UploadDataProvider", error));
+-    }
+-
+-    private void enterCronetErrorState(final Throwable error) {
+-        // TODO(clm) mapping from Java exception (UnknownHostException, for example) to net error
+-        // code goes here.
+-        enterErrorState(new CronetExceptionImpl("System error", error));
+-    }
+-
+-    /**
+-     * Atomically swaps from the expected state to a new state. If the swap fails, and it's not
+-     * due to an earlier error or cancellation, throws an exception.
+-     *
+-     * @param afterTransition Callback to run after transition completes successfully.
+-     */
+-    private void transitionStates(
+-            @State int expected, @State int newState, Runnable afterTransition) {
+-        if (!mState.compareAndSet(expected, newState)) {
+-            @State
+-            int state = mState.get();
+-            if (!(state == State.CANCELLED || state == State.ERROR)) {
+-                throw new IllegalStateException(
+-                        "Invalid state transition - expected " + expected + " but was " + state);
+-            }
+-        } else {
+-            afterTransition.run();
+-        }
+-    }
+-
+-    @Override
+-    public void followRedirect() {
+-        transitionStates(State.AWAITING_FOLLOW_REDIRECT, State.STARTED, new Runnable() {
+-            @Override
+-            public void run() {
+-                mCurrentUrl = mPendingRedirectUrl;
+-                mPendingRedirectUrl = null;
+-                fireOpenConnection();
+-            }
+-        });
+-    }
+-
+-    private void fireGetHeaders() {
+-        mAdditionalStatusDetails = Status.WAITING_FOR_RESPONSE;
+-        mExecutor.execute(errorSetting(new CheckedRunnable() {
+-            @Override
+-            public void run() throws Exception {
+-                if (mCurrentUrlConnection == null) {
+-                    return; // We've been cancelled
+-                }
+-                final List<Map.Entry<String, String>> headerList = new ArrayList<>();
+-                String selectedTransport = "http/1.1";
+-                String headerKey;
+-                for (int i = 0; (headerKey = mCurrentUrlConnection.getHeaderFieldKey(i)) != null;
+-                        i++) {
+-                    if (X_ANDROID_SELECTED_TRANSPORT.equalsIgnoreCase(headerKey)) {
+-                        selectedTransport = mCurrentUrlConnection.getHeaderField(i);
+-                    }
+-                    if (!headerKey.startsWith(X_ANDROID)) {
+-                        headerList.add(new SimpleEntry<>(
+-                                headerKey, mCurrentUrlConnection.getHeaderField(i)));
+-                    }
+-                }
+-
+-                int responseCode = mCurrentUrlConnection.getResponseCode();
+-                // Important to copy the list here, because although we never concurrently modify
+-                // the list ourselves, user code might iterate over it while we're redirecting, and
+-                // that would throw ConcurrentModificationException.
+-                mUrlResponseInfo = new UrlResponseInfoImpl(new ArrayList<>(mUrlChain), responseCode,
+-                        mCurrentUrlConnection.getResponseMessage(),
+-                        Collections.unmodifiableList(headerList), false, selectedTransport, "", 0);
+-                // TODO(clm) actual redirect handling? post -> get and whatnot?
+-                if (responseCode >= 300 && responseCode < 400) {
+-                    List<String> locationFields = mUrlResponseInfo.getAllHeaders().get("location");
+-                    if (locationFields != null) {
+-                        fireRedirectReceived(locationFields.get(0));
+-                        return;
+-                    }
+-                }
+-                fireCloseUploadDataProvider();
+-                if (responseCode >= 400) {
+-                    InputStream inputStream = mCurrentUrlConnection.getErrorStream();
+-                    mResponseChannel =
+-                            inputStream == null ? null : InputStreamChannel.wrap(inputStream);
+-                    mCallbackAsync.onResponseStarted(mUrlResponseInfo);
+-                } else {
+-                    mResponseChannel =
+-                            InputStreamChannel.wrap(mCurrentUrlConnection.getInputStream());
+-                    mCallbackAsync.onResponseStarted(mUrlResponseInfo);
+-                }
+-            }
+-        }));
+-    }
+-
+-    private void fireCloseUploadDataProvider() {
+-        if (mUploadDataProvider != null
+-                && mUploadProviderClosed.compareAndSet(
+-                        /* expected= */ false, /* updated= */ true)) {
+-            try {
+-                mUploadExecutor.execute(uploadErrorSetting(new CheckedRunnable() {
+-                    @Override
+-                    public void run() throws Exception {
+-                        mUploadDataProvider.close();
+-                    }
+-                }));
+-            } catch (RejectedExecutionException e) {
+-                Log.e(TAG, "Exception when closing uploadDataProvider", e);
+-            }
+-        }
+-    }
+-
+-    private void fireRedirectReceived(final String locationField) {
+-        transitionStates(State.STARTED, State.REDIRECT_RECEIVED, new Runnable() {
+-            @Override
+-            public void run() {
+-                mPendingRedirectUrl = URI.create(mCurrentUrl).resolve(locationField).toString();
+-                mUrlChain.add(mPendingRedirectUrl);
+-                transitionStates(
+-                        State.REDIRECT_RECEIVED, State.AWAITING_FOLLOW_REDIRECT, new Runnable() {
+-                            @Override
+-                            public void run() {
+-                                mCallbackAsync.onRedirectReceived(
+-                                        mUrlResponseInfo, mPendingRedirectUrl);
+-                            }
+-                        });
+-            }
+-        });
+-    }
+-
+-    private void fireOpenConnection() {
+-        mExecutor.execute(errorSetting(new CheckedRunnable() {
+-            @Override
+-            public void run() throws Exception {
+-                // If we're cancelled, then our old connection will be disconnected for us and
+-                // we shouldn't open a new one.
+-                if (mState.get() == State.CANCELLED) {
+-                    return;
+-                }
+-
+-                final URL url = new URL(mCurrentUrl);
+-                if (mCurrentUrlConnection != null) {
+-                    mCurrentUrlConnection.disconnect();
+-                    mCurrentUrlConnection = null;
+-                }
+-                mCurrentUrlConnection = (HttpURLConnection) url.openConnection();
+-                mCurrentUrlConnection.setInstanceFollowRedirects(false);
+-                if (!mRequestHeaders.containsKey(USER_AGENT)) {
+-                    mRequestHeaders.put(USER_AGENT, mUserAgent);
+-                }
+-                for (Map.Entry<String, String> entry : mRequestHeaders.entrySet()) {
+-                    mCurrentUrlConnection.setRequestProperty(entry.getKey(), entry.getValue());
+-                }
+-                if (mInitialMethod == null) {
+-                    mInitialMethod = "GET";
+-                }
+-                mCurrentUrlConnection.setRequestMethod(mInitialMethod);
+-                if (mUploadDataProvider != null) {
+-                    mOutputStreamDataSink = new OutputStreamDataSink(
+-                            mUploadExecutor, mExecutor, mCurrentUrlConnection, mUploadDataProvider);
+-                    mOutputStreamDataSink.start(mUrlChain.size() == 1);
+-                } else {
+-                    mAdditionalStatusDetails = Status.CONNECTING;
+-                    mCurrentUrlConnection.connect();
+-                    fireGetHeaders();
+-                }
+-            }
+-        }));
+-    }
+-
+-    private Runnable errorSetting(final CheckedRunnable delegate) {
+-        return new Runnable() {
+-            @Override
+-            public void run() {
+-                try {
+-                    delegate.run();
+-                } catch (Throwable t) {
+-                    enterCronetErrorState(t);
+-                }
+-            }
+-        };
+-    }
+-
+-    private Runnable userErrorSetting(final CheckedRunnable delegate) {
+-        return new Runnable() {
+-            @Override
+-            public void run() {
+-                try {
+-                    delegate.run();
+-                } catch (Throwable t) {
+-                    enterUserErrorState(t);
+-                }
+-            }
+-        };
+-    }
+-
+-    private Runnable uploadErrorSetting(final CheckedRunnable delegate) {
+-        return new Runnable() {
+-            @Override
+-            public void run() {
+-                try {
+-                    delegate.run();
+-                } catch (Throwable t) {
+-                    enterUploadErrorState(t);
+-                }
+-            }
+-        };
+-    }
+-
+-    @Override
+-    public void read(final ByteBuffer buffer) {
+-        Preconditions.checkDirect(buffer);
+-        Preconditions.checkHasRemaining(buffer);
+-        transitionStates(State.AWAITING_READ, State.READING, new Runnable() {
+-            @Override
+-            public void run() {
+-                mExecutor.execute(errorSetting(new CheckedRunnable() {
+-                    @Override
+-                    public void run() throws Exception {
+-                        int read = mResponseChannel == null ? -1 : mResponseChannel.read(buffer);
+-                        processReadResult(read, buffer);
+-                    }
+-                }));
+-            }
+-        });
+-    }
+-
+-    private void processReadResult(int read, final ByteBuffer buffer) throws IOException {
+-        if (read != -1) {
+-            mCallbackAsync.onReadCompleted(mUrlResponseInfo, buffer);
+-        } else {
+-            if (mResponseChannel != null) {
+-                mResponseChannel.close();
+-            }
+-            if (mState.compareAndSet(
+-                        /* expected= */ State.READING, /* updated= */ State.COMPLETE)) {
+-                fireDisconnect();
+-                mCallbackAsync.onSucceeded(mUrlResponseInfo);
+-            }
+-        }
+-    }
+-
+-    private void fireDisconnect() {
+-        mExecutor.execute(new Runnable() {
+-            @Override
+-            public void run() {
+-                if (mOutputStreamDataSink != null) {
+-                    try {
+-                        mOutputStreamDataSink.closeOutputChannel();
+-                    } catch (IOException e) {
+-                        Log.e(TAG, "Exception when closing OutputChannel", e);
+-                    }
+-                }
+-                if (mCurrentUrlConnection != null) {
+-                    mCurrentUrlConnection.disconnect();
+-                    mCurrentUrlConnection = null;
+-                }
+-            }
+-        });
+-    }
+-
+-    @Override
+-    public void cancel() {
+-        @State
+-        int oldState = mState.getAndSet(State.CANCELLED);
+-        switch (oldState) {
+-            // We've just scheduled some user code to run. When they perform their next operation,
+-            // they'll observe it and fail. However, if user code is cancelling in response to one
+-            // of these callbacks, we'll never actually cancel!
+-            // TODO(clm) figure out if it's possible to avoid concurrency in user callbacks.
+-            case State.REDIRECT_RECEIVED:
+-            case State.AWAITING_FOLLOW_REDIRECT:
+-            case State.AWAITING_READ:
+-
+-            // User code is waiting on us - cancel away!
+-            case State.STARTED:
+-            case State.READING:
+-                fireDisconnect();
+-                fireCloseUploadDataProvider();
+-                mCallbackAsync.onCanceled(mUrlResponseInfo);
+-                break;
+-            // The rest are all termination cases - we're too late to cancel.
+-            case State.ERROR:
+-            case State.COMPLETE:
+-            case State.CANCELLED:
+-                break;
+-            default:
+-                break;
+-        }
+-    }
+-
+-    @Override
+-    public boolean isDone() {
+-        @State
+-        int state = mState.get();
+-        return state == State.COMPLETE || state == State.ERROR || state == State.CANCELLED;
+-    }
+-
+-    /**
+-     * Estimates the byte size of the headers in their on-wire format.
+-     * We are not really interested in their specific size but something which is close enough.
+-     */
+-    @VisibleForTesting
+-    static long estimateHeadersSizeInBytesList(Map<String, List<String>> headers) {
+-        if (headers == null) return 0;
+-
+-        long responseHeaderSizeInBytes = 0;
+-        for (Map.Entry<String, List<String>> entry : headers.entrySet()) {
+-            String key = entry.getKey();
+-            if (key != null) responseHeaderSizeInBytes += key.length();
+-            if (entry.getValue() == null) continue;
+-
+-            for (String content : entry.getValue()) {
+-                if (content != null) responseHeaderSizeInBytes += content.length();
+-            }
+-        }
+-        return responseHeaderSizeInBytes;
+-    }
+-
+-    /**
+-     * Estimates the byte size of the headers in their on-wire format.
+-     * We are not really interested in their specific size but something which is close enough.
+-     */
+-    @VisibleForTesting
+-    static long estimateHeadersSizeInBytes(Map<String, String> headers) {
+-        if (headers == null) return 0;
+-        long responseHeaderSizeInBytes = 0;
+-        for (Map.Entry<String, String> entry : headers.entrySet()) {
+-            String key = entry.getKey();
+-            if (key != null) responseHeaderSizeInBytes += key.length();
+-            String value = entry.getValue();
+-            if (value != null) responseHeaderSizeInBytes += value.length();
+-        }
+-        return responseHeaderSizeInBytes;
+-    }
+-
+-    private static long parseContentLengthString(String contentLength) {
+-        try {
+-            return Long.parseLong(contentLength);
+-        } catch (NumberFormatException e) {
+-            return 0;
+-        }
+-    }
+-
+-    @Override
+-    public void getStatus(StatusListener listener) {
+-        @State
+-        int state = mState.get();
+-        int extraStatus = this.mAdditionalStatusDetails;
+-
+-        @StatusValues
+-        final int status;
+-        switch (state) {
+-            case State.ERROR:
+-            case State.COMPLETE:
+-            case State.CANCELLED:
+-            case State.NOT_STARTED:
+-                status = Status.INVALID;
+-                break;
+-            case State.STARTED:
+-                status = extraStatus;
+-                break;
+-            case State.REDIRECT_RECEIVED:
+-            case State.AWAITING_FOLLOW_REDIRECT:
+-            case State.AWAITING_READ:
+-                status = Status.IDLE;
+-                break;
+-            case State.READING:
+-                status = Status.READING_RESPONSE;
+-                break;
+-            default:
+-                throw new IllegalStateException("Switch is exhaustive: " + state);
+-        }
+-
+-        mCallbackAsync.sendStatus(
+-                new VersionSafeCallbacks.UrlRequestStatusListener(listener), status);
+-    }
+-
+-    /** This wrapper ensures that callbacks are always called on the correct executor */
+-    private final class AsyncUrlRequestCallback {
+-        final VersionSafeCallbacks.UrlRequestCallback mCallback;
+-        final Executor mUserExecutor;
+-        final Executor mFallbackExecutor;
+-
+-        AsyncUrlRequestCallback(Callback callback, final Executor userExecutor) {
+-            this.mCallback = new VersionSafeCallbacks.UrlRequestCallback(callback);
+-            if (mAllowDirectExecutor) {
+-                this.mUserExecutor = userExecutor;
+-                this.mFallbackExecutor = null;
+-            } else {
+-                mUserExecutor = new DirectPreventingExecutor(userExecutor);
+-                mFallbackExecutor = userExecutor;
+-            }
+-        }
+-
+-        void sendStatus(
+-                final VersionSafeCallbacks.UrlRequestStatusListener listener, final int status) {
+-            mUserExecutor.execute(new Runnable() {
+-                @Override
+-                public void run() {
+-                    listener.onStatus(status);
+-                }
+-            });
+-        }
+-
+-        void execute(CheckedRunnable runnable) {
+-            try {
+-                mUserExecutor.execute(userErrorSetting(runnable));
+-            } catch (RejectedExecutionException e) {
+-                enterErrorState(new CronetExceptionImpl("Exception posting task to executor", e));
+-            }
+-        }
+-
+-        void onRedirectReceived(final UrlResponseInfo info, final String newLocationUrl) {
+-            execute(new CheckedRunnable() {
+-                @Override
+-                public void run() throws Exception {
+-                    mCallback.onRedirectReceived(JavaUrlRequest.this, info, newLocationUrl);
+-                }
+-            });
+-        }
+-
+-        void onResponseStarted(UrlResponseInfo info) {
+-            execute(new CheckedRunnable() {
+-                @Override
+-                public void run() throws Exception {
+-                    if (mState.compareAndSet(/* expected= */ State.STARTED,
+-                                /* updated= */ State.AWAITING_READ)) {
+-                        mCallback.onResponseStarted(JavaUrlRequest.this, mUrlResponseInfo);
+-                    }
+-                }
+-            });
+-        }
+-
+-        void onReadCompleted(final UrlResponseInfo info, final ByteBuffer byteBuffer) {
+-            execute(new CheckedRunnable() {
+-                @Override
+-                public void run() throws Exception {
+-                    if (mState.compareAndSet(/* expected= */ State.READING,
+-                                /* updated= */ State.AWAITING_READ)) {
+-                        mCallback.onReadCompleted(JavaUrlRequest.this, info, byteBuffer);
+-                    }
+-                }
+-            });
+-        }
+-
+-        /**
+-         * Builds the {@link CronetTrafficInfo} associated to this request internal state.
+-         * This helper methods makes strong assumptions about the state of the request. For this
+-         * reason it should only be called within {@link JavaUrlRequest#maybeReportMetrics} where
+-         * these assumptions are guaranteed to be true.
+-         * @return the {@link CronetTrafficInfo} associated to this request internal state
+-         */
+-        @RequiresApi(Build.VERSION_CODES.O)
+-        private CronetTrafficInfo buildCronetTrafficInfo() {
+-            assert mRequestHeaders != null;
+-
+-            // Most of the CronetTrafficInfo fields have similar names/semantics. To avoid bugs due
+-            // to typos everything is final, this means that things have to initialized through an
+-            // if/else.
+-            final Map<String, List<String>> responseHeaders;
+-            final String negotiatedProtocol;
+-            final int httpStatusCode;
+-            final boolean wasCached;
+-            if (mUrlResponseInfo != null) {
+-                responseHeaders = mUrlResponseInfo.getAllHeaders();
+-                negotiatedProtocol = mUrlResponseInfo.getNegotiatedProtocol();
+-                httpStatusCode = mUrlResponseInfo.getHttpStatusCode();
+-                wasCached = mUrlResponseInfo.wasCached();
+-            } else {
+-                responseHeaders = Collections.emptyMap();
+-                negotiatedProtocol = "";
+-                httpStatusCode = 0;
+-                wasCached = false;
+-            }
+-
+-            final long requestHeaderSizeInBytes;
+-            final long requestBodySizeInBytes;
+-            if (wasCached) {
+-                requestHeaderSizeInBytes = 0;
+-                requestBodySizeInBytes = 0;
+-            } else {
+-                requestHeaderSizeInBytes = estimateHeadersSizeInBytes(mRequestHeaders);
+-                // TODO(stefanoduo): Add logic to keep track of request body size.
+-                requestBodySizeInBytes = -1;
+-            }
+-
+-            final long responseBodySizeInBytes;
+-            final long responseHeaderSizeInBytes;
+-            if (wasCached) {
+-                responseHeaderSizeInBytes = 0;
+-                responseBodySizeInBytes = 0;
+-            } else {
+-                responseHeaderSizeInBytes = estimateHeadersSizeInBytesList(responseHeaders);
+-                // Content-Length is not mandatory, if missing report a non-valid response body size
+-                // for the time being.
+-                if (responseHeaders.containsKey("Content-Length")) {
+-                    responseBodySizeInBytes =
+-                            parseContentLengthString(responseHeaders.get("Content-Length").get(0));
+-                } else {
+-                    // TODO(stefanoduo): Add logic to keep track of response body size.
+-                    responseBodySizeInBytes = -1;
+-                }
+-            }
+-
+-            final Duration headersLatency = Duration.ofSeconds(0);
+-            final Duration totalLatency = Duration.ofSeconds(0);
+-
+-            return new CronetTrafficInfo(requestHeaderSizeInBytes, requestBodySizeInBytes,
+-                    responseHeaderSizeInBytes, responseBodySizeInBytes, httpStatusCode,
+-                    headersLatency, totalLatency, negotiatedProtocol,
+-                    // There is no connection migration for the fallback implementation.
+-                    false, // wasConnectionMigrationAttempted
+-                    false // didConnectionMigrationSucceed
+-            );
+-        }
+-
+-        // Maybe report metrics. This method should only be called on Callback's executor thread and
+-        // after Callback's onSucceeded, onFailed and onCanceled.
+-        private void maybeReportMetrics() {
+-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+-                try {
+-                    mLogger.logCronetTrafficInfo(mCronetEngineId, buildCronetTrafficInfo());
+-                } catch (RuntimeException e) {
+-                    // Handle any issue gracefully, we should never crash due failures while
+-                    // logging.
+-                    Log.e(TAG, "Error while trying to log CronetTrafficInfo: ", e);
+-                }
+-            }
+-        }
+-
+-        void onCanceled(final UrlResponseInfo info) {
+-            closeResponseChannel();
+-            mUserExecutor.execute(new Runnable() {
+-                @Override
+-                public void run() {
+-                    try {
+-                        mCallback.onCanceled(JavaUrlRequest.this, info);
+-                        maybeReportMetrics();
+-                    } catch (Exception exception) {
+-                        Log.e(TAG, "Exception in onCanceled method", exception);
+-                    }
+-                }
+-            });
+-        }
+-
+-        void onSucceeded(final UrlResponseInfo info) {
+-            mUserExecutor.execute(new Runnable() {
+-                @Override
+-                public void run() {
+-                    try {
+-                        mCallback.onSucceeded(JavaUrlRequest.this, info);
+-                        maybeReportMetrics();
+-                    } catch (Exception exception) {
+-                        Log.e(TAG, "Exception in onSucceeded method", exception);
+-                    }
+-                }
+-            });
+-        }
+-
+-        void onFailed(final UrlResponseInfo urlResponseInfo, final CronetException e) {
+-            closeResponseChannel();
+-            Runnable runnable = new Runnable() {
+-                @Override
+-                public void run() {
+-                    try {
+-                        mCallback.onFailed(JavaUrlRequest.this, urlResponseInfo, e);
+-                        maybeReportMetrics();
+-                    } catch (Exception exception) {
+-                        Log.e(TAG, "Exception in onFailed method", exception);
+-                    }
+-                }
+-            };
+-            try {
+-                mUserExecutor.execute(runnable);
+-            } catch (InlineExecutionProhibitedException wasDirect) {
+-                if (mFallbackExecutor != null) {
+-                    mFallbackExecutor.execute(runnable);
+-                }
+-            }
+-        }
+-    }
+-
+-    private void closeResponseChannel() {
+-        mExecutor.execute(new Runnable() {
+-            @Override
+-            public void run() {
+-                if (mResponseChannel != null) {
+-                    try {
+-                        mResponseChannel.close();
+-                    } catch (IOException e) {
+-                        e.printStackTrace();
+-                    }
+-                    mResponseChannel = null;
+-                }
+-            }
+-        });
+-    }
+-}
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequestUtils.java b/components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequestUtils.java
+deleted file mode 100644
+index 7b1d70b24f161..0000000000000
+--- a/components/cronet/android/java/src/org/chromium/net/impl/JavaUrlRequestUtils.java
++++ /dev/null
+@@ -1,121 +0,0 @@
+-// Copyright 2019 The Chromium Authors
+-// Use of this source code is governed by a BSD-style license that can be
+-// found in the LICENSE file.
+-
+-package org.chromium.net.impl;
+-
+-import androidx.annotation.IntDef;
+-
+-import org.chromium.net.InlineExecutionProhibitedException;
+-
+-import java.lang.annotation.Retention;
+-import java.lang.annotation.RetentionPolicy;
+-import java.util.concurrent.Executor;
+-
+-/**
+- * Utilities for Java-based UrlRequest implementations.
+- * {@hide}
+- */
+-public final class JavaUrlRequestUtils {
+-    /**
+-     * State interface for keeping track of the internal state of a {@link UrlRequest}.
+-     *
+-     *               /- AWAITING_FOLLOW_REDIRECT <- REDIRECT_RECEIVED <-\     /- READING <--\
+-     *               |                                                  |     |             |
+-     *               V                                                  /     V             /
+-     * NOT_STARTED -> STARTED -----------------------------------------------> AWAITING_READ -------
+-     * --> COMPLETE
+-     *
+-     *
+-     */
+-    @IntDef({State.NOT_STARTED, State.STARTED, State.REDIRECT_RECEIVED,
+-            State.AWAITING_FOLLOW_REDIRECT, State.AWAITING_READ, State.READING, State.ERROR,
+-            State.COMPLETE, State.CANCELLED})
+-    @Retention(RetentionPolicy.SOURCE)
+-    public @interface State {
+-        int NOT_STARTED = 0;
+-        int STARTED = 1;
+-        int REDIRECT_RECEIVED = 2;
+-        int AWAITING_FOLLOW_REDIRECT = 3;
+-        int AWAITING_READ = 4;
+-        int READING = 5;
+-        int ERROR = 6;
+-        int COMPLETE = 7;
+-        int CANCELLED = 8;
+-    }
+-
+-    /**
+-     *  Interface used to run commands that could throw an exception. Specifically useful for
+-     *  calling {@link UrlRequest.Callback}s on a user-supplied executor.
+-     */
+-    public interface CheckedRunnable { void run() throws Exception; }
+-
+-    /**
+-     * Executor that detects and throws if its mDelegate runs a submitted runnable inline.
+-     */
+-    public static final class DirectPreventingExecutor implements Executor {
+-        private final Executor mDelegate;
+-
+-        /**
+-         * Constructs an {@link DirectPreventingExecutor} that executes {@link runnable}s on the
+-         * provided {@link Executor}.
+-         *
+-         * @param delegate the {@link Executor} used to run {@link Runnable}s
+-         */
+-        public DirectPreventingExecutor(Executor delegate) {
+-            this.mDelegate = delegate;
+-        }
+-
+-        /**
+-         * Executes a {@link Runnable} on this {@link Executor} and throws an exception if it is
+-         * being run on the same thread as the calling thread.
+-         *
+-         * @param command the {@link Runnable} to attempt to run
+-         */
+-        @Override
+-        public void execute(Runnable command) {
+-            Thread currentThread = Thread.currentThread();
+-            InlineCheckingRunnable runnable = new InlineCheckingRunnable(command, currentThread);
+-            mDelegate.execute(runnable);
+-            // This next read doesn't require synchronization; only the current thread could have
+-            // written to runnable.mExecutedInline.
+-            if (runnable.mExecutedInline != null) {
+-                throw runnable.mExecutedInline;
+-            } else {
+-                // It's possible that this method is being called on an executor, and the runnable
+-                // that was just queued will run on this thread after the current runnable returns.
+-                // By nulling out the mCallingThread field, the InlineCheckingRunnable's current
+-                // thread comparison will not fire.
+-                //
+-                // Java reference assignment is always atomic (no tearing, even on 64-bit VMs, see
+-                // JLS 17.7), but other threads aren't guaranteed to ever see updates without
+-                // something like locking, volatile, or AtomicReferences. We're ok in
+-                // this instance, since this write only needs to be seen in the case that
+-                // InlineCheckingRunnable.run() runs on the same thread as this execute() method.
+-                runnable.mCallingThread = null;
+-            }
+-        }
+-
+-        private static final class InlineCheckingRunnable implements Runnable {
+-            private final Runnable mCommand;
+-            private Thread mCallingThread;
+-            private InlineExecutionProhibitedException mExecutedInline;
+-
+-            private InlineCheckingRunnable(Runnable command, Thread callingThread) {
+-                this.mCommand = command;
+-                this.mCallingThread = callingThread;
+-            }
+-
+-            @Override
+-            public void run() {
+-                if (Thread.currentThread() == mCallingThread) {
+-                    // Can't throw directly from here, since the delegate executor could catch this
+-                    // exception.
+-                    mExecutedInline = new InlineExecutionProhibitedException();
+-                    return;
+-                }
+-                mCommand.run();
+-            }
+-        }
+-    }
+-}
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBase.java b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBase.java
+index 13ca13c6e68f5..197402651dcfe 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBase.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBase.java
+@@ -16,7 +16,7 @@ import java.util.concurrent.Executor;
+ 
+ /**
+  * Base class for classes that implement {@link UrlRequest} including experimental
+- * features. {@link CronetUrlRequest} and {@link JavaUrlRequest} extends this class.
++ * features.
+  */
+ public abstract class UrlRequestBase extends ExperimentalUrlRequest {
+     /**
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
+index 890ce2bf545e3..bea30f3b22b11 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
+@@ -51,7 +51,6 @@ public class CronetTestRule implements TestRule {
+     private CronetTestFramework mCronetTestFramework;
+ 
+     private boolean mTestingSystemHttpURLConnection;
+-    private boolean mTestingJavaImpl;
+     private StrictMode.VmPolicy mOldVmPolicy;
+ 
+     /**
+@@ -133,13 +132,12 @@ public class CronetTestRule implements TestRule {
+      * Returns {@code true} when test is being run against the java implementation of CronetEngine.
+      */
+     public boolean testingJavaImpl() {
+-        return mTestingJavaImpl;
++        return false;
+     }
+ 
+     // TODO(yolandyan): refactor this using parameterize framework
+     private void runBase(Statement base, Description desc) throws Throwable {
+         setTestingSystemHttpURLConnection(false);
+-        setTestingJavaImpl(false);
+         String packageName = desc.getTestClass().getPackage().getName();
+ 
+         boolean onlyRunTestForNative = desc.getAnnotation(OnlyRunNativeCronet.class) != null;
+@@ -150,7 +148,6 @@ public class CronetTestRule implements TestRule {
+                     + "OnlyRunNativeCronet and OnlyRunJavaCronet annotations");
+         }
+         boolean doRunTestForNative = onlyRunTestForNative || !onlyRunTestForJava;
+-        boolean doRunTestForJava = onlyRunTestForJava || !onlyRunTestForNative;
+ 
+         // Find the API version required by the test.
+         int requiredApiVersion = getMaximumAvailableApiLevel();
+@@ -205,11 +202,6 @@ public class CronetTestRule implements TestRule {
+                     Log.i(TAG, "Running test against Native implementation.");
+                     base.evaluate();
+                 }
+-                if (doRunTestForJava) {
+-                    Log.i(TAG, "Running test against Java implementation.");
+-                    setTestingJavaImpl(true);
+-                    base.evaluate();
+-                }
+             } catch (Throwable e) {
+                 Log.e(TAG, "CronetTestBase#runTest failed for %s implementation.",
+                         testingJavaImpl() ? "Java" : "Native");
+@@ -439,6 +431,5 @@ public class CronetTestRule implements TestRule {
+     }
+ 
+     private void setTestingJavaImpl(boolean value) {
+-        mTestingJavaImpl = value;
+     }
+ }
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
+index 4f0de6cafed1e..8be42a22256c9 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
+@@ -22,11 +22,9 @@ import org.junit.runner.RunWith;
+ 
+ import org.chromium.base.test.util.Feature;
+ import org.chromium.net.CronetTestRule.CronetTestFramework;
+-import org.chromium.net.CronetTestRule.OnlyRunJavaCronet;
+ import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
+ import org.chromium.net.CronetTestRule.RequiresMinApi;
+ import org.chromium.net.impl.CronetUrlRequestContext;
+-import org.chromium.net.impl.JavaCronetEngine;
+ 
+ /**
+  * Tests features of CronetTestRule.
+@@ -74,20 +72,7 @@ public class CronetTestRuleTest {
+         mTestWasRun = true;
+     }
+ 
+-    @Test
+-    @SmallTest
+-    @Feature({"Cronet"})
+-    public void testRunBothImplsMustRun() {
+-        if (mTestRule.testingJavaImpl()) {
+-            assertFalse(mTestWasRun);
+-            mTestWasRun = true;
+-            assertEquals(mTestFramework.mCronetEngine.getClass(), JavaCronetEngine.class);
+-        } else {
+-            assertFalse(mTestWasRun);
+-            mTestWasRun = true;
+-            assertEquals(mTestFramework.mCronetEngine.getClass(), CronetUrlRequestContext.class);
+-        }
+-    }
++}
+ 
+     @Test
+     @SmallTest
+@@ -100,14 +85,4 @@ public class CronetTestRuleTest {
+         assertEquals(mTestFramework.mCronetEngine.getClass(), CronetUrlRequestContext.class);
+     }
+ 
+-    @Test
+-    @SmallTest
+-    @Feature({"Cronet"})
+-    @OnlyRunJavaCronet
+-    public void testRunOnlyJavaMustRun() {
+-        assertTrue(mTestRule.testingJavaImpl());
+-        assertFalse(mTestWasRun);
+-        mTestWasRun = true;
+-        assertEquals(mTestFramework.mCronetEngine.getClass(), JavaCronetEngine.class);
+-    }
+ }
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetLoggerTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetLoggerTest.java
+index 009de095fbccf..1e4d560469e95 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetLoggerTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetLoggerTest.java
+@@ -36,7 +36,6 @@ import org.chromium.net.CronetEngine;
+ import org.chromium.net.CronetLoggerTestRule;
+ import org.chromium.net.CronetTestRule;
+ import org.chromium.net.CronetTestRule.CronetTestFramework;
+-import org.chromium.net.CronetTestRule.OnlyRunJavaCronet;
+ import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
+ import org.chromium.net.CronetTestRule.RequiresMinAndroidApi;
+ import org.chromium.net.ExperimentalCronetEngine;
+@@ -545,151 +544,4 @@ public final class CronetLoggerTest {
+         assertEquals(33, CronetUrlRequest.estimateHeadersSizeInBytes(headersList));
+     }
+ 
+-    @Test
+-    @SmallTest
+-    @Feature({"Cronet"})
+-    @OnlyRunJavaCronet
+-    public void testSuccessfulRequestJava() {
+-        final String url = NativeTestServer.getEchoBodyURL();
+-        CronetEngine engine = mTestFramework.startEngine();
+-
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        UrlRequest.Builder requestBuilder =
+-                engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
+-        UrlRequest request = requestBuilder.build();
+-        request.start();
+-        callback.blockForDone();
+-        assertFalse(callback.mOnCanceledCalled);
+-        assertFalse(callback.mOnErrorCalled);
+-        mTestLogger.waitForLogCronetTrafficInfo();
+-
+-        final CronetTrafficInfo trafficInfo = mTestLogger.getLastCronetTrafficInfo();
+-        assertNotEquals(0, trafficInfo.getRequestHeaderSizeInBytes());
+-        assertNotEquals(0, trafficInfo.getRequestBodySizeInBytes());
+-        assertNotEquals(0, trafficInfo.getResponseHeaderSizeInBytes());
+-        assertNotEquals(0, trafficInfo.getResponseBodySizeInBytes());
+-        assertEquals(200, trafficInfo.getResponseStatusCode());
+-        assertEquals(Duration.ofSeconds(0), trafficInfo.getHeadersLatency());
+-        assertEquals(Duration.ofSeconds(0), trafficInfo.getTotalLatency());
+-        assertNotNull(trafficInfo.getNegotiatedProtocol());
+-        assertFalse(trafficInfo.wasConnectionMigrationAttempted());
+-        assertFalse(trafficInfo.didConnectionMigrationSucceed());
+-
+-        assertEquals(1, mTestLogger.callsToLogCronetEngineCreation());
+-        assertEquals(1, mTestLogger.callsToLogCronetTrafficInfo());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    @Feature({"Cronet"})
+-    @OnlyRunJavaCronet
+-    public void testFailedRequestJava() {
+-        final String url = "www.unreachable-url.com";
+-        CronetEngine engine = mTestFramework.startEngine();
+-
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        UrlRequest.Builder requestBuilder =
+-                engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
+-        UrlRequest request = requestBuilder.build();
+-        request.start();
+-        callback.blockForDone();
+-        assertFalse(callback.mOnCanceledCalled);
+-        assertTrue(callback.mOnErrorCalled);
+-        mTestLogger.waitForLogCronetTrafficInfo();
+-
+-        final CronetTrafficInfo trafficInfo = mTestLogger.getLastCronetTrafficInfo();
+-        assertEquals(0, trafficInfo.getRequestHeaderSizeInBytes());
+-        assertEquals(0, trafficInfo.getResponseHeaderSizeInBytes());
+-        assertEquals(0, trafficInfo.getResponseStatusCode());
+-        // When a request fails before hitting the server all these values won't be populated in
+-        // the actual code. Check that the logger sets them to some known defaults before
+-        // logging.
+-        assertEquals(-1, trafficInfo.getRequestBodySizeInBytes());
+-        assertEquals(-1, trafficInfo.getResponseBodySizeInBytes());
+-        assertEquals("", trafficInfo.getNegotiatedProtocol());
+-        assertFalse(trafficInfo.wasConnectionMigrationAttempted());
+-        assertFalse(trafficInfo.didConnectionMigrationSucceed());
+-
+-        assertEquals(1, mTestLogger.callsToLogCronetEngineCreation());
+-        assertEquals(1, mTestLogger.callsToLogCronetTrafficInfo());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    @Feature({"Cronet"})
+-    @OnlyRunJavaCronet
+-    public void testCanceledRequestJava() {
+-        final String url = NativeTestServer.getEchoBodyURL();
+-        CronetEngine engine = mTestFramework.startEngine();
+-
+-        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+-        callback.setAutoAdvance(false);
+-        UrlRequest.Builder requestBuilder =
+-                engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
+-        UrlRequest request = requestBuilder.build();
+-        request.start();
+-        request.cancel();
+-        callback.blockForDone();
+-        assertTrue(callback.mOnCanceledCalled);
+-        assertFalse(callback.mOnErrorCalled);
+-        mTestLogger.waitForLogCronetTrafficInfo();
+-
+-        final CronetTrafficInfo trafficInfo = mTestLogger.getLastCronetTrafficInfo();
+-        assertEquals(0, trafficInfo.getRequestHeaderSizeInBytes());
+-        assertEquals(0, trafficInfo.getResponseHeaderSizeInBytes());
+-        assertEquals(0, trafficInfo.getResponseStatusCode());
+-        // When a request fails before hitting the server all these values won't be populated in
+-        // the actual code. Check that the logger sets them to some known defaults before
+-        // logging.
+-        assertEquals(-1, trafficInfo.getRequestBodySizeInBytes());
+-        assertEquals(-1, trafficInfo.getResponseBodySizeInBytes());
+-        assertEquals("", trafficInfo.getNegotiatedProtocol());
+-        assertFalse(trafficInfo.wasConnectionMigrationAttempted());
+-        assertFalse(trafficInfo.didConnectionMigrationSucceed());
+-
+-        assertEquals(1, mTestLogger.callsToLogCronetEngineCreation());
+-        assertEquals(1, mTestLogger.callsToLogCronetTrafficInfo());
+-    }
+-
+-    @Test
+-    @SmallTest
+-    @Feature({"Cronet"})
+-    @OnlyRunJavaCronet
+-    public void testEmptyHeadersSizeJava() {
+-        Map<String, String> headers = Collections.emptyMap();
+-        assertEquals(0, JavaUrlRequest.estimateHeadersSizeInBytes(headers));
+-        headers = null;
+-        assertEquals(0, JavaUrlRequest.estimateHeadersSizeInBytes(headers));
+-
+-        Map<String, List<String>> headersList = Collections.emptyMap();
+-        assertEquals(0, JavaUrlRequest.estimateHeadersSizeInBytesList(headersList));
+-        headersList = null;
+-        assertEquals(0, JavaUrlRequest.estimateHeadersSizeInBytesList(headersList));
+-    }
+-
+-    @Test
+-    @SmallTest
+-    @Feature({"Cronet"})
+-    @OnlyRunJavaCronet
+-    public void testNonEmptyHeadersSizeJava() {
+-        Map<String, String> headers = new HashMap() {
+-            {
+-                put("header1", "value1"); // 7 + 6 = 13
+-                put("header2", null); // 13 + 7 + 0 = 20
+-                put(null, ""); // 20 + 0 + 0 = 20
+-            }
+-        };
+-        assertEquals(20, JavaUrlRequest.estimateHeadersSizeInBytes(headers));
+-
+-        Map<String, List<String>> headersList = new HashMap<String, List<String>>() {
+-            {
+-                put("header1", Arrays.asList("value1", "value2")); // 7 + 6 + 6 = 19
+-                put("header2", null); // 19 + 7 = 26
+-                put("header3", Collections.emptyList()); // 26 + 7 + 0 = 33
+-                put("header4", Arrays.asList("value1", null)); // 33 + 7 + 6 + 0 = 46
+-                put(null, Arrays.asList("")); // 46 + 0 + 0 = 46
+-            }
+-        };
+-        assertEquals(46, JavaUrlRequest.estimateHeadersSizeInBytesList(headersList));
+-    }
+ }
+diff --git a/components/cronet/android/test/proguard.cfg b/components/cronet/android/test/proguard.cfg
+index 797504ab4b6d1..5df6efe760dad 100644
+--- a/components/cronet/android/test/proguard.cfg
++++ b/components/cronet/android/test/proguard.cfg
+@@ -11,10 +11,6 @@
+ # https://android.googlesource.com/platform/sdk/+/marshmallow-mr1-release/files/proguard-android.txt#54
+ -dontwarn android.support.**
+ 
+-# Do not obfuscate this class for testing since some of the tests check the class
+-# name in order to check that an instantiated engine is the Java one.
+--keepnames class org.chromium.net.impl.JavaCronetEngine
+-
+ # These classes should be explicitly kept to avoid failure if
+ # class/merging/horizontal proguard optimization is enabled.
+ # NOTE: make sure that only test classes are added to this list.
+-- 
+2.39.0.314.g84b9a713c41-goog
+

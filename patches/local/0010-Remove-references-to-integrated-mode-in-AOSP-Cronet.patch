@@ -1,0 +1,116 @@
+From 38358fb33c1ee093855c5467a31db0c886057262 Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Tue, 3 Jan 2023 16:25:37 +0000
+Subject: [PATCH] Remove references to integrated mode in AOSP Cronet.
+
+It should always run as a standalone without dependencies on
+other Chromium derived products.
+
+Test: m
+
+Change-Id: I563b3981b09919cbd74c3cdb80cbb120441117b1
+---
+ .../net/impl/CronetLibraryLoader.java         | 37 +++++++------------
+ .../net/impl/CronetUrlRequestContext.java     | 14 +++----
+ 2 files changed, 19 insertions(+), 32 deletions(-)
+
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetLibraryLoader.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetLibraryLoader.java
+index 77b718ddfef20..d0970b05dba1e 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetLibraryLoader.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetLibraryLoader.java
+@@ -35,7 +35,7 @@ public class CronetLibraryLoader {
+     // the global singleton NetworkChangeNotifier live on it and are never killed.
+     private static final HandlerThread sInitThread = new HandlerThread("CronetInit");
+     // Has library loading commenced?  Setting guarded by sLoadLock.
+-    private static volatile boolean sLibraryLoaded = IntegratedModeState.INTEGRATED_MODE_ENABLED;
++    private static volatile boolean sLibraryLoaded = false;
+     // Has ensureInitThreadInitialized() completed?
+     private static volatile boolean sInitThreadInitDone;
+     // Block calling native methods until this ConditionVariable opens to indicate loadLibrary()
+@@ -50,19 +50,11 @@ public class CronetLibraryLoader {
+             Context applicationContext, final CronetEngineBuilderImpl builder) {
+         synchronized (sLoadLock) {
+             if (!sInitThreadInitDone) {
+-                if (!IntegratedModeState.INTEGRATED_MODE_ENABLED) {
+-                    // In integrated mode, application context should be initialized by the host.
+-                    ContextUtils.initApplicationContext(applicationContext);
+-                }
++                ContextUtils.initApplicationContext(applicationContext);
+                 if (!sInitThread.isAlive()) {
+                     sInitThread.start();
+                 }
+-                postToInitThread(new Runnable() {
+-                    @Override
+-                    public void run() {
+-                        ensureInitializedOnInitThread();
+-                    }
+-                });
++                postToInitThread(CronetLibraryLoader::ensureInitializedOnInitThread);
+             }
+             if (!sLibraryLoaded) {
+                 if (builder.libraryLoader() != null) {
+@@ -101,19 +93,16 @@ public class CronetLibraryLoader {
+         if (sInitThreadInitDone) {
+             return;
+         }
+-        if (IntegratedModeState.INTEGRATED_MODE_ENABLED) {
+-            assert NetworkChangeNotifier.isInitialized();
+-        } else {
+-            NetworkChangeNotifier.init();
+-            // Registers to always receive network notifications. Note
+-            // that this call is fine for Cronet because Cronet
+-            // embedders do not have API access to create network change
+-            // observers. Existing observers in the net stack do not
+-            // perform expensive work.
+-            NetworkChangeNotifier.registerToReceiveNotificationsAlways();
+-            // Wait for loadLibrary() to complete so JNI is registered.
+-            sWaitForLibLoad.block();
+-        }
++        NetworkChangeNotifier.init();
++        // Registers to always receive network notifications. Note
++        // that this call is fine for Cronet because Cronet
++        // embedders do not have API access to create network change
++        // observers. Existing observers in the net stack do not
++        // perform expensive work.
++        NetworkChangeNotifier.registerToReceiveNotificationsAlways();
++        // Wait for loadLibrary() to complete so JNI is registered.
++        sWaitForLibLoad.block();
++
+         assert sLibraryLoaded;
+         // registerToReceiveNotificationsAlways() is called before the native
+         // NetworkChangeNotifierAndroid is created, so as to avoid receiving
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
+index e4c2df648b454..0d96dcf4aec72 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
+@@ -185,9 +185,9 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+         mThroughputListenerList.disableThreadAsserts();
+         mNetworkQualityEstimatorEnabled = builder.networkQualityEstimatorEnabled();
+         CronetLibraryLoader.ensureInitialized(builder.getContext(), builder);
+-        if (!IntegratedModeState.INTEGRATED_MODE_ENABLED) {
+-            CronetUrlRequestContextJni.get().setMinLogLevel(getLoggingLevel());
+-        }
++
++        CronetUrlRequestContextJni.get().setMinLogLevel(getLoggingLevel());
++
+         if (builder.httpCacheMode() == HttpCacheType.DISK) {
+             mInUseStoragePath = builder.storagePath();
+             synchronized (sInUseStoragePaths) {
+@@ -688,11 +688,9 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+     private void initNetworkThread() {
+         mNetworkThread = Thread.currentThread();
+         mInitCompleted.open();
+-        if (!IntegratedModeState.INTEGRATED_MODE_ENABLED) {
+-            // In integrated mode, network thread is shared from the host.
+-            // Cronet shouldn't change the property of the thread.
+-            Thread.currentThread().setName("ChromiumNet");
+-        }
++        // In integrated mode, network thread is shared from the host.
++        // Cronet shouldn't change the property of the thread.
++        Thread.currentThread().setName("ChromiumNet");
+     }
+ 
+     @SuppressWarnings("unused")
+-- 
+2.39.0.314.g84b9a713c41-goog
+
