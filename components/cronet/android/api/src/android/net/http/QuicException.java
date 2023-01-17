@@ -27,9 +27,12 @@ public abstract class QuicException extends NetworkException {
 
     /**
      * Returns the <a href="https://www.chromium.org/quic">QUIC</a> error code, which is a value
-     * from <a
-     * href="https://cs.chromium.org/search/?q=symbol:%5CbQuicErrorCode%5Cb">
-     * QuicErrorCode</a>.
+     * from <a href="https://cs.chromium.org/search/?q=symbol:%5CbQuicErrorCode%5Cb">
+     * QuicErrorCode</a>. Returns -1 if details about the QUIC error aren't available.
+     *
+     * {@hide}
      */
-    public abstract int getQuicDetailedErrorCode();
+    public int getQuicDetailedErrorCode() {
+        return -1;
+    }
 }

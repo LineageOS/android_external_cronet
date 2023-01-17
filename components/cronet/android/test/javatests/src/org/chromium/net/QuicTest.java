@@ -81,7 +81,7 @@ public class QuicTest {
                                                  .put("NetworkQualityEstimator", nqeParams);
         mBuilder.setExperimentalOptions(experimentalOptions.toString());
         mBuilder.setStoragePath(getTestStorage(getContext()));
-        mBuilder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP, 1000 * 1024);
+        mBuilder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP, 1000 * 1024);
         CronetTestUtil.setMockCertVerifierForTesting(
                 mBuilder, QuicTestServer.createMockCertVerifier());
     }
@@ -137,8 +137,8 @@ public class QuicTest {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
         builder.setStoragePath(getTestStorage(getContext()));
-        builder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1000 * 1024);
-        builder.enableQuic(true);
+        builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1000 * 1024);
+        builder.setEnableQuic(true);
         JSONObject hostResolverParams = CronetTestUtil.generateHostResolverRules();
         JSONObject experimentalOptions = new JSONObject()
                                                  .put("HostResolverRules", hostResolverParams);

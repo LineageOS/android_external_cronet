@@ -22,36 +22,16 @@ java_library {
     ],
     libs: [
         "androidx.annotation_annotation",
+        "framework-annotations-lib",
     ],
     sdk_version: "module_current",
 }
 
 // GN: //components/cronet/android:cronet_api_java
 filegroup {
-    name: "cronet_aml_api_sources",
+    name: "cronet_aml_api_helpers_sources",
     srcs: [
         ":cronet_aml_components_cronet_android_interface_api_version",
-        "components/cronet/android/api/src/android/net/http/BidirectionalStream.java",
-        "components/cronet/android/api/src/android/net/http/CallbackException.java",
-        "components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java",
-        "components/cronet/android/api/src/android/net/http/DnsOptions.java",
-        "components/cronet/android/api/src/android/net/http/QuicOptions.java",
-        "components/cronet/android/api/src/android/net/http/HttpEngine.java",
-        "components/cronet/android/api/src/android/net/http/HttpException.java",
-        "components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java",
-        "components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java",
-        "components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java",
-        "components/cronet/android/api/src/android/net/http/IHttpEngineBuilder.java",
-        "components/cronet/android/api/src/android/net/http/InlineExecutionProhibitedException.java",
-        "components/cronet/android/api/src/android/net/http/NetworkException.java",
-        "components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java",
-        "components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java",
-        "components/cronet/android/api/src/android/net/http/QuicException.java",
-        "components/cronet/android/api/src/android/net/http/RequestFinishedInfo.java",
-        "components/cronet/android/api/src/android/net/http/UploadDataProvider.java",
-        "components/cronet/android/api/src/android/net/http/UploadDataSink.java",
-        "components/cronet/android/api/src/android/net/http/UrlRequest.java",
-        "components/cronet/android/api/src/android/net/http/UrlResponseInfo.java",
         "components/cronet/android/api/src/android/net/http/apihelpers/ByteArrayCallback.java",
         "components/cronet/android/api/src/android/net/http/apihelpers/ContentTypeParametersParser.java",
         "components/cronet/android/api/src/android/net/http/apihelpers/RequestCompletionListener.java",
@@ -64,6 +44,37 @@ filegroup {
         "components/cronet/android/api/src/android/net/http/apihelpers/StringCallback.java",
         "components/cronet/android/api/src/android/net/http/apihelpers/UploadDataProviders.java",
         "components/cronet/android/api/src/android/net/http/apihelpers/UrlRequestCallbacks.java",
+    ],
+}
+
+filegroup {
+    name: "cronet_aml_api_sources",
+    srcs: [
+        ":cronet_aml_components_cronet_android_interface_api_version",
+        // TODO(danstahr): add the API helpers separately after the main API is checked in
+        // and thoroughly reviewed
+        // ":cronet_aml_api_helpers_sources",
+        "components/cronet/android/api/src/android/net/http/BidirectionalStream.java",
+        "components/cronet/android/api/src/android/net/http/CallbackException.java",
+        "components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java",
+        "components/cronet/android/api/src/android/net/http/DnsOptions.java",
+        "components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java",
+        "components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java",
+        "components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java",
+        "components/cronet/android/api/src/android/net/http/HttpEngine.java",
+        "components/cronet/android/api/src/android/net/http/HttpException.java",
+        "components/cronet/android/api/src/android/net/http/IHttpEngineBuilder.java",
+        "components/cronet/android/api/src/android/net/http/InlineExecutionProhibitedException.java",
+        "components/cronet/android/api/src/android/net/http/NetworkException.java",
+        "components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java",
+        "components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java",
+        "components/cronet/android/api/src/android/net/http/QuicException.java",
+        "components/cronet/android/api/src/android/net/http/QuicOptions.java",
+        "components/cronet/android/api/src/android/net/http/RequestFinishedInfo.java",
+        "components/cronet/android/api/src/android/net/http/UploadDataProvider.java",
+        "components/cronet/android/api/src/android/net/http/UploadDataSink.java",
+        "components/cronet/android/api/src/android/net/http/UrlRequest.java",
+        "components/cronet/android/api/src/android/net/http/UrlResponseInfo.java",
     ],
 }
 
@@ -4190,6 +4201,7 @@ java_library {
     apex_available: [
         "com.android.tethering",
     ],
+    min_sdk_version: "30",
     libs: [
         "androidx.annotation_annotation",
         "androidx.annotation_annotation-experimental-nodeps",
@@ -4217,7 +4229,6 @@ java_library {
         "-Aorg.chromium.chrome.skipGenJni",
         "-Apackage_prefix=android.net.http.internal",
     ],
-    min_sdk_version: "30",
 }
 
 // GN: //base/android/jni_generator:jni_processor

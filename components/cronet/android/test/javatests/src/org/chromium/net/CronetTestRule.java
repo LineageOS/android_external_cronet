@@ -91,7 +91,7 @@ public class CronetTestRule implements TestRule {
         }
 
         private ExperimentalHttpEngine.Builder createNativeEngineBuilder() {
-            return CronetTestRule.createNativeEngineBuilder(mContext).enableQuic(true);
+            return CronetTestRule.createNativeEngineBuilder(mContext).setEnableQuic(true);
         }
     }
 
@@ -303,7 +303,7 @@ public class CronetTestRule implements TestRule {
 
     public HttpEngine.Builder enableDiskCache(HttpEngine.Builder cronetEngineBuilder) {
         cronetEngineBuilder.setStoragePath(getTestStorage(getContext()));
-        cronetEngineBuilder.enableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1000 * 1024);
+        cronetEngineBuilder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1000 * 1024);
         return cronetEngineBuilder;
     }
 
