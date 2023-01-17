@@ -1373,7 +1373,7 @@ public class CronetUrlRequestContextTest {
         builder.setUserAgent("efgh");
         builder.setExperimentalOptions("");
         builder.setStoragePath(getTestStorage(getContext()));
-        builder.enablePublicKeyPinningBypassForLocalTrustAnchors(false);
+        builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(false);
         nativeVerifyUrlRequestContextConfig(
                 CronetUrlRequestContext.createNativeUrlRequestContextConfig(
                         (CronetEngineBuilderImpl) builder.mBuilderDelegate),
@@ -1401,7 +1401,7 @@ public class CronetUrlRequestContextTest {
         builder.setExperimentalOptions("");
         builder.setUserAgent("efgh");
         builder.setStoragePath(getTestStorage(getContext()));
-        builder.enablePublicKeyPinningBypassForLocalTrustAnchors(false);
+        builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(false);
         nativeVerifyUrlRequestContextQuicOffConfig(
                 CronetUrlRequestContext.createNativeUrlRequestContextConfig(
                         (CronetEngineBuilderImpl) builder.mBuilderDelegate),
