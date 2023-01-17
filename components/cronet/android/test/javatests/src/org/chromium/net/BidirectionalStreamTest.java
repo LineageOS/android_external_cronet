@@ -1604,7 +1604,7 @@ public class BidirectionalStreamTest {
             int netError, int errorCode, boolean immediatelyRetryable) throws Exception {
         NetworkException exception =
                 new BidirectionalStreamNetworkException("", errorCode, netError);
-        assertEquals(immediatelyRetryable, exception.immediatelyRetryable());
+        assertEquals(immediatelyRetryable, exception.isImmediatelyRetryable());
         assertEquals(netError, exception.getInternalErrorCode());
         assertEquals(errorCode, exception.getErrorCode());
     }
