@@ -50,8 +50,8 @@ public class QuicExceptionImpl extends QuicException {
     }
 
     @Override
-    public boolean immediatelyRetryable() {
-        return mNetworkException.immediatelyRetryable();
+    public boolean isImmediatelyRetryable() {
+        return mNetworkException.isImmediatelyRetryable();
     }
 
     @Override

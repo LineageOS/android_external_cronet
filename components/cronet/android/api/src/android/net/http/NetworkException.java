@@ -70,7 +70,7 @@ public abstract class NetworkException extends HttpException {
      *         java.io.IOException#getCause getCause()} method). A null value is permitted, and
      *         indicates that the cause is nonexistent or unknown.
      */
-    protected NetworkException(String message, Throwable cause) {
+    public NetworkException(String message, Throwable cause) {
         super(message, cause);
     }
 
@@ -108,5 +108,5 @@ public abstract class NetworkException extends HttpException {
      * @return {@code true} if retrying this request right away might succeed, {@code false}
      *         otherwise.
      */
-    public abstract boolean immediatelyRetryable();
+    public abstract boolean isImmediatelyRetryable();
 }

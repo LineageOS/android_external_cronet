@@ -272,7 +272,7 @@ public abstract class HttpEngine {
          * @param value {@code true} to enable the bypass, {@code false} to disable.
          * @return the builder to facilitate chaining.
          */
-        public Builder enablePublicKeyPinningBypassForLocalTrustAnchors(boolean value) {
+        public Builder setEnablePublicKeyPinningBypassForLocalTrustAnchors(boolean value) {
             mBuilderDelegate.enablePublicKeyPinningBypassForLocalTrustAnchors(value);
             return this;
         }

@@ -426,7 +426,7 @@ public class PkpTest {
             throws Exception {
         // Set common CronetEngine parameters
         mBuilder = new ExperimentalHttpEngine.Builder(getContext());
-        mBuilder.enablePublicKeyPinningBypassForLocalTrustAnchors(bypassPinningForLocalAnchors);
+        mBuilder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(bypassPinningForLocalAnchors);
         JSONObject hostResolverParams = CronetTestUtil.generateHostResolverRules();
         JSONObject experimentalOptions = new JSONObject()
                                                  .put("HostResolverRules", hostResolverParams);
