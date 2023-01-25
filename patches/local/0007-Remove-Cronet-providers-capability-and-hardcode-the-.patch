@@ -1,4 +1,4 @@
-From 52a0f514ab2932947a8bd010ae0238b6163f3c69 Mon Sep 17 00:00:00 2001
+From 5bbcbb9ccb2ca9343543d43d65e5734a071daaae Mon Sep 17 00:00:00 2001
 From: Dan Stahr <danstahr@google.com>
 Date: Tue, 3 Jan 2023 16:23:10 +0000
 Subject: [PATCH] Remove Cronet providers capability and hardcode the Android
@@ -30,18 +30,18 @@ Change-Id: I51deb9056ed066c4eaad831ab8143ddc6bdae79c
  delete mode 100644 components/cronet/android/test/javatests/src/org/chromium/net/CronetEngineBuilderTest.java
 
 diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
-index d6159e409eca8..079f9f7332e44 100644
+index c9b2031f51cdf..22da64aad913b 100644
 --- a/components/cronet/android/BUILD.gn
 +++ b/components/cronet/android/BUILD.gn
-@@ -232,7 +232,6 @@ android_library("cronet_api_java") {
-     "api/src/org/chromium/net/CallbackException.java",
+@@ -234,7 +234,6 @@ android_library("cronet_api_java") {
      "api/src/org/chromium/net/CronetEngine.java",
      "api/src/org/chromium/net/CronetException.java",
+     "api/src/org/chromium/net/DnsOptions.java",
 -    "api/src/org/chromium/net/CronetProvider.java",
      "api/src/org/chromium/net/ExperimentalBidirectionalStream.java",
      "api/src/org/chromium/net/ExperimentalCronetEngine.java",
      "api/src/org/chromium/net/ExperimentalUrlRequest.java",
-@@ -335,7 +334,6 @@ android_library("cronet_impl_platform_base_java") {
+@@ -338,7 +337,6 @@ android_library("cronet_impl_platform_base_java") {
      "java/src/org/chromium/net/impl/InputStreamChannel.java",
      "java/src/org/chromium/net/impl/JavaCronetEngine.java",
      "java/src/org/chromium/net/impl/JavaCronetEngineBuilderImpl.java",
@@ -49,7 +49,7 @@ index d6159e409eca8..079f9f7332e44 100644
      "java/src/org/chromium/net/impl/JavaUrlRequest.java",
    ]
  
-@@ -354,7 +352,6 @@ android_library("cronet_impl_fake_base_java") {
+@@ -357,7 +355,6 @@ android_library("cronet_impl_fake_base_java") {
    sources = [
      "fake/java/org/chromium/net/test/FakeCronetController.java",
      "fake/java/org/chromium/net/test/FakeCronetEngine.java",
@@ -57,7 +57,7 @@ index d6159e409eca8..079f9f7332e44 100644
      "fake/java/org/chromium/net/test/FakeUrlRequest.java",
      "fake/java/org/chromium/net/test/FakeUrlResponse.java",
      "fake/java/org/chromium/net/test/ResponseMatcher.java",
-@@ -416,7 +413,6 @@ android_library("cronet_impl_native_base_java") {
+@@ -419,7 +416,6 @@ android_library("cronet_impl_native_base_java") {
      "java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
      "java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
      "java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java",
@@ -89,7 +89,7 @@ index 20187639346eb..77a7659ccd28b 100644
    public org.chromium.net.ExperimentalBidirectionalStream$Builder();
    public org.chromium.net.ExperimentalBidirectionalStream$Builder addRequestAnnotation(java.lang.Object);
 diff --git a/components/cronet/android/api/src/org/chromium/net/CronetEngine.java b/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
-index 9941d67bbd97a..64886d545e061 100644
+index 5808f3f465695..c0408552d90e3 100644
 --- a/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
 +++ b/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
 @@ -6,20 +6,13 @@ package org.chromium.net;
@@ -152,7 +152,7 @@ index 9941d67bbd97a..64886d545e061 100644
              mBuilderDelegate = builderDelegate;
          }
  
-@@ -316,108 +313,22 @@ public abstract class CronetEngine {
+@@ -385,108 +382,22 @@ public abstract class CronetEngine {
  
          /**
           * Creates an implementation of {@link ICronetEngineBuilder} that can be used
@@ -526,10 +526,10 @@ index 233af5663c8d5..0000000000000
 -    }
 -}
 diff --git a/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java b/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java
-index defa971c49297..43a3c67e5621a 100644
+index 278658ff4a295..85f20c08579a6 100644
 --- a/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java
 +++ b/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java
-@@ -184,12 +184,6 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
+@@ -202,12 +202,6 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
              return this;
          }
  
@@ -1079,5 +1079,5 @@ index 1b041e3dd0081..69cc226a6ff0e 100644
  
  import java.util.List;
 -- 
-2.39.0.314.g84b9a713c41-goog
+2.39.1.405.gd4c25cc71f-goog
 
