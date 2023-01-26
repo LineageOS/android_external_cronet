@@ -1,4 +1,4 @@
-From 67dd4949ff0a211d0528964571e956602d25b8c8 Mon Sep 17 00:00:00 2001
+From c6a3fd8f9749be152217652757654a3ba07968c9 Mon Sep 17 00:00:00 2001
 From: Dan Stahr <danstahr@google.com>
 Date: Tue, 10 Jan 2023 10:05:15 +0000
 Subject: [PATCH] Port config options Chromium CLs to AOSP.
@@ -11,52 +11,52 @@ Test: m
 Change-Id: I71f557368977d6e506fa397d9e55323ccd020d1f
 ---
  components/cronet/android/BUILD.gn            |   3 +
- .../net/http/ConnectionMigrationOptions.java  | 400 +++++++++++
- .../src/android/net/http/CronetEngine.java    |  69 ++
- .../api/src/android/net/http/DnsOptions.java  | 433 ++++++++++++
- .../net/http/ExperimentalCronetEngine.java    | 309 +++++++-
- .../net/http/ICronetEngineBuilder.java        |  51 +-
- .../api/src/android/net/http/QuicOptions.java | 665 ++++++++++++++++++
+ .../net/ConnectionMigrationOptions.java       | 400 +++++++++++
+ .../src/org/chromium/net/CronetEngine.java    |  69 ++
+ .../api/src/org/chromium/net/DnsOptions.java  | 433 ++++++++++++
+ .../net/ExperimentalCronetEngine.java         | 309 +++++++-
+ .../chromium/net/ICronetEngineBuilder.java    |  51 +-
+ .../api/src/org/chromium/net/QuicOptions.java | 665 ++++++++++++++++++
  .../net/impl/CronetUrlRequestContext.java     |   2 +-
  8 files changed, 1928 insertions(+), 4 deletions(-)
- create mode 100644 components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
- create mode 100644 components/cronet/android/api/src/android/net/http/DnsOptions.java
- create mode 100644 components/cronet/android/api/src/android/net/http/QuicOptions.java
+ create mode 100644 components/cronet/android/api/src/org/chromium/net/ConnectionMigrationOptions.java
+ create mode 100644 components/cronet/android/api/src/org/chromium/net/DnsOptions.java
+ create mode 100644 components/cronet/android/api/src/org/chromium/net/QuicOptions.java
 
 diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
-index e6efd114..60428614 100644
+index d6159e409eca8..c9b2031f51cdf 100644
 --- a/components/cronet/android/BUILD.gn
 +++ b/components/cronet/android/BUILD.gn
 @@ -230,8 +230,10 @@ android_library("cronet_api_java") {
    sources = [
-     "api/src/android/net/http/BidirectionalStream.java",
-     "api/src/android/net/http/CallbackException.java",
-+    "api/src/android/net/http/ConnectionMigrationOptions.java",
-     "api/src/android/net/http/CronetEngine.java",
-     "api/src/android/net/http/CronetException.java",
-+    "api/src/android/net/http/DnsOptions.java",
-     "api/src/android/net/http/ExperimentalBidirectionalStream.java",
-     "api/src/android/net/http/ExperimentalCronetEngine.java",
-     "api/src/android/net/http/ExperimentalUrlRequest.java",
-@@ -241,6 +243,7 @@ android_library("cronet_api_java") {
-     "api/src/android/net/http/NetworkQualityRttListener.java",
-     "api/src/android/net/http/NetworkQualityThroughputListener.java",
-     "api/src/android/net/http/QuicException.java",
-+    "api/src/android/net/http/QuicOptions.java",
-     "api/src/android/net/http/RequestFinishedInfo.java",
-     "api/src/android/net/http/UploadDataProvider.java",
-     "api/src/android/net/http/UploadDataSink.java",
-diff --git a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+     "api/src/org/chromium/net/BidirectionalStream.java",
+     "api/src/org/chromium/net/CallbackException.java",
++    "api/src/org/chromium/net/ConnectionMigrationOptions.java",
+     "api/src/org/chromium/net/CronetEngine.java",
+     "api/src/org/chromium/net/CronetException.java",
++    "api/src/org/chromium/net/DnsOptions.java",
+     "api/src/org/chromium/net/CronetProvider.java",
+     "api/src/org/chromium/net/ExperimentalBidirectionalStream.java",
+     "api/src/org/chromium/net/ExperimentalCronetEngine.java",
+@@ -242,6 +244,7 @@ android_library("cronet_api_java") {
+     "api/src/org/chromium/net/NetworkQualityRttListener.java",
+     "api/src/org/chromium/net/NetworkQualityThroughputListener.java",
+     "api/src/org/chromium/net/QuicException.java",
++    "api/src/org/chromium/net/QuicOptions.java",
+     "api/src/org/chromium/net/RequestFinishedInfo.java",
+     "api/src/org/chromium/net/UploadDataProvider.java",
+     "api/src/org/chromium/net/UploadDataProviders.java",
+diff --git a/components/cronet/android/api/src/org/chromium/net/ConnectionMigrationOptions.java b/components/cronet/android/api/src/org/chromium/net/ConnectionMigrationOptions.java
 new file mode 100644
-index 00000000..6d0d69da
+index 0000000000000..b52d38d7fa109
 --- /dev/null
-+++ b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
++++ b/components/cronet/android/api/src/org/chromium/net/ConnectionMigrationOptions.java
 @@ -0,0 +1,400 @@
 +// Copyright 2022 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
-+package android.net.http;
++package org.chromium.net;
 +
 +import androidx.annotation.Nullable;
 +
@@ -452,12 +452,11 @@ index 00000000..6d0d69da
 +     */
 +    public @interface Experimental {}
 +}
-\ No newline at end of file
-diff --git a/components/cronet/android/api/src/android/net/http/CronetEngine.java b/components/cronet/android/api/src/android/net/http/CronetEngine.java
-index e194ae94..e7e57401 100644
---- a/components/cronet/android/api/src/android/net/http/CronetEngine.java
-+++ b/components/cronet/android/api/src/android/net/http/CronetEngine.java
-@@ -276,6 +276,75 @@ public abstract class CronetEngine {
+diff --git a/components/cronet/android/api/src/org/chromium/net/CronetEngine.java b/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
+index 9941d67bbd97a..5808f3f465695 100644
+--- a/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
++++ b/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
+@@ -306,6 +306,75 @@ public abstract class CronetEngine {
              return this;
          }
  
@@ -533,17 +532,17 @@ index e194ae94..e7e57401 100644
          /**
           * Build a {@link CronetEngine} using this builder's configuration.
           * @return constructed {@link CronetEngine}.
-diff --git a/components/cronet/android/api/src/android/net/http/DnsOptions.java b/components/cronet/android/api/src/android/net/http/DnsOptions.java
+diff --git a/components/cronet/android/api/src/org/chromium/net/DnsOptions.java b/components/cronet/android/api/src/org/chromium/net/DnsOptions.java
 new file mode 100644
-index 00000000..e8237ea9
+index 0000000000000..f81048e887c8e
 --- /dev/null
-+++ b/components/cronet/android/api/src/android/net/http/DnsOptions.java
++++ b/components/cronet/android/api/src/org/chromium/net/DnsOptions.java
 @@ -0,0 +1,433 @@
 +// Copyright 2022 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
-+package android.net.http;
++package org.chromium.net;
 +
 +import android.os.Build.VERSION_CODES;
 +
@@ -972,16 +971,15 @@ index 00000000..e8237ea9
 +     */
 +    public @interface Experimental {}
 +}
-\ No newline at end of file
-diff --git a/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java b/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java
-index 5f8e7872..5f93c0b6 100644
---- a/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java
-+++ b/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java
+diff --git a/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java b/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java
+index defa971c49297..67a83b6edc81a 100644
+--- a/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java
++++ b/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java
 @@ -4,14 +4,20 @@
- package android.net.http;
+ package org.chromium.net;
  
  import android.content.Context;
-+import android.net.http.DnsOptions.StaleDnsOptions;
++import org.chromium.net.DnsOptions.StaleDnsOptions;
  
  import androidx.annotation.VisibleForTesting;
  
@@ -1041,7 +1039,7 @@ index 5f8e7872..5f93c0b6 100644
           * @hide
           */
          @VisibleForTesting
-@@ -196,6 +214,250 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
+@@ -202,6 +220,250 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
              return this;
          }
  
@@ -1292,7 +1290,7 @@ index 5f8e7872..5f93c0b6 100644
          @Override
          public Builder enableSdch(boolean value) {
              return this;
-@@ -228,8 +490,53 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
+@@ -234,8 +496,53 @@ public abstract class ExperimentalCronetEngine extends CronetEngine {
  
          @Override
          public ExperimentalCronetEngine build() {
@@ -1346,21 +1344,21 @@ index 5f8e7872..5f93c0b6 100644
      }
  
      /**
-diff --git a/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java b/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
-index 167e9045..b7bac57c 100644
---- a/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
-+++ b/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
+diff --git a/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java b/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java
+index 4cdb0bf790198..f1d2e68569eea 100644
+--- a/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java
++++ b/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java
 @@ -3,6 +3,7 @@
  // found in the LICENSE file.
- package android.net.http;
+ package org.chromium.net;
  
 +import java.util.Collections;
  import java.util.Date;
  import java.util.Set;
  
-@@ -13,29 +14,75 @@ import java.util.Set;
-  * {@link CronetEngine.Builder} and
-  * {@link ExperimentalCronetEngine.Builder}.
+@@ -13,31 +14,77 @@ import java.util.Set;
+  * {@link org.chromium.net.CronetEngine.Builder} and
+  * {@link org.chromium.net.ExperimentalCronetEngine.Builder}.
   *
 - * {@hide internal class}
 + * <p>{@hide internal class}
@@ -1413,6 +1411,8 @@ index 167e9045..b7bac57c 100644
 +    }
 +
      public abstract ICronetEngineBuilder setExperimentalOptions(String options);
+     public abstract ICronetEngineBuilder setLibraryLoader(
+             CronetEngine.Builder.LibraryLoader loader);
      public abstract ICronetEngineBuilder setStoragePath(String value);
 +
      public abstract ICronetEngineBuilder setUserAgent(String userAgent);
@@ -1435,24 +1435,24 @@ index 167e9045..b7bac57c 100644
      // Experimental API methods.
      //
      // Note: all experimental API methods should have default implementation. This will allow
-@@ -49,4 +96,4 @@ public abstract class ICronetEngineBuilder {
+@@ -51,4 +98,4 @@ public abstract class ICronetEngineBuilder {
      public ICronetEngineBuilder setThreadPriority(int priority) {
          return this;
      }
 -}
 +}
 \ No newline at end of file
-diff --git a/components/cronet/android/api/src/android/net/http/QuicOptions.java b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+diff --git a/components/cronet/android/api/src/org/chromium/net/QuicOptions.java b/components/cronet/android/api/src/org/chromium/net/QuicOptions.java
 new file mode 100644
-index 00000000..ecf131e4
+index 0000000000000..f0c7b0fcdeefa
 --- /dev/null
-+++ b/components/cronet/android/api/src/android/net/http/QuicOptions.java
++++ b/components/cronet/android/api/src/org/chromium/net/QuicOptions.java
 @@ -0,0 +1,665 @@
 +// Copyright 2022 The Chromium Authors
 +// Use of this source code is governed by a BSD-style license that can be
 +// found in the LICENSE file.
 +
-+package android.net.http;
++package org.chromium.net;
 +
 +import androidx.annotation.Nullable;
 +
@@ -2113,12 +2113,11 @@ index 00000000..ecf131e4
 +     */
 +    public @interface QuichePassthroughOption {}
 +}
-\ No newline at end of file
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
-index 3b94ff76..d08fcd50 100644
+index e4c2df648b454..d2443b4d4470e 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
-@@ -828,4 +828,4 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+@@ -830,4 +830,4 @@ public class CronetUrlRequestContext extends CronetEngineBase {
          @NativeClassQualifiedName("CronetContextAdapter")
          boolean skipLogging(long nativePtr, CronetUrlRequestContext caller);
      }
@@ -2126,5 +2125,5 @@ index 3b94ff76..d08fcd50 100644
 +}
 \ No newline at end of file
 -- 
-2.39.0.314.g84b9a713c41-goog
+2.39.1.405.gd4c25cc71f-goog
 

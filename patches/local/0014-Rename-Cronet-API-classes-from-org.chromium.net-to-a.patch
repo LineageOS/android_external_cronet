@@ -1,4 +1,4 @@
-From 9f5527afb5ba8f0350502bd334366aba8ecd24d4 Mon Sep 17 00:00:00 2001
+From 84fd19482ea316904e1d5d5d7120aa2429f67bd4 Mon Sep 17 00:00:00 2001
 From: Dan Stahr <danstahr@google.com>
 Date: Tue, 10 Jan 2023 15:56:38 +0000
 Subject: [PATCH] Rename Cronet API classes from org.chromium.net to
@@ -9,14 +9,16 @@ Also clean up the API surface a bit.
 Test: m
 Change-Id: I12c0ca0829e005f291eda7c690dfa401d91987b9
 ---
- components/cronet/android/BUILD.gn            |  62 ++++-----
+ components/cronet/android/BUILD.gn            |  68 +++++-----
  .../net/http}/ApiVersion.template             |   2 +-
  .../net/http}/BidirectionalStream.java        |   2 +-
  .../net/http}/CallbackException.java          |   2 +-
+ .../net/http}/ConnectionMigrationOptions.java |   2 +-
  .../net/http}/CronetEngine.java               |  18 +--
  .../net/http}/CronetException.java            |   2 +-
+ .../net => android/net/http}/DnsOptions.java  |   2 +-
  .../ExperimentalBidirectionalStream.java      |   2 +-
- .../net/http}/ExperimentalCronetEngine.java   |   2 +-
+ .../net/http}/ExperimentalCronetEngine.java   |   4 +-
  .../net/http}/ExperimentalUrlRequest.java     |   2 +-
  .../net/http}/ICronetEngineBuilder.java       |   6 +-
  .../InlineExecutionProhibitedException.java   |   2 +-
@@ -24,6 +26,7 @@ Change-Id: I12c0ca0829e005f291eda7c690dfa401d91987b9
  .../net/http}/NetworkQualityRttListener.java  |   2 +-
  .../NetworkQualityThroughputListener.java     |   2 +-
  .../net/http}/QuicException.java              |   2 +-
+ .../net => android/net/http}/QuicOptions.java |   2 +-
  .../net/http}/RequestFinishedInfo.java        |  48 +++----
  .../net/http}/UploadDataProvider.java         |   2 +-
  .../net/http}/UploadDataSink.java             |   2 +-
@@ -100,21 +103,24 @@ Change-Id: I12c0ca0829e005f291eda7c690dfa401d91987b9
  .../CronetFixedModeOutputStreamTest.java      |   4 +-
  .../CronetHttpURLConnectionTest.java          |   4 +-
  .../net/urlconnection/QuicUploadTest.java     |   4 +-
- 92 files changed, 354 insertions(+), 362 deletions(-)
+ 94 files changed, 329 insertions(+), 337 deletions(-)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/ApiVersion.template (98%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/BidirectionalStream.java (99%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/CallbackException.java (97%)
+ rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/ConnectionMigrationOptions.java (99%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/CronetEngine.java (96%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/CronetException.java (96%)
+ rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/DnsOptions.java (99%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/ExperimentalBidirectionalStream.java (99%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/ExperimentalCronetEngine.java (99%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/ExperimentalUrlRequest.java (99%)
- rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/ICronetEngineBuilder.java (93%)
+ rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/ICronetEngineBuilder.java (96%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/InlineExecutionProhibitedException.java (95%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/NetworkException.java (99%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/NetworkQualityRttListener.java (98%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/NetworkQualityThroughputListener.java (98%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/QuicException.java (98%)
+ rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/QuicOptions.java (99%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/RequestFinishedInfo.java (90%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/UploadDataProvider.java (99%)
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/UploadDataSink.java (97%)
@@ -134,17 +140,19 @@ Change-Id: I12c0ca0829e005f291eda7c690dfa401d91987b9
  rename components/cronet/android/api/src/{org/chromium/net => android/net/http}/apihelpers/UrlRequestCallbacks.java (98%)
 
 diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
-index a9c4939a..40c92434 100644
+index be920eaa0802b..2a1343780884b 100644
 --- a/components/cronet/android/BUILD.gn
 +++ b/components/cronet/android/BUILD.gn
-@@ -228,36 +228,36 @@ sizes_test("cronet_sizes") {
+@@ -228,39 +228,39 @@ sizes_test("cronet_sizes") {
  # cronet_api_java.jar defines Cronet API.
  android_library("cronet_api_java") {
    sources = [
 -    "api/src/org/chromium/net/BidirectionalStream.java",
 -    "api/src/org/chromium/net/CallbackException.java",
+-    "api/src/org/chromium/net/ConnectionMigrationOptions.java",
 -    "api/src/org/chromium/net/CronetEngine.java",
 -    "api/src/org/chromium/net/CronetException.java",
+-    "api/src/org/chromium/net/DnsOptions.java",
 -    "api/src/org/chromium/net/ExperimentalBidirectionalStream.java",
 -    "api/src/org/chromium/net/ExperimentalCronetEngine.java",
 -    "api/src/org/chromium/net/ExperimentalUrlRequest.java",
@@ -154,6 +162,7 @@ index a9c4939a..40c92434 100644
 -    "api/src/org/chromium/net/NetworkQualityRttListener.java",
 -    "api/src/org/chromium/net/NetworkQualityThroughputListener.java",
 -    "api/src/org/chromium/net/QuicException.java",
+-    "api/src/org/chromium/net/QuicOptions.java",
 -    "api/src/org/chromium/net/RequestFinishedInfo.java",
 -    "api/src/org/chromium/net/UploadDataProvider.java",
 -    "api/src/org/chromium/net/UploadDataSink.java",
@@ -173,8 +182,10 @@ index a9c4939a..40c92434 100644
 -    "api/src/org/chromium/net/apihelpers/UrlRequestCallbacks.java",
 +    "api/src/android/net/http/BidirectionalStream.java",
 +    "api/src/android/net/http/CallbackException.java",
++    "api/src/android/net/http/ConnectionMigrationOptions.java",
 +    "api/src/android/net/http/CronetEngine.java",
 +    "api/src/android/net/http/CronetException.java",
++    "api/src/android/net/http/DnsOptions.java",
 +    "api/src/android/net/http/ExperimentalBidirectionalStream.java",
 +    "api/src/android/net/http/ExperimentalCronetEngine.java",
 +    "api/src/android/net/http/ExperimentalUrlRequest.java",
@@ -184,6 +195,7 @@ index a9c4939a..40c92434 100644
 +    "api/src/android/net/http/NetworkQualityRttListener.java",
 +    "api/src/android/net/http/NetworkQualityThroughputListener.java",
 +    "api/src/android/net/http/QuicException.java",
++    "api/src/android/net/http/QuicOptions.java",
 +    "api/src/android/net/http/RequestFinishedInfo.java",
 +    "api/src/android/net/http/UploadDataProvider.java",
 +    "api/src/android/net/http/UploadDataSink.java",
@@ -204,7 +216,7 @@ index a9c4939a..40c92434 100644
      _generated_interface_api_version_java,
    ]
  
-@@ -1604,4 +1604,4 @@ if (!is_component_build) {
+@@ -1607,4 +1607,4 @@ if (!is_component_build) {
        ]
      }
    }
@@ -215,7 +227,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/ApiVersion.templ
 similarity index 98%
 rename from components/cronet/android/api/src/org/chromium/net/ApiVersion.template
 rename to components/cronet/android/api/src/android/net/http/ApiVersion.template
-index 458beb01..8bca4ede 100644
+index 458beb01b1f8f..8bca4ede54b36 100644
 --- a/components/cronet/android/api/src/org/chromium/net/ApiVersion.template
 +++ b/components/cronet/android/api/src/android/net/http/ApiVersion.template
 @@ -2,7 +2,7 @@
@@ -231,7 +243,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/BidirectionalStr
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/BidirectionalStream.java
 rename to components/cronet/android/api/src/android/net/http/BidirectionalStream.java
-index 51f0ca5b..b206a019 100644
+index 51f0ca5b3bf56..b206a019e5937 100644
 --- a/components/cronet/android/api/src/org/chromium/net/BidirectionalStream.java
 +++ b/components/cronet/android/api/src/android/net/http/BidirectionalStream.java
 @@ -2,7 +2,7 @@
@@ -247,7 +259,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/CallbackExceptio
 similarity index 97%
 rename from components/cronet/android/api/src/org/chromium/net/CallbackException.java
 rename to components/cronet/android/api/src/android/net/http/CallbackException.java
-index 7012e597..7bd70f61 100644
+index 7012e5975e243..7bd70f61f856b 100644
 --- a/components/cronet/android/api/src/org/chromium/net/CallbackException.java
 +++ b/components/cronet/android/api/src/android/net/http/CallbackException.java
 @@ -2,7 +2,7 @@
@@ -259,11 +271,27 @@ index 7012e597..7bd70f61 100644
  
  /**
   * Exception passed to {@link UrlRequest.Callback#onFailed UrlRequest.Callback.onFailed()} when
+diff --git a/components/cronet/android/api/src/org/chromium/net/ConnectionMigrationOptions.java b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+similarity index 99%
+rename from components/cronet/android/api/src/org/chromium/net/ConnectionMigrationOptions.java
+rename to components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+index b52d38d7fa109..a146b7d321dbb 100644
+--- a/components/cronet/android/api/src/org/chromium/net/ConnectionMigrationOptions.java
++++ b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-package org.chromium.net;
++package android.net.http;
+ 
+ import androidx.annotation.Nullable;
+ 
 diff --git a/components/cronet/android/api/src/org/chromium/net/CronetEngine.java b/components/cronet/android/api/src/android/net/http/CronetEngine.java
 similarity index 96%
 rename from components/cronet/android/api/src/org/chromium/net/CronetEngine.java
 rename to components/cronet/android/api/src/android/net/http/CronetEngine.java
-index 916fe7fa..e194ae94 100644
+index 638a0c56a2d04..e7e57401f21af 100644
 --- a/components/cronet/android/api/src/org/chromium/net/CronetEngine.java
 +++ b/components/cronet/android/api/src/android/net/http/CronetEngine.java
 @@ -2,10 +2,9 @@
@@ -304,7 +332,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/CronetException.
 similarity index 96%
 rename from components/cronet/android/api/src/org/chromium/net/CronetException.java
 rename to components/cronet/android/api/src/android/net/http/CronetException.java
-index f3804070..127a6623 100644
+index f3804070546f1..127a6623ede14 100644
 --- a/components/cronet/android/api/src/org/chromium/net/CronetException.java
 +++ b/components/cronet/android/api/src/android/net/http/CronetException.java
 @@ -2,7 +2,7 @@
@@ -316,11 +344,27 @@ index f3804070..127a6623 100644
  
  import java.io.IOException;
  
+diff --git a/components/cronet/android/api/src/org/chromium/net/DnsOptions.java b/components/cronet/android/api/src/android/net/http/DnsOptions.java
+similarity index 99%
+rename from components/cronet/android/api/src/org/chromium/net/DnsOptions.java
+rename to components/cronet/android/api/src/android/net/http/DnsOptions.java
+index f81048e887c8e..30e7467aa69fa 100644
+--- a/components/cronet/android/api/src/org/chromium/net/DnsOptions.java
++++ b/components/cronet/android/api/src/android/net/http/DnsOptions.java
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-package org.chromium.net;
++package android.net.http;
+ 
+ import android.os.Build.VERSION_CODES;
+ 
 diff --git a/components/cronet/android/api/src/org/chromium/net/ExperimentalBidirectionalStream.java b/components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/ExperimentalBidirectionalStream.java
 rename to components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java
-index 4c3440e9..205ce177 100644
+index 4c3440e9dde0e..205ce177e6e58 100644
 --- a/components/cronet/android/api/src/org/chromium/net/ExperimentalBidirectionalStream.java
 +++ b/components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java
 @@ -2,7 +2,7 @@
@@ -336,10 +380,10 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/ExperimentalCron
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java
 rename to components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java
-index 43a3c67e..5f8e7872 100644
+index 2ff9d08333b8c..5f93c0b60ac69 100644
 --- a/components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java
 +++ b/components/cronet/android/api/src/android/net/http/ExperimentalCronetEngine.java
-@@ -1,7 +1,7 @@
+@@ -1,10 +1,10 @@
  // Copyright 2016 The Chromium Authors
  // Use of this source code is governed by a BSD-style license that can be
  // found in the LICENSE file.
@@ -347,12 +391,16 @@ index 43a3c67e..5f8e7872 100644
 +package android.net.http;
  
  import android.content.Context;
+-import org.chromium.net.DnsOptions.StaleDnsOptions;
++import android.net.http.DnsOptions.StaleDnsOptions;
+ 
+ import androidx.annotation.VisibleForTesting;
  
 diff --git a/components/cronet/android/api/src/org/chromium/net/ExperimentalUrlRequest.java b/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/ExperimentalUrlRequest.java
 rename to components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
-index 45496aac..d2affc92 100644
+index 45496aac050a0..d2affc924b1b1 100644
 --- a/components/cronet/android/api/src/org/chromium/net/ExperimentalUrlRequest.java
 +++ b/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
 @@ -1,7 +1,7 @@
@@ -365,10 +413,10 @@ index 45496aac..d2affc92 100644
  import java.util.concurrent.Executor;
  
 diff --git a/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java b/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
-similarity index 93%
+similarity index 96%
 rename from components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java
 rename to components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
-index a5395c7a..167e9045 100644
+index c79b420d1da97..b7bac57cad13f 100644
 --- a/components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java
 +++ b/components/cronet/android/api/src/android/net/http/ICronetEngineBuilder.java
 @@ -1,7 +1,7 @@
@@ -378,9 +426,9 @@ index a5395c7a..167e9045 100644
 -package org.chromium.net;
 +package android.net.http;
  
+ import java.util.Collections;
  import java.util.Date;
- import java.util.Set;
-@@ -10,8 +10,8 @@ import java.util.Set;
+@@ -11,8 +11,8 @@ import java.util.Set;
   * Defines methods that the actual implementation of {@link CronetEngine.Builder} has to implement.
   * {@code CronetEngine.Builder} uses this interface to delegate the calls.
   * For the documentation of individual methods, please see the identically named methods in
@@ -389,13 +437,13 @@ index a5395c7a..167e9045 100644
 + * {@link CronetEngine.Builder} and
 + * {@link ExperimentalCronetEngine.Builder}.
   *
-  * {@hide internal class}
+  * <p>{@hide internal class}
   */
 diff --git a/components/cronet/android/api/src/org/chromium/net/InlineExecutionProhibitedException.java b/components/cronet/android/api/src/android/net/http/InlineExecutionProhibitedException.java
 similarity index 95%
 rename from components/cronet/android/api/src/org/chromium/net/InlineExecutionProhibitedException.java
 rename to components/cronet/android/api/src/android/net/http/InlineExecutionProhibitedException.java
-index e1416640..45f168e6 100644
+index e14166400e7c4..45f168e6169d8 100644
 --- a/components/cronet/android/api/src/org/chromium/net/InlineExecutionProhibitedException.java
 +++ b/components/cronet/android/api/src/android/net/http/InlineExecutionProhibitedException.java
 @@ -2,7 +2,7 @@
@@ -411,7 +459,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/NetworkException
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/NetworkException.java
 rename to components/cronet/android/api/src/android/net/http/NetworkException.java
-index c4333ab9..3b5a19eb 100644
+index c4333ab9b4a85..3b5a19eb7b893 100644
 --- a/components/cronet/android/api/src/org/chromium/net/NetworkException.java
 +++ b/components/cronet/android/api/src/android/net/http/NetworkException.java
 @@ -2,7 +2,7 @@
@@ -427,7 +475,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/NetworkQualityRt
 similarity index 98%
 rename from components/cronet/android/api/src/org/chromium/net/NetworkQualityRttListener.java
 rename to components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java
-index b079bb66..d22220b3 100644
+index b079bb6633034..d22220b35f1ea 100644
 --- a/components/cronet/android/api/src/org/chromium/net/NetworkQualityRttListener.java
 +++ b/components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java
 @@ -2,7 +2,7 @@
@@ -443,7 +491,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/NetworkQualityTh
 similarity index 98%
 rename from components/cronet/android/api/src/org/chromium/net/NetworkQualityThroughputListener.java
 rename to components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java
-index af862a10..d812b00b 100644
+index af862a100842f..d812b00b524ed 100644
 --- a/components/cronet/android/api/src/org/chromium/net/NetworkQualityThroughputListener.java
 +++ b/components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java
 @@ -2,7 +2,7 @@
@@ -459,7 +507,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/QuicException.ja
 similarity index 98%
 rename from components/cronet/android/api/src/org/chromium/net/QuicException.java
 rename to components/cronet/android/api/src/android/net/http/QuicException.java
-index d00b11de..db87f4b8 100644
+index d00b11de4ca16..db87f4b80371d 100644
 --- a/components/cronet/android/api/src/org/chromium/net/QuicException.java
 +++ b/components/cronet/android/api/src/android/net/http/QuicException.java
 @@ -2,7 +2,7 @@
@@ -471,11 +519,27 @@ index d00b11de..db87f4b8 100644
  
  /**
   * Subclass of {@link NetworkException} which contains a detailed
+diff --git a/components/cronet/android/api/src/org/chromium/net/QuicOptions.java b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+similarity index 99%
+rename from components/cronet/android/api/src/org/chromium/net/QuicOptions.java
+rename to components/cronet/android/api/src/android/net/http/QuicOptions.java
+index f0c7b0fcdeefa..6e8cdab0d349f 100644
+--- a/components/cronet/android/api/src/org/chromium/net/QuicOptions.java
++++ b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+@@ -2,7 +2,7 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
+-package org.chromium.net;
++package android.net.http;
+ 
+ import androidx.annotation.Nullable;
+ 
 diff --git a/components/cronet/android/api/src/org/chromium/net/RequestFinishedInfo.java b/components/cronet/android/api/src/android/net/http/RequestFinishedInfo.java
 similarity index 90%
 rename from components/cronet/android/api/src/org/chromium/net/RequestFinishedInfo.java
 rename to components/cronet/android/api/src/android/net/http/RequestFinishedInfo.java
-index 2583d7ef..80651139 100644
+index 2583d7efc56a3..8065113973c2f 100644
 --- a/components/cronet/android/api/src/org/chromium/net/RequestFinishedInfo.java
 +++ b/components/cronet/android/api/src/android/net/http/RequestFinishedInfo.java
 @@ -2,12 +2,12 @@
@@ -637,7 +701,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/UploadDataProvid
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/UploadDataProvider.java
 rename to components/cronet/android/api/src/android/net/http/UploadDataProvider.java
-index 2e554871..4c72416d 100644
+index 2e5548714cc69..4c72416d4d81e 100644
 --- a/components/cronet/android/api/src/org/chromium/net/UploadDataProvider.java
 +++ b/components/cronet/android/api/src/android/net/http/UploadDataProvider.java
 @@ -2,7 +2,7 @@
@@ -653,7 +717,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/UploadDataSink.j
 similarity index 97%
 rename from components/cronet/android/api/src/org/chromium/net/UploadDataSink.java
 rename to components/cronet/android/api/src/android/net/http/UploadDataSink.java
-index 9a6a2b53..bb5c83b0 100644
+index 9a6a2b533c329..bb5c83b09b712 100644
 --- a/components/cronet/android/api/src/org/chromium/net/UploadDataSink.java
 +++ b/components/cronet/android/api/src/android/net/http/UploadDataSink.java
 @@ -2,7 +2,7 @@
@@ -669,7 +733,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/UrlRequest.java 
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/UrlRequest.java
 rename to components/cronet/android/api/src/android/net/http/UrlRequest.java
-index 3ad9a9ce..99634a45 100644
+index 3ad9a9ce058a9..99634a45bf8e1 100644
 --- a/components/cronet/android/api/src/org/chromium/net/UrlRequest.java
 +++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
 @@ -2,7 +2,7 @@
@@ -685,7 +749,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/UrlResponseInfo.
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/UrlResponseInfo.java
 rename to components/cronet/android/api/src/android/net/http/UrlResponseInfo.java
-index e6d7d378..6b66e895 100644
+index e6d7d3785136d..6b66e89584e29 100644
 --- a/components/cronet/android/api/src/org/chromium/net/UrlResponseInfo.java
 +++ b/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java
 @@ -2,7 +2,7 @@
@@ -701,7 +765,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/ByteA
 similarity index 90%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/ByteArrayCronetCallback.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/ByteArrayCronetCallback.java
-index 08c3b5fe..855d5ddd 100644
+index 08c3b5fe0aadb..855d5ddd4ee7b 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/ByteArrayCronetCallback.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/ByteArrayCronetCallback.java
 @@ -2,9 +2,9 @@
@@ -720,7 +784,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/Conte
 similarity index 99%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/ContentTypeParametersParser.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/ContentTypeParametersParser.java
-index dedf3c3c..c1de2673 100644
+index dedf3c3c3683f..c1de26731bad8 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/ContentTypeParametersParser.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/ContentTypeParametersParser.java
 @@ -2,7 +2,7 @@
@@ -736,7 +800,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/Crone
 similarity index 93%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/CronetRequestCompletionListener.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/CronetRequestCompletionListener.java
-index b7093b09..224d765e 100644
+index b7093b09fea0c..224d765e680da 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/CronetRequestCompletionListener.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/CronetRequestCompletionListener.java
 @@ -2,12 +2,12 @@
@@ -759,7 +823,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/Crone
 similarity index 95%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/CronetResponse.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/CronetResponse.java
-index a9328e2a..97517a4a 100644
+index a9328e2abcece..97517a4abac1c 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/CronetResponse.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/CronetResponse.java
 @@ -2,11 +2,11 @@
@@ -780,7 +844,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/Impli
 similarity index 96%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/ImplicitFlowControlCallback.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/ImplicitFlowControlCallback.java
-index 2643c1ea..8c5d838b 100644
+index 2643c1eaca14e..8c5d838bca005 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/ImplicitFlowControlCallback.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/ImplicitFlowControlCallback.java
 @@ -2,14 +2,15 @@
@@ -808,7 +872,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/InMem
 similarity index 97%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/InMemoryTransformCronetCallback.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/InMemoryTransformCronetCallback.java
-index 96d2c28d..2383e33a 100644
+index 96d2c28dc36e1..2383e33a8db7a 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/InMemoryTransformCronetCallback.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/InMemoryTransformCronetCallback.java
 @@ -2,12 +2,12 @@
@@ -831,7 +895,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/JsonC
 similarity index 94%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/JsonCronetCallback.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/JsonCronetCallback.java
-index 8d1fb2dc..51ae9d2c 100644
+index 8d1fb2dc9f7e0..51ae9d2cf113d 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/JsonCronetCallback.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/JsonCronetCallback.java
 @@ -2,12 +2,12 @@
@@ -853,7 +917,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/Redir
 similarity index 88%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/RedirectHandler.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandler.java
-index 7a66f9ca..f42df0da 100644
+index 7a66f9ca06c8c..f42df0da9b31d 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/RedirectHandler.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandler.java
 @@ -2,9 +2,9 @@
@@ -872,7 +936,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/Redir
 similarity index 95%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/RedirectHandlers.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandlers.java
-index cbcfa782..e16f2a4b 100644
+index cbcfa7823ef05..e16f2a4be93cc 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/RedirectHandlers.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/RedirectHandlers.java
 @@ -2,7 +2,7 @@
@@ -888,7 +952,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/Strin
 similarity index 96%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/StringCronetCallback.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/StringCronetCallback.java
-index b8d6aacc..fba59dcd 100644
+index b8d6aaccae760..fba59dcdd395c 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/StringCronetCallback.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/StringCronetCallback.java
 @@ -2,9 +2,9 @@
@@ -907,7 +971,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/Uploa
 similarity index 97%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/UploadDataProviders.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/UploadDataProviders.java
-index 4a23487c..f27bb3a1 100644
+index 4a23487c41e22..f27bb3a1e4fe1 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/UploadDataProviders.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/UploadDataProviders.java
 @@ -1,14 +1,13 @@
@@ -933,7 +997,7 @@ diff --git a/components/cronet/android/api/src/org/chromium/net/apihelpers/UrlRe
 similarity index 98%
 rename from components/cronet/android/api/src/org/chromium/net/apihelpers/UrlRequestCallbacks.java
 rename to components/cronet/android/api/src/android/net/http/apihelpers/UrlRequestCallbacks.java
-index b5392e70..76a0e4cd 100644
+index b5392e703eac4..76a0e4cd0c87e 100644
 --- a/components/cronet/android/api/src/org/chromium/net/apihelpers/UrlRequestCallbacks.java
 +++ b/components/cronet/android/api/src/android/net/http/apihelpers/UrlRequestCallbacks.java
 @@ -2,14 +2,15 @@
@@ -956,7 +1020,7 @@ index b5392e70..76a0e4cd 100644
  import java.util.concurrent.CompletableFuture;
  import java.util.concurrent.Future;
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/BidirectionalStreamBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/BidirectionalStreamBuilderImpl.java
-index c93ae093..182d170b 100644
+index c93ae093d7868..182d170bce32b 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/BidirectionalStreamBuilderImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/BidirectionalStreamBuilderImpl.java
 @@ -6,9 +6,9 @@ package org.chromium.net.impl;
@@ -973,7 +1037,7 @@ index c93ae093..182d170b 100644
  import java.util.AbstractMap;
  import java.util.ArrayList;
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CallbackExceptionImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/CallbackExceptionImpl.java
-index e73f181e..df4ba679 100644
+index e73f181ec6850..df4ba679a7026 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CallbackExceptionImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CallbackExceptionImpl.java
 @@ -4,7 +4,7 @@
@@ -986,7 +1050,7 @@ index e73f181e..df4ba679 100644
  /**
   * An implementation of {@link CallbackException}.
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetBidirectionalStream.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetBidirectionalStream.java
-index 654b3b15..e50a00e5 100644
+index 654b3b155cdc4..e50a00e5c19eb 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetBidirectionalStream.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetBidirectionalStream.java
 @@ -12,14 +12,14 @@ import org.chromium.base.annotations.CalledByNative;
@@ -1012,7 +1076,7 @@ index 654b3b15..e50a00e5 100644
  import java.lang.annotation.Retention;
  import java.lang.annotation.RetentionPolicy;
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
-index 9ae44827..813beb3c 100644
+index 9ae4482789994..813beb3c66f4f 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
 @@ -6,12 +6,12 @@ package org.chromium.net.impl;
@@ -1053,7 +1117,7 @@ index 9ae44827..813beb3c 100644
       *         tag to apply to sockets used to perform this request.
       * @param trafficStatsTag TrafficStats tag to apply to sockets used to perform this request.
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
-index d4d17cbe..b9f6337e 100644
+index d4d17cbe682a5..b9f6337e92c98 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBuilderImpl.java
 @@ -11,8 +11,8 @@ import android.util.Base64;
@@ -1068,7 +1132,7 @@ index d4d17cbe..b9f6337e 100644
  import java.io.File;
  import java.lang.annotation.Retention;
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetExceptionImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetExceptionImpl.java
-index 4c895479..0bce708f 100644
+index 4c895479b088b..0bce708f7b19a 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetExceptionImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetExceptionImpl.java
 @@ -4,7 +4,7 @@
@@ -1081,7 +1145,7 @@ index 4c895479..0bce708f 100644
  /**
   * Implements {@link CronetException}.
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetMetrics.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetMetrics.java
-index 1e158d3e..ca2c6567 100644
+index 1e158d3ee51d7..ca2c65675e106 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetMetrics.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetMetrics.java
 @@ -7,9 +7,9 @@ package org.chromium.net.impl;
@@ -1298,7 +1362,7 @@ index 1e158d3e..ca2c6567 100644
      @Override
      public Long getSentByteCount() {
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java
-index 5364b08e..1f8046f0 100644
+index 5364b08e5c153..1f8046f0e6dc2 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java
 @@ -14,8 +14,8 @@ import org.chromium.base.annotations.CalledByNative;
@@ -1313,7 +1377,7 @@ index 5364b08e..1f8046f0 100644
  import java.io.IOException;
  import java.lang.annotation.Retention;
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java
-index 590d29c1..103ded42 100644
+index 590d29c1b09ae..103ded423c547 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java
 @@ -17,15 +17,15 @@ import org.chromium.base.annotations.JNIAdditionalImport;
@@ -1369,7 +1433,7 @@ index 590d29c1..103ded42 100644
              totalLatency = Duration.ofSeconds(0);
          }
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
-index 0d96dcf4..3b94ff76 100644
+index 5f7177056ee7f..d08fcd5082a3e 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
 @@ -17,15 +17,15 @@ import org.chromium.base.annotations.JNINamespace;
@@ -1396,7 +1460,7 @@ index 0d96dcf4..3b94ff76 100644
  import org.chromium.net.impl.CronetLogger.CronetSource;
  import org.chromium.net.impl.CronetLogger.CronetVersion;
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java
-index faa87a91..37a6845b 100644
+index faa87a91fb25d..37a6845b64727 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java
 @@ -6,8 +6,8 @@ package org.chromium.net.impl;
@@ -1411,7 +1475,7 @@ index faa87a91..37a6845b 100644
  /**
   * Implementation of {@link ICronetEngineBuilder} that builds native Cronet engine.
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java
-index 04601887..2fa9a5e1 100644
+index 04601887e6e92..2fa9a5e18b9dc 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java
 @@ -4,7 +4,7 @@
@@ -1424,7 +1488,7 @@ index 04601887..2fa9a5e1 100644
  /**
   * Implements {@link NetworkException}.
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/QuicExceptionImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/QuicExceptionImpl.java
-index cd378ceb..4b7cddc3 100644
+index cd378ceb18112..4b7cddc33fad6 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/QuicExceptionImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/QuicExceptionImpl.java
 @@ -4,7 +4,7 @@
@@ -1437,7 +1501,7 @@ index cd378ceb..4b7cddc3 100644
  /**
   * Implements {@link QuicException}.
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/RequestFinishedInfoImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/RequestFinishedInfoImpl.java
-index abc51da3..0fcf182a 100644
+index abc51da3b62fe..0fcf182af9145 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/RequestFinishedInfoImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/RequestFinishedInfoImpl.java
 @@ -7,9 +7,9 @@ package org.chromium.net.impl;
@@ -1454,7 +1518,7 @@ index abc51da3..0fcf182a 100644
  import java.lang.annotation.Retention;
  import java.lang.annotation.RetentionPolicy;
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBase.java b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBase.java
-index 19740265..864a06cf 100644
+index 197402651dcfe..864a06cfab1de 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBase.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBase.java
 @@ -5,10 +5,9 @@ package org.chromium.net.impl;
@@ -1472,7 +1536,7 @@ index 19740265..864a06cf 100644
  import java.lang.annotation.Retention;
  import java.lang.annotation.RetentionPolicy;
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
-index 22ee3070..c7a2f54c 100644
+index 22ee30700b4d9..c7a2f54ce62ca 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
 @@ -8,18 +8,18 @@ import android.os.Build;
@@ -1501,7 +1565,7 @@ index 22ee3070..c7a2f54c 100644
  public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
      private static final String ACCEPT_ENCODING = "Accept-Encoding";
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/UrlResponseInfoImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/UrlResponseInfoImpl.java
-index 90382111..ac496ad6 100644
+index 90382111bcfff..ac496ad6d8d3e 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/UrlResponseInfoImpl.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/UrlResponseInfoImpl.java
 @@ -4,7 +4,8 @@
@@ -1526,7 +1590,7 @@ index 90382111..ac496ad6 100644
   * redirect response.
   */
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
-index 9233b855..8746418f 100644
+index 9233b855e6f6a..8746418f0bc1f 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
 @@ -4,16 +4,15 @@
@@ -1556,7 +1620,7 @@ index 9233b855..8746418f 100644
  import java.io.IOException;
  import java.nio.ByteBuffer;
 diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java
-index 25303ac7..b38891ad 100644
+index 25303ac7ae6b9..b38891ad8c447 100644
 --- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java
 +++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java
 @@ -4,8 +4,8 @@
@@ -1571,7 +1635,7 @@ index 25303ac7..b38891ad 100644
  import java.io.IOException;
  import java.net.ProtocolException;
 diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetChunkedOutputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetChunkedOutputStream.java
-index 67ac3526..7ce7d838 100644
+index 67ac35266712d..7ce7d8389010f 100644
 --- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetChunkedOutputStream.java
 +++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetChunkedOutputStream.java
 @@ -4,8 +4,8 @@
@@ -1586,7 +1650,7 @@ index 67ac3526..7ce7d838 100644
  import java.io.IOException;
  import java.net.HttpRetryException;
 diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetFixedModeOutputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetFixedModeOutputStream.java
-index 0e8cf2cf..c2ba3992 100644
+index 0e8cf2cf95b00..c2ba3992bb4db 100644
 --- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetFixedModeOutputStream.java
 +++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetFixedModeOutputStream.java
 @@ -6,8 +6,8 @@ package org.chromium.net.urlconnection;
@@ -1601,7 +1665,7 @@ index 0e8cf2cf..c2ba3992 100644
  import java.io.IOException;
  import java.net.HttpRetryException;
 diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
-index 396939a4..acd7dcdf 100644
+index 396939a47f48c..acd7dcdfd1a46 100644
 --- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
 +++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
 @@ -9,11 +9,11 @@ import android.os.Build;
@@ -1622,7 +1686,7 @@ index 396939a4..acd7dcdf 100644
  import java.io.FileNotFoundException;
  import java.io.IOException;
 diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandler.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandler.java
-index 5365a1af..5f0c79c9 100644
+index 5365a1aff7bfc..5f0c79c9dd986 100644
 --- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandler.java
 +++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandler.java
 @@ -4,7 +4,7 @@
@@ -1635,7 +1699,7 @@ index 5365a1af..5f0c79c9 100644
  import java.io.IOException;
  import java.net.Proxy;
 diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetOutputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetOutputStream.java
-index 3d3558b8..4923f509 100644
+index 3d3558b849195..4923f5092b26a 100644
 --- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetOutputStream.java
 +++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetOutputStream.java
 @@ -4,7 +4,7 @@
@@ -1648,7 +1712,7 @@ index 3d3558b8..4923f509 100644
  import java.io.IOException;
  import java.io.OutputStream;
 diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetURLStreamHandlerFactory.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetURLStreamHandlerFactory.java
-index aee8c2c6..af66d890 100644
+index aee8c2c69de88..af66d890eec02 100644
 --- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetURLStreamHandlerFactory.java
 +++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetURLStreamHandlerFactory.java
 @@ -4,7 +4,7 @@
@@ -1661,7 +1725,7 @@ index aee8c2c6..af66d890 100644
  import java.net.URLStreamHandler;
  import java.net.URLStreamHandlerFactory;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamQuicTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamQuicTest.java
-index 1ff13181..732e79f7 100644
+index 1ff131815a1f3..732e79f79d63f 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamQuicTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamQuicTest.java
 @@ -12,6 +12,12 @@ import static org.junit.Assert.assertTrue;
@@ -1678,7 +1742,7 @@ index 1ff13181..732e79f7 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamTest.java
-index 28659027..f47cf115 100644
+index 28659027b436f..f47cf1159b11c 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamTest.java
 @@ -17,6 +17,14 @@ import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
@@ -1697,7 +1761,7 @@ index 28659027..f47cf115 100644
  import android.os.ConditionVariable;
  import android.os.Process;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/BrotliTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/BrotliTest.java
-index adc038fe..33bf0ebe 100644
+index adc038fe199b3..33bf0ebe9d738 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/BrotliTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/BrotliTest.java
 @@ -12,6 +12,9 @@ import static org.chromium.net.CronetTestRule.SERVER_CERT_PEM;
@@ -1711,7 +1775,7 @@ index adc038fe..33bf0ebe 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
-index 60822dbf..fb7afda7 100644
+index 60822dbf10fd4..fb7afda798536 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
 @@ -9,11 +9,12 @@ import static org.junit.Assert.assertTrue;
@@ -1729,7 +1793,7 @@ index 60822dbf..fb7afda7 100644
  import org.junit.Before;
  import org.junit.Rule;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
-index bea30f3b..c689ebf1 100644
+index bea30f3b22b11..c689ebf1f279d 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
 @@ -6,6 +6,9 @@ package org.chromium.net;
@@ -1751,7 +1815,7 @@ index bea30f3b..c689ebf1 100644
  import java.io.File;
  import java.lang.annotation.Annotation;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUploadTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUploadTest.java
-index 91e80124..6ce537a4 100644
+index 91e80124b273f..6ce537a46f8ed 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUploadTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUploadTest.java
 @@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
@@ -1763,7 +1827,7 @@ index 91e80124..6ce537a4 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestContextTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestContextTest.java
-index e1c22821..615483ed 100644
+index e1c22821af38d..615483ed79df1 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestContextTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestContextTest.java
 @@ -11,11 +11,17 @@ import static org.junit.Assert.assertNull;
@@ -1794,7 +1858,7 @@ index e1c22821..615483ed 100644
  
  import java.io.BufferedReader;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
-index a7a8b06f..6d117565 100644
+index a7a8b06f3e23a..6d1175656a7fb 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
 @@ -14,6 +14,14 @@ import static org.junit.Assert.fail;
@@ -1822,7 +1886,7 @@ index a7a8b06f..6d117565 100644
  import org.junit.Before;
  import org.junit.Rule;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/DiskStorageTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/DiskStorageTest.java
-index d5acf26d..c79ebd54 100644
+index d5acf26d2d384..c79ebd5473e45 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/DiskStorageTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/DiskStorageTest.java
 @@ -12,6 +12,9 @@ import static org.junit.Assert.fail;
@@ -1836,7 +1900,7 @@ index d5acf26d..c79ebd54 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/ExperimentalOptionsTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/ExperimentalOptionsTest.java
-index 672e8012..3852ba71 100644
+index 672e8012d29e5..3852ba718d966 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/ExperimentalOptionsTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/ExperimentalOptionsTest.java
 @@ -15,6 +15,12 @@ import static org.chromium.net.CronetTestRule.assertContains;
@@ -1853,7 +1917,7 @@ index 672e8012..3852ba71 100644
  
  import androidx.test.filters.LargeTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
-index 2eee750c..2c691f26 100644
+index 2eee750c55200..2c691f26c4ecd 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
 @@ -10,6 +10,7 @@ import static org.junit.Assert.fail;
@@ -1876,7 +1940,7 @@ index 2eee750c..2c691f26 100644
  import org.chromium.net.impl.UrlRequestBase;
  
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/MetricsTestUtil.java b/components/cronet/android/test/javatests/src/org/chromium/net/MetricsTestUtil.java
-index 9f343357..ae6c5164 100644
+index 9f34335710611..ae6c5164376e1 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/MetricsTestUtil.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/MetricsTestUtil.java
 @@ -9,6 +9,7 @@ import static org.junit.Assert.assertNotNull;
@@ -1888,7 +1952,7 @@ index 9f343357..ae6c5164 100644
  
  import java.util.Date;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/MockCertVerifierTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/MockCertVerifierTest.java
-index 10245cbe..72333e8d 100644
+index 10245cbe28032..72333e8d922a4 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/MockCertVerifierTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/MockCertVerifierTest.java
 @@ -10,6 +10,8 @@ import static org.chromium.net.CronetTestRule.SERVER_CERT_PEM;
@@ -1901,7 +1965,7 @@ index 10245cbe..72333e8d 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/NQETest.java b/components/cronet/android/test/javatests/src/org/chromium/net/NQETest.java
-index 13c4b1a6..3f5821bb 100644
+index 13c4b1a6e2a57..3f5821bb57c7d 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/NQETest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/NQETest.java
 @@ -11,6 +11,8 @@ import static org.junit.Assert.fail;
@@ -1914,7 +1978,7 @@ index 13c4b1a6..3f5821bb 100644
  import android.support.test.runner.AndroidJUnit4;
  
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/NetworkChangeNotifierTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/NetworkChangeNotifierTest.java
-index 023963c2..880473f8 100644
+index 023963c205b09..880473f8d6552 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/NetworkChangeNotifierTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/NetworkChangeNotifierTest.java
 @@ -13,6 +13,8 @@ import static org.junit.Assert.assertTrue;
@@ -1927,7 +1991,7 @@ index 023963c2..880473f8 100644
  import android.support.test.runner.AndroidJUnit4;
  import android.system.Os;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/NetworkErrorLoggingTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/NetworkErrorLoggingTest.java
-index 542fd4b2..5bf94ba7 100644
+index 542fd4b23e658..5bf94ba72892a 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/NetworkErrorLoggingTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/NetworkErrorLoggingTest.java
 @@ -11,6 +11,9 @@ import static org.chromium.net.CronetTestRule.SERVER_CERT_PEM;
@@ -1941,7 +2005,7 @@ index 542fd4b2..5bf94ba7 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
-index 3d5a4624..470c0d1f 100644
+index 3d5a46244ed2b..470c0d1f494a3 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
 @@ -14,6 +14,10 @@ import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
@@ -1956,7 +2020,7 @@ index 3d5a4624..470c0d1f 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/QuicTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/QuicTest.java
-index 47e71f20..19da352e 100644
+index 47e71f20b835f..19da352ecaf2c 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/QuicTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/QuicTest.java
 @@ -10,6 +10,11 @@ import static org.junit.Assert.assertTrue;
@@ -1972,7 +2036,7 @@ index 47e71f20..19da352e 100644
  
  import androidx.test.filters.LargeTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/RequestFinishedInfoTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/RequestFinishedInfoTest.java
-index 50e04129..046eb1da 100644
+index 50e041294a05f..046eb1da63dda 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/RequestFinishedInfoTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/RequestFinishedInfoTest.java
 @@ -13,6 +13,11 @@ import static org.junit.Assert.fail;
@@ -1988,7 +2052,7 @@ index 50e04129..046eb1da 100644
  import android.support.test.runner.AndroidJUnit4;
  
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/TestBidirectionalStreamCallback.java b/components/cronet/android/test/javatests/src/org/chromium/net/TestBidirectionalStreamCallback.java
-index b006c7d9..7a671927 100644
+index b006c7d948042..7a671927f08c6 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/TestBidirectionalStreamCallback.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/TestBidirectionalStreamCallback.java
 @@ -4,6 +4,9 @@
@@ -2002,7 +2066,7 @@ index b006c7d9..7a671927 100644
  
  import static junit.framework.Assert.assertEquals;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/TestDrivenDataProvider.java b/components/cronet/android/test/javatests/src/org/chromium/net/TestDrivenDataProvider.java
-index 812d1795..cd41e370 100644
+index 812d179511a2b..cd41e370dc577 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/TestDrivenDataProvider.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/TestDrivenDataProvider.java
 @@ -4,6 +4,8 @@
@@ -2015,7 +2079,7 @@ index 812d1795..cd41e370 100644
  
  import java.io.IOException;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/TestNetworkQualityRttListener.java b/components/cronet/android/test/javatests/src/org/chromium/net/TestNetworkQualityRttListener.java
-index 16f3470b..7611f179 100644
+index 16f3470bb6fa3..7611f17912a4e 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/TestNetworkQualityRttListener.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/TestNetworkQualityRttListener.java
 @@ -6,6 +6,7 @@ package org.chromium.net;
@@ -2027,7 +2091,7 @@ index 16f3470b..7611f179 100644
  import android.util.SparseIntArray;
  
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/TestNetworkQualityThroughputListener.java b/components/cronet/android/test/javatests/src/org/chromium/net/TestNetworkQualityThroughputListener.java
-index e549347c..f36ec1b7 100644
+index e549347cd769a..f36ec1b7c112b 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/TestNetworkQualityThroughputListener.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/TestNetworkQualityThroughputListener.java
 @@ -6,6 +6,7 @@ package org.chromium.net;
@@ -2039,7 +2103,7 @@ index e549347c..f36ec1b7 100644
  
  import java.util.concurrent.Executor;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/TestUploadDataProvider.java b/components/cronet/android/test/javatests/src/org/chromium/net/TestUploadDataProvider.java
-index aea39a86..2dd01cc0 100644
+index aea39a8680397..2dd01cc0fc1e2 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/TestUploadDataProvider.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/TestUploadDataProvider.java
 @@ -4,6 +4,8 @@
@@ -2052,7 +2116,7 @@ index aea39a86..2dd01cc0 100644
  
  import java.io.IOException;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/TestUrlRequestCallback.java b/components/cronet/android/test/javatests/src/org/chromium/net/TestUrlRequestCallback.java
-index 0d6443c0..c5d830d2 100644
+index 0d6443c0fda22..c5d830d2d4a13 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/TestUrlRequestCallback.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/TestUrlRequestCallback.java
 @@ -12,6 +12,11 @@ import static junit.framework.Assert.assertTrue;
@@ -2068,7 +2132,7 @@ index 0d6443c0..c5d830d2 100644
  import android.os.StrictMode;
  
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
-index 214cb675..193c0fdc 100644
+index 214cb6758fae8..193c0fdc821a0 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
 @@ -4,6 +4,7 @@
@@ -2080,7 +2144,7 @@ index 214cb675..193c0fdc 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/ContentTypeParametersParserTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/ContentTypeParametersParserTest.java
-index bc2d5930..071becfa 100644
+index bc2d5930137f6..071becfac7b3c 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/ContentTypeParametersParserTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/ContentTypeParametersParserTest.java
 @@ -9,6 +9,7 @@ import static org.junit.Assert.assertFalse;
@@ -2092,7 +2156,7 @@ index bc2d5930..071becfa 100644
  
  import androidx.test.filters.SmallTest;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/UploadDataProvidersTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/UploadDataProvidersTest.java
-index b1040f77..394bac91 100644
+index b1040f7793571..394bac914768d 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/UploadDataProvidersTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/UploadDataProvidersTest.java
 @@ -11,6 +11,7 @@ import static org.junit.Assert.assertTrue;
@@ -2124,7 +2188,7 @@ index b1040f77..394bac91 100644
  import java.io.File;
  import java.io.FileOutputStream;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetLoggerTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetLoggerTest.java
-index 1e4d5604..dbbe05ad 100644
+index 1e4d560469e95..dbbe05ad66f61 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetLoggerTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetLoggerTest.java
 @@ -13,7 +13,7 @@ import static org.junit.Assert.assertNotEquals;
@@ -2157,7 +2221,7 @@ index 1e4d5604..dbbe05ad 100644
  import org.chromium.net.impl.CronetLogger.CronetEngineBuilderInfo;
  import org.chromium.net.impl.CronetLogger.CronetSource;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetBufferedOutputStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetBufferedOutputStreamTest.java
-index 8a123584..a25d62b7 100644
+index 8a1235843c1ec..a25d62b7ae98c 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetBufferedOutputStreamTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetBufferedOutputStreamTest.java
 @@ -21,7 +21,7 @@ import org.junit.Test;
@@ -2170,7 +2234,7 @@ index 8a123584..a25d62b7 100644
  import org.chromium.net.CronetTestRule.CompareDefaultWithCronet;
  import org.chromium.net.CronetTestRule.OnlyRunCronetHttpURLConnection;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetChunkedOutputStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetChunkedOutputStreamTest.java
-index 38849c81..b2e36476 100644
+index 38849c8140f42..b2e364765189d 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetChunkedOutputStreamTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetChunkedOutputStreamTest.java
 @@ -21,12 +21,12 @@ import org.junit.Test;
@@ -2189,7 +2253,7 @@ index 38849c81..b2e36476 100644
  import java.io.IOException;
  import java.io.OutputStream;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetFixedModeOutputStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetFixedModeOutputStreamTest.java
-index 23827f7d..8bb23988 100644
+index 23827f7d97574..8bb23988415a4 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetFixedModeOutputStreamTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetFixedModeOutputStreamTest.java
 @@ -26,12 +26,12 @@ import org.junit.rules.ExpectedException;
@@ -2208,7 +2272,7 @@ index 23827f7d..8bb23988 100644
  
  import java.io.IOException;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLConnectionTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLConnectionTest.java
-index 18d84ee8..6481b590 100644
+index 18d84ee8eee64..6481b590848f4 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLConnectionTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLConnectionTest.java
 @@ -27,8 +27,8 @@ import org.junit.runner.RunWith;
@@ -2223,7 +2287,7 @@ index 18d84ee8..6481b590 100644
  import org.chromium.net.CronetTestRule.CompareDefaultWithCronet;
  import org.chromium.net.CronetTestRule.OnlyRunCronetHttpURLConnection;
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/QuicUploadTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/QuicUploadTest.java
-index c23b94d1..9fbceb94 100644
+index c23b94d1de321..9fbceb94bae86 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/QuicUploadTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/QuicUploadTest.java
 @@ -19,11 +19,11 @@ import org.junit.Test;
@@ -2241,5 +2305,5 @@ index c23b94d1..9fbceb94 100644
  
  import java.io.OutputStream;
 -- 
-2.39.0.314.g84b9a713c41-goog
+2.39.1.405.gd4c25cc71f-goog
 
