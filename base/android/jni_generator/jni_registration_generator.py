@@ -104,7 +104,7 @@ def _Generate(java_file_paths,
 
   if header_path:
     combined_dict['HEADER_GUARD'] = \
-        os.path.splitext(header_path)[0].replace('/', '_').upper() + '_'
+        os.path.splitext(header_path)[0].replace('/', '_').replace('.', '_').upper() + '_'
     combined_dict['NAMESPACE'] = namespace
     header_content = CreateFromDict(
         combined_dict,
