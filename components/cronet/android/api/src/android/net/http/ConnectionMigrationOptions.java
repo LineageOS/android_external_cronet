@@ -6,6 +6,7 @@ package android.net.http;
 
 import android.annotation.SuppressLint;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.time.Duration;
@@ -144,7 +145,7 @@ public class ConnectionMigrationOptions {
         return mMaxPathDegradingNonDefaultMigrationsCount;
     }
 
-    ConnectionMigrationOptions(Builder builder) {
+    ConnectionMigrationOptions(@NonNull Builder builder) {
         this.mEnableDefaultNetworkMigration = builder.mEnableDefaultNetworkMigration;
         this.mEnablePathDegradationMigration = builder.mEnablePathDegradationMigration;
         this.mAllowServerMigration = builder.mAllowServerMigration;
@@ -191,6 +192,7 @@ public class ConnectionMigrationOptions {
          *
          * @return this builder for chaining
          */
+        @NonNull
         public Builder setEnableDefaultNetworkMigration(
                 boolean enableDefaultNetworkConnectionMigration) {
             this.mEnableDefaultNetworkMigration = enableDefaultNetworkConnectionMigration;
@@ -206,6 +208,7 @@ public class ConnectionMigrationOptions {
          *
          * @return this builder for chaining
          */
+        @NonNull
         public Builder setEnablePathDegradationMigration(boolean enable) {
             this.mEnablePathDegradationMigration = enable;
             return this;
@@ -220,6 +223,7 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
+        @NonNull
         public Builder setAllowServerMigration(boolean allowServerMigration) {
             this.mAllowServerMigration = allowServerMigration;
             return this;
@@ -238,6 +242,7 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
+        @NonNull
         public Builder setMigrateIdleConnections(boolean migrateIdleConnections) {
             this.mMigrateIdleConnections = migrateIdleConnections;
             return this;
@@ -254,8 +259,9 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
+        @NonNull
         public Builder setIdleMigrationPeriodSeconds(
-                Duration idleConnectionMigrationPeriod) {
+                @NonNull Duration idleConnectionMigrationPeriod) {
             this.mIdleConnectionMigrationPeriod = idleConnectionMigrationPeriod;
             return this;
         }
@@ -272,6 +278,7 @@ public class ConnectionMigrationOptions {
          * @return this builder for chaining
          */
         @Experimental
+        @NonNull
         public Builder setAllowNonDefaultNetworkUsage(boolean enable) {
             this.mAllowNonDefaultNetworkUsage = enable;
             return this;
@@ -289,8 +296,9 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
+        @NonNull
         public Builder setMaxTimeOnNonDefaultNetworkSeconds(
-                Duration maxTimeOnNonDefaultNetwork) {
+                @NonNull Duration maxTimeOnNonDefaultNetwork) {
             this.mMaxTimeOnNonDefaultNetwork = maxTimeOnNonDefaultNetwork;
             return this;
         }
@@ -306,6 +314,7 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
+        @NonNull
         public Builder setMaxWriteErrorNonDefaultNetworkMigrationsCount(
                 int maxWriteErrorNonDefaultMigrationsCount) {
             this.mMaxWriteErrorNonDefaultNetworkMigrationsCount = maxWriteErrorNonDefaultMigrationsCount;
@@ -323,6 +332,7 @@ public class ConnectionMigrationOptions {
          * {@hide}
          */
         @Experimental
+        @NonNull
         public Builder setMaxPathDegradingNonDefaultNetworkMigrationsCount(
                 int maxPathDegradingNonDefaultMigrationsCount) {
             this.mMaxPathDegradingNonDefaultMigrationsCount = maxPathDegradingNonDefaultMigrationsCount;
@@ -333,6 +343,7 @@ public class ConnectionMigrationOptions {
          * Creates and returns the final {@link ConnectionMigrationOptions} instance, based on the
          * values in this builder.
          */
+        @NonNull
         public ConnectionMigrationOptions build() {
             return new ConnectionMigrationOptions(this);
         }
@@ -343,6 +354,7 @@ public class ConnectionMigrationOptions {
      *
      * {@hide}
      */
+    @NonNull
     public static Builder builder() {
         return new Builder();
     }
