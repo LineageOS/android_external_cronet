@@ -1,0 +1,905 @@
+From 9c182aaf143c93af25428aee43949c4bccdfcd73 Mon Sep 17 00:00:00 2001
+From: My Name <colibie@google.com>
+Date: Tue, 31 Jan 2023 21:50:19 +0000
+Subject: [PATCH] Switch to androidx's AndroidJUnit4 runner
+
+aosp migrated from android.support to androidx
+test runner. Will patch this upstream too.
+
+Test: atest NetHttpTests
+Bug: 267353182
+Change-Id: I94da111c4a5fe69ef36683f0f97279e91a806e76
+---
+ components/cronet/android/BUILD.gn            | 118 +--
+ .../test/javatests/AndroidManifest.xml        |   2 +-
+ .../net/BidirectionalStreamQuicTest.java      |   2 +-
+ .../chromium/net/BidirectionalStreamTest.java |   2 +-
+ .../src/org/chromium/net/BrotliTest.java      |   2 +-
+ .../chromium/net/CronetOnboardingTest.java    |   3 +-
+ .../org/chromium/net/CronetStressTest.java    |   2 +-
+ .../src/org/chromium/net/CronetTestRule.java  |   5 +-
+ .../org/chromium/net/CronetTestRuleTest.java  |   3 +-
+ .../org/chromium/net/CronetUploadTest.java    |   2 +-
+ .../net/CronetUrlRequestContextTest.java      |   9 +-
+ .../chromium/net/CronetUrlRequestTest.java    |   2 +-
+ .../src/org/chromium/net/DiskStorageTest.java |   2 +-
+ .../chromium/net/ExperimentalOptionsTest.java |   2 +-
+ .../src/org/chromium/net/GetStatusTest.java   |   2 +-
+ .../chromium/net/MockCertVerifierTest.java    |   2 +-
+ .../src/org/chromium/net/NQETest.java         |   2 +-
+ .../net/NetworkChangeNotifierTest.java        |   2 +-
+ .../chromium/net/NetworkErrorLoggingTest.java |   2 +-
+ .../src/org/chromium/net/PkpTest.java         |   2 +-
+ .../src/org/chromium/net/QuicTest.java        |   2 +-
+ .../chromium/net/RequestFinishedInfoTest.java |   2 +-
+ .../org/chromium/net/UrlResponseInfoTest.java |   2 +-
+ .../ContentTypeParametersParserTest.java      |   2 +-
+ .../apihelpers/UploadDataProvidersTest.java   |   2 +-
+ .../chromium/net/impl/CronetManifestTest.java |   2 +-
+ .../CronetBufferedOutputStreamTest.java       |   3 +-
+ .../CronetChunkedOutputStreamTest.java        |   3 +-
+ .../CronetFixedModeOutputStreamTest.java      |   3 +-
+ .../CronetHttpURLConnectionTest.java          |   2 +-
+ .../CronetHttpURLStreamHandlerTest.java       |   3 +-
+ .../urlconnection/CronetInputStreamTest.java  |   3 +-
+ .../CronetURLStreamHandlerFactoryTest.java    |   3 +-
+ .../net/urlconnection/MessageLoopTest.java    |   3 +-
+ .../net/urlconnection/QuicUploadTest.java     |   3 +-
+ .../net/smoke/CronetSmokeTestRule.java        |   6 +-
+ .../src/org/chromium/net/smoke/Http2Test.java |   7 +-
+ .../net/smoke/MissingNativeLibraryTest.java   |   9 +-
+ .../net/smoke/NativeCronetTestRule.java       |   6 +-
+ .../net/smoke/PlatformOnlyEngineTest.java     |   6 +-
+ .../src/org/chromium/net/smoke/QuicTest.java  |   7 +-
+ 41 files changed, 117 insertions(+), 130 deletions(-)
+
+diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
+index 8454f05d..84ddf551 100644
+--- a/components/cronet/android/BUILD.gn
++++ b/components/cronet/android/BUILD.gn
+@@ -823,6 +823,12 @@ if (!is_component_build) {
+                                            "test/smoketests/src/org/chromium/net/smoke/NativeCronetTestRule.java",
+                                          ]
+
++  cronet_tests_androidx_common_srcs = [
++    "//third_party/androidx:androidx_test_core_java",
++    "//third_party/androidx:androidx_test_ext_junit_java",
++    "//third_party/androidx:androidx_test_runner_java",
++  ]
++
+   # cronet_common_javatests.jar - Cronet Java test common files.
+   android_library("cronet_common_javatests") {
+     testonly = true
+@@ -833,16 +839,15 @@ if (!is_component_build) {
+       "test/javatests/src/org/chromium/net/TestUrlRequestCallback.java",
+     ]
+     deps = [
+-      ":cronet_api_java",
+-      ":cronet_impl_all_java",
+-      "//base:base_java",
+-      "//base:jni_java",
+-      "//build/android:build_java",
+-      "//third_party/android_sdk:android_test_base_java",
+-      "//third_party/android_support_test_runner:runner_java",
+-      "//third_party/androidx:androidx_annotation_annotation_java",
+-      "//third_party/junit",
+-    ]
++             ":cronet_api_java",
++             ":cronet_impl_all_java",
++             "//base:base_java",
++             "//base:jni_java",
++             "//build/android:build_java",
++             "//third_party/android_sdk:android_test_base_java",
++             "//third_party/androidx:androidx_annotation_annotation_java",
++             "//third_party/junit",
++            ] + cronet_tests_androidx_common_srcs
+   }
+
+   cronet_javatests_deps_to_package = [
+@@ -911,7 +916,7 @@ if (!is_component_build) {
+       ":cronet_impl_all_java",
+       ":cronet_urlconnection_impl_java",
+       "//third_party/android_sdk:android_test_base_java",
+-      "//third_party/android_support_test_runner:runner_java",
++      "//third_party/androidx:androidx_test_ext_junit_java",
+       "//third_party/androidx:androidx_test_runner_java",
+       "//third_party/google-truth:google_truth_java",
+       "//third_party/hamcrest:hamcrest_core_java",
+@@ -947,27 +952,26 @@ if (!is_component_build) {
+               ]
+
+     deps = [
+-      ":cronet_api_java",
+-      ":cronet_combine_proguard_flags",
+-      ":cronet_impl_all_java",
+-      ":cronet_javatests",
+-      ":cronet_test_apk_java",
+-      ":cronet_test_apk_resources",
+-      "//base:base_java",
+-      "//base:base_java_test_support",
+-      "//base:jni_java",
+-      "//build/android:build_java",
+-      "//net/android:net_java",
+-      "//net/android:net_java_test_support",
+-      "//third_party/android_sdk:android_test_base_java",
+-      "//third_party/android_sdk:android_test_mock_java",
+-      "//third_party/android_support_test_runner:runner_java",
+-      "//third_party/androidx:androidx_test_runner_java",
+-      "//third_party/hamcrest:hamcrest_core_java",
+-      "//third_party/junit",
+-      "//third_party/netty-tcnative:netty-tcnative-so",
+-      "//third_party/netty4:netty_all_java",
+-    ]
++             ":cronet_api_java",
++             ":cronet_combine_proguard_flags",
++             ":cronet_impl_all_java",
++             ":cronet_javatests",
++             ":cronet_test_apk_java",
++             ":cronet_test_apk_resources",
++             "//base:base_java",
++             "//base:base_java_test_support",
++             "//base:jni_java",
++             "//build/android:build_java",
++             "//net/android:net_java",
++             "//net/android:net_java_test_support",
++             "//third_party/android_sdk:android_test_base_java",
++             "//third_party/android_sdk:android_test_mock_java",
++             "//third_party/hamcrest:hamcrest_core_java",
++             "//third_party/junit",
++             "//third_party/netty-tcnative:netty-tcnative-so",
++             "//third_party/netty4:netty_all_java",
++           ] + cronet_tests_androidx_common_srcs
++
+     additional_apks = [ "//net/android:net_test_support_apk" ]
+
+     data_deps = [ "//net:test_support" ]
+@@ -1004,17 +1008,15 @@ if (!is_component_build) {
+               ]
+
+     deps = [
+-      ":cronet_api_java",
+-      ":cronet_impl_common_base_java",
+-      ":cronet_smoketests_platform_only_apk_resources",
+-      "//base:base_java_test_support",
+-      "//third_party/android_sdk:android_test_base_java",
+-      "//third_party/android_sdk:android_test_mock_java",
+-      "//third_party/android_support_test_runner:runner_java",
+-      "//third_party/androidx:androidx_test_runner_java",
+-      "//third_party/junit",
+-      "//third_party/netty4:netty_all_java",
+-    ]
++             ":cronet_api_java",
++             ":cronet_impl_common_base_java",
++             ":cronet_smoketests_platform_only_apk_resources",
++             "//base:base_java_test_support",
++             "//third_party/android_sdk:android_test_base_java",
++             "//third_party/android_sdk:android_test_mock_java",
++             "//third_party/junit",
++             "//third_party/netty4:netty_all_java",
++            ] + cronet_tests_androidx_common_srcs
+
+     if (!is_java_debug) {
+       proguard_enabled = true
+@@ -1034,22 +1036,20 @@ if (!is_component_build) {
+
+     sources = cronet_smoketests_native_common_srcs + [ "test/smoketests/src/org/chromium/net/smoke/MissingNativeLibraryTest.java" ]
+     deps = [
+-      ":cronet_api_java",
+-      ":cronet_combine_proguard_flags",
+-      ":cronet_impl_common_base_java",
+-      ":cronet_test_apk_java",
+-      ":cronet_test_apk_resources",
+-      "//base:base_java",
+-      "//base:base_java_test_support",
+-      "//base:jni_java",
+-      "//build/android:build_java",
+-      "//third_party/android_sdk:android_test_base_java",
+-      "//third_party/android_sdk:android_test_mock_java",
+-      "//third_party/android_support_test_runner:runner_java",
+-      "//third_party/androidx:androidx_test_runner_java",
+-      "//third_party/junit",
+-      "//third_party/netty4:netty_all_java",
+-    ]
++             ":cronet_api_java",
++             ":cronet_combine_proguard_flags",
++             ":cronet_impl_common_base_java",
++             ":cronet_test_apk_java",
++             ":cronet_test_apk_resources",
++             "//base:base_java",
++             "//base:base_java_test_support",
++             "//base:jni_java",
++             "//build/android:build_java",
++             "//third_party/android_sdk:android_test_base_java",
++             "//third_party/android_sdk:android_test_mock_java",
++             "//third_party/junit",
++             "//third_party/netty4:netty_all_java",
++            ] + cronet_tests_androidx_common_srcs
+
+     enable_multidex = true
+     if (!is_java_debug) {
+diff --git a/components/cronet/android/test/javatests/AndroidManifest.xml b/components/cronet/android/test/javatests/AndroidManifest.xml
+index 178e610a..0a6ac7e1 100644
+--- a/components/cronet/android/test/javatests/AndroidManifest.xml
++++ b/components/cronet/android/test/javatests/AndroidManifest.xml
+@@ -39,7 +39,7 @@ found in the LICENSE file.
+                  android:requestLegacyExternalStorage="true" />
+     <!-- Does not use BaseChromiumAndroidJUnitRunner so that it's easy to run
+          tests when dropped into non-chromium repositories. -->
+-    <instrumentation android:name="android.support.test.runner.AndroidJUnitRunner"
++    <instrumentation android:name="androidx.test.runner.AndroidJUnitRunner"
+                      android:targetPackage="org.chromium.net.tests"
+                      android:label="Tests for org.chromium.net" />
+ </manifest>
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamQuicTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamQuicTest.java
+index f1949813..58be9e9f 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamQuicTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamQuicTest.java
+@@ -18,8 +18,8 @@ import android.net.http.NetworkException;
+ import android.net.http.QuicException;
+ import android.net.http.RequestFinishedInfo;
+ import android.net.http.UrlResponseInfo;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.json.JSONObject;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamTest.java
+index e86964d3..5332d4ea 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/BidirectionalStreamTest.java
+@@ -28,8 +28,8 @@ import android.net.http.UrlResponseInfo;
+ import android.os.Build;
+ import android.os.ConditionVariable;
+ import android.os.Process;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/BrotliTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/BrotliTest.java
+index 43df8c7c..e713f9d9 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/BrotliTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/BrotliTest.java
+@@ -15,8 +15,8 @@ import static org.chromium.net.CronetTestRule.getContext;
+ import android.net.http.HttpEngine;
+ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.UrlRequest;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetOnboardingTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetOnboardingTest.java
+index 28699192..2107e4fc 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetOnboardingTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetOnboardingTest.java
+@@ -6,8 +6,7 @@ package org.chromium.net;
+
+ import static org.junit.Assert.assertEquals;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Test;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
+index ab059463..1063418e 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetStressTest.java
+@@ -10,8 +10,8 @@ import static org.junit.Assert.assertTrue;
+ import static org.chromium.net.CronetTestRule.getContext;
+
+ import android.net.http.UrlRequest;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.LargeTest;
+
+ import android.net.http.apihelpers.UploadDataProviders;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
+index 7547a1b6..8ae0204b 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
+@@ -12,7 +12,8 @@ import android.net.http.UrlResponseInfo;
+ import android.content.Context;
+ import android.os.Build;
+ import android.os.StrictMode;
+-import android.support.test.InstrumentationRegistry;
++
++import androidx.test.core.app.ApplicationProvider;
+
+ import org.junit.Assert;
+ import org.junit.rules.TestRule;
+@@ -96,7 +97,7 @@ public class CronetTestRule implements TestRule {
+     }
+
+     public static Context getContext() {
+-        return InstrumentationRegistry.getTargetContext();
++        return ApplicationProvider.getApplicationContext();
+     }
+
+     int getMaximumAvailableApiLevel() {
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
+index 7c418302..298cb629 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
+@@ -9,8 +9,7 @@ import static org.junit.Assert.assertFalse;
+ import static org.junit.Assert.assertTrue;
+ import static org.junit.Assert.fail;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUploadTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUploadTest.java
+index b8ed0b06..5a54f52d 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUploadTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUploadTest.java
+@@ -11,8 +11,8 @@ import static org.junit.Assert.assertTrue;
+ import static org.chromium.net.CronetTestRule.getContext;
+
+ import android.net.http.UrlRequest;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestContextTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestContextTest.java
+index acdd0668..9e07a184 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestContextTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestContextTest.java
+@@ -30,9 +30,8 @@ import android.os.ConditionVariable;
+ import android.os.Handler;
+ import android.os.Looper;
+ import android.os.Process;
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.json.JSONObject;
+@@ -365,7 +364,7 @@ public class CronetUrlRequestContextTest {
+         // Multi-network API is available starting from Android Lollipop.
+         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
+         ConnectivityManagerDelegate delegate =
+-                new ConnectivityManagerDelegate(InstrumentationRegistry.getTargetContext());
++                new ConnectivityManagerDelegate(getContext());
+         Network defaultNetwork = delegate.getDefaultNetwork();
+         if (defaultNetwork == null) {
+             testFramework.mCronetEngine.shutdown();
+@@ -436,7 +435,7 @@ public class CronetUrlRequestContextTest {
+                 (ExperimentalUrlRequest.Builder) testFramework.mCronetEngine.newUrlRequestBuilder(
+                         mUrl, callback, callback.getExecutor());
+         ConnectivityManagerDelegate delegate =
+-                new ConnectivityManagerDelegate(InstrumentationRegistry.getTargetContext());
++                new ConnectivityManagerDelegate(getContext());
+         Network defaultNetwork = delegate.getDefaultNetwork();
+         if (defaultNetwork == null) {
+             testFramework.mCronetEngine.shutdown();
+@@ -1283,7 +1282,7 @@ public class CronetUrlRequestContextTest {
+         // like crbug.com/453845
+         HttpEngine firstEngine = new HttpEngine.Builder(getContext()).build();
+         HttpEngine secondEngine =
+-                new HttpEngine.Builder(getContext().getApplicationContext()).build();
++                new HttpEngine.Builder(getContext()).build();
+         HttpEngine thirdEngine =
+                 new HttpEngine.Builder(new ContextWrapper(getContext())).build();
+         firstEngine.shutdown();
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
+index 44ab56c9..c6e22794 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetUrlRequestTest.java
+@@ -26,8 +26,8 @@ import android.os.Build;
+ import android.os.ConditionVariable;
+ import android.os.Process;
+ import android.os.StrictMode;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import android.net.http.apihelpers.UploadDataProviders;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/DiskStorageTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/DiskStorageTest.java
+index 9547ff4c..1e16e8ea 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/DiskStorageTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/DiskStorageTest.java
+@@ -15,8 +15,8 @@ import static org.chromium.net.CronetTestRule.getTestStorage;
+ import android.net.http.HttpEngine;
+ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.UrlRequest;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/ExperimentalOptionsTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/ExperimentalOptionsTest.java
+index 6a62d9c1..3b9c9179 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/ExperimentalOptionsTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/ExperimentalOptionsTest.java
+@@ -21,8 +21,8 @@ import android.net.http.ExperimentalBidirectionalStream;
+ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.NetworkException;
+ import android.net.http.UrlRequest;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.LargeTest;
+ import androidx.test.filters.MediumTest;
+
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
+index dca89163..9a1c2e7d 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
+@@ -12,8 +12,8 @@ import static org.chromium.net.CronetTestRule.getContext;
+
+ import android.net.http.UrlRequest;
+ import android.os.ConditionVariable;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/MockCertVerifierTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/MockCertVerifierTest.java
+index f2cf8357..809cda05 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/MockCertVerifierTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/MockCertVerifierTest.java
+@@ -12,8 +12,8 @@ import static org.chromium.net.CronetTestRule.getContext;
+
+ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.UrlRequest;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/NQETest.java b/components/cronet/android/test/javatests/src/org/chromium/net/NQETest.java
+index cf8466cf..a69c1f0e 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/NQETest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/NQETest.java
+@@ -14,8 +14,8 @@ import static org.chromium.net.CronetTestRule.getTestStorage;
+ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.UrlRequest;
+ import android.os.StrictMode;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.json.JSONObject;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/NetworkChangeNotifierTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/NetworkChangeNotifierTest.java
+index b28faf9e..77c82774 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/NetworkChangeNotifierTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/NetworkChangeNotifierTest.java
+@@ -16,9 +16,9 @@ import static org.chromium.net.CronetTestRule.assertContains;
+ import android.net.http.NetworkException;
+ import android.net.http.UrlRequest;
+ import android.os.Build;
+-import android.support.test.runner.AndroidJUnit4;
+ import android.system.Os;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Rule;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/NetworkErrorLoggingTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/NetworkErrorLoggingTest.java
+index c6bda1e4..942728ad 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/NetworkErrorLoggingTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/NetworkErrorLoggingTest.java
+@@ -14,8 +14,8 @@ import static org.chromium.net.CronetTestRule.getContext;
+ import android.net.http.HttpEngine;
+ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.UrlRequest;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
+index c5fec4fa..7a232aae 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/PkpTest.java
+@@ -18,8 +18,8 @@ import android.net.http.HttpEngine;
+ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.NetworkException;
+ import android.net.http.UrlRequest;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.json.JSONObject;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/QuicTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/QuicTest.java
+index aaf40b94..32a38d0b 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/QuicTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/QuicTest.java
+@@ -15,8 +15,8 @@ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.RequestFinishedInfo;
+ import android.net.http.UrlRequest;
+ import android.net.http.UrlResponseInfo;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.LargeTest;
+ import androidx.test.filters.SmallTest;
+
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/RequestFinishedInfoTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/RequestFinishedInfoTest.java
+index 1194940a..c22cc168 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/RequestFinishedInfoTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/RequestFinishedInfoTest.java
+@@ -19,8 +19,8 @@ import android.net.http.RequestFinishedInfo;
+ import android.net.http.UrlRequest;
+ import android.net.http.UrlResponseInfo;
+ import android.os.ConditionVariable;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
+index 2be4cb4e..539e71ef 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
+@@ -5,8 +5,8 @@
+ package org.chromium.net;
+
+ import android.net.http.UrlResponseInfo;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Assert;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/ContentTypeParametersParserTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/ContentTypeParametersParserTest.java
+index 1a23a6c8..94eecdd5 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/ContentTypeParametersParserTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/ContentTypeParametersParserTest.java
+@@ -10,8 +10,8 @@ import static org.junit.Assert.assertNotNull;
+ import static org.junit.Assert.assertTrue;
+
+ import android.net.http.apihelpers.ContentTypeParametersParser;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Test;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/UploadDataProvidersTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/UploadDataProvidersTest.java
+index ca2049b0..912bc7da 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/UploadDataProvidersTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/apihelpers/UploadDataProvidersTest.java
+@@ -14,8 +14,8 @@ import static org.chromium.net.CronetTestRule.getContext;
+ import android.net.http.apihelpers.UploadDataProviders;
+ import android.os.ConditionVariable;
+ import android.os.ParcelFileDescriptor;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetManifestTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetManifestTest.java
+index 75a91e66..ba42a0d0 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetManifestTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/impl/CronetManifestTest.java
+@@ -14,8 +14,8 @@ import android.content.ContextWrapper;
+ import android.content.pm.ApplicationInfo;
+ import android.content.pm.PackageManager;
+ import android.os.Bundle;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Before;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetBufferedOutputStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetBufferedOutputStreamTest.java
+index b29688cd..6faeea79 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetBufferedOutputStreamTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetBufferedOutputStreamTest.java
+@@ -10,8 +10,7 @@ import static org.junit.Assert.fail;
+
+ import static org.chromium.net.CronetTestRule.getContext;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetChunkedOutputStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetChunkedOutputStreamTest.java
+index 2f1f72a6..da15186a 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetChunkedOutputStreamTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetChunkedOutputStreamTest.java
+@@ -10,8 +10,7 @@ import static org.junit.Assert.fail;
+
+ import static org.chromium.net.CronetTestRule.getContext;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetFixedModeOutputStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetFixedModeOutputStreamTest.java
+index eb08cccf..8acbdf19 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetFixedModeOutputStreamTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetFixedModeOutputStreamTest.java
+@@ -12,8 +12,7 @@ import static org.junit.Assert.fail;
+
+ import static org.chromium.net.CronetTestRule.getContext;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.hamcrest.Description;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLConnectionTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLConnectionTest.java
+index 7bd401d9..33d6eb94 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLConnectionTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLConnectionTest.java
+@@ -15,8 +15,8 @@ import static org.chromium.net.CronetTestRule.getContext;
+ import android.net.TrafficStats;
+ import android.os.Build;
+ import android.os.Process;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandlerTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandlerTest.java
+index 98714756..9e70030e 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandlerTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandlerTest.java
+@@ -11,8 +11,7 @@ import static org.junit.Assert.fail;
+
+ import static org.chromium.net.CronetTestRule.getContext;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetInputStreamTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetInputStreamTest.java
+index bc981cf8..55cde38f 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetInputStreamTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetInputStreamTest.java
+@@ -6,8 +6,7 @@ package org.chromium.net.urlconnection;
+
+ import static com.google.common.truth.Truth.assertThat;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Rule;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetURLStreamHandlerFactoryTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetURLStreamHandlerFactoryTest.java
+index f100a9d7..74d277e8 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetURLStreamHandlerFactoryTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/CronetURLStreamHandlerFactoryTest.java
+@@ -7,8 +7,7 @@ package org.chromium.net.urlconnection;
+ import static org.junit.Assert.assertEquals;
+ import static org.junit.Assert.fail;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Rule;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/MessageLoopTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/MessageLoopTest.java
+index 44a6cc79..195d439a 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/MessageLoopTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/MessageLoopTest.java
+@@ -8,8 +8,7 @@ import static org.junit.Assert.assertFalse;
+ import static org.junit.Assert.assertTrue;
+ import static org.junit.Assert.fail;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Rule;
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/QuicUploadTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/QuicUploadTest.java
+index e8a1eee8..bfb044c9 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/QuicUploadTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/urlconnection/QuicUploadTest.java
+@@ -8,8 +8,7 @@ import static org.junit.Assert.assertEquals;
+
+ import static org.chromium.net.CronetTestRule.getContext;
+
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.json.JSONObject;
+diff --git a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/CronetSmokeTestRule.java b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/CronetSmokeTestRule.java
+index 4a0b236e..ee552058 100644
+--- a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/CronetSmokeTestRule.java
++++ b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/CronetSmokeTestRule.java
+@@ -5,7 +5,7 @@
+ package org.chromium.net.smoke;
+
+ import android.content.Context;
+-import android.support.test.InstrumentationRegistry;
++import androidx.test.core.app.ApplicationProvider;
+
+ import org.junit.Assert;
+ import org.junit.rules.TestRule;
+@@ -56,7 +56,7 @@ public class CronetSmokeTestRule implements TestRule {
+
+     private void ruleSetUp() throws Exception {
+         mCronetEngineBuilder =
+-                new ExperimentalCronetEngine.Builder(InstrumentationRegistry.getTargetContext());
++                new ExperimentalCronetEngine.Builder(ApplicationProvider.getApplicationContext());
+         initTestSupport();
+     }
+
+@@ -109,7 +109,7 @@ public class CronetSmokeTestRule implements TestRule {
+      */
+     @SuppressWarnings("DiscouragedApi")
+     private void initTestSupport() throws Exception {
+-        Context ctx = InstrumentationRegistry.getTargetContext();
++        Context ctx = ApplicationProvider.getApplicationContext();
+         String packageName = ctx.getPackageName();
+         int resId = ctx.getResources().getIdentifier(SUPPORT_IMPL_RES_KEY, "string", packageName);
+         String className = ctx.getResources().getString(resId);
+diff --git a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/Http2Test.java b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/Http2Test.java
+index 27fcb12c..446225af 100644
+--- a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/Http2Test.java
++++ b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/Http2Test.java
+@@ -4,9 +4,8 @@
+
+ package org.chromium.net.smoke;
+
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.core.app.ApplicationProvider;
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+@@ -31,7 +30,7 @@ public class Http2Test {
+     @Before
+     public void setUp() throws Exception {
+         mServer = mRule.getTestSupport().createTestServer(
+-                InstrumentationRegistry.getTargetContext(), TestSupport.Protocol.HTTP2);
++                ApplicationProvider.getApplicationContext(), TestSupport.Protocol.HTTP2);
+     }
+
+     @After
+diff --git a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/MissingNativeLibraryTest.java b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/MissingNativeLibraryTest.java
+index 69cc226a..0fc0b76e 100644
+--- a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/MissingNativeLibraryTest.java
++++ b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/MissingNativeLibraryTest.java
+@@ -6,9 +6,8 @@ package org.chromium.net.smoke;
+
+ import static org.chromium.net.smoke.CronetSmokeTestRule.assertJavaEngine;
+
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.core.app.ApplicationProvider;
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.Assert;
+@@ -40,7 +39,7 @@ public class MissingNativeLibraryTest {
+     @SmallTest
+     public void testExceptionWhenSoFileIsAbsent() throws Exception {
+         ExperimentalCronetEngine.Builder builder =
+-                new ExperimentalCronetEngine.Builder(InstrumentationRegistry.getTargetContext());
++                new ExperimentalCronetEngine.Builder(ApplicationProvider.getApplicationContext());
+         thrown.expect(UnsatisfiedLinkError.class);
+         builder.build();
+     }
+@@ -53,7 +52,7 @@ public class MissingNativeLibraryTest {
+     @SmallTest
+     public void testForceChoiceOfJavaEngine() throws Exception {
+         List<CronetProvider> availableProviders =
+-                CronetProvider.getAllProviders(InstrumentationRegistry.getTargetContext());
++                CronetProvider.getAllProviders(ApplicationProvider.getApplicationContext());
+         boolean foundNativeProvider = false;
+         CronetProvider platformProvider = null;
+         for (CronetProvider provider : availableProviders) {
+diff --git a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/NativeCronetTestRule.java b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/NativeCronetTestRule.java
+index 117fb776..075f7d12 100644
+--- a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/NativeCronetTestRule.java
++++ b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/NativeCronetTestRule.java
+@@ -4,7 +4,7 @@
+
+ package org.chromium.net.smoke;
+
+-import android.support.test.InstrumentationRegistry;
++import androidx.test.core.app.ApplicationProvider;
+
+ import org.junit.runner.Description;
+ import org.junit.runners.model.Statement;
+@@ -43,7 +43,7 @@ public class NativeCronetTestRule extends CronetSmokeTestRule {
+
+     private void ruleSetUp() throws Exception {
+         ContextUtils.initApplicationContext(
+-                InstrumentationRegistry.getTargetContext().getApplicationContext());
++                 ApplicationProvider.getApplicationContext());
+         PathUtils.setPrivateDataDirectorySuffix(PRIVATE_DATA_DIRECTORY_SUFFIX);
+         mTestSupport.loadTestNativeLibrary();
+     }
+@@ -64,6 +64,6 @@ public class NativeCronetTestRule extends CronetSmokeTestRule {
+         mCronetEngine.stopNetLog();
+         File netLogFile = new File(PathUtils.getDataDirectory(), LOGFILE_NAME);
+         if (!netLogFile.exists()) return;
+-        mTestSupport.processNetLog(InstrumentationRegistry.getTargetContext(), netLogFile);
++        mTestSupport.processNetLog(ApplicationProvider.getApplicationContext(), netLogFile);
+     }
+ }
+diff --git a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/PlatformOnlyEngineTest.java b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/PlatformOnlyEngineTest.java
+index a9d7cbb8..668d9eef 100644
+--- a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/PlatformOnlyEngineTest.java
++++ b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/PlatformOnlyEngineTest.java
+@@ -7,9 +7,9 @@ package org.chromium.net.smoke;
+ import static org.chromium.net.smoke.CronetSmokeTestRule.assertJavaEngine;
+ import static org.chromium.net.smoke.CronetSmokeTestRule.assertSuccessfulNonEmptyResponse;
+
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+
++import androidx.test.core.app.ApplicationProvider;
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.junit.After;
+@@ -36,7 +36,7 @@ public class PlatformOnlyEngineTest {
+     public void setUp() throws Exception {
+         // Java-only implementation of the Cronet engine only supports Http/1 protocol.
+         mServer = mRule.getTestSupport().createTestServer(
+-                InstrumentationRegistry.getTargetContext(), TestSupport.Protocol.HTTP1);
++                ApplicationProvider.getApplicationContext(), TestSupport.Protocol.HTTP1);
+         Assert.assertTrue(mServer.start());
+         mURL = mServer.getSuccessURL();
+     }
+diff --git a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/QuicTest.java b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/QuicTest.java
+index 0fd8d307..a7ea2986 100644
+--- a/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/QuicTest.java
++++ b/components/cronet/android/test/smoketests/src/org/chromium/net/smoke/QuicTest.java
+@@ -6,9 +6,8 @@ package org.chromium.net.smoke;
+
+ import static org.chromium.net.smoke.TestSupport.Protocol.QUIC;
+
+-import android.support.test.InstrumentationRegistry;
+-import android.support.test.runner.AndroidJUnit4;
+-
++import androidx.test.core.app.ApplicationProvider;
++import androidx.test.ext.junit.runners.AndroidJUnit4;
+ import androidx.test.filters.SmallTest;
+
+ import org.json.JSONObject;
+@@ -36,7 +35,7 @@ public class QuicTest {
+     @Before
+     public void setUp() throws Exception {
+         mServer = mRule.getTestSupport().createTestServer(
+-                InstrumentationRegistry.getTargetContext(), QUIC);
++                ApplicationProvider.getApplicationContext(), QUIC);
+     }
+
+     @After
+-- 
+2.39.1.519.gcb327c4b5f-goog
+
