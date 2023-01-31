@@ -7,13 +7,17 @@ package org.chromium.native_test;
 import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
+import android.net.http.HttpEngine;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
+import android.os.Looper;
 import android.os.Process;
+import android.system.ErrnoException;
 import android.system.Os;
 
+import org.chromium.base.JNIUtils;
 import org.chromium.base.Log;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.test.util.UrlUtils;
@@ -23,7 +27,7 @@ import org.chromium.test.reporter.TestStatusReporter;
 import java.io.File;
 
 /**
- *  Helper to run tests inside Activity or NativeActivity.
+ * Helper to run tests inside Activity or NativeActivity.
  */
 @JNINamespace("testing::android")
 public class NativeTest {
@@ -34,6 +38,12 @@ public class NativeTest {
     private TestStatusReporter mReporter;
     private boolean mRunInSubThread;
     private String mStdoutFilePath;
+    private static final String LOG_TAG = "NativeTestRunner";
+    // Signal used to trigger a dump of Clang coverage information.
+    private final int COVERAGE_SIGNAL = 37;
+    private boolean mDumpCoverage = false;
+    private static final String DUMP_COVERAGE =
+            "org.chromium.native_test.NativeTestInstrumentationTestRunner.DumpCoverage";
 
     private static class ReportingUncaughtExceptionHandler
             implements Thread.UncaughtExceptionHandler {
@@ -129,6 +139,7 @@ public class NativeTest {
         }
 
         mStdoutFilePath = intent.getStringExtra(NativeTestIntent.EXTRA_STDOUT_FILE);
+        mDumpCoverage = intent.hasExtra(DUMP_COVERAGE);
     }
 
     public void appendCommandLineFlags(String flags) {
@@ -176,15 +187,92 @@ public class NativeTest {
     private void runTests(Activity activity) {
         nativeRunTests(mCommandLineFlags.toString(), mCommandLineFilePath, mStdoutFilePath,
                 activity.getApplicationContext(), UrlUtils.getIsolatedTestRoot());
-        activity.finish();
-        mReporter.testRunFinished(Process.myPid());
+        if (mDumpCoverage) {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                maybeDumpNativeCoverage();
+                activity.finish();
+                mReporter.testRunFinished(Process.myPid());
+            });
+        } else {
+            activity.finish();
+            mReporter.testRunFinished(Process.myPid());
+        }
     }
 
-    // Signal a failure of the native test loader to python scripts
-    // which run tests.  For example, we look for
-    // RUNNER_FAILED build/android/test_package.py.
-    private void nativeTestFailed() {
-        Log.e(TAG, "[ RUNNER_FAILED ] could not load native library");
+    /**
+     * If this test process is instrumented for native coverage, then trigger a dump
+     * of the coverage data and wait until either we detect the dumping has finished or 60 seconds,
+     * whichever is shorter.
+     *
+     * Background: Coverage builds install a signal handler for signal 37 which flushes coverage
+     * data to disk, which may take a few seconds.  Tests running as an app process will get
+     * killed with SIGKILL once the app code exits, even if the coverage handler is still running.
+     *
+     * Method: If a handler is installed for signal 37, then assume this is a coverage run and
+     * send signal 37.  The handler is non-reentrant and so signal 37 will then be blocked until
+     * the handler completes. So after we send the signal, we loop checking the blocked status
+     * for signal 37 until we hit the 60 second deadline.  If the signal is blocked then sleep for
+     * 2 seconds, and if it becomes unblocked then the handler exitted so we can return early.
+     * If the signal is not blocked at the start of the loop then most likely the handler has
+     * not yet been invoked.  This should almost never happen as it should get blocked on delivery
+     * when we call {@code Os.kill()}, so sleep for a shorter duration (100ms) and try again.  There
+     * is a race condition here where the handler is delayed but then runs for less than 100ms and
+     * gets missed, in which case this method will loop with 100ms sleeps until the deadline.
+     *
+     * In the case where the handler runs for more than 60 seconds, the test process will be allowed
+     * to exit so coverage information may be incomplete.
+     *
+     * There is no API for determining signal dispositions, so this method uses the
+     * {@link SignalMaskInfo} class to read the data from /proc.  If there is an error parsing
+     * the /proc data then this method will also loop until the 60s deadline passes.
+     */
+    private void maybeDumpNativeCoverage() {
+        SignalMaskInfo siginfo = new SignalMaskInfo();
+        if (!siginfo.isValid()) {
+            Log.e(LOG_TAG, "Invalid signal info");
+            return;
+        }
+
+        if (!siginfo.isCaught(COVERAGE_SIGNAL)) {
+            // Process is not instrumented for coverage
+            Log.i(LOG_TAG, "Not dumping coverage, no handler installed");
+            return;
+        }
+
+        Log.i(LOG_TAG,
+                String.format("Sending coverage dump signal %d to pid %d uid %d", COVERAGE_SIGNAL,
+                        Os.getpid(), Os.getuid()));
+        try {
+            Os.kill(Os.getpid(), COVERAGE_SIGNAL);
+        } catch (ErrnoException e) {
+            Log.e(LOG_TAG, "Unable to send coverage signal", e);
+            return;
+        }
+
+        long start = System.currentTimeMillis();
+        long deadline = start + 60 * 1000L;
+        while (System.currentTimeMillis() < deadline) {
+            siginfo.refresh();
+            try {
+                if (siginfo.isValid() && siginfo.isBlocked(COVERAGE_SIGNAL)) {
+                    // Signal is currently blocked so assume a handler is running
+                    Thread.sleep(2000L);
+                    siginfo.refresh();
+                    if (siginfo.isValid() && !siginfo.isBlocked(COVERAGE_SIGNAL)) {
+                        // Coverage handler exited while we were asleep
+                        Log.i(LOG_TAG,
+                                String.format("Coverage dump detected finished after %dms",
+                                        System.currentTimeMillis() - start));
+                        break;
+                    }
+                } else {
+                    // Coverage signal handler not yet started or invalid siginfo
+                    Thread.sleep(100L);
+                }
+            } catch (InterruptedException e) {
+                // ignored
+            }
+        }
     }
 
     private native void nativeRunTests(String commandLineFlags, String commandLineFilePath,
