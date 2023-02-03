@@ -29,7 +29,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.test.util.CertTestUtil;
 
@@ -93,7 +92,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testErrorCodeIfPinDoesNotMatch() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
@@ -113,7 +111,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSuccessIfPinMatches() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
@@ -137,7 +134,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testIncludeSubdomainsFlagEqualTrue() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
@@ -158,7 +154,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testIncludeSubdomainsFlagEqualFalse() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
@@ -179,7 +174,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSuccessIfNoPinSpecified() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
@@ -199,7 +193,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSoonExpiringPin() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
@@ -220,7 +213,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testRecentlyExpiredPin() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
@@ -241,7 +233,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testLocalTrustAnchorPinningEnforced() throws Exception {
         createCronetEngineBuilder(DISABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, UNKNOWN_ROOT);
@@ -262,7 +253,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testLocalTrustAnchorPinningNotEnforced() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, UNKNOWN_ROOT);
@@ -282,7 +272,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testPinsAreNotPersisted() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
@@ -309,7 +298,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testHostNameArgumentValidation() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
         final String label63 = "123456789-123456789-123456789-123456789-123456789-123456789-123";
@@ -367,7 +355,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testNullArguments() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
         verifyExceptionWhenAddPkpArgumentIsNull(true, false, false);
@@ -383,7 +370,6 @@ public class PkpTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testIllegalArgumentExceptionWhenPinValueIsSHA1() throws Exception {
         createCronetEngineBuilder(ENABLE_PINNING_BYPASS_FOR_LOCAL_ANCHORS, KNOWN_ROOT);
         byte[] sha1 = new byte[20];

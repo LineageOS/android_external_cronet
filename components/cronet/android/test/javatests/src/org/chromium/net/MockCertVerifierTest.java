@@ -22,8 +22,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
-
 /**
  * Unit tests for {@code MockCertVerifier}.
  */
@@ -55,7 +53,6 @@ public class MockCertVerifierTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testRequest_failsWithoutMockVerifier() {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
@@ -69,7 +66,6 @@ public class MockCertVerifierTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testRequest_passesWithMockVerifier() {
         ExperimentalHttpEngine.Builder builder =
                 new ExperimentalHttpEngine.Builder(getContext());
