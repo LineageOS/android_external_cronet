@@ -24,7 +24,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 
 /**
@@ -54,7 +53,6 @@ public class NetworkErrorLoggingTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testManualReportUpload() throws Exception {
         ExperimentalHttpEngine.Builder builder =
@@ -81,7 +79,6 @@ public class NetworkErrorLoggingTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testUploadNELReportsFromHeaders() throws Exception {
         ExperimentalHttpEngine.Builder builder =
@@ -117,7 +114,6 @@ public class NetworkErrorLoggingTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testUploadNELReportsFromPreloadedPolicy() throws Exception {
         ExperimentalHttpEngine.Builder builder =
