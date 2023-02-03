@@ -24,7 +24,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import android.net.http.CallbackException;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
@@ -74,7 +73,6 @@ public class UploadDataProvidersTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testFileProvider() throws Exception {
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder builder = mTestFramework.mCronetEngine.newUrlRequestBuilder(
@@ -90,7 +88,6 @@ public class UploadDataProvidersTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testFileDescriptorProvider() throws Exception {
         ParcelFileDescriptor descriptor =
                 ParcelFileDescriptor.open(mFile, ParcelFileDescriptor.MODE_READ_ONLY);
@@ -109,7 +106,6 @@ public class UploadDataProvidersTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testBadFileDescriptorProvider() throws Exception {
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder builder = mTestFramework.mCronetEngine.newUrlRequestBuilder(
@@ -130,7 +126,6 @@ public class UploadDataProvidersTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testBufferProvider() throws Exception {
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder builder = mTestFramework.mCronetEngine.newUrlRequestBuilder(
@@ -147,7 +142,6 @@ public class UploadDataProvidersTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     // Tests that ByteBuffer's limit cannot be changed by the caller.
     public void testUploadChangeBufferLimit() throws Exception {
@@ -189,7 +183,6 @@ public class UploadDataProvidersTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testNoErrorWhenCanceledDuringStart() throws Exception {
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder builder = mTestFramework.mCronetEngine.newUrlRequestBuilder(
@@ -223,7 +216,6 @@ public class UploadDataProvidersTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testNoErrorWhenExceptionDuringStart() throws Exception {
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder builder = mTestFramework.mCronetEngine.newUrlRequestBuilder(
@@ -257,7 +249,6 @@ public class UploadDataProvidersTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     // Tests that creating a ByteBufferUploadProvider using a byte array with an
     // offset gives a ByteBuffer with position 0. crbug.com/603124.
     public void testCreateByteBufferUploadWithArrayOffset() throws Exception {

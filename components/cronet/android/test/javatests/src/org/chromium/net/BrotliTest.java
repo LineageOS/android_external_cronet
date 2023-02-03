@@ -25,7 +25,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestRule.RequiresMinApi;
 
@@ -57,7 +56,6 @@ public class BrotliTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testBrotliAdvertised() throws Exception {
         ExperimentalHttpEngine.Builder builder =
@@ -74,7 +72,6 @@ public class BrotliTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testBrotliNotAdvertised() throws Exception {
         ExperimentalHttpEngine.Builder builder =
@@ -90,7 +87,6 @@ public class BrotliTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testBrotliDecoded() throws Exception {
         ExperimentalHttpEngine.Builder builder =

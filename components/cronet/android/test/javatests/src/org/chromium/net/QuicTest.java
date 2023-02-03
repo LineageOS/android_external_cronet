@@ -28,7 +28,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.base.Log;
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.MetricsTestUtil.TestRequestFinishedListener;
 
@@ -93,7 +92,6 @@ public class QuicTest {
 
     @Test
     @LargeTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testQuicLoadUrl() throws Exception {
         ExperimentalHttpEngine cronetEngine = mBuilder.build();
@@ -175,7 +173,6 @@ public class QuicTest {
      */
     @Test
     @LargeTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     @SuppressWarnings("deprecation")
     public void testNQEWithQuic() throws Exception {
@@ -256,7 +253,6 @@ public class QuicTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    @Feature({"Cronet"})
     public void testMetricsWithQuic() throws Exception {
         ExperimentalHttpEngine cronetEngine = mBuilder.build();
         TestRequestFinishedListener requestFinishedListener = new TestRequestFinishedListener();
