@@ -38,7 +38,6 @@ import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.test.util.DisabledTest;
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.MetricsTestUtil.TestRequestFinishedListener;
 import org.chromium.net.impl.CronetUrlRequestContext;
@@ -84,7 +83,6 @@ public class ExperimentalOptionsTest {
 
     @Test
     @MediumTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     // Tests that NetLog writes effective experimental options to NetLog.
     public void testNetLog() throws Exception {
@@ -116,7 +114,6 @@ public class ExperimentalOptionsTest {
     @DisabledTest(message = "crbug.com/1021941")
     @Test
     @MediumTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSetSSLKeyLogFile() throws Exception {
         String url = Http2TestServer.getEchoMethodUrl();
@@ -183,7 +180,6 @@ public class ExperimentalOptionsTest {
 
     @Test
     @MediumTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     // Tests that basic Cronet functionality works when host cache persistence is enabled, and that
     // persistence works.
@@ -242,7 +238,6 @@ public class ExperimentalOptionsTest {
 
     @Test
     @MediumTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     // Experimental options should be specified through a JSON compliant string. When that is not
     // the case building a Cronet engine should fail when it is allowed to do so.
@@ -257,7 +252,6 @@ public class ExperimentalOptionsTest {
 
     @Test
     @MediumTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testDetectBrokenConnection() throws Exception {
         String url = Http2TestServer.getEchoMethodUrl();
@@ -282,7 +276,6 @@ public class ExperimentalOptionsTest {
     @DisabledTest(message = "crbug.com/1320725")
     @Test
     @LargeTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testDetectBrokenConnectionOnNetworkFailure() throws Exception {
         // HangingRequestUrl stops the server from replying until mHangingUrlLatch is opened,

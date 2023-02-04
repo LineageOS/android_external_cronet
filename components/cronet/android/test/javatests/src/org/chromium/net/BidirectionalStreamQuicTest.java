@@ -28,7 +28,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.MetricsTestUtil.TestRequestFinishedListener;
 
@@ -85,7 +84,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     // Test that QUIC is negotiated.
     public void testSimpleGet() throws Exception {
@@ -108,7 +106,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSimplePost() throws Exception {
         setUp(QuicBidirectionalStreams.ENABLED);
@@ -150,7 +147,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSimplePostWithFlush() throws Exception {
         setUp(QuicBidirectionalStreams.ENABLED);
@@ -184,7 +180,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSimplePostWithFlushTwice() throws Exception {
         setUp(QuicBidirectionalStreams.ENABLED);
@@ -221,7 +216,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSimpleGetWithFlush() throws Exception {
         setUp(QuicBidirectionalStreams.ENABLED);
@@ -266,7 +260,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testSimplePostWithFlushAfterOneWrite() throws Exception {
         setUp(QuicBidirectionalStreams.ENABLED);
@@ -298,7 +291,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testQuicBidirectionalStreamDisabled() throws Exception {
         setUp(QuicBidirectionalStreams.DISABLED);
@@ -320,7 +312,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     // Tests that if the stream failed between the time when we issue a Write()
     // and when the Write() is executed in the native stack, there is no crash.
@@ -370,7 +361,6 @@ public class BidirectionalStreamQuicTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     public void testStreamFailWithQuicDetailedErrorCode() throws Exception {
         setUp(QuicBidirectionalStreams.ENABLED);
