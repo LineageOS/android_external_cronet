@@ -18,8 +18,8 @@ import android.net.http.NetworkException;
 import android.net.http.QuicException;
 import android.net.http.RequestFinishedInfo;
 import android.net.http.UrlResponseInfo;
-import android.support.test.runner.AndroidJUnit4;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import org.json.JSONObject;

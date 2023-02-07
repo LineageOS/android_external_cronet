@@ -15,8 +15,8 @@ import android.net.http.ExperimentalHttpEngine;
 import android.net.http.RequestFinishedInfo;
 import android.net.http.UrlRequest;
 import android.net.http.UrlResponseInfo;
-import android.support.test.runner.AndroidJUnit4;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.SmallTest;
 
