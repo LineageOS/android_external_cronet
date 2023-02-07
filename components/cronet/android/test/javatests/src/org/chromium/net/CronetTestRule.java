@@ -12,7 +12,8 @@ import android.net.http.UrlResponseInfo;
 import android.content.Context;
 import android.os.Build;
 import android.os.StrictMode;
-import android.support.test.InstrumentationRegistry;
+
+import androidx.test.core.app.ApplicationProvider;
 
 import org.junit.Assert;
 import org.junit.rules.TestRule;
@@ -96,7 +97,7 @@ public class CronetTestRule implements TestRule {
     }
 
     public static Context getContext() {
-        return InstrumentationRegistry.getTargetContext();
+        return ApplicationProvider.getApplicationContext();
     }
 
     int getMaximumAvailableApiLevel() {

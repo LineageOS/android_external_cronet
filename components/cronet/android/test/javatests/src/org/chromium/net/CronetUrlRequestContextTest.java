@@ -30,9 +30,8 @@ import android.os.ConditionVariable;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Process;
-import android.support.test.InstrumentationRegistry;
-import android.support.test.runner.AndroidJUnit4;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import org.json.JSONObject;
@@ -365,7 +364,7 @@ public class CronetUrlRequestContextTest {
         // Multi-network API is available starting from Android Lollipop.
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
         ConnectivityManagerDelegate delegate =
-                new ConnectivityManagerDelegate(InstrumentationRegistry.getTargetContext());
+                new ConnectivityManagerDelegate(getContext());
         Network defaultNetwork = delegate.getDefaultNetwork();
         if (defaultNetwork == null) {
             testFramework.mCronetEngine.shutdown();
@@ -436,7 +435,7 @@ public class CronetUrlRequestContextTest {
                 (ExperimentalUrlRequest.Builder) testFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
         ConnectivityManagerDelegate delegate =
-                new ConnectivityManagerDelegate(InstrumentationRegistry.getTargetContext());
+                new ConnectivityManagerDelegate(getContext());
         Network defaultNetwork = delegate.getDefaultNetwork();
         if (defaultNetwork == null) {
             testFramework.mCronetEngine.shutdown();
@@ -1283,7 +1282,7 @@ public class CronetUrlRequestContextTest {
         // like crbug.com/453845
         HttpEngine firstEngine = new HttpEngine.Builder(getContext()).build();
         HttpEngine secondEngine =
-                new HttpEngine.Builder(getContext().getApplicationContext()).build();
+                new HttpEngine.Builder(getContext()).build();
         HttpEngine thirdEngine =
                 new HttpEngine.Builder(new ContextWrapper(getContext())).build();
         firstEngine.shutdown();
