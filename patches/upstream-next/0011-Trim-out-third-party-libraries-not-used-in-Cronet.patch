@@ -1,0 +1,80 @@
+From c7181ac6cd862975b029e67d239261b8bceb98dc Mon Sep 17 00:00:00 2001
+From: Mohannad Farrag <aymanm@google.com>
+Date: Fri, 3 Feb 2023 15:19:00 +0000
+Subject: [PATCH] Trim out third-party libraries not used in Cronet
+
+A bunch of third-party libraries in base aren't used for Android. So I thought it'd be a good idea to trim them out for cronet builds.
+
+The identified libraries are the following:
+  * xdg_mime: This cant exist in AOSP due to licensing issues.
+  * xdg_user_dir: This is not used in Android at all but being built when we're building different targets for host.
+  * symbolize: This is not used in Android at all but being built when we're building different targets for host.
+
+Bug: 1412771
+---
+ base/BUILD.gn                              | 31 +++++++++++-----------
+ components/cronet/android/dependencies.txt |  3 ---
+ 2 files changed, 16 insertions(+), 18 deletions(-)
+
+diff --git a/base/BUILD.gn b/base/BUILD.gn
+index f1689d628f2b6..a84441b555f85 100644
+--- a/base/BUILD.gn
++++ b/base/BUILD.gn
+@@ -2186,24 +2186,25 @@ component("base") {
+ 
+     configs += linux_configs
+     all_dependent_configs += linux_configs
+-
+     sources += [
+-      "nix/mime_util_xdg.cc",
+-      "nix/mime_util_xdg.h",
+-      "nix/xdg_util.cc",
+-      "nix/xdg_util.h",
+       "system/sys_info_linux.cc",
+     ]
+-
+-    defines += [ "USE_SYMBOLIZE" ]
+-
+-    # These dependencies are not required on Android, and in the case
+-    # of xdg_mime must be excluded due to licensing restrictions.
+-    deps += [
+-      "//base/third_party/symbolize",
+-      "//base/third_party/xdg_mime",
+-      "//base/third_party/xdg_user_dirs",
+-    ]
++    if (!is_cronet_build) {
++      # These dependencies are not required on Android, and in the case
++      # of xdg_mime must be excluded due to licensing restrictions.
++      sources += [
++        "nix/mime_util_xdg.cc",
++        "nix/mime_util_xdg.h",
++        "nix/xdg_util.cc",
++        "nix/xdg_util.h",
++      ]
++      defines += [ "USE_SYMBOLIZE" ]
++      deps += [
++        "//base/third_party/symbolize",
++        "//base/third_party/xdg_mime",
++        "//base/third_party/xdg_user_dirs",
++      ]
++    }
+   } else {
+     if (!is_android) {
+       sources -= [
+diff --git a/components/cronet/android/dependencies.txt b/components/cronet/android/dependencies.txt
+index 96488e45b2c9f..b71d8f6f41cf3 100644
+--- a/components/cronet/android/dependencies.txt
++++ b/components/cronet/android/dependencies.txt
+@@ -5,9 +5,6 @@
+ //base/numerics
+ //base/third_party/double_conversion
+ //base/third_party/dynamic_annotations
+-//base/third_party/symbolize
+-//base/third_party/xdg_mime
+-//base/third_party/xdg_user_dirs
+ //base/tracing/protos
+ //build
+ //build/android
+-- 
+2.39.1.519.gcb327c4b5f-goog
+
