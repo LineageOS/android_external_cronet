@@ -14,8 +14,8 @@ import static org.chromium.net.CronetTestRule.getTestStorage;
 import android.net.http.ExperimentalHttpEngine;
 import android.net.http.UrlRequest;
 import android.os.StrictMode;
-import android.support.test.runner.AndroidJUnit4;
 
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import org.json.JSONObject;
