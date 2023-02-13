@@ -384,7 +384,9 @@ public abstract class HttpEngine {
     /**
      * @return a human-readable version string of the engine.
      */
-    public abstract String getVersionString();
+    public static String getVersionString() {
+        return ApiVersion.getCronetVersionWithLastChange();
+    }
 
     /**
      * Shuts down the {@link HttpEngine} if there are no active requests,
