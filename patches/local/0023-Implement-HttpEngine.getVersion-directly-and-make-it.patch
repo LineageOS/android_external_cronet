@@ -1,0 +1,51 @@
+From fcba166fefebf519edf7188a1aeeb5d93547c0d2 Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Wed, 8 Feb 2023 12:28:42 +0000
+Subject: [PATCH] Implement HttpEngine.getVersion() directly and make it
+ static.
+
+In AOSP, the implementation and the API version are the same so there's
+no need to distinguish between the two. For the same reason the method
+can also be static, which helps with imnplementing the version check for
+the platform org.chromium.net provider.
+
+Change-Id: I07b1a8c3e909804e0c427fb38ad18785943271dc
+---
+ .../cronet/android/api/src/android/net/http/HttpEngine.java  | 4 +++-
+ .../src/org/chromium/net/impl/CronetUrlRequestContext.java   | 5 -----
+ 2 files changed, 3 insertions(+), 6 deletions(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/HttpEngine.java b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+index e4c543b1..97acf5f0 100644
+--- a/components/cronet/android/api/src/android/net/http/HttpEngine.java
++++ b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+@@ -384,7 +384,9 @@ public abstract class HttpEngine {
+     /**
+      * @return a human-readable version string of the engine.
+      */
+-    public abstract String getVersionString();
++    public static String getVersionString() {
++        return ApiVersion.getCronetVersionWithLastChange();
++    }
+ 
+     /**
+      * Shuts down the {@link HttpEngine} if there are no active requests,
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
+index 2c4a1f7b..3be75aed 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
+@@ -315,11 +315,6 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+         }
+     }
+ 
+-    @Override
+-    public String getVersionString() {
+-        return "Cronet/" + ImplVersion.getCronetVersionWithLastChange();
+-    }
+-
+     private CronetVersion buildCronetVersion() {
+         String version = getVersionString();
+         // getVersionString()'s output looks like "Cronet/w.x.y.z@hash". CronetVersion only cares
+-- 
+2.39.1.519.gcb327c4b5f-goog
+
