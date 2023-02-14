@@ -3,8 +3,10 @@
 // found in the LICENSE file.
 package org.chromium.net.impl;
 
+import static android.net.http.ExperimentalHttpEngine.UNBIND_NETWORK_HANDLE;
+
 import android.annotation.SuppressLint;
-import android.os.Build;
+import android.net.Network;
 import android.util.Log;
 import android.util.Pair;
 
@@ -13,6 +15,8 @@ import android.net.http.ExperimentalUrlRequest;
 import android.net.http.RequestFinishedInfo;
 import android.net.http.UploadDataProvider;
 import android.net.http.UrlRequest;
+
+import androidx.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -206,12 +210,12 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
     }
 
     @Override
-    public UrlRequestBuilderImpl bindToNetwork(long networkHandle) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            throw new UnsupportedOperationException(
-                    "The multi-network API is available starting from Android Marshmallow");
+    public UrlRequestBuilderImpl bindToNetwork(@Nullable Network network) {
+        if (network == null) {
+            mNetworkHandle = UNBIND_NETWORK_HANDLE;
+        } else {
+            mNetworkHandle = network.getNetworkHandle();
         }
-        mNetworkHandle = networkHandle;
         return this;
     }
 
