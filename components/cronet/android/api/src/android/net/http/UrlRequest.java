@@ -5,6 +5,9 @@
 package android.net.http;
 
 import android.annotation.IntDef;
+import android.net.Network;
+
+import androidx.annotation.Nullable;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -117,6 +120,17 @@ public abstract class UrlRequest {
          * other code you don't carefully control and audit.
          */
         public abstract Builder allowDirectExecutor();
+
+        /**
+         * Binds the request to the specified network. The HTTP stack will send this request
+         * only using the network associated to this handle. If this network disconnects the request
+         * will  fail, the exact error will depend on the stage of request processing when
+         * the network disconnects.
+         *
+         * @param network the network to bind the request to. Specify {@code null} to unbind.
+         * @return the builder to facilitate chaining.
+         */
+        public abstract Builder bindToNetwork(@Nullable Network network);
 
         /**
          * Creates a {@link UrlRequest} using configuration within this

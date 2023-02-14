@@ -30,6 +30,7 @@ java_library {
     libs: [
         "androidx.annotation_annotation",
         "framework-annotations-lib",
+        "framework-connectivity.stubs.module_lib",
     ],
     sdk_version: "module_current",
 }
