@@ -5,6 +5,9 @@
 package android.net.http;
 
 import android.content.Context;
+import android.net.Network;
+
+import androidx.annotation.Nullable;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
@@ -452,6 +455,16 @@ public abstract class HttpEngine {
     public byte[] getGlobalMetricsDeltas() {
         return new byte[0];
     }
+
+    /**
+     * Binds the engine to the specified network. All requests created through this engine
+     * will use the network associated to this handle. If this network disconnects all requests will
+     * fail, the exact error will depend on the stage of request processing when the network
+     * disconnects.
+     *
+     * @param network the network to bind the engine to. Specify {@code null} to unbind.
+     */
+    public void bindToNetwork(@Nullable Network network) {}
 
     /**
      * Establishes a new connection to the resource specified by the {@link URL} {@code url}.
