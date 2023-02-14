@@ -680,16 +680,4 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
     public int getDownstreamThroughputKbps() {
         return CONNECTION_METRIC_UNKNOWN;
     }
-
-    /**
-     * Binds the engine to the specified network handle. All requests created through this engine
-     * will use the network associated to this handle. If this network disconnects all requests will
-     * fail, the exact error will depend on the stage of request processing when the network
-     * disconnects. Network handles can be obtained through {@code Network#getNetworkHandle}.
-     * Only available starting from Android Marshmallow.
-     *
-     * @param networkHandle the network handle to bind the engine to. Specify
-     *        {@link #UNBIND_NETWORK_HANDLE} to unbind.
-     */
-    public void bindToNetwork(long networkHandle) {}
 }
