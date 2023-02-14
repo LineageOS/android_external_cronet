@@ -38,8 +38,6 @@ public class ConnectionMigrationOptions {
     @Nullable
     private final Duration mIdleMigrationPeriod;
     @Nullable
-    private final Boolean mRetryPreHandshakeErrorsOnNonDefaultNetwork;
-    @Nullable
     private final Boolean mAllowNonDefaultNetworkUsage;
     @Nullable
     private final Duration mMaxTimeOnNonDefaultNetwork;
@@ -98,20 +96,7 @@ public class ConnectionMigrationOptions {
     }
 
     /**
-     * See {@link Builder#setRetryPreHandshakeErrorsOnNonDefaultNetwork}
-     *
-     * {@hide}
-     */
-    @Experimental
-    @Nullable
-    public Boolean getRetryPreHandshakeErrorsOnNonDefaultNetwork() {
-        return mRetryPreHandshakeErrorsOnNonDefaultNetwork;
-    }
-
-    /**
      * See {@link Builder#setAllowNonDefaultNetworkUsage}
-     *
-     * {@hide}
      */
     @Experimental
     @Nullable
@@ -158,8 +143,6 @@ public class ConnectionMigrationOptions {
         this.mAllowServerMigration = builder.mAllowServerMigration;
         this.mMigrateIdleConnections = builder.mMigrateIdleConnections;
         this.mIdleMigrationPeriod = builder.mIdleConnectionMigrationPeriod;
-        this.mRetryPreHandshakeErrorsOnNonDefaultNetwork =
-                builder.mRetryPreHandshakeErrorsOnAlternateNetwork;
         this.mAllowNonDefaultNetworkUsage = builder.mAllowNonDefaultNetworkUsage;
         this.mMaxTimeOnNonDefaultNetwork = builder.mMaxTimeOnNonDefaultNetwork;
         this.mMaxWriteErrorNonDefaultNetworkMigrationsCount = builder.mMaxWriteErrorNonDefaultNetworkMigrationsCount;
@@ -180,8 +163,6 @@ public class ConnectionMigrationOptions {
         private Boolean mMigrateIdleConnections;
         @Nullable
         private Duration mIdleConnectionMigrationPeriod;
-        @Nullable
-        private Boolean mRetryPreHandshakeErrorsOnAlternateNetwork;
         @Nullable
         private Boolean mAllowNonDefaultNetworkUsage;
         @Nullable
@@ -274,17 +255,14 @@ public class ConnectionMigrationOptions {
 
         /**
          * Sets whether connections can be migrated to an alternate network when Cronet detects
-         * a degradation of the path currently in use.
+         * a degradation of the path currently in use. Requires setting
+         * {@link #setEnablePathDegradationMigration} to true to have any effect.
          *
-         * <p>Note: This setting can result in requests being sent on non-default metered networks.
-         * Make sure you're using metered networks sparingly, and fine tune parameters like
-         * {@link #setMaxPathDegradingNonDefaultNetworkMigrationsCount(int)}
-         * and {@link #setMaxTimeOnNonDefaultNetworkSeconds} to limit the time on non-default
-         * networks.
+         * <p>Note: This setting can result in requests being sent on non-default metered networks,
+         * eating into the users' data budgets and incurring extra costs. Make sure you're using
+         * metered networks sparingly.
          *
          * @return this builder for chaining
-         *
-         * {@hide}
          */
         @Experimental
         public Builder setAllowNonDefaultNetworkUsage(boolean enable) {
@@ -341,28 +319,6 @@ public class ConnectionMigrationOptions {
         public Builder setMaxPathDegradingNonDefaultNetworkMigrationsCount(
                 int maxPathDegradingNonDefaultMigrationsCount) {
             this.mMaxPathDegradingNonDefaultMigrationsCount = maxPathDegradingNonDefaultMigrationsCount;
-            return this;
-        }
-
-        /**
-         * Sets whether connections with pre-handshake errors should be retried on an alternative
-         * network.
-         *
-         * <p>If true, a new connection may be established an alternate network if it fails
-         * on the default network before handshake is confirmed.
-         *
-         * <p>Note: similarly to {@link #setAllowNonDefaultNetworkUsage(boolean)} this setting can
-         * result in requests being sent on non-default metered networks. Use with caution!
-         *
-         * @return this builder for chaining
-         *
-         * {@hide}
-         */
-        @Experimental
-        public Builder setRetryPreHandshakeErrorsOnNonDefaultNetwork(
-                boolean retryPreHandshakeErrorsOnAlternateNetwork) {
-            this.mRetryPreHandshakeErrorsOnAlternateNetwork =
-                    retryPreHandshakeErrorsOnAlternateNetwork;
             return this;
         }
 

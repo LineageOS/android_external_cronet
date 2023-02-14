@@ -17,13 +17,13 @@ import java.time.Duration;
  * resolving hostnames like hosts file resolution.
  *
  * <p>Hostnames can be resolved in two ways - either by using the system resolver (using {@code
- * getaddrinfo} provided by system libraries), or by using a custom resolver which is built into the
- * HTTP networking stack.
+ * getaddrinfo} provided by system libraries), or by using a custom resolver which is tailored
+ * for the HTTP networking stack.
  *
- * <p>The built-in stack provides several advantages over using the system resolver:
+ * <p>The built-in stack provides several advantages over using the global system resolver:
  *
  * <ul>
- *   <li>It has been tailored to the needs of the networking stack, particularly speed and
+ *   <li>It has been tailored to the needs of the HTTP networking stack, particularly speed and
  *       stability.
  *   <li>{@code getaddrinfo} is a blocking call which requires dedicating worker threads and makes
  *       cancellation impossible (we need to abandon the thread until the call completes)
@@ -37,7 +37,7 @@ import java.time.Duration;
  */
 public final class DnsOptions {
     @Nullable
-    private final Boolean mUseBuiltInDnsResolver;
+    private final Boolean mUseHttpStackDnsResolver;
     @Nullable
     private final Boolean mPersistHostCache;
     @Nullable
@@ -56,18 +56,16 @@ public final class DnsOptions {
         this.mPersistHostCachePeriod = builder.mPersistHostCachePeriod;
         this.mPreestablishConnectionsToStaleDnsResults =
                 builder.mPreestablishConnectionsToStaleDnsResults;
-        this.mUseBuiltInDnsResolver = builder.mUseBuiltInDnsResolver;
+        this.mUseHttpStackDnsResolver = builder.mUseHttpStackDnsResolver;
         this.mPersistHostCache = builder.mPersistHostCache;
     }
 
     /**
-     * See {@link Builder#setUseBuiltInDnsResolver}
-     *
-     * {@hide}
+     * See {@link Builder#setUseHttpStackDnsResolver}
      */
     @Nullable
-    public Boolean getUseBuiltInDnsResolver() {
-        return mUseBuiltInDnsResolver;
+    public Boolean getUseHttpStackDnsResolver() {
+        return mUseHttpStackDnsResolver;
     }
 
     /**
@@ -80,8 +78,6 @@ public final class DnsOptions {
 
     /**
      * See {@link Builder#setEnableStaleDns}
-     *
-     * {@hide}
      */
     @Experimental
     @Nullable
@@ -99,8 +95,6 @@ public final class DnsOptions {
 
     /**
      * See {@link Builder#setPreestablishConnectionsToStaleDnsResults}
-     *
-     * {@hide}
      */
     @Experimental
     @Nullable
@@ -110,8 +104,6 @@ public final class DnsOptions {
 
     /**
      * See {@link Builder#setStaleDnsOptions}
-     *
-     * {@hide}
      */
     @Experimental
     @Nullable
@@ -133,22 +125,19 @@ public final class DnsOptions {
      *
      * <p>DNS resolution is one of the steps on the critical path to making a URL request, but it
      * can be slow for various reasons (underlying network latency, buffer bloat, packet loss,
-     * etc.).
-     *
-     * <p>Depending on the use case, it might be worthwhile for an app developer to trade off
+     * etc.). Depending on the use case, it might be worthwhile for an app developer to trade off
      * guaranteed DNS record freshness for better availability of DNS records.
      *
      * <p>Stale results can include both:
      *
      * <ul>
      *   <li>results returned from the current network's DNS server, but past their time-to-live,
-     * and <li>results returned from a previous network's DNS server, whether expired or not.
+     *       and
+     *   <li>results returned from a different network's DNS server, whether expired or not.
      * </ul>
      *
      * <p>For detailed explanation of the configuration options see javadoc on
      * {@link StaleDnsOptions.Builder} methods.
-     *
-     * {@hide}
      */
     @Experimental
     public static class StaleDnsOptions {
@@ -172,6 +161,9 @@ public final class DnsOptions {
             return mUseStaleOnNameNotResolved;
         }
 
+        /**
+         * @hide
+         */
         public static Builder builder() {
             return new Builder();
         }
@@ -194,8 +186,6 @@ public final class DnsOptions {
 
         /**
          * Builder for {@link StaleDnsOptions}.
-         *
-         * {@hide}
          */
         public static final class Builder {
             private Long mFreshLookupTimeoutMillis;
@@ -203,7 +193,7 @@ public final class DnsOptions {
             private Boolean mAllowCrossNetworkUsage;
             private Boolean mUseStaleOnNameNotResolved;
 
-            Builder() {}
+            public Builder() {}
 
             /**
              * Sets how long (in milliseconds) to wait for a DNS request to return before using a
@@ -212,20 +202,9 @@ public final class DnsOptions {
              *
              * @return the builder for chaining
              */
-            public Builder setFreshLookupTimeoutMillis(long freshLookupTimeoutMillis) {
-                this.mFreshLookupTimeoutMillis = freshLookupTimeoutMillis;
-                return this;
-            }
-
-            /**
-             * Same as {@link #setFreshLookupTimeoutMillis(long)} but using {@link
-             * java.time.Duration}.
-             *
-             * @return the builder for chaining
-             */
-            @RequiresApi(VERSION_CODES.O)
             public Builder setFreshLookupTimeout(Duration freshLookupTimeout) {
-                return setFreshLookupTimeoutMillis(freshLookupTimeout.toMillis());
+                this.mFreshLookupTimeoutMillis = freshLookupTimeout.toMillis();
+                return this;
             }
 
             /**
@@ -234,19 +213,9 @@ public final class DnsOptions {
              *
              * @return the builder for chaining
              */
-            public Builder setMaxExpiredDelayMillis(long maxExpiredDelayMillis) {
-                this.mMaxExpiredDelayMillis = maxExpiredDelayMillis;
+            public Builder setMaxExpiredDelay(Duration maxExpiredDelay) {
+                this.mMaxExpiredDelayMillis = maxExpiredDelay.toMillis();
                 return this;
-            }
-
-            /**
-             * Same as {@link #setMaxExpiredDelayMillis(long)} but using {@link java.time.Duration}.
-             *
-             * @return the builder for chaining
-             */
-            @RequiresApi(VERSION_CODES.O)
-            public Builder setMaxExpiredDelayMillis(Duration maxExpiredDelay) {
-                return setMaxExpiredDelayMillis(maxExpiredDelay.toMillis());
             }
 
             /**
@@ -292,7 +261,7 @@ public final class DnsOptions {
      */
     public static final class Builder {
         @Nullable
-        private Boolean mUseBuiltInDnsResolver;
+        private Boolean mUseHttpStackDnsResolver;
         @Nullable
         private Boolean mEnableStaleDns;
         @Nullable
@@ -307,10 +276,14 @@ public final class DnsOptions {
         public Builder() {}
 
         /**
-         * {@hide}
+         * Enables the use of the HTTP-stack-specific DNS resolver.
+         *
+         * <p>Setting this to {@code true} is necessary for other functionality
+         * of {@link DnsOptions} to work, unless specified otherwise. See the {@link DnsOptions}
+         * documentation for more details.
          */
-        public Builder setUseBuiltInDnsResolver(boolean enable) {
-            this.mUseBuiltInDnsResolver = enable;
+        public Builder setUseHttpStackDnsResolver(boolean enable) {
+            this.mUseHttpStackDnsResolver = enable;
             return this;
         }
 
@@ -318,8 +291,6 @@ public final class DnsOptions {
          * Sets whether to use stale DNS results at all.
          *
          * @return the builder for chaining
-         *
-         * {@hide}
          */
         @Experimental
         public Builder setEnableStaleDns(boolean enable) {
@@ -333,8 +304,6 @@ public final class DnsOptions {
          * Only relevant if {@link #setEnableStaleDns(boolean)} is set.
          *
          * @return this builder for chaining.
-         *
-         * {@hide}
          */
         @Experimental
         public Builder setStaleDnsOptions(StaleDnsOptions staleDnsOptions) {
@@ -366,8 +335,6 @@ public final class DnsOptions {
          * <p>This option may not be available for all networking protocols.
          *
          * @return the builder for chaining
-         *
-         * {@hide}
          */
         @Experimental
         public Builder setPreestablishConnectionsToStaleDnsResults(boolean enable) {

@@ -300,8 +300,8 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
             mExperimentalOptionsPatches.add((experimentalOptions) -> {
                 JSONObject asyncDnsOptions = createDefaultIfAbsent(experimentalOptions, "AsyncDNS");
 
-                if (options.getUseBuiltInDnsResolver() != null) {
-                    asyncDnsOptions.put("enable", options.getUseBuiltInDnsResolver());
+                if (options.getUseHttpStackDnsResolver() != null) {
+                    asyncDnsOptions.put("enable", options.getUseHttpStackDnsResolver());
                 }
 
                 JSONObject staleDnsOptions = createDefaultIfAbsent(experimentalOptions, "StaleDNS");
@@ -380,10 +380,6 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                     quicOptions.put("idle_session_migration_period_seconds",
                             options.getIdleMigrationPeriod().toSeconds());
                 }
-                if (options.getRetryPreHandshakeErrorsOnNonDefaultNetwork() != null) {
-                    quicOptions.put("retry_on_alternate_network_before_handshake",
-                            options.getRetryPreHandshakeErrorsOnNonDefaultNetwork());
-                }
                 if (options.getMaxTimeOnNonDefaultNetwork() != null) {
                     quicOptions.put("max_time_on_non_default_network_seconds",
                             options.getMaxTimeOnNonDefaultNetwork().toSeconds());
@@ -412,6 +408,7 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                             // Both values being true results in the non-default network migration
                             // being enabled.
                             quicOptions.put("migrate_sessions_early_v2", true);
+                            quicOptions.put("retry_on_alternate_network_before_handshake", true);
                             skipPortMigrationFlag = true;
                         } else {
                             quicOptions.put("migrate_sessions_early_v2", false);
@@ -503,20 +500,7 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
         }
     }
 
-    /**
-     * Creates a builder for {@link BidirectionalStream} objects. All callbacks for
-     * generated {@code BidirectionalStream} objects will be invoked on
-     * {@code executor}. {@code executor} must not run tasks on the
-     * current thread, otherwise the networking operations may block and exceptions
-     * may be thrown at shutdown time.
-     *
-     * @param url URL for the generated streams.
-     * @param callback the {@link BidirectionalStream.Callback} object that gets invoked upon
-     * different events occurring.
-     * @param executor the {@link Executor} on which {@code callback} methods will be invoked.
-     *
-     * @return the created builder.
-     */
+    @Override
     public abstract ExperimentalBidirectionalStream.Builder newBidirectionalStreamBuilder(
             String url, BidirectionalStream.Callback callback, Executor executor);
 
