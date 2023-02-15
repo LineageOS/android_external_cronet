@@ -4,10 +4,11 @@
 
 package org.chromium.net.impl;
 
-import android.os.Build;
+import android.net.Network;
 import android.os.ConditionVariable;
 import android.os.Process;
 
+import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
 
 import org.chromium.base.Log;
@@ -466,12 +467,12 @@ public class CronetUrlRequestContext extends CronetEngineBase {
     }
 
     @Override
-    public void bindToNetwork(long networkHandle) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            throw new UnsupportedOperationException(
-                    "The multi-network API is available starting from Android Marshmallow");
+    public void bindToNetwork(@Nullable Network network) {
+        if (network == null) {
+            mNetworkHandle = UNBIND_NETWORK_HANDLE;
+        } else {
+            mNetworkHandle = network.getNetworkHandle();
         }
-        mNetworkHandle = networkHandle;
     }
 
     @VisibleForTesting
