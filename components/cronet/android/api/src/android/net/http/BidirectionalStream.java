@@ -4,8 +4,11 @@
 
 package android.net.http;
 
+import android.annotation.IntDef;
 import android.annotation.SuppressLint;
 
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
 
@@ -15,8 +18,6 @@ import java.util.concurrent.Executor;
  *
  * Note: There are ordering restrictions on methods of {@link BidirectionalStream};
  * please see individual methods for description of restrictions.
- *
- * {@hide experimental}
  */
 public abstract class BidirectionalStream {
     /**
@@ -64,6 +65,16 @@ public abstract class BidirectionalStream {
          */
         public static final int STREAM_PRIORITY_HIGHEST = 4;
 
+        /** @hide */
+        @Retention(RetentionPolicy.SOURCE)
+        @IntDef({
+                BidirectionalStream.Builder.STREAM_PRIORITY_IDLE,
+                BidirectionalStream.Builder.STREAM_PRIORITY_LOWEST,
+                BidirectionalStream.Builder.STREAM_PRIORITY_LOW,
+                BidirectionalStream.Builder.STREAM_PRIORITY_MEDIUM,
+                BidirectionalStream.Builder.STREAM_PRIORITY_HIGHEST})
+        public @interface BidirectionalStreamPriority {}
+
         /**
          * Sets priority of the stream which should be one of the
          * {@link #STREAM_PRIORITY_IDLE STREAM_PRIORITY_*} values.
@@ -74,7 +85,7 @@ public abstract class BidirectionalStream {
          *         {@link #STREAM_PRIORITY_IDLE STREAM_PRIORITY_*} values.
          * @return the builder to facilitate chaining.
          */
-        public abstract Builder setPriority(int priority);
+        public abstract Builder setPriority(@BidirectionalStreamPriority int priority);
 
         /**
          * Delays sending request headers until {@link BidirectionalStream#flush()}
@@ -97,7 +108,6 @@ public abstract class BidirectionalStream {
          * @return constructed {@link BidirectionalStream} using configuration from
          *         this {@link Builder}
          */
-        @SuppressLint("WrongConstant") // TODO(jbudorick): Remove this after rolling to the N SDK.
         public abstract BidirectionalStream build();
     }
 

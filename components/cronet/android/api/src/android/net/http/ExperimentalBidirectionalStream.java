@@ -17,7 +17,7 @@ package android.net.http;
  */
 public abstract class ExperimentalBidirectionalStream extends BidirectionalStream {
     /**
-     * {@link BidirectionalStream#Builder} that exposes experimental features. To obtain an
+     * {@link BidirectionalStream.Builder} that exposes experimental features. To obtain an
      * instance of this class, cast a {@code BidirectionalStream.Builder} to this type. Every
      * instance of {@code BidirectionalStream.Builder} can be cast to an instance of this class,
      * as they are backed by the same implementation and hence perform identically.

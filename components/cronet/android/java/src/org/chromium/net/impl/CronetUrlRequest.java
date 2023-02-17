@@ -896,7 +896,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
         final int httpStatusCode;
         final boolean wasCached;
         if (mResponseInfo != null) {
-            responseHeaders = mResponseInfo.getAllHeaders();
+            responseHeaders = mResponseInfo.getHeaders().getAsMap();
             negotiatedProtocol = mResponseInfo.getNegotiatedProtocol();
             httpStatusCode = mResponseInfo.getHttpStatusCode();
             wasCached = mResponseInfo.wasCached();
