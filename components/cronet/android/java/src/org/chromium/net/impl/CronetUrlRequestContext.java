@@ -275,7 +275,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
 
     @Override
     public ExperimentalBidirectionalStream.Builder newBidirectionalStreamBuilder(
-            String url, BidirectionalStream.Callback callback, Executor executor) {
+            String url, Executor executor, BidirectionalStream.Callback callback) {
         return new BidirectionalStreamBuilderImpl(url, callback, executor, this);
     }
 
