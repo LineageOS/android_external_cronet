@@ -128,13 +128,8 @@ public final class UrlResponseInfoImpl extends UrlResponseInfo {
     }
 
     @Override
-    public List<Map.Entry<String, String>> getAllHeadersAsList() {
-        return mHeaders.getAsList();
-    }
-
-    @Override
-    public Map<String, List<String>> getAllHeaders() {
-        return mHeaders.getAsMap();
+    public HeaderBlock getHeaders() {
+        return mHeaders;
     }
 
     @Override
@@ -165,7 +160,7 @@ public final class UrlResponseInfoImpl extends UrlResponseInfo {
                 // Prevent asserting on the contents of this string
                 Integer.toHexString(System.identityHashCode(this)), getUrl(),
                 getUrlChain().toString(), getHttpStatusCode(), getHttpStatusText(),
-                getAllHeadersAsList().toString(), wasCached(), getNegotiatedProtocol(),
+                getHeaders().getAsList().toString(), wasCached(), getNegotiatedProtocol(),
                 getProxyServer(), getReceivedByteCount());
     }
 

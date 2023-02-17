@@ -474,17 +474,18 @@ public class QuicOptions {
         }
 
         /**
-         * Sets the maximum idle time for a connection.
+         * Sets the maximum idle time for a connection. The actual value for the idle timeout is
+         * the minimum of this value and the server's and is negotiated during the handshake. Thus,
+         * it only applies after the handshake has completed. If no activity is detected
+         * on the connection for the set duration, the connection is closed.
          *
-         * TODO what happens to connection that are idle for too long?
-         *
+         * <p>See <a href="https://www.rfc-editor.org/rfc/rfc9114.html#name-idle-connections">RFC
+         * 9114, section 5.1 </a> for more details.
+         * 
          * @return the builder for chaining
-         *
-         * {@hide}
          */
-        @Experimental
-        public Builder setIdleConnectionTimeout(Duration idleConnectionTimeoutSeconds) {
-            this.mIdleConnectionTimeout = idleConnectionTimeoutSeconds;
+        public Builder setIdleConnectionTimeout(Duration idleConnectionTimeout) {
+            this.mIdleConnectionTimeout = idleConnectionTimeout;
             return this;
         }
 
