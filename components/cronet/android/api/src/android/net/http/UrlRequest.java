@@ -441,17 +441,17 @@ public abstract class UrlRequest {
     }
 
     /**
-     * Listener class used with {@link #getStatus} to receive the status of a
+     * Listener interface used with {@link #getStatus} to receive the status of a
      * {@link UrlRequest}.
      */
-    public abstract static class StatusListener {
+    public interface StatusListener {
         /**
          * Invoked on {@link UrlRequest}'s {@link Executor}'s thread when request
          * status is obtained.
          * @param status integer representing the status of the request. It is
          *         one of the values defined in {@link Status}.
          */
-        public abstract void onStatus(@UrlRequestStatus int status);
+        void onStatus(@UrlRequestStatus int status);
     }
 
     /**
