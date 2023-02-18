@@ -688,7 +688,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
             return mResponseHeadersList;
         }
         mResponseHeadersList = new ArrayList<Map.Entry<String, String>>();
-        for (Map.Entry<String, String> entry : mResponseInfo.getAllHeadersAsList()) {
+        for (Map.Entry<String, String> entry : mResponseInfo.getHeaders().getAsList()) {
             // Strips Content-Encoding response header. See crbug.com/592700.
             if (!entry.getKey().equalsIgnoreCase("Content-Encoding")) {
                 mResponseHeadersList.add(
