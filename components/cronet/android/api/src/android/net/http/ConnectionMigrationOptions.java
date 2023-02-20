@@ -53,7 +53,8 @@ public class ConnectionMigrationOptions {
     /**
      * See {@link Builder#setEnableDefaultNetworkMigration}
      */
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getEnableDefaultNetworkMigration() {
         return mEnableDefaultNetworkMigration;
     }
@@ -61,7 +62,8 @@ public class ConnectionMigrationOptions {
     /**
      * See {@link Builder#setEnablePathDegradationMigration}
      */
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getEnablePathDegradationMigration() {
         return mEnablePathDegradationMigration;
     }
@@ -103,7 +105,8 @@ public class ConnectionMigrationOptions {
      * See {@link Builder#setAllowNonDefaultNetworkUsage}
      */
     @Experimental
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getAllowNonDefaultNetworkUsage() {
         return mAllowNonDefaultNetworkUsage;
     }
