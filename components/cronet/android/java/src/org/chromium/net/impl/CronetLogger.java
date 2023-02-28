@@ -7,6 +7,8 @@ package org.chromium.net.impl;
 import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
 
 import java.time.Duration;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Base class for implementing a CronetLogger.
@@ -255,6 +257,9 @@ public abstract class CronetLogger {
      * Holds information about the cronet version used for a cronetEngine.
      */
     public static class CronetVersion {
+        private static final Pattern VERSION_PATTERN =
+                Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)");
+
         private final int mMajorVersion;
         private final int mMinorVersion;
         private final int mBuildVersion;
@@ -266,11 +271,17 @@ public abstract class CronetLogger {
          * MAJOR.MINOR.BUILD.PATCH
          */
         public CronetVersion(String version) {
-            String[] splitVersion = version.split("\\.");
-            mMajorVersion = Integer.parseInt(splitVersion[0]);
-            mMinorVersion = Integer.parseInt(splitVersion[1]);
-            mBuildVersion = Integer.parseInt(splitVersion[2]);
-            mPatchVersion = Integer.parseInt(splitVersion[3]);
+            Matcher m = VERSION_PATTERN.matcher(version);
+            if (!m.matches()) {
+                throw new IllegalArgumentException(
+                        "Invalid version: expected a string matching " + VERSION_PATTERN
+                                + ", got " + version);
+            }
+
+            mMajorVersion = Integer.parseInt(m.group(1));
+            mMinorVersion = Integer.parseInt(m.group(2));
+            mBuildVersion = Integer.parseInt(m.group(3));
+            mPatchVersion = Integer.parseInt(m.group(4));
         }
 
         /**

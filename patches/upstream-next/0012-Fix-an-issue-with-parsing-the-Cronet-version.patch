@@ -1,0 +1,89 @@
+From bd27f245f08568100d967eb401afb05e659110ce Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Wed, 22 Feb 2023 11:39:34 +0000
+Subject: [PATCH] Fix an issue with parsing the Cronet version.
+
+Also, be more defensive when checking the value on CronetVersion side.
+
+Test: m
+Change-Id: Ia5cb30bff77c0474f43115799005d3a4b03de9aa
+---
+ .../org/chromium/net/impl/CronetLogger.java   | 21 ++++++++++++++-----
+ .../net/impl/CronetUrlRequestContext.java     |  8 ++-----
+ 2 files changed, 18 insertions(+), 11 deletions(-)
+
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetLogger.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetLogger.java
+index 642efed4..86dec74e 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetLogger.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetLogger.java
+@@ -7,6 +7,8 @@ package org.chromium.net.impl;
+ import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
+ 
+ import java.time.Duration;
++import java.util.regex.Matcher;
++import java.util.regex.Pattern;
+ 
+ /**
+  * Base class for implementing a CronetLogger.
+@@ -255,6 +257,9 @@ public abstract class CronetLogger {
+      * Holds information about the cronet version used for a cronetEngine.
+      */
+     public static class CronetVersion {
++        private static final Pattern VERSION_PATTERN =
++                Pattern.compile("(\\d+)\\.(\\d+)\\.(\\d+)\\.(\\d+)");
++
+         private final int mMajorVersion;
+         private final int mMinorVersion;
+         private final int mBuildVersion;
+@@ -266,11 +271,17 @@ public abstract class CronetLogger {
+          * MAJOR.MINOR.BUILD.PATCH
+          */
+         public CronetVersion(String version) {
+-            String[] splitVersion = version.split("\\.");
+-            mMajorVersion = Integer.parseInt(splitVersion[0]);
+-            mMinorVersion = Integer.parseInt(splitVersion[1]);
+-            mBuildVersion = Integer.parseInt(splitVersion[2]);
+-            mPatchVersion = Integer.parseInt(splitVersion[3]);
++            Matcher m = VERSION_PATTERN.matcher(version);
++            if (!m.matches()) {
++                throw new IllegalArgumentException(
++                        "Invalid version: expected a string matching " + VERSION_PATTERN
++                                + ", got " + version);
++            }
++
++            mMajorVersion = Integer.parseInt(m.group(1));
++            mMinorVersion = Integer.parseInt(m.group(2));
++            mBuildVersion = Integer.parseInt(m.group(3));
++            mPatchVersion = Integer.parseInt(m.group(4));
+         }
+ 
+         /**
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
+index 4afac795..6ed3b122 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
+@@ -5,6 +5,7 @@
+ package org.chromium.net.impl;
+ 
+ import android.net.Network;
++import android.net.http.ApiVersion;
+ import android.os.ConditionVariable;
+ import android.os.Process;
+ 
+@@ -317,12 +318,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+     }
+ 
+     private CronetVersion buildCronetVersion() {
+-        String version = getVersionString();
+-        // getVersionString()'s output looks like "Cronet/w.x.y.z@hash". CronetVersion only cares
+-        // about the "w.x.y.z" bit.
+-        version = version.split("/")[1];
+-        version = version.split("@")[0];
+-        return new CronetVersion(version);
++        return new CronetVersion(ApiVersion.getCronetVersion());
+     }
+ 
+     @Override
+-- 
+2.39.2.637.g21b0678d19-goog
+
