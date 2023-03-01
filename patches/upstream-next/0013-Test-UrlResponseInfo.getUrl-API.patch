@@ -1,0 +1,29 @@
+From 7273d9ecb665c0b2421b4a0412e37f085304fb94 Mon Sep 17 00:00:00 2001
+From: Chidera Olibie <colibie@google.com>
+Date: Tue, 28 Feb 2023 17:38:01 +0000
+Subject: [PATCH] Test UrlResponseInfo.getUrl API
+
+Already upstreamed
+
+Bug: 267595241
+Test: atest NetHttpTests
+Change-Id: Ibf3304ac3b9b29b02cf4d3dbdab4e782f80da29f
+---
+ .../test/javatests/src/org/chromium/net/UrlResponseInfoTest.java | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
+index 55a256c0..79af73d8 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
+@@ -48,6 +48,7 @@ public class UrlResponseInfoTest {
+                 new UrlResponseInfoImpl(urlChain, httpStatusCode, httpStatusText, allHeadersList,
+                         wasCached, negotiatedProtocol, proxyServer, receivedByteCount);
+         Assert.assertEquals(info.getUrlChain(), urlChain);
++        Assert.assertEquals(info.getUrl(), urlChain.get(urlChain.size() - 1));
+         try {
+             info.getUrlChain().add("example.com");
+             Assert.fail("getUrlChain() returned modifyable list.");
+-- 
+2.39.2.722.g9855ee24e9-goog
+
