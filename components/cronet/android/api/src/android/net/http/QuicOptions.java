@@ -183,8 +183,6 @@ public class QuicOptions {
 
     /**
      * See {@link Builder#setIdleConnectionTimeout}
-     *
-     * {@hide}
      */
     @Experimental
     @Nullable
