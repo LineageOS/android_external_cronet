@@ -4,6 +4,8 @@
 
 package android.net.http;
 
+import android.annotation.SuppressLint;
+
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
@@ -19,6 +21,8 @@ import java.util.Set;
  * {@link HttpEngine.Builder#setEnableQuic(boolean)} to enable / disable QUIC for
  * the HTTP engine.
  */
+// SuppressLint to be consistent with other cronet code
+@SuppressLint("UserHandleName")
 public class QuicOptions {
     private final Set<String> mQuicHostAllowlist;
     private final Set<String> mEnabledQuicVersions;
