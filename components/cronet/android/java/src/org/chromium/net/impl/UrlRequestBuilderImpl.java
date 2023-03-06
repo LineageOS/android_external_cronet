@@ -4,6 +4,7 @@
 package org.chromium.net.impl;
 
 import static android.net.http.ExperimentalHttpEngine.UNBIND_NETWORK_HANDLE;
+import static android.net.http.UrlRequest.REQUEST_PRIORITY_MEDIUM;
 
 import android.annotation.SuppressLint;
 import android.net.Network;
@@ -131,7 +132,7 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
     }
 
     @Override
-    public UrlRequestBuilderImpl setDisableCache(boolean disableCache) {
+    public UrlRequestBuilderImpl setCacheDisabled(boolean disableCache) {
         mDisableCache = disableCache;
         return this;
     }
@@ -172,7 +173,7 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
     }
 
     @Override
-    public UrlRequestBuilderImpl setAllowDirectExecutor(boolean allowDirectExecutor) {
+    public UrlRequestBuilderImpl setDirectExecutorAllowed(boolean allowDirectExecutor) {
         mAllowDirectExecutor = allowDirectExecutor;
         return this;
     }

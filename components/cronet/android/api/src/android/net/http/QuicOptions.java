@@ -93,7 +93,7 @@ public class QuicOptions {
      * See {@link Builder#addAllowedQuicHost}
      */
     @NonNull
-    public Set<String> getQuicHostAllowlist() {
+    public Set<String> getAllowedQuicHosts() {
         return mQuicHostAllowlist;
     }
 
