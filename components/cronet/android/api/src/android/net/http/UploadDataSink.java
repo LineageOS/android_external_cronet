@@ -4,6 +4,8 @@
 
 package android.net.http;
 
+import androidx.annotation.NonNull;
+
 /**
  * Defines callbacks methods for {@link UploadDataProvider}. All methods
  * may be called synchronously or asynchronously, on any thread.
@@ -20,7 +22,7 @@ public abstract class UploadDataSink {
      * Called by {@link UploadDataProvider} when a read fails.
      * @param exception Exception passed on to the embedder.
      */
-    public abstract void onReadError(Exception exception);
+    public abstract void onReadError(@NonNull Exception exception);
 
     /**
      * Called by {@link UploadDataProvider} when a rewind succeeds.
@@ -32,5 +34,5 @@ public abstract class UploadDataSink {
      * uploads is not supported.
      * @param exception Exception passed on to the embedder.
      */
-    public abstract void onRewindError(Exception exception);
+    public abstract void onRewindError(@NonNull Exception exception);
 }
