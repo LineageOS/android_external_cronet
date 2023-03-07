@@ -4,6 +4,9 @@
 
 package android.net.http;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import java.util.List;
 import java.util.Map;
 
@@ -41,6 +44,7 @@ public abstract class UrlResponseInfo {
      * redirects, so it may not be the originally requested URL.
      * @return the URL the response is for.
      */
+    @NonNull
     public abstract String getUrl();
 
     /**
@@ -48,6 +52,7 @@ public abstract class UrlResponseInfo {
      * the following entries are redirects followed.
      * @return the URL chain.
      */
+    @NonNull
     public abstract List<String> getUrlChain();
 
     /**
@@ -62,11 +67,13 @@ public abstract class UrlResponseInfo {
      * request received a "HTTP/1.1 200 OK" response, this method returns "OK".
      * @return the HTTP status text of the status line.
      */
+    @NonNull
     public abstract String getHttpStatusText();
 
     /**
      * Returns the response headers.
      */
+    @NonNull
     public abstract HeaderBlock getHeaders();
 
     /**
@@ -86,13 +93,19 @@ public abstract class UrlResponseInfo {
      */
     // TODO(mef): Figure out what this returns in the cached case, both with
     // and without a revalidation request.
+    @NonNull
     public abstract String getNegotiatedProtocol();
 
     /**
      * Returns the proxy server that was used for the request.
      * @return the proxy server that was used for the request.
+     *
+     * @hide
      */
-    public abstract String getProxyServer();
+    @Nullable
+    public String getProxyServer(){
+        return null;
+    };
 
     /**
      * Returns a minimum count of bytes received from the network to process this
