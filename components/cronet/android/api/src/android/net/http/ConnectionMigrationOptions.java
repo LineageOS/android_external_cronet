@@ -4,6 +4,8 @@
 
 package android.net.http;
 
+import android.annotation.SuppressLint;
+
 import androidx.annotation.Nullable;
 
 import java.time.Duration;
@@ -26,6 +28,8 @@ import java.time.Duration;
  * @see <a href="https://www.rfc-editor.org/rfc/rfc9000.html#section-9">Connection
  *     Migration specification</a>
  */
+// SuppressLint to be consistent with other cronet code
+@SuppressLint("UserHandleName")
 public class ConnectionMigrationOptions {
     @Nullable
     private final Boolean mEnableDefaultNetworkMigration;
