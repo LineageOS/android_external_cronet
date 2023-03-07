@@ -131,8 +131,8 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
     }
 
     @Override
-    public UrlRequestBuilderImpl disableCache() {
-        mDisableCache = true;
+    public UrlRequestBuilderImpl setDisableCache(boolean disableCache) {
+        mDisableCache = disableCache;
         return this;
     }
 
@@ -172,8 +172,8 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
     }
 
     @Override
-    public UrlRequestBuilderImpl allowDirectExecutor() {
-        mAllowDirectExecutor = true;
+    public UrlRequestBuilderImpl setAllowDirectExecutor(boolean allowDirectExecutor) {
+        mAllowDirectExecutor = allowDirectExecutor;
         return this;
     }
 

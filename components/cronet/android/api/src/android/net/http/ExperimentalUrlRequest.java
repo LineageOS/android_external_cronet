@@ -104,7 +104,7 @@ public abstract class ExperimentalUrlRequest extends UrlRequest {
         public abstract Builder addHeader(String header, String value);
 
         @Override
-        public abstract Builder disableCache();
+        public abstract Builder setDisableCache(boolean disableCache);
 
         @Override
         public abstract Builder setPriority(int priority);
@@ -114,7 +114,7 @@ public abstract class ExperimentalUrlRequest extends UrlRequest {
                 UploadDataProvider uploadDataProvider, Executor executor);
 
         @Override
-        public abstract Builder allowDirectExecutor();
+        public abstract Builder setAllowDirectExecutor(boolean allowDirectExecutor);
 
         @Override
         public abstract ExperimentalUrlRequest build();
