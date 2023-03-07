@@ -524,11 +524,48 @@ public abstract class HttpEngine {
      * operations and causing exceptions during shutdown.
      *
      * @param url URL for the generated requests.
+     * @param executor {@link Executor} on which all callbacks will be invoked.
+     * @param callback callback object that gets invoked on different events.
+     */
+    public abstract UrlRequest.Builder newUrlRequestBuilder(
+            String url, Executor executor, UrlRequest.Callback callback);
+
+    /**
+     * Creates a builder for {@link UrlRequest}. All callbacks for
+     * generated {@link UrlRequest} objects will be invoked on
+     * {@code executor}'s threads. {@code executor} must not run tasks on the
+     * thread calling {@link Executor#execute} to prevent blocking networking
+     * operations and causing exceptions during shutdown.
+     *
+     * @param url URL for the generated requests.
      * @param callback callback object that gets invoked on different events.
      * @param executor {@link Executor} on which all callbacks will be invoked.
      */
-    public abstract UrlRequest.Builder newUrlRequestBuilder(
-            String url, UrlRequest.Callback callback, Executor executor);
+    // This API is kept for the backward compatibility in upstream
+    // TODO(motomuman) Hide this API
+    // This API is not hidden since this API is used in internal master and removing this makes
+    // presubmit fail. Once internal use is replaced by above API, this API will be hidden.
+    public UrlRequest.Builder newUrlRequestBuilder(String url, UrlRequest.Callback callback,
+            @SuppressLint("ListenerLast") Executor executor) {
+        return newUrlRequestBuilder(url, executor, callback);
+    }
+
+    /**
+     * Creates a builder for {@link BidirectionalStream} objects. All callbacks for
+     * generated {@code BidirectionalStream} objects will be invoked on
+     * {@code executor}. {@code executor} must not run tasks on the
+     * current thread, otherwise the networking operations may block and exceptions
+     * may be thrown at shutdown time.
+     *
+     * @param url URL for the generated streams.
+     * @param executor the {@link Executor} on which {@code callback} methods will be invoked.
+     * @param callback the {@link BidirectionalStream.Callback} object that gets invoked upon
+     * different events occurring.
+     *
+     * @return the created builder.
+     */
+    public abstract BidirectionalStream.Builder newBidirectionalStreamBuilder(
+            String url, Executor executor, BidirectionalStream.Callback callback);
 
     /**
      * Creates a builder for {@link BidirectionalStream} objects. All callbacks for
@@ -543,7 +580,12 @@ public abstract class HttpEngine {
      * @param executor the {@link Executor} on which {@code callback} methods will be invoked.
      *
      * @return the created builder.
+     *
+     * @hide
      */
-    public abstract BidirectionalStream.Builder newBidirectionalStreamBuilder(
-            String url, BidirectionalStream.Callback callback, Executor executor);
+    // This API is kept for the backward compatibility in upstream
+    public BidirectionalStream.Builder newBidirectionalStreamBuilder(
+            String url, BidirectionalStream.Callback callback, Executor executor) {
+        return newBidirectionalStreamBuilder(url, executor, callback);
+    }
 }
