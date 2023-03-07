@@ -286,9 +286,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         for (Pair<String, String> requestHeader : mRequestHeaders) {
             requestBuilder.addHeader(requestHeader.first, requestHeader.second);
         }
-        if (!getUseCaches()) {
-            requestBuilder.disableCache();
-        }
+        requestBuilder.setDisableCache(!getUseCaches());
         // Set HTTP method.
         requestBuilder.setHttpMethod(method);
         if (checkTrafficStatsTag()) {
