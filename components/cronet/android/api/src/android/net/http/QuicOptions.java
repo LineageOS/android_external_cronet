@@ -4,6 +4,9 @@
 
 package android.net.http;
 
+import android.annotation.SuppressLint;
+
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.time.Duration;
@@ -18,6 +21,8 @@ import java.util.Set;
  * {@link HttpEngine.Builder#setEnableQuic(boolean)} to enable / disable QUIC for
  * the HTTP engine.
  */
+// SuppressLint to be consistent with other cronet code
+@SuppressLint("UserHandleName")
 public class QuicOptions {
     private final Set<String> mQuicHostAllowlist;
     private final Set<String> mEnabledQuicVersions;
@@ -87,6 +92,7 @@ public class QuicOptions {
     /**
      * See {@link Builder#addAllowedQuicHost}
      */
+    @NonNull
     public Set<String> getQuicHostAllowlist() {
         return mQuicHostAllowlist;
     }
@@ -280,7 +286,7 @@ public class QuicOptions {
     /**
      * Builder for {@link QuicOptions}.
      */
-    public static class Builder {
+    public static final class Builder {
         private final Set<String> mQuicHostAllowlist = new LinkedHashSet<>();
         private final Set<String> mEnabledQuicVersions = new LinkedHashSet<>();
         private final Set<String> mConnectionOptions = new LinkedHashSet<>();
@@ -323,7 +329,8 @@ public class QuicOptions {
          *
          * @return the builder for chaining
          */
-        public Builder addAllowedQuicHost(String quicHost) {
+        @NonNull
+        public Builder addAllowedQuicHost(@NonNull String quicHost) {
             mQuicHostAllowlist.add(quicHost);
             return this;
         }
@@ -394,6 +401,7 @@ public class QuicOptions {
          *
          * @return the builder for chaining
          */
+        @NonNull
         public Builder setInMemoryServerConfigsCacheSize(int inMemoryServerConfigsCacheSize) {
             this.mInMemoryServerConfigsCacheSize = inMemoryServerConfigsCacheSize;
             return this;
@@ -408,7 +416,8 @@ public class QuicOptions {
          *
          * @return the builder for chaining
          */
-        public Builder setHandshakeUserAgent(String handshakeUserAgent) {
+        @NonNull
+        public Builder setHandshakeUserAgent(@NonNull String handshakeUserAgent) {
             this.mHandshakeUserAgent = handshakeUserAgent;
             return this;
         }
@@ -622,6 +631,7 @@ public class QuicOptions {
          * Creates and returns the final {@link QuicOptions} instance, based on the values
          * in this builder.
          */
+        @NonNull
         public QuicOptions build() {
             return new QuicOptions(this);
         }
