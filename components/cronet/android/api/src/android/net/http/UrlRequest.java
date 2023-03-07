@@ -225,6 +225,8 @@ public abstract class UrlRequest {
          *         will be called with the thrown exception set as the cause of the
          *         {@link CallbackException}.
          */
+        // SuppressLint: Exception will be wrapped and passed to #onFailed, see above javadoc
+        @SuppressLint("GenericException")
         public abstract void onRedirectReceived(@NonNull UrlRequest request,
                 @NonNull UrlResponseInfo info, @NonNull String newLocationUrl) throws Exception;
 
@@ -245,6 +247,8 @@ public abstract class UrlRequest {
          *         will be called with the thrown exception set as the cause of the
          *         {@link CallbackException}.
          */
+        // SuppressLint: Exception will be wrapped and passed to #onFailed, see above javadoc
+        @SuppressLint("GenericException")
         public abstract void onResponseStarted(@NonNull UrlRequest request,
                 @NonNull UrlResponseInfo info) throws Exception;
 
@@ -270,6 +274,8 @@ public abstract class UrlRequest {
          *         {@link #onFailed} will be called with the thrown exception set as the cause of
          *         the {@link CallbackException}.
          */
+        // SuppressLint: Exception will be wrapped and passed to #onFailed, see above javadoc
+        @SuppressLint("GenericException")
         public abstract void onReadCompleted(@NonNull UrlRequest request,
                 @NonNull UrlResponseInfo info, @NonNull ByteBuffer byteBuffer) throws Exception;
 
@@ -441,17 +447,17 @@ public abstract class UrlRequest {
     }
 
     /**
-     * Listener class used with {@link #getStatus} to receive the status of a
+     * Listener interface used with {@link #getStatus} to receive the status of a
      * {@link UrlRequest}.
      */
-    public abstract static class StatusListener {
+    public interface StatusListener {
         /**
          * Invoked on {@link UrlRequest}'s {@link Executor}'s thread when request
          * status is obtained.
          * @param status integer representing the status of the request. It is
          *         one of the values defined in {@link Status}.
          */
-        public abstract void onStatus(@UrlRequestStatus int status);
+        void onStatus(@UrlRequestStatus int status);
     }
 
     /**
