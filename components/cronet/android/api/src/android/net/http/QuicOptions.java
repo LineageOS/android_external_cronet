@@ -130,7 +130,8 @@ public class QuicOptions {
     /**
      * See {@link Builder#setInMemoryServerConfigsCacheSize}
      */
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Integer getInMemoryServerConfigsCacheSize() {
         return mInMemoryServerConfigsCacheSize;
     }
