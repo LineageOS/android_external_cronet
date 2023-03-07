@@ -314,7 +314,7 @@ public class CronetTestRule implements TestRule {
      */
     public void setStreamHandlerFactory(HttpEngine cronetEngine) {
         if (!testingSystemHttpURLConnection()) {
-            URL.setURLStreamHandlerFactory(cronetEngine.createURLStreamHandlerFactory());
+            URL.setURLStreamHandlerFactory(cronetEngine.createUrlStreamHandlerFactory());
         }
     }
 
