@@ -1,0 +1,80 @@
+From 5f4693dec10ddba75e905c47d9ca8f232b4f9044 Mon Sep 17 00:00:00 2001
+From: Motomu Utsumi <motomuman@google.com>
+Date: Wed, 15 Feb 2023 17:34:47 +0900
+Subject: [PATCH] cronet: Addressed StaticFinalBuilder API linter errors
+
+Bug: 265674359
+Test: TH
+Change-Id: Ib94c658712c685d04656b1aa97b1645cd1a689c6
+---
+ .../api/src/android/net/http/ConnectionMigrationOptions.java  | 2 +-
+ .../cronet/android/api/src/android/net/http/HttpEngine.java   | 4 ++++
+ .../cronet/android/api/src/android/net/http/QuicOptions.java  | 2 +-
+ .../cronet/android/api/src/android/net/http/UrlRequest.java   | 3 +++
+ 4 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+index 1ab720e4..eb65ee6d 100644
+--- a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
++++ b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+@@ -152,7 +152,7 @@ public class ConnectionMigrationOptions {
+     /**
+      * Builder for {@link ConnectionMigrationOptions}.
+      */
+-    public static class Builder {
++    public static final class Builder {
+         @Nullable
+         private Boolean mEnableDefaultNetworkMigration;
+         @Nullable
+diff --git a/components/cronet/android/api/src/android/net/http/HttpEngine.java b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+index 2e1fde01..44001d20 100644
+--- a/components/cronet/android/api/src/android/net/http/HttpEngine.java
++++ b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+@@ -4,6 +4,7 @@
+ 
+ package android.net.http;
+ 
++import android.annotation.SuppressLint;
+ import android.content.Context;
+ import android.net.Network;
+ 
+@@ -47,6 +48,9 @@ public abstract class HttpEngine {
+      */
+     // NOTE(kapishnikov): In order to avoid breaking the existing API clients, all future methods
+     // added to this class and other API classes must have default implementation.
++    // SuppressLint: Builder can not be final since ExperimentalHttpEngine.Builder inherit this
++    // Builder.
++    @SuppressLint("StaticFinalBuilder")
+     public static class Builder {
+ 
+         /**
+diff --git a/components/cronet/android/api/src/android/net/http/QuicOptions.java b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+index 0726ebf3..5ac8440f 100644
+--- a/components/cronet/android/api/src/android/net/http/QuicOptions.java
++++ b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+@@ -282,7 +282,7 @@ public class QuicOptions {
+     /**
+      * Builder for {@link QuicOptions}.
+      */
+-    public static class Builder {
++    public static final class Builder {
+         private final Set<String> mQuicHostAllowlist = new LinkedHashSet<>();
+         private final Set<String> mEnabledQuicVersions = new LinkedHashSet<>();
+         private final Set<String> mConnectionOptions = new LinkedHashSet<>();
+diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+index 4da662bb..ab9e86d4 100644
+--- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
++++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+@@ -32,6 +32,9 @@ public abstract class UrlRequest {
+      * with {@link Builder#build}. The builder can be created by calling
+      * {@link HttpEngine#newUrlRequestBuilder}.
+      */
++    // SuppressLint: Builder can not be final since this is abstract and inherited
++    // e.g. ExperimentalUrlRequest.Builder
++    @SuppressLint("StaticFinalBuilder")
+     public abstract static class Builder {
+ 
+         Builder() {}
+-- 
+2.39.2.637.g21b0678d19-goog
+
