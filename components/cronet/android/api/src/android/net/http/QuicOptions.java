@@ -282,7 +282,7 @@ public class QuicOptions {
     /**
      * Builder for {@link QuicOptions}.
      */
-    public static class Builder {
+    public static final class Builder {
         private final Set<String> mQuicHostAllowlist = new LinkedHashSet<>();
         private final Set<String> mEnabledQuicVersions = new LinkedHashSet<>();
         private final Set<String> mConnectionOptions = new LinkedHashSet<>();
