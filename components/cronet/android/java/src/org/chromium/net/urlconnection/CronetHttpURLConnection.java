@@ -257,7 +257,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         }
         final ExperimentalUrlRequest.Builder requestBuilder =
                 (ExperimentalUrlRequest.Builder) mCronetEngine.newUrlRequestBuilder(
-                        getURL().toString(), new CronetUrlRequestCallback(), mMessageLoop);
+                        getURL().toString(), mMessageLoop, new CronetUrlRequestCallback());
         if (doOutput) {
             if (method.equals("GET")) {
                 method = "POST";
