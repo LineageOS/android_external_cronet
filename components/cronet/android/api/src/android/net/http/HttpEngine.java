@@ -481,7 +481,10 @@ public abstract class HttpEngine {
      *     by this {@link HttpEngine}.
      * @throws IOException if an error occurs while opening the connection.
      */
-    public abstract URLConnection openConnection(URL url) throws IOException;
+    // SuppressLint since this is for interface parity with j.n.URLConnection
+    @SuppressLint("AndroidUri")
+    public abstract URLConnection openConnection(
+            @SuppressLint("AndroidUri") URL url) throws IOException;
 
     /**
      * Creates a {@link URLStreamHandlerFactory} to handle HTTP and HTTPS
@@ -514,6 +517,8 @@ public abstract class HttpEngine {
      * @return an {@link URLStreamHandlerFactory} instance implemented by this
      *         {@link HttpEngine}.
      */
+    // SuppressLint since this is for interface parity with j.n.URLStreamHandlerFactory
+    @SuppressLint("AndroidUri")
     public abstract URLStreamHandlerFactory createURLStreamHandlerFactory();
 
     /**
