@@ -4,6 +4,7 @@
 
 package android.net.http;
 
+import android.annotation.SuppressLint;
 import android.os.Build.VERSION_CODES;
 
 import androidx.annotation.Nullable;
@@ -35,6 +36,8 @@ import java.time.Duration;
  *
  * <p>Most configuration in this class is only applicable if the built-in DNS resolver is used.
  */
+// SuppressLint to be consistent with other cronet code
+@SuppressLint("UserHandleName")
 public final class DnsOptions {
     @Nullable
     private final Boolean mUseHttpStackDnsResolver;
@@ -139,7 +142,8 @@ public final class DnsOptions {
      * <p>For detailed explanation of the configuration options see javadoc on
      * {@link StaleDnsOptions.Builder} methods.
      */
-    @Experimental
+    // SuppressLint to be consistent with other cronet code
+    @Experimental @SuppressLint("UserHandleName")
     public static class StaleDnsOptions {
         @Nullable
         public Long getFreshLookupTimeoutMillis() {
