@@ -66,7 +66,8 @@ public final class DnsOptions {
     /**
      * See {@link Builder#setUseHttpStackDnsResolver}
      */
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getUseHttpStackDnsResolver() {
         return mUseHttpStackDnsResolver;
     }
@@ -74,7 +75,8 @@ public final class DnsOptions {
     /**
      * See {@link Builder#setPersistHostCache}
      */
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getPersistHostCache() {
         return mPersistHostCache;
     }
@@ -82,8 +84,9 @@ public final class DnsOptions {
     /**
      * See {@link Builder#setEnableStaleDns}
      */
+    // SuppressLint since return value is @Nullable
     @Experimental
-    @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getEnableStaleDns() {
         return mEnableStaleDns;
     }
@@ -99,8 +102,9 @@ public final class DnsOptions {
     /**
      * See {@link Builder#setPreestablishConnectionsToStaleDnsResults}
      */
+    // SuppressLint since return value is @Nullable
     @Experimental
-    @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getPreestablishConnectionsToStaleDnsResults() {
         return mPreestablishConnectionsToStaleDnsResults;
     }
@@ -145,22 +149,26 @@ public final class DnsOptions {
     // SuppressLint to be consistent with other cronet code
     @Experimental @SuppressLint("UserHandleName")
     public static class StaleDnsOptions {
-        @Nullable
+        // SuppressLint since return value is @Nullable
+        @Nullable @SuppressLint("AutoBoxing")
         public Long getFreshLookupTimeoutMillis() {
             return mFreshLookupTimeoutMillis;
         }
 
-        @Nullable
+        // SuppressLint since return value is @Nullable
+        @Nullable @SuppressLint("AutoBoxing")
         public Long getMaxExpiredDelayMillis() {
             return mMaxExpiredDelayMillis;
         }
 
-        @Nullable
+        // SuppressLint since return value is @Nullable
+        @Nullable @SuppressLint("AutoBoxing")
         public Boolean getAllowCrossNetworkUsage() {
             return mAllowCrossNetworkUsage;
         }
 
-        @Nullable
+        // SuppressLint since return value is @Nullable
+        @Nullable @SuppressLint("AutoBoxing")
         public Boolean getUseStaleOnNameNotResolved() {
             return mUseStaleOnNameNotResolved;
         }

@@ -48,7 +48,7 @@ public class GetStatusTest {
 
     private CronetTestFramework mTestFramework;
 
-    private static class TestStatusListener extends StatusListener {
+    private static class TestStatusListener implements StatusListener {
         boolean mOnStatusCalled;
         int mStatus = Integer.MAX_VALUE;
         private final ConditionVariable mBlock = new ConditionVariable();
