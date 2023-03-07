@@ -474,7 +474,7 @@ public abstract class HttpEngine {
      * Establishes a new connection to the resource specified by the {@link URL} {@code url}.
      * <p>
      * <b>Note:</b> This {@link java.net.HttpURLConnection} implementation is subject to certain
-     * limitations, see {@link #createURLStreamHandlerFactory} for details.
+     * limitations, see {@link #createUrlStreamHandlerFactory} for details.
      *
      * @param url URL of resource to connect to.
      * @return an {@link java.net.HttpURLConnection} instance implemented
@@ -519,7 +519,7 @@ public abstract class HttpEngine {
      */
     // SuppressLint since this is for interface parity with j.n.URLStreamHandlerFactory
     @SuppressLint("AndroidUri")
-    public abstract URLStreamHandlerFactory createURLStreamHandlerFactory();
+    public abstract URLStreamHandlerFactory createUrlStreamHandlerFactory();
 
     /**
      * Creates a builder for {@link UrlRequest}. All callbacks for
