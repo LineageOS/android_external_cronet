@@ -76,7 +76,7 @@ public class VersionSafeCallbacks {
     /**
      * Wrap a {@link UrlRequest.StatusListener} in a version safe manner.
      */
-    public static final class UrlRequestStatusListener extends UrlRequest.StatusListener {
+    public static final class UrlRequestStatusListener implements UrlRequest.StatusListener {
         private final UrlRequest.StatusListener mWrappedListener;
 
         public UrlRequestStatusListener(UrlRequest.StatusListener listener) {
