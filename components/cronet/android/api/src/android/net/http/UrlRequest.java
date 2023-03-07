@@ -5,6 +5,7 @@
 package android.net.http;
 
 import android.annotation.IntDef;
+import android.annotation.SuppressLint;
 import android.net.Network;
 
 import androidx.annotation.NonNull;
@@ -58,12 +59,13 @@ public abstract class UrlRequest {
         public abstract Builder addHeader(@NonNull String header, @NonNull String value);
 
         /**
-         * Disables cache for the request. If context is not set up to use cache,
+         * Whether to disable cache for the request. If the engine is not set up to use cache,
          * this call has no effect.
+         * @param disableCache {@code true} to disable cache, {@code false} otherwise.
          * @return the builder to facilitate chaining.
          */
         @NonNull
-        public abstract Builder disableCache();
+        public abstract Builder setDisableCache(boolean disableCache);
 
         /**
          * Lowest request priority. Passed to {@link #setPriority}.
@@ -116,28 +118,32 @@ public abstract class UrlRequest {
                 @NonNull UploadDataProvider uploadDataProvider, @NonNull Executor executor);
 
         /**
-         * Marks that the executors this request will use to notify callbacks (for
+         * Marks whether the executors this request will use to notify callbacks (for
          * {@code UploadDataProvider}s and {@code UrlRequest.Callback}s) is intentionally performing
          * inline execution, like Guava's directExecutor or
          * {@link java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy}.
          *
-         * <p><b>Warning:</b> This option makes it easy to accidentally block the network thread.
-         * It should not be used if your callbacks perform disk I/O, acquire locks, or call into
-         * other code you don't carefully control and audit.
+         * <p><b>Warning:</b> If set to true: This option makes it easy to accidentally block the
+         * network thread. This should not be done if your callbacks perform disk I/O, acquire
+         * locks, or call into other code you don't carefully control and audit.
+         *
+         * @param allowDirectExecutor {@code true} to allow executors performing inline execution,
+         *                            {@code false} otherwise.
+         * @return the builder to facilitate chaining.
          */
         @NonNull
-        public abstract Builder allowDirectExecutor();
+        public abstract Builder setAllowDirectExecutor(boolean allowDirectExecutor);
 
         /**
          * Binds the request to the specified network. The HTTP stack will send this request
          * only using the network associated to this handle. If this network disconnects the request
-         * will  fail, the exact error will depend on the stage of request processing when
+         * will fail, the exact error will depend on the stage of request processing when
          * the network disconnects.
          *
          * @param network the network to bind the request to. Specify {@code null} to unbind.
          * @return the builder to facilitate chaining.
          */
-        @NonNull
+        @NonNull @SuppressLint("BuilderSetStyle")
         public abstract Builder bindToNetwork(@Nullable Network network);
 
         /**
