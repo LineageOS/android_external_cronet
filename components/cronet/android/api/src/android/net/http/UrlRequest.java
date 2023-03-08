@@ -476,7 +476,7 @@ public abstract class UrlRequest {
      * See {@link UrlRequest.Builder#addHeader(String, String)}
      */
     @NonNull
-    public abstract List<Map.Entry<String, String>> getHeaders();
+    public abstract HeaderBlock getHeaders();
 
     /**
      * See {@link Builder#setCacheDisabled(boolean)}

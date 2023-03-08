@@ -6,6 +6,7 @@ package org.chromium.net.impl;
 
 import static java.lang.Math.max;
 
+import android.net.http.HeaderBlock;
 import android.os.Build;
 
 import androidx.annotation.RequiresApi;
@@ -88,7 +89,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
     private final int mPriority;
     private final int mIdempotency;
     private String mInitialMethod;
-    private final HeadersList mRequestHeaders = new HeadersList();
+    private final HeaderBlock mRequestHeaders;
     private final Collection<Object> mRequestAnnotations;
     private final boolean mDisableCache;
     private final boolean mDisableConnectionMigration;
@@ -156,7 +157,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
             boolean disableCache, boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, RequestFinishedInfo.Listener requestFinishedListener,
-            int idempotency, long networkHandle) {
+            int idempotency, long networkHandle, HeaderBlock headerBlock) {
         if (url == null) {
             throw new NullPointerException("URL is required");
         }
@@ -188,6 +189,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
                 : null;
         mIdempotency = convertIdempotency(idempotency);
         mNetworkHandle = networkHandle;
+        mRequestHeaders = headerBlock;
     }
 
     @Override
@@ -257,20 +259,8 @@ public final class CronetUrlRequest extends UrlRequestBase {
     }
 
     @Override
-    public List<Map.Entry<String, String>> getHeaders() {
+    public HeaderBlock getHeaders() {
         return mRequestHeaders;
-    }
-
-    @Override
-    public void addHeader(String header, String value) {
-        checkNotStarted();
-        if (header == null) {
-            throw new NullPointerException("Invalid header name.");
-        }
-        if (value == null) {
-            throw new NullPointerException("Invalid header value.");
-        }
-        mRequestHeaders.add(new AbstractMap.SimpleImmutableEntry<String, String>(header, value));
     }
 
     @Override
@@ -304,7 +294,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
                 }
 
                 boolean hasContentType = false;
-                for (Map.Entry<String, String> header : mRequestHeaders) {
+                for (Map.Entry<String, String> header : mRequestHeaders.getAsList()) {
                     if (header.getKey().equalsIgnoreCase("Content-Type")
                             && !header.getValue().isEmpty()) {
                         hasContentType = true;
@@ -537,10 +527,10 @@ public final class CronetUrlRequest extends UrlRequestBase {
      * We are not really interested in their specific size but something which is close enough.
      */
     @VisibleForTesting
-    static long estimateHeadersSizeInBytes(HeadersList headers) {
+    static long estimateHeadersSizeInBytes(HeaderBlock headers) {
         if (headers == null) return 0;
         long responseHeaderSizeInBytes = 0;
-        for (Map.Entry<String, String> entry : headers) {
+        for (Map.Entry<String, String> entry : headers.getAsList()) {
             String key = entry.getKey();
             if (key != null) responseHeaderSizeInBytes += key.length();
             String value = entry.getValue();
