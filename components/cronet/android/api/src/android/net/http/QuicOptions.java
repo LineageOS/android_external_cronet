@@ -494,7 +494,8 @@ public class QuicOptions {
          * 
          * @return the builder for chaining
          */
-        public Builder setIdleConnectionTimeout(Duration idleConnectionTimeout) {
+        @NonNull
+        public Builder setIdleConnectionTimeout(@NonNull Duration idleConnectionTimeout) {
             this.mIdleConnectionTimeout = idleConnectionTimeout;
             return this;
         }
