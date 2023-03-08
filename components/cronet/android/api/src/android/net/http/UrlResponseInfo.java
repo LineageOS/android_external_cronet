@@ -27,6 +27,7 @@ public abstract class UrlResponseInfo {
          *
          * @return an unmodifiable list of response header field and value pairs
          */
+        @NonNull
         public abstract List<Map.Entry<String, String>> getAsList();
 
         /**
@@ -36,6 +37,7 @@ public abstract class UrlResponseInfo {
          *
          * @return an unmodifiable map from response-header field names to lists of values
          */
+        @NonNull
         public abstract Map<String, List<String>> getAsMap();
     }
 
