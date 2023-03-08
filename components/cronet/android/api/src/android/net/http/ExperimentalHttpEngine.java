@@ -502,11 +502,11 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
 
     @Override
     public abstract ExperimentalBidirectionalStream.Builder newBidirectionalStreamBuilder(
-            String url, BidirectionalStream.Callback callback, Executor executor);
+            String url, Executor executor, BidirectionalStream.Callback callback);
 
     @Override
     public abstract ExperimentalUrlRequest.Builder newUrlRequestBuilder(
-            String url, UrlRequest.Callback callback, Executor executor);
+            String url, Executor executor, UrlRequest.Callback callback);
 
     /**
      * Starts NetLog logging to a specified directory with a bounded size. The NetLog will contain
@@ -599,7 +599,7 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
      * using the given proxy.
      * <p>
      * <b>Note:</b> this {@link java.net.HttpURLConnection} implementation is subject to certain
-     * limitations, see {@link #createURLStreamHandlerFactory} for details.
+     * limitations, see {@link #createUrlStreamHandlerFactory} for details.
      *
      * @param url URL of resource to connect to.
      * @param proxy proxy to use when establishing connection.

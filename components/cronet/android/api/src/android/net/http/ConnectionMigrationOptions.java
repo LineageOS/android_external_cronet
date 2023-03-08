@@ -4,6 +4,8 @@
 
 package android.net.http;
 
+import android.annotation.SuppressLint;
+
 import androidx.annotation.Nullable;
 
 import java.time.Duration;
@@ -26,6 +28,8 @@ import java.time.Duration;
  * @see <a href="https://www.rfc-editor.org/rfc/rfc9000.html#section-9">Connection
  *     Migration specification</a>
  */
+// SuppressLint to be consistent with other cronet code
+@SuppressLint("UserHandleName")
 public class ConnectionMigrationOptions {
     @Nullable
     private final Boolean mEnableDefaultNetworkMigration;
@@ -49,7 +53,8 @@ public class ConnectionMigrationOptions {
     /**
      * See {@link Builder#setEnableDefaultNetworkMigration}
      */
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getEnableDefaultNetworkMigration() {
         return mEnableDefaultNetworkMigration;
     }
@@ -57,7 +62,8 @@ public class ConnectionMigrationOptions {
     /**
      * See {@link Builder#setEnablePathDegradationMigration}
      */
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getEnablePathDegradationMigration() {
         return mEnablePathDegradationMigration;
     }
@@ -99,7 +105,8 @@ public class ConnectionMigrationOptions {
      * See {@link Builder#setAllowNonDefaultNetworkUsage}
      */
     @Experimental
-    @Nullable
+    // SuppressLint since return value is @Nullable
+    @Nullable @SuppressLint("AutoBoxing")
     public Boolean getAllowNonDefaultNetworkUsage() {
         return mAllowNonDefaultNetworkUsage;
     }
@@ -152,7 +159,7 @@ public class ConnectionMigrationOptions {
     /**
      * Builder for {@link ConnectionMigrationOptions}.
      */
-    public static class Builder {
+    public static final class Builder {
         @Nullable
         private Boolean mEnableDefaultNetworkMigration;
         @Nullable

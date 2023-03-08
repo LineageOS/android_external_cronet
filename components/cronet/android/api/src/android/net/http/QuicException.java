@@ -4,6 +4,8 @@
 
 package android.net.http;
 
+import androidx.annotation.Nullable;
+
 /**
  * Subclass of {@link NetworkException} which contains a detailed
  * <a href="https://www.chromium.org/quic">QUIC</a> error code from <a
@@ -21,7 +23,7 @@ public abstract class QuicException extends NetworkException {
      *         java.io.IOException#getCause getCause()} method). A null value is permitted, and
      *         indicates that the cause is nonexistent or unknown.
      */
-    protected QuicException(String message, Throwable cause) {
+    protected QuicException(@Nullable String message, @Nullable Throwable cause) {
         super(message, cause);
     }
 

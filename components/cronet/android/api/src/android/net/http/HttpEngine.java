@@ -4,6 +4,7 @@
 
 package android.net.http;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.net.Network;
 
@@ -47,6 +48,9 @@ public abstract class HttpEngine {
      */
     // NOTE(kapishnikov): In order to avoid breaking the existing API clients, all future methods
     // added to this class and other API classes must have default implementation.
+    // SuppressLint: Builder can not be final since ExperimentalHttpEngine.Builder inherit this
+    // Builder.
+    @SuppressLint("StaticFinalBuilder")
     public static class Builder {
 
         /**
@@ -470,14 +474,17 @@ public abstract class HttpEngine {
      * Establishes a new connection to the resource specified by the {@link URL} {@code url}.
      * <p>
      * <b>Note:</b> This {@link java.net.HttpURLConnection} implementation is subject to certain
-     * limitations, see {@link #createURLStreamHandlerFactory} for details.
+     * limitations, see {@link #createUrlStreamHandlerFactory} for details.
      *
      * @param url URL of resource to connect to.
      * @return an {@link java.net.HttpURLConnection} instance implemented
      *     by this {@link HttpEngine}.
      * @throws IOException if an error occurs while opening the connection.
      */
-    public abstract URLConnection openConnection(URL url) throws IOException;
+    // SuppressLint since this is for interface parity with j.n.URLConnection
+    @SuppressLint("AndroidUri")
+    public abstract URLConnection openConnection(
+            @SuppressLint("AndroidUri") URL url) throws IOException;
 
     /**
      * Creates a {@link URLStreamHandlerFactory} to handle HTTP and HTTPS
@@ -510,7 +517,23 @@ public abstract class HttpEngine {
      * @return an {@link URLStreamHandlerFactory} instance implemented by this
      *         {@link HttpEngine}.
      */
-    public abstract URLStreamHandlerFactory createURLStreamHandlerFactory();
+    // SuppressLint since this is for interface parity with j.n.URLStreamHandlerFactory
+    @SuppressLint("AndroidUri")
+    public abstract URLStreamHandlerFactory createUrlStreamHandlerFactory();
+
+    /**
+     * Creates a builder for {@link UrlRequest}. All callbacks for
+     * generated {@link UrlRequest} objects will be invoked on
+     * {@code executor}'s threads. {@code executor} must not run tasks on the
+     * thread calling {@link Executor#execute} to prevent blocking networking
+     * operations and causing exceptions during shutdown.
+     *
+     * @param url URL for the generated requests.
+     * @param executor {@link Executor} on which all callbacks will be invoked.
+     * @param callback callback object that gets invoked on different events.
+     */
+    public abstract UrlRequest.Builder newUrlRequestBuilder(
+            String url, Executor executor, UrlRequest.Callback callback);
 
     /**
      * Creates a builder for {@link UrlRequest}. All callbacks for
@@ -523,8 +546,31 @@ public abstract class HttpEngine {
      * @param callback callback object that gets invoked on different events.
      * @param executor {@link Executor} on which all callbacks will be invoked.
      */
-    public abstract UrlRequest.Builder newUrlRequestBuilder(
-            String url, UrlRequest.Callback callback, Executor executor);
+    // This API is kept for the backward compatibility in upstream
+    // TODO(motomuman) Hide this API
+    // This API is not hidden since this API is used in internal master and removing this makes
+    // presubmit fail. Once internal use is replaced by above API, this API will be hidden.
+    public UrlRequest.Builder newUrlRequestBuilder(String url, UrlRequest.Callback callback,
+            @SuppressLint("ListenerLast") Executor executor) {
+        return newUrlRequestBuilder(url, executor, callback);
+    }
+
+    /**
+     * Creates a builder for {@link BidirectionalStream} objects. All callbacks for
+     * generated {@code BidirectionalStream} objects will be invoked on
+     * {@code executor}. {@code executor} must not run tasks on the
+     * current thread, otherwise the networking operations may block and exceptions
+     * may be thrown at shutdown time.
+     *
+     * @param url URL for the generated streams.
+     * @param executor the {@link Executor} on which {@code callback} methods will be invoked.
+     * @param callback the {@link BidirectionalStream.Callback} object that gets invoked upon
+     * different events occurring.
+     *
+     * @return the created builder.
+     */
+    public abstract BidirectionalStream.Builder newBidirectionalStreamBuilder(
+            String url, Executor executor, BidirectionalStream.Callback callback);
 
     /**
      * Creates a builder for {@link BidirectionalStream} objects. All callbacks for
@@ -539,7 +585,12 @@ public abstract class HttpEngine {
      * @param executor the {@link Executor} on which {@code callback} methods will be invoked.
      *
      * @return the created builder.
+     *
+     * @hide
      */
-    public abstract BidirectionalStream.Builder newBidirectionalStreamBuilder(
-            String url, BidirectionalStream.Callback callback, Executor executor);
+    // This API is kept for the backward compatibility in upstream
+    public BidirectionalStream.Builder newBidirectionalStreamBuilder(
+            String url, BidirectionalStream.Callback callback, Executor executor) {
+        return newBidirectionalStreamBuilder(url, executor, callback);
+    }
 }

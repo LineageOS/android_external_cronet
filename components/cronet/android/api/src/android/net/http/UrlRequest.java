@@ -5,8 +5,10 @@
 package android.net.http;
 
 import android.annotation.IntDef;
+import android.annotation.SuppressLint;
 import android.net.Network;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import java.lang.annotation.Retention;
@@ -30,6 +32,9 @@ public abstract class UrlRequest {
      * with {@link Builder#build}. The builder can be created by calling
      * {@link HttpEngine#newUrlRequestBuilder}.
      */
+    // SuppressLint: Builder can not be final since this is abstract and inherited
+    // e.g. ExperimentalUrlRequest.Builder
+    @SuppressLint("StaticFinalBuilder")
     public abstract static class Builder {
 
         Builder() {}
@@ -43,7 +48,8 @@ public abstract class UrlRequest {
          * @param method "GET", "HEAD", "DELETE", "POST" or "PUT".
          * @return the builder to facilitate chaining.
          */
-        public abstract Builder setHttpMethod(String method);
+        @NonNull
+        public abstract Builder setHttpMethod(@NonNull String method);
 
         /**
          * Adds a request header.
@@ -52,14 +58,17 @@ public abstract class UrlRequest {
          * @param value header value.
          * @return the builder to facilitate chaining.
          */
-        public abstract Builder addHeader(String header, String value);
+        @NonNull
+        public abstract Builder addHeader(@NonNull String header, @NonNull String value);
 
         /**
-         * Disables cache for the request. If context is not set up to use cache,
+         * Whether to disable cache for the request. If the engine is not set up to use cache,
          * this call has no effect.
+         * @param disableCache {@code true} to disable cache, {@code false} otherwise.
          * @return the builder to facilitate chaining.
          */
-        public abstract Builder disableCache();
+        @NonNull
+        public abstract Builder setDisableCache(boolean disableCache);
 
         /**
          * Lowest request priority. Passed to {@link #setPriority}.
@@ -93,6 +102,7 @@ public abstract class UrlRequest {
          *         {@link #REQUEST_PRIORITY_IDLE REQUEST_PRIORITY_*} values.
          * @return the builder to facilitate chaining.
          */
+        @NonNull
         public abstract Builder setPriority(int priority);
 
         /**
@@ -106,30 +116,37 @@ public abstract class UrlRequest {
          *     {@code Executor} the request itself is using.
          * @return the builder to facilitate chaining.
          */
+        @NonNull
         public abstract Builder setUploadDataProvider(
-                UploadDataProvider uploadDataProvider, Executor executor);
+                @NonNull UploadDataProvider uploadDataProvider, @NonNull Executor executor);
 
         /**
-         * Marks that the executors this request will use to notify callbacks (for
+         * Marks whether the executors this request will use to notify callbacks (for
          * {@code UploadDataProvider}s and {@code UrlRequest.Callback}s) is intentionally performing
          * inline execution, like Guava's directExecutor or
          * {@link java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy}.
          *
-         * <p><b>Warning:</b> This option makes it easy to accidentally block the network thread.
-         * It should not be used if your callbacks perform disk I/O, acquire locks, or call into
-         * other code you don't carefully control and audit.
+         * <p><b>Warning:</b> If set to true: This option makes it easy to accidentally block the
+         * network thread. This should not be done if your callbacks perform disk I/O, acquire
+         * locks, or call into other code you don't carefully control and audit.
+         *
+         * @param allowDirectExecutor {@code true} to allow executors performing inline execution,
+         *                            {@code false} otherwise.
+         * @return the builder to facilitate chaining.
          */
-        public abstract Builder allowDirectExecutor();
+        @NonNull
+        public abstract Builder setAllowDirectExecutor(boolean allowDirectExecutor);
 
         /**
          * Binds the request to the specified network. The HTTP stack will send this request
          * only using the network associated to this handle. If this network disconnects the request
-         * will  fail, the exact error will depend on the stage of request processing when
+         * will fail, the exact error will depend on the stage of request processing when
          * the network disconnects.
          *
          * @param network the network to bind the request to. Specify {@code null} to unbind.
          * @return the builder to facilitate chaining.
          */
+        @NonNull @SuppressLint("BuilderSetStyle")
         public abstract Builder bindToNetwork(@Nullable Network network);
 
         /**
@@ -176,6 +193,7 @@ public abstract class UrlRequest {
          * @return constructed {@link UrlRequest} using configuration within
          *         this {@link Builder}.
          */
+        @NonNull
         public abstract UrlRequest build();
     }
 
@@ -207,8 +225,10 @@ public abstract class UrlRequest {
          *         will be called with the thrown exception set as the cause of the
          *         {@link CallbackException}.
          */
-        public abstract void onRedirectReceived(
-                UrlRequest request, UrlResponseInfo info, String newLocationUrl) throws Exception;
+        // SuppressLint: Exception will be wrapped and passed to #onFailed, see above javadoc
+        @SuppressLint("GenericException")
+        public abstract void onRedirectReceived(@NonNull UrlRequest request,
+                @NonNull UrlResponseInfo info, @NonNull String newLocationUrl) throws Exception;
 
         /**
          * Invoked when the final set of headers, after all redirects, is received.
@@ -227,8 +247,10 @@ public abstract class UrlRequest {
          *         will be called with the thrown exception set as the cause of the
          *         {@link CallbackException}.
          */
-        public abstract void onResponseStarted(UrlRequest request, UrlResponseInfo info)
-                throws Exception;
+        // SuppressLint: Exception will be wrapped and passed to #onFailed, see above javadoc
+        @SuppressLint("GenericException")
+        public abstract void onResponseStarted(@NonNull UrlRequest request,
+                @NonNull UrlResponseInfo info) throws Exception;
 
         /**
          * Invoked whenever part of the response body has been read. Only part of
@@ -252,8 +274,10 @@ public abstract class UrlRequest {
          *         {@link #onFailed} will be called with the thrown exception set as the cause of
          *         the {@link CallbackException}.
          */
-        public abstract void onReadCompleted(
-                UrlRequest request, UrlResponseInfo info, ByteBuffer byteBuffer) throws Exception;
+        // SuppressLint: Exception will be wrapped and passed to #onFailed, see above javadoc
+        @SuppressLint("GenericException")
+        public abstract void onReadCompleted(@NonNull UrlRequest request,
+                @NonNull UrlResponseInfo info, @NonNull ByteBuffer byteBuffer) throws Exception;
 
         /**
          * Invoked when request is completed successfully. Once invoked, no other
@@ -262,7 +286,8 @@ public abstract class UrlRequest {
          * @param request Request that succeeded.
          * @param info Response information.
          */
-        public abstract void onSucceeded(UrlRequest request, UrlResponseInfo info);
+        public abstract void onSucceeded(
+                @NonNull UrlRequest request, @NonNull UrlResponseInfo info);
 
         /**
          * Invoked if request failed for any reason after {@link UrlRequest#start}.
@@ -274,8 +299,8 @@ public abstract class UrlRequest {
          *         received.
          * @param error information about error.
          */
-        public abstract void onFailed(
-                UrlRequest request, UrlResponseInfo info, HttpException error);
+        public abstract void onFailed(@NonNull UrlRequest request,
+                @Nullable UrlResponseInfo info, @NonNull HttpException error);
 
         /**
          * Invoked if request was canceled via {@link UrlRequest#cancel}. Once
@@ -286,7 +311,7 @@ public abstract class UrlRequest {
          * @param info Response information. May be {@code null} if no response was
          *         received.
          */
-        public void onCanceled(UrlRequest request, UrlResponseInfo info) {}
+        public void onCanceled(@NonNull UrlRequest request, @Nullable UrlResponseInfo info) {}
     }
 
     /** @hide */
@@ -422,17 +447,17 @@ public abstract class UrlRequest {
     }
 
     /**
-     * Listener class used with {@link #getStatus} to receive the status of a
+     * Listener interface used with {@link #getStatus} to receive the status of a
      * {@link UrlRequest}.
      */
-    public abstract static class StatusListener {
+    public interface StatusListener {
         /**
          * Invoked on {@link UrlRequest}'s {@link Executor}'s thread when request
          * status is obtained.
          * @param status integer representing the status of the request. It is
          *         one of the values defined in {@link Status}.
          */
-        public abstract void onStatus(@UrlRequestStatus int status);
+        void onStatus(@UrlRequestStatus int status);
     }
 
     /**
@@ -465,7 +490,7 @@ public abstract class UrlRequest {
      *     position, limit, or data between its position and limit until the
      *     request calls back into the {@link Callback}.
      */
-    public abstract void read(ByteBuffer buffer);
+    public abstract void read(@NonNull ByteBuffer buffer);
 
     /**
      * Cancels the request. Can be called at any time.
@@ -503,7 +528,7 @@ public abstract class UrlRequest {
      * @param listener a {@link StatusListener} that will be invoked with
      *         the request's current status.
      */
-    public abstract void getStatus(final StatusListener listener);
+    public abstract void getStatus(@NonNull final StatusListener listener);
 
     // Note:  There are deliberately no accessors for the results of the request
     // here. Having none removes any ambiguity over when they are populated,

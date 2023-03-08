@@ -257,7 +257,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         }
         final ExperimentalUrlRequest.Builder requestBuilder =
                 (ExperimentalUrlRequest.Builder) mCronetEngine.newUrlRequestBuilder(
-                        getURL().toString(), new CronetUrlRequestCallback(), mMessageLoop);
+                        getURL().toString(), mMessageLoop, new CronetUrlRequestCallback());
         if (doOutput) {
             if (method.equals("GET")) {
                 method = "POST";
@@ -286,9 +286,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         for (Pair<String, String> requestHeader : mRequestHeaders) {
             requestBuilder.addHeader(requestHeader.first, requestHeader.second);
         }
-        if (!getUseCaches()) {
-            requestBuilder.disableCache();
-        }
+        requestBuilder.setDisableCache(!getUseCaches());
         // Set HTTP method.
         requestBuilder.setHttpMethod(method);
         if (checkTrafficStatsTag()) {
