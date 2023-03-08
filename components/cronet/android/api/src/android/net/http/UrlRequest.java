@@ -166,6 +166,7 @@ public abstract class UrlRequest {
          *            performing traffic on behalf of an application.
          * @return the builder to facilitate chaining.
          */
+        @NonNull
         public abstract Builder setTrafficStatsTag(int tag);
 
         /**
@@ -183,6 +184,7 @@ public abstract class UrlRequest {
          * @param uid the UID to attribute socket traffic caused by this request.
          * @return the builder to facilitate chaining.
          */
+        @NonNull
         public abstract Builder setTrafficStatsUid(int uid);
 
         /**
