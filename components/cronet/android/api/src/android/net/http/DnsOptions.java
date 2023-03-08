@@ -7,6 +7,7 @@ package android.net.http;
 import android.annotation.SuppressLint;
 import android.os.Build.VERSION_CODES;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
@@ -123,6 +124,7 @@ public final class DnsOptions {
      *
      * @hide
      */
+    @NonNull
     public static Builder builder() {
         return new Builder();
     }
@@ -176,6 +178,7 @@ public final class DnsOptions {
         /**
          * @hide
          */
+        @NonNull
         public static Builder builder() {
             return new Builder();
         }
@@ -189,7 +192,7 @@ public final class DnsOptions {
         @Nullable
         private final Boolean mUseStaleOnNameNotResolved;
 
-        StaleDnsOptions(Builder builder) {
+        StaleDnsOptions(@NonNull Builder builder) {
             this.mFreshLookupTimeoutMillis = builder.mFreshLookupTimeoutMillis;
             this.mMaxExpiredDelayMillis = builder.mMaxExpiredDelayMillis;
             this.mAllowCrossNetworkUsage = builder.mAllowCrossNetworkUsage;
@@ -214,7 +217,8 @@ public final class DnsOptions {
              *
              * @return the builder for chaining
              */
-            public Builder setFreshLookupTimeout(Duration freshLookupTimeout) {
+            @NonNull
+            public Builder setFreshLookupTimeout(@NonNull Duration freshLookupTimeout) {
                 this.mFreshLookupTimeoutMillis = freshLookupTimeout.toMillis();
                 return this;
             }
@@ -225,7 +229,8 @@ public final class DnsOptions {
              *
              * @return the builder for chaining
              */
-            public Builder setMaxExpiredDelay(Duration maxExpiredDelay) {
+            @NonNull
+            public Builder setMaxExpiredDelay(@NonNull Duration maxExpiredDelay) {
                 this.mMaxExpiredDelayMillis = maxExpiredDelay.toMillis();
                 return this;
             }
@@ -237,6 +242,7 @@ public final class DnsOptions {
              *
              * @return the builder for chaining
              */
+            @NonNull
             public Builder setAllowCrossNetworkUsage(boolean allowCrossNetworkUsage) {
                 this.mAllowCrossNetworkUsage = allowCrossNetworkUsage;
                 return this;
@@ -253,6 +259,7 @@ public final class DnsOptions {
              *
              * @return the builder for chaining
              */
+            @NonNull
             public Builder setUseStaleOnNameNotResolved(boolean useStaleOnNameNotResolved) {
                 this.mUseStaleOnNameNotResolved = useStaleOnNameNotResolved;
                 return this;
@@ -262,6 +269,7 @@ public final class DnsOptions {
              * Creates and returns the final {@link StaleDnsOptions} instance, based on the values
              * in this builder.
              */
+            @NonNull
             public StaleDnsOptions build() {
                 return new StaleDnsOptions(this);
             }
@@ -294,6 +302,7 @@ public final class DnsOptions {
          * of {@link DnsOptions} to work, unless specified otherwise. See the {@link DnsOptions}
          * documentation for more details.
          */
+        @NonNull
         public Builder setUseHttpStackDnsResolver(boolean enable) {
             this.mUseHttpStackDnsResolver = enable;
             return this;
@@ -305,6 +314,7 @@ public final class DnsOptions {
          * @return the builder for chaining
          */
         @Experimental
+        @NonNull
         public Builder setEnableStaleDns(boolean enable) {
             this.mEnableStaleDns = enable;
             return this;
@@ -318,7 +328,8 @@ public final class DnsOptions {
          * @return this builder for chaining.
          */
         @Experimental
-        public Builder setStaleDnsOptions(StaleDnsOptions staleDnsOptions) {
+        @NonNull
+        public Builder setStaleDnsOptions(@NonNull StaleDnsOptions staleDnsOptions) {
             this.mStaleDnsOptions = staleDnsOptions;
             return this;
         }
@@ -329,7 +340,8 @@ public final class DnsOptions {
          * {@hide}
          */
         @Experimental
-        public Builder setStaleDnsOptions(StaleDnsOptions.Builder staleDnsOptionsBuilder) {
+        @NonNull
+        public Builder setStaleDnsOptions(@NonNull StaleDnsOptions.Builder staleDnsOptionsBuilder) {
             return setStaleDnsOptions(staleDnsOptionsBuilder.build());
         }
 
@@ -349,6 +361,7 @@ public final class DnsOptions {
          * @return the builder for chaining
          */
         @Experimental
+        @NonNull
         public Builder setPreestablishConnectionsToStaleDnsResults(boolean enable) {
             this.mPreestablishConnectionsToStaleDnsResults = enable;
             return this;
@@ -362,6 +375,7 @@ public final class DnsOptions {
          *
          * @return the builder for chaining
          */
+        @NonNull
         public Builder setPersistHostCache(boolean persistHostCache) {
             this.mPersistHostCache = persistHostCache;
             return this;
@@ -374,7 +388,8 @@ public final class DnsOptions {
          *
          * @return the builder for chaining
          */
-        public Builder setPersistHostCachePeriod(Duration persistHostCachePeriod) {
+        @NonNull
+        public Builder setPersistHostCachePeriod(@NonNull Duration persistHostCachePeriod) {
             this.mPersistHostCachePeriod = persistHostCachePeriod;
             return this;
         }
@@ -383,6 +398,7 @@ public final class DnsOptions {
          * Creates and returns the final {@link DnsOptions} instance, based on the values in this
          * builder.
          */
+        @NonNull
         public DnsOptions build() {
             return new DnsOptions(this);
         }
