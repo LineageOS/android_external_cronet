@@ -4,6 +4,7 @@
 package org.chromium.net.impl;
 
 import static android.net.http.ExperimentalHttpEngine.UNBIND_NETWORK_HANDLE;
+import static android.net.http.UrlRequest.REQUEST_PRIORITY_MEDIUM;
 
 import android.annotation.SuppressLint;
 import android.net.Network;
@@ -18,8 +19,10 @@ import android.net.http.UrlRequest;
 
 import androidx.annotation.Nullable;
 
+import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
@@ -44,7 +47,7 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
     private String mMethod;
 
     // List of request headers, stored as header field name and value pairs.
-    private final ArrayList<Pair<String, String>> mRequestHeaders = new ArrayList<>();
+    private final ArrayList<Map.Entry<String, String>> mRequestHeaders = new ArrayList<>();
     // Disable the cache for just this request.
     private boolean mDisableCache;
     // Disable connection migration for just this request.
@@ -126,12 +129,12 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
                     new Exception());
             return this;
         }
-        mRequestHeaders.add(Pair.create(header, value));
+        mRequestHeaders.add(new AbstractMap.SimpleImmutableEntry<String, String>(header, value));
         return this;
     }
 
     @Override
-    public UrlRequestBuilderImpl setDisableCache(boolean disableCache) {
+    public UrlRequestBuilderImpl setCacheDisabled(boolean disableCache) {
         mDisableCache = disableCache;
         return this;
     }
@@ -172,7 +175,7 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
     }
 
     @Override
-    public UrlRequestBuilderImpl setAllowDirectExecutor(boolean allowDirectExecutor) {
+    public UrlRequestBuilderImpl setDirectExecutorAllowed(boolean allowDirectExecutor) {
         mAllowDirectExecutor = allowDirectExecutor;
         return this;
     }
@@ -225,12 +228,10 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
         final UrlRequestBase request = mCronetEngine.createRequest(mUrl, mCallback, mExecutor,
                 mPriority, mRequestAnnotations, mDisableCache, mDisableConnectionMigration,
                 mAllowDirectExecutor, mTrafficStatsTagSet, mTrafficStatsTag, mTrafficStatsUidSet,
-                mTrafficStatsUid, mRequestFinishedListener, mIdempotency, mNetworkHandle);
+                mTrafficStatsUid, mRequestFinishedListener, mIdempotency, mNetworkHandle,
+                new HeaderBlockImpl(mRequestHeaders));
         if (mMethod != null) {
             request.setHttpMethod(mMethod);
-        }
-        for (Pair<String, String> header : mRequestHeaders) {
-            request.addHeader(header.first, header.second);
         }
         if (mUploadDataProvider != null) {
             request.setUploadDataProvider(mUploadDataProvider, mUploadDataProviderExecutor);
