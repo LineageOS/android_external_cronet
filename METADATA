@@ -3,7 +3,7 @@ description:
   "Contains a subset of Chromium sources used to build Cronet from source "
   "within Android."
 third_party {
-  license_type: RESTRICTED
+  license_type: NOTICE
   url {
     type: GIT
     value: "https://chromium.googlesource.com/chromium/src.git"
