@@ -85,3 +85,78 @@ android_test_helper_app {
         "cronet_aml_components_cronet_android_cronet_unittests_android__library__testing",
     ],
 }
+
+android_test_helper_app {
+    name: "cronet_net_tester_app",
+    srcs: [
+        "base/test/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
+        "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
+        "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
+        "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestIntent.java",
+        "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/TestStatusIntent.java",
+        "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/TestStatusReceiver.java",
+        "testing/android/native_test/java/src/org/chromium/native_test/NativeTest.java",
+        "testing/android/native_test/java/src/org/chromium/native_test/SignalMaskInfo.java",
+        "testing/android/native_test/java/src/org/chromium/native_test/NativeTestApplication.java",
+        "testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTest.java",
+        "testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTestActivity.java",
+        "testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTestNativeActivity.java",
+        "testing/android/reporter/java/src/org/chromium/test/reporter/TestStatusReporter.java",
+    ],
+    static_libs: [
+        "android-support-multidex",
+        "androidx.annotation_annotation",
+        "junit",
+        "cronet_for_testing_net_java",
+    ],
+    manifest: "test_runner/AndroidNetManifest.xml",
+    jni_libs: [
+        "cronet_aml_net_net_unittests__library__testing",
+    ],
+    resource_dirs : [
+        "net/android/unittest_support/res",
+    ]
+}
+
+java_library {
+    name: "cronet_for_testing_net_java",
+    srcs: [
+        "net/test/android/javatests/src/org/chromium/net/AndroidNetworkLibraryTestUtil.java",
+        "net/test/android/javatests/src/org/chromium/net/test/util/CertTestUtil.java",
+        "net/test/android/javatests/src/org/chromium/net/test/util/NetworkChangeNotifierTestUtil.java",
+        "net/test/android/javatests/src/org/chromium/net/test/util/TestWebServer.java",
+        "net/test/android/javatests/src/org/chromium/net/test/util/WebServer.java",
+        "net/test/android/javatests/src/org/chromium/net/test/DummySpnegoAuthenticator.java",
+        "net/test/android/javatests/src/org/chromium/net/test/DummySpnegoAuthenticatorService.java",
+        "net/test/android/javatests/src/org/chromium/net/test/EmbeddedTestServerImpl.java",
+        "net/test/android/javatests/src/org/chromium/net/test/EmbeddedTestServerService.java",
+        "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
+        "net/android/javatests/src/org/chromium/net/AndroidKeyStoreTestUtil.java",
+        "net/android/javatests/src/org/chromium/net/AndroidProxyConfigServiceTestUtil.java",
+        "net/test/android/javatests/src/org/chromium/net/test/IConnectionListener.aidl",
+        "net/test/android/javatests/src/org/chromium/net/test/IEmbeddedTestServerImpl.aidl",
+    ],
+    aidl: {
+        include_dirs: [
+            "frameworks/base/core/java/",
+        ],
+        local_include_dirs: [
+            "net/test/android/javatests/src",
+        ],
+    },
+    static_libs: [
+        "cronet_aml_java__testing",
+        "junit",
+        "androidx.annotation_annotation",
+        "androidx.annotation_annotation-experimental-nodeps",
+    ],
+}
+
+filegroup {
+    name: "net_unittests_data",
+    srcs: [
+        "net/data/**/*",
+        "net/third_party/nist-pkits/**/*",
+        "net/third_party/quiche/src/quiche/common/platform/api/testdir/**/*"
+    ],
+}
