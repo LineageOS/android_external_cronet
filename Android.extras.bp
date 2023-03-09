@@ -14,6 +14,35 @@
 
 // This is manually maintained and automatically included into the Android.bp by the gn2bp script.
 
+license {
+    name: "external_cronet_license",
+    license_kinds: [
+        "SPDX-license-identifier-AFL-2.0",
+        "SPDX-license-identifier-Apache-2.0",
+        "SPDX-license-identifier-BSD",
+        "SPDX-license-identifier-BSD-3-Clause",
+        "SPDX-license-identifier-BSD-Source-Code",
+        "SPDX-license-identifier-BSD-2-Clause",
+        "SPDX-license-identifier-BSD-4-Clause",
+        "SPDX-license-identifier-BSL-1.0",
+        "SPDX-license-identifier-ICU",
+        "SPDX-license-identifier-ISC",
+        "SPDX-license-identifier-MIT",
+        "SPDX-license-identifier-MPL",
+        "SPDX-license-identifier-MPL-1.1",
+        "SPDX-license-identifier-MPL-2.0",
+        "SPDX-license-identifier-NCSA",
+        // "SPDX-license-identifier-GPL-2.0-with-autoconf-exception", // ICU TODO(aymanm): Reapply those once aosp/2470343 is merged
+        // "SPDX-license-identifier-GPL-3.0-with-autoconf-exception", // ICU TODO(aymanm): Reapply those once aosp/2470343 is merged
+        "SPDX-license-identifier-OpenSSL",
+        "SPDX-license-identifier-Unicode-DFS-2016",
+        "legacy_unencumbered",
+    ],
+    license_text: [
+        "LICENSE",
+    ],
+}
+
 java_library {
     // Don't change the name of the module.
     name: "cronet_aml_api_java",
