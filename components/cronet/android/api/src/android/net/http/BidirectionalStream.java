@@ -63,6 +63,8 @@ public abstract class BidirectionalStream {
      * it via {@link Builder#build}. Created by
      * {@link ExperimentalHttpEngine#newBidirectionalStreamBuilder}.
      */
+    // SuppressLint: Builder can not be final since this is abstract and inherited
+    @SuppressLint("StaticFinalBuilder")
     public abstract static class Builder {
         /**
          * Sets the HTTP method for the request. Returns builder to facilitate chaining.
