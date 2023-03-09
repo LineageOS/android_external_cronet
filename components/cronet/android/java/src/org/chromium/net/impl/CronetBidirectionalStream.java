@@ -93,6 +93,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     private final int mInitialPriority;
     private final String mInitialMethod;
     private final String mRequestHeaders[];
+    private final List<Map.Entry<String, String>> mRequestHeaderEntries;
     private final boolean mDelayRequestHeadersUntilFirstFlush;
     private final Collection<Object> mRequestAnnotations;
     private final boolean mTrafficStatsTagSet;
@@ -250,6 +251,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
         mExecutor = executor;
         mInitialMethod = httpMethod;
         mRequestHeaders = stringsFromHeaderList(requestHeaders);
+        mRequestHeaderEntries = requestHeaders;
         mDelayRequestHeadersUntilFirstFlush = delayRequestHeadersUntilNextFlush;
         mPendingData = new LinkedList<>();
         mFlushData = new LinkedList<>();
@@ -259,6 +261,65 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
         mTrafficStatsUidSet = trafficStatsUidSet;
         mTrafficStatsUid = trafficStatsUid;
         mNetworkHandle = networkHandle;
+    }
+
+    @Override
+    public String getHttpMethod() {
+        return mInitialMethod;
+    }
+
+    @Override
+    public boolean hasTrafficStatsTag() {
+        return mTrafficStatsTagSet;
+    }
+
+    @Override
+    public int getTrafficStatsTag() {
+        if (!hasTrafficStatsTag()) {
+            throw new IllegalStateException("TrafficStatsTag is not set");
+        }
+        return mTrafficStatsTag;
+    }
+
+    @Override
+    public boolean hasTrafficStatsUid() {
+        return mTrafficStatsUidSet;
+    }
+
+    @Override
+    public int getTrafficStatsUid() {
+        if (!hasTrafficStatsUid()) {
+            throw new IllegalStateException("TrafficStatsUid is not set");
+        }
+        return mTrafficStatsUid;
+    }
+
+    @Override
+    public List<Map.Entry<String, String>> getHeaders() {
+        return mRequestHeaderEntries;
+    }
+
+    @Override
+    public int getPriority() {
+        switch (mInitialPriority) {
+            case RequestPriority.IDLE:
+                return STREAM_PRIORITY_IDLE;
+            case RequestPriority.LOWEST:
+                return STREAM_PRIORITY_LOWEST;
+            case RequestPriority.LOW:
+                return STREAM_PRIORITY_LOW;
+            case RequestPriority.MEDIUM:
+                return STREAM_PRIORITY_MEDIUM;
+            case RequestPriority.HIGHEST:
+                return STREAM_PRIORITY_HIGHEST;
+            default:
+                throw new IllegalStateException("Invalid stream priority: " + mInitialPriority);
+        }
+    }
+
+    @Override
+    public boolean isDelayRequestHeadersUntilFirstFlushEnabled() {
+        return mDelayRequestHeadersUntilFirstFlush;
     }
 
     @Override
@@ -720,15 +781,15 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
 
     private static int convertStreamPriority(@CronetEngineBase.StreamPriority int priority) {
         switch (priority) {
-            case Builder.STREAM_PRIORITY_IDLE:
+            case STREAM_PRIORITY_IDLE:
                 return RequestPriority.IDLE;
-            case Builder.STREAM_PRIORITY_LOWEST:
+            case STREAM_PRIORITY_LOWEST:
                 return RequestPriority.LOWEST;
-            case Builder.STREAM_PRIORITY_LOW:
+            case STREAM_PRIORITY_LOW:
                 return RequestPriority.LOW;
-            case Builder.STREAM_PRIORITY_MEDIUM:
+            case STREAM_PRIORITY_MEDIUM:
                 return RequestPriority.MEDIUM;
-            case Builder.STREAM_PRIORITY_HIGHEST:
+            case STREAM_PRIORITY_HIGHEST:
                 return RequestPriority.HIGHEST;
             default:
                 throw new IllegalArgumentException("Invalid stream priority.");
