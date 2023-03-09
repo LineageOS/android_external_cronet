@@ -81,6 +81,12 @@ public class ChromiumHostDrivenTest extends BaseHostJUnit4Test {
     private boolean mCoverage = false;
 
     @Option(
+            name = "gtest-filter",
+            description = "Run only tests specified by the filter"
+    )
+    private String gtestFilter = "*"; // Default to run everything
+
+    @Option(
             name = "library-to-load",
             description = "Name of the .so file under test"
     )
@@ -93,12 +99,21 @@ public class ChromiumHostDrivenTest extends BaseHostJUnit4Test {
                 .addArgument(EXTRA_SHARD_NANO_TIMEOUT_KEY, String.valueOf(testsTimeout.toNanos()))
                 .addArgument(LIBRARY_TO_LOAD_ACTIVITY_KEY, libraryToLoad)
                 .addArgument(STDOUT_FILE_KEY, GTEST_OUTPUT_PATH)
-                .addArgument(COMMAND_LINE_FLAGS_KEY, String.format("'--gtest_output=json:%s'",
-                        ChromiumHostDrivenTest.GTEST_RESULT_OUTPUT_PATH));
+                .addArgument(COMMAND_LINE_FLAGS_KEY,
+                        String.format("'--gtest_filter=%s --gtest_output=json:%s'",
+                                gtestFilter, ChromiumHostDrivenTest.GTEST_RESULT_OUTPUT_PATH));
         if (mCoverage) {
             builder.addArgument(DUMP_COVERAGE_KEY, "true");
         }
         return builder.build();
+    }
+
+    private void logFileFromDevice(String filePath) throws DeviceNotAvailableException {
+        File file = getDevice().pullFile(filePath);
+        if (file != null) {
+            logs.addTestLog(filePath, LogDataType.TEXT,
+                    new FileInputStreamSource(file));
+        }
     }
 
     @Before
@@ -130,6 +145,8 @@ public class ChromiumHostDrivenTest extends BaseHostJUnit4Test {
         }
         logs.addTestLog("cronet_extra_logs", LogDataType.TEXT,
                 new FileInputStreamSource(logFile));
+        logFileFromDevice(GTEST_RESULT_OUTPUT_PATH);
+        logFileFromDevice(GTEST_OUTPUT_PATH);
         // The files are included in the test report generated after executing the tests.
         File gtestTestResultsJson = getDevice().pullFile(GTEST_RESULT_OUTPUT_PATH);
         GTestsMetaData gTestsMetaData = GTestsMetaData.parseFile(gtestTestResultsJson);

@@ -185,8 +185,11 @@ public class NativeTest {
     }
 
     private void runTests(Activity activity) {
+        // Chromium pushes data to "chrome/test/data/chromium_test_root". But in AOSP, it's more
+        // common to push testing data to data/local/tmp.
+        // This has to be consistent with the AndroidTest configuration file.
         nativeRunTests(mCommandLineFlags.toString(), mCommandLineFilePath, mStdoutFilePath,
-                activity.getApplicationContext(), UrlUtils.getIsolatedTestRoot());
+                activity.getApplicationContext(), "/data/local/tmp");
         if (mDumpCoverage) {
             new Handler(Looper.getMainLooper()).post(() -> {
                 maybeDumpNativeCoverage();
