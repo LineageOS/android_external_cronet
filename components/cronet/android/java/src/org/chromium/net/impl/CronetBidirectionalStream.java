@@ -14,6 +14,7 @@ import org.chromium.base.annotations.NativeClassQualifiedName;
 import org.chromium.base.annotations.NativeMethods;
 import android.net.http.BidirectionalStream;
 import android.net.http.CallbackException;
+import android.net.http.HeaderBlock;
 import android.net.http.HttpException;
 import android.net.http.ExperimentalBidirectionalStream;
 import android.net.http.NetworkException;
@@ -93,7 +94,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     private final int mInitialPriority;
     private final String mInitialMethod;
     private final String mRequestHeaders[];
-    private final List<Map.Entry<String, String>> mRequestHeaderEntries;
+    private final HeaderBlock mRequestHeaderBlock;
     private final boolean mDelayRequestHeadersUntilFirstFlush;
     private final Collection<Object> mRequestAnnotations;
     private final boolean mTrafficStatsTagSet;
@@ -251,7 +252,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
         mExecutor = executor;
         mInitialMethod = httpMethod;
         mRequestHeaders = stringsFromHeaderList(requestHeaders);
-        mRequestHeaderEntries = requestHeaders;
+        mRequestHeaderBlock = new HeaderBlockImpl(requestHeaders);
         mDelayRequestHeadersUntilFirstFlush = delayRequestHeadersUntilNextFlush;
         mPendingData = new LinkedList<>();
         mFlushData = new LinkedList<>();
@@ -295,8 +296,8 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     }
 
     @Override
-    public List<Map.Entry<String, String>> getHeaders() {
-        return mRequestHeaderEntries;
+    public HeaderBlock getHeaders() {
+        return mRequestHeaderBlock;
     }
 
     @Override
@@ -661,8 +662,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     @SuppressWarnings("unused")
     @CalledByNative
     private void onResponseTrailersReceived(String[] trailers) {
-        final UrlResponseInfo.HeaderBlock trailersBlock =
-                new UrlResponseInfoImpl.HeaderBlockImpl(headersListFromStrings(trailers));
+        final HeaderBlock trailersBlock = new HeaderBlockImpl(headersListFromStrings(trailers));
         postTaskToExecutor(new Runnable() {
             @Override
             public void run() {

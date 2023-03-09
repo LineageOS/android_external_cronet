@@ -235,7 +235,7 @@ public abstract class BidirectionalStream {
          * @param trailers the trailers received
          */
         public void onResponseTrailersReceived(@NonNull BidirectionalStream stream,
-                @NonNull UrlResponseInfo info, @NonNull UrlResponseInfo.HeaderBlock trailers) {}
+                @NonNull UrlResponseInfo info, @NonNull HeaderBlock trailers) {}
 
         /**
          * Invoked when there is no data to be read or written and the stream is closed successfully
@@ -305,7 +305,7 @@ public abstract class BidirectionalStream {
      * See {@link Builder#addHeader(String, String)}
      */
     @NonNull
-    public abstract List<Map.Entry<String, String>> getHeaders();
+    public abstract HeaderBlock getHeaders();
 
     /**
      * See {@link Builder#setPriority(int)}
