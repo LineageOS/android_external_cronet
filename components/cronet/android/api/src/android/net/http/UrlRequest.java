@@ -581,6 +581,9 @@ public abstract class UrlRequest {
      * @param listener a {@link StatusListener} that will be invoked with
      *         the request's current status.
      */
+    // SuppressLint: The listener will be invoked back on the Executor passed in when the request
+    // was created.
+    @SuppressLint("ExecutorRegistration")
     public abstract void getStatus(@NonNull final StatusListener listener);
 
     // Note:  There are deliberately no accessors for the results of the request
