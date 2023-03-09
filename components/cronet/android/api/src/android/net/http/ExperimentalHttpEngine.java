@@ -3,6 +3,11 @@
 // found in the LICENSE file.
 package android.net.http;
 
+import static android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_ENABLED;
+import static android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_UNSPECIFIED;
+import static android.net.http.DnsOptions.DNS_OPTION_ENABLED;
+import static android.net.http.DnsOptions.DNS_OPTION_UNSPECIFIED;
+
 import android.content.Context;
 import android.net.http.DnsOptions.StaleDnsOptions;
 
@@ -199,9 +204,9 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
 
                 // Note: using the experimental APIs always overwrites what's in the experimental
                 // JSON, even though "repeated" fields could in theory be additive.
-                if (!options.getQuicHostAllowlist().isEmpty()) {
+                if (!options.getAllowedQuicHosts().isEmpty()) {
                     quicOptions.put(
-                            "host_whitelist", String.join(",", options.getQuicHostAllowlist()));
+                            "host_whitelist", String.join(",", options.getAllowedQuicHosts()));
                 }
                 if (!options.getEnabledQuicVersions().isEmpty()) {
                     quicOptions.put(
@@ -300,18 +305,21 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
             mExperimentalOptionsPatches.add((experimentalOptions) -> {
                 JSONObject asyncDnsOptions = createDefaultIfAbsent(experimentalOptions, "AsyncDNS");
 
-                if (options.getUseHttpStackDnsResolver() != null) {
-                    asyncDnsOptions.put("enable", options.getUseHttpStackDnsResolver());
+                if (options.getUseHttpStackDnsResolverEnabled() != DNS_OPTION_UNSPECIFIED) {
+                    asyncDnsOptions.put("enable",
+                            options.getUseHttpStackDnsResolverEnabled() == DNS_OPTION_ENABLED);
                 }
 
                 JSONObject staleDnsOptions = createDefaultIfAbsent(experimentalOptions, "StaleDNS");
 
-                if (options.getEnableStaleDns() != null) {
-                    staleDnsOptions.put("enable", options.getEnableStaleDns());
+                if (options.getStaleDnsEnabled() != DNS_OPTION_UNSPECIFIED) {
+                    staleDnsOptions.put("enable",
+                            options.getStaleDnsEnabled() == DNS_OPTION_ENABLED);
                 }
 
-                if (options.getPersistHostCache() != null) {
-                    staleDnsOptions.put("persist_to_disk", options.getPersistHostCache());
+                if (options.getPersistHostCacheEnabled() != DNS_OPTION_UNSPECIFIED) {
+                    staleDnsOptions.put("persist_to_disk",
+                            options.getPersistHostCacheEnabled() == DNS_OPTION_ENABLED);
                 }
 
                 if (options.getPersistHostCachePeriod() != null) {
@@ -322,31 +330,37 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                 if (options.getStaleDnsOptions() != null) {
                     StaleDnsOptions staleDnsOptionsJava = options.getStaleDnsOptions();
 
-                    if (staleDnsOptionsJava.getAllowCrossNetworkUsage() != null) {
+                    if (staleDnsOptionsJava.getAllowCrossNetworkUsageEnabled()
+                            != DNS_OPTION_UNSPECIFIED) {
                         staleDnsOptions.put("allow_other_network",
-                                staleDnsOptionsJava.getAllowCrossNetworkUsage());
+                                staleDnsOptionsJava.getAllowCrossNetworkUsageEnabled()
+                                        == DNS_OPTION_ENABLED);
                     }
 
-                    if (staleDnsOptionsJava.getFreshLookupTimeoutMillis() != null) {
+                    if (staleDnsOptionsJava.getFreshLookupTimeout() != null) {
                         staleDnsOptions.put(
-                                "delay_ms", staleDnsOptionsJava.getFreshLookupTimeoutMillis());
+                                "delay_ms", staleDnsOptionsJava.getFreshLookupTimeout().toMillis());
                     }
 
-                    if (staleDnsOptionsJava.getUseStaleOnNameNotResolved() != null) {
+                    if (staleDnsOptionsJava.getUseStaleOnNameNotResolvedEnabled()
+                            != DNS_OPTION_UNSPECIFIED) {
                         staleDnsOptions.put("use_stale_on_name_not_resolved",
-                                staleDnsOptionsJava.getUseStaleOnNameNotResolved());
+                                staleDnsOptionsJava.getUseStaleOnNameNotResolvedEnabled()
+                                        == DNS_OPTION_ENABLED);
                     }
 
-                    if (staleDnsOptionsJava.getMaxExpiredDelayMillis() != null) {
+                    if (staleDnsOptionsJava.getMaxExpiredDelay() != null) {
                         staleDnsOptions.put("max_expired_time_ms",
-                                staleDnsOptionsJava.getMaxExpiredDelayMillis());
+                                staleDnsOptionsJava.getMaxExpiredDelay().toMillis());
                     }
                 }
 
                 JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
-                if (options.getPreestablishConnectionsToStaleDnsResults() != null) {
+                if (options.getPreestablishConnectionsToStaleDnsResultsEnabled()
+                        != DNS_OPTION_UNSPECIFIED) {
                     quicOptions.put("race_stale_dns_on_connection",
-                            options.getPreestablishConnectionsToStaleDnsResults());
+                            options.getPreestablishConnectionsToStaleDnsResultsEnabled()
+                                    == DNS_OPTION_ENABLED);
                 }
             });
             return this;
@@ -366,9 +380,10 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
             mExperimentalOptionsPatches.add((experimentalOptions) -> {
                 JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
 
-                if (options.getEnableDefaultNetworkMigration() != null) {
+                if (options.getDefaultNetworkMigrationEnabled() != MIGRATION_OPTION_UNSPECIFIED) {
                     quicOptions.put("migrate_sessions_on_network_change_v2",
-                            options.getEnableDefaultNetworkMigration());
+                            options.getDefaultNetworkMigrationEnabled()
+                                    == MIGRATION_OPTION_ENABLED);
                 }
                 if (options.getAllowServerMigration() != null) {
                     quicOptions.put("allow_server_migration", options.getAllowServerMigration());
@@ -392,13 +407,17 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                     quicOptions.put("max_migrations_to_non_default_network_on_write_error",
                             options.getMaxWriteErrorNonDefaultNetworkMigrationsCount());
                 }
-                if (options.getEnablePathDegradationMigration() != null) {
-                    boolean pathDegradationValue = options.getEnablePathDegradationMigration();
+                if (options.getPathDegradationMigrationEnabled() != MIGRATION_OPTION_UNSPECIFIED) {
+                    boolean pathDegradationValue = (options.getPathDegradationMigrationEnabled()
+                            == MIGRATION_OPTION_ENABLED);
 
                     boolean skipPortMigrationFlag = false;
 
-                    if (options.getAllowNonDefaultNetworkUsage() != null) {
-                        boolean nonDefaultNetworkValue = options.getAllowNonDefaultNetworkUsage();
+                    if (options.getAllowNonDefaultNetworkUsageEnabled()
+                            != MIGRATION_OPTION_UNSPECIFIED) {
+                        boolean nonDefaultNetworkValue =
+                                (options.getAllowNonDefaultNetworkUsageEnabled()
+                                        == MIGRATION_OPTION_ENABLED);
                         if (!pathDegradationValue && nonDefaultNetworkValue) {
                             // Misconfiguration which doesn't translate easily to the JSON flags
                             throw new IllegalArgumentException(

@@ -14,6 +14,8 @@ import androidx.annotation.Nullable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
@@ -26,6 +28,28 @@ import java.util.concurrent.Executor;
 public abstract class UrlRequest {
 
     UrlRequest() {}
+
+    /**
+     * Lowest request priority. Passed to {@link Builder#setPriority}.
+     */
+    public static final int REQUEST_PRIORITY_IDLE = 0;
+    /**
+     * Very low request priority. Passed to {@link Builder#setPriority}.
+     */
+    public static final int REQUEST_PRIORITY_LOWEST = 1;
+    /**
+     * Low request priority. Passed to {@link Builder#setPriority}.
+     */
+    public static final int REQUEST_PRIORITY_LOW = 2;
+    /**
+     * Medium request priority. Passed to {@link Builder#setPriority}. This is the
+     * default priority given to the request.
+     */
+    public static final int REQUEST_PRIORITY_MEDIUM = 3;
+    /**
+     * Highest request priority. Passed to {@link Builder#setPriority}.
+     */
+    public static final int REQUEST_PRIORITY_HIGHEST = 4;
 
     /**
      * Builder for {@link UrlRequest}s. Allows configuring requests before constructing them
@@ -68,29 +92,7 @@ public abstract class UrlRequest {
          * @return the builder to facilitate chaining.
          */
         @NonNull
-        public abstract Builder setDisableCache(boolean disableCache);
-
-        /**
-         * Lowest request priority. Passed to {@link #setPriority}.
-         */
-        public static final int REQUEST_PRIORITY_IDLE = 0;
-        /**
-         * Very low request priority. Passed to {@link #setPriority}.
-         */
-        public static final int REQUEST_PRIORITY_LOWEST = 1;
-        /**
-         * Low request priority. Passed to {@link #setPriority}.
-         */
-        public static final int REQUEST_PRIORITY_LOW = 2;
-        /**
-         * Medium request priority. Passed to {@link #setPriority}. This is the
-         * default priority given to the request.
-         */
-        public static final int REQUEST_PRIORITY_MEDIUM = 3;
-        /**
-         * Highest request priority. Passed to {@link #setPriority}.
-         */
-        public static final int REQUEST_PRIORITY_HIGHEST = 4;
+        public abstract Builder setCacheDisabled(boolean disableCache);
 
         /**
          * Sets priority of the request which should be one of the
@@ -116,7 +118,9 @@ public abstract class UrlRequest {
          *     {@code Executor} the request itself is using.
          * @return the builder to facilitate chaining.
          */
-        @NonNull
+        // SuppressLint: UploadDataProvider is wrapped by other classes after set.
+        // Also, UploadDataProvider is a class to provide an upload body and getter is not useful
+        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
         public abstract Builder setUploadDataProvider(
                 @NonNull UploadDataProvider uploadDataProvider, @NonNull Executor executor);
 
@@ -135,7 +139,7 @@ public abstract class UrlRequest {
          * @return the builder to facilitate chaining.
          */
         @NonNull
-        public abstract Builder setAllowDirectExecutor(boolean allowDirectExecutor);
+        public abstract Builder setDirectExecutorAllowed(boolean allowDirectExecutor);
 
         /**
          * Binds the request to the specified network. The HTTP stack will send this request
@@ -461,6 +465,53 @@ public abstract class UrlRequest {
          */
         void onStatus(@UrlRequestStatus int status);
     }
+
+    /**
+     * See {@link UrlRequest.Builder#setHttpMethod(String)}.
+     */
+    @Nullable
+    public abstract String getHttpMethod();
+
+    /**
+     * See {@link UrlRequest.Builder#addHeader(String, String)}
+     */
+    @NonNull
+    public abstract HeaderBlock getHeaders();
+
+    /**
+     * See {@link Builder#setCacheDisabled(boolean)}
+     */
+    public abstract boolean isCacheDisabled();
+
+    /**
+     * See {@link UrlRequest.Builder#setDirectExecutorAllowed(boolean)}
+     */
+    public abstract boolean isDirectExecutorAllowed();
+
+    /**
+     * See {@link Builder#setPriority(int)}
+     */
+    public abstract int getPriority();
+
+    /**
+     * See {@link Builder#setTrafficStatsTag(int)}
+     */
+    public abstract boolean hasTrafficStatsTag();
+
+    /**
+     * See {@link Builder#setTrafficStatsTag(int)}
+     */
+    public abstract int getTrafficStatsTag();
+
+    /**
+     * See {@link Builder#setTrafficStatsUid(int)}
+     */
+    public abstract boolean hasTrafficStatsUid();
+
+    /**
+     * See {@link Builder#setTrafficStatsUid(int)}
+     */
+    public abstract int getTrafficStatsUid();
 
     /**
      * Starts the request, all callbacks go to {@link Callback}. May only be called

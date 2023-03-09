@@ -6,6 +6,7 @@ package org.chromium.net.impl;
 
 import android.net.Network;
 import android.net.http.ApiVersion;
+import android.net.http.HeaderBlock;
 import android.os.ConditionVariable;
 import android.os.Process;
 
@@ -285,7 +286,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
             boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, RequestFinishedInfo.Listener requestFinishedListener,
-            int idempotency, long networkHandle) {
+            int idempotency, long networkHandle, HeaderBlock headerBlock) {
         if (networkHandle == DEFAULT_NETWORK_HANDLE) {
             networkHandle = mNetworkHandle;
         }
@@ -294,7 +295,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
             return new CronetUrlRequest(this, url, priority, callback, executor, requestAnnotations,
                     disableCache, disableConnectionMigration, allowDirectExecutor,
                     trafficStatsTagSet, trafficStatsTag, trafficStatsUidSet, trafficStatsUid,
-                    requestFinishedListener, idempotency, networkHandle);
+                    requestFinishedListener, idempotency, networkHandle, headerBlock);
         }
     }
 

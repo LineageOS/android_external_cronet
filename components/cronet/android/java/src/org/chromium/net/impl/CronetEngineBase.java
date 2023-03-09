@@ -10,6 +10,7 @@ import android.net.http.BidirectionalStream;
 import android.net.http.ExperimentalBidirectionalStream;
 import android.net.http.ExperimentalHttpEngine;
 import android.net.http.ExperimentalUrlRequest;
+import android.net.http.HeaderBlock;
 import android.net.http.RequestFinishedInfo;
 import android.net.http.UrlRequest;
 
@@ -70,7 +71,7 @@ public abstract class CronetEngineBase extends ExperimentalHttpEngine {
             boolean disableCache, boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, @Nullable RequestFinishedInfo.Listener requestFinishedListener,
-            @Idempotency int idempotency, long networkHandle);
+            @Idempotency int idempotency, long networkHandle, HeaderBlock headerBlock);
 
     /**
      * Creates a {@link BidirectionalStream} object. {@code callback} methods will
@@ -113,18 +114,18 @@ public abstract class CronetEngineBase extends ExperimentalHttpEngine {
         return new UrlRequestBuilderImpl(url, callback, executor, this);
     }
 
-    @IntDef({UrlRequest.Builder.REQUEST_PRIORITY_IDLE, UrlRequest.Builder.REQUEST_PRIORITY_LOWEST,
-            UrlRequest.Builder.REQUEST_PRIORITY_LOW, UrlRequest.Builder.REQUEST_PRIORITY_MEDIUM,
-            UrlRequest.Builder.REQUEST_PRIORITY_HIGHEST})
+    @IntDef({UrlRequest.REQUEST_PRIORITY_IDLE, UrlRequest.REQUEST_PRIORITY_LOWEST,
+            UrlRequest.REQUEST_PRIORITY_LOW, UrlRequest.REQUEST_PRIORITY_MEDIUM,
+            UrlRequest.REQUEST_PRIORITY_HIGHEST})
     @Retention(RetentionPolicy.SOURCE)
     public @interface RequestPriority {}
 
     @IntDef({
-            BidirectionalStream.Builder.STREAM_PRIORITY_IDLE,
-            BidirectionalStream.Builder.STREAM_PRIORITY_LOWEST,
-            BidirectionalStream.Builder.STREAM_PRIORITY_LOW,
-            BidirectionalStream.Builder.STREAM_PRIORITY_MEDIUM,
-            BidirectionalStream.Builder.STREAM_PRIORITY_HIGHEST,
+            BidirectionalStream.STREAM_PRIORITY_IDLE,
+            BidirectionalStream.STREAM_PRIORITY_LOWEST,
+            BidirectionalStream.STREAM_PRIORITY_LOW,
+            BidirectionalStream.STREAM_PRIORITY_MEDIUM,
+            BidirectionalStream.STREAM_PRIORITY_HIGHEST,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface StreamPriority {}
