@@ -198,6 +198,68 @@ public final class CronetUrlRequest extends UrlRequestBase {
         }
         mInitialMethod = method;
     }
+    @Override
+    public String getHttpMethod() {
+        return mInitialMethod;
+    }
+
+    @Override
+    public boolean isDirectExecutorAllowed() {
+        return mAllowDirectExecutor;
+    }
+
+    @Override
+    public boolean isCacheDisabled() {
+        return mDisableCache;
+    }
+
+    @Override
+    public boolean hasTrafficStatsTag() {
+        return mTrafficStatsTagSet;
+    }
+
+    @Override
+    public int getTrafficStatsTag() {
+        if (!hasTrafficStatsTag()) {
+            throw new IllegalStateException("TrafficStatsTag is not set");
+        }
+        return mTrafficStatsTag;
+    }
+
+    @Override
+    public boolean hasTrafficStatsUid() {
+        return mTrafficStatsUidSet;
+    }
+
+    @Override
+    public int getTrafficStatsUid() {
+        if (!hasTrafficStatsUid()) {
+            throw new IllegalStateException("TrafficStatsUid is not set");
+        }
+        return mTrafficStatsUid;
+    }
+    @Override
+    public int getPriority() {
+        switch (mPriority) {
+            case RequestPriority.IDLE:
+                return REQUEST_PRIORITY_IDLE;
+            case RequestPriority.LOWEST:
+                return REQUEST_PRIORITY_LOWEST;
+            case RequestPriority.LOW:
+                return REQUEST_PRIORITY_LOW;
+            case RequestPriority.MEDIUM:
+                return REQUEST_PRIORITY_MEDIUM;
+            case RequestPriority.HIGHEST:
+                return REQUEST_PRIORITY_HIGHEST;
+            default:
+                throw new IllegalStateException("Invalid request priority: " + mPriority);
+        }
+    }
+
+    @Override
+    public List<Map.Entry<String, String>> getHeaders() {
+        return mRequestHeaders;
+    }
 
     @Override
     public void addHeader(String header, String value) {
@@ -421,15 +483,15 @@ public final class CronetUrlRequest extends UrlRequestBase {
 
     private static int convertRequestPriority(int priority) {
         switch (priority) {
-            case Builder.REQUEST_PRIORITY_IDLE:
+            case REQUEST_PRIORITY_IDLE:
                 return RequestPriority.IDLE;
-            case Builder.REQUEST_PRIORITY_LOWEST:
+            case REQUEST_PRIORITY_LOWEST:
                 return RequestPriority.LOWEST;
-            case Builder.REQUEST_PRIORITY_LOW:
+            case REQUEST_PRIORITY_LOW:
                 return RequestPriority.LOW;
-            case Builder.REQUEST_PRIORITY_MEDIUM:
+            case REQUEST_PRIORITY_MEDIUM:
                 return RequestPriority.MEDIUM;
-            case Builder.REQUEST_PRIORITY_HIGHEST:
+            case REQUEST_PRIORITY_HIGHEST:
                 return RequestPriority.HIGHEST;
             default:
                 return RequestPriority.MEDIUM;
