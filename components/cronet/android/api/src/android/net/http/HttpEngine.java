@@ -437,6 +437,12 @@ public abstract class HttpEngine {
      * Executor on (which is different from the thread the Executor invokes
      * callbacks on). May block until all the {@link HttpEngine} resources have been cleaned up.
      */
+    // SuppressLint: Making the HttpEngine AutoCloseable indicates to the developers that it's
+    // expected to be used in a try-with-resource clause. This in turn promotes local, narrowly
+    // scoped instances of HttpEngine. That's the exact opposite of how CronetEngine is supposed
+    // to be used - it should live in an application-wide scope and be reused multiple times across
+    // the lifespan of the app.
+    @SuppressLint("NotCloseable")
     public abstract void shutdown();
 
     /**
