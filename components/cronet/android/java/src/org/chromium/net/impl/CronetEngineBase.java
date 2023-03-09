@@ -10,6 +10,7 @@ import android.net.http.BidirectionalStream;
 import android.net.http.ExperimentalBidirectionalStream;
 import android.net.http.ExperimentalHttpEngine;
 import android.net.http.ExperimentalUrlRequest;
+import android.net.http.HeaderBlock;
 import android.net.http.RequestFinishedInfo;
 import android.net.http.UrlRequest;
 
@@ -70,7 +71,7 @@ public abstract class CronetEngineBase extends ExperimentalHttpEngine {
             boolean disableCache, boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, @Nullable RequestFinishedInfo.Listener requestFinishedListener,
-            @Idempotency int idempotency, long networkHandle);
+            @Idempotency int idempotency, long networkHandle, HeaderBlock headerBlock);
 
     /**
      * Creates a {@link BidirectionalStream} object. {@code callback} methods will

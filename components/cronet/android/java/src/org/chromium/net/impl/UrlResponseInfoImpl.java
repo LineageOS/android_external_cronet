@@ -4,15 +4,14 @@
 
 package org.chromium.net.impl;
 
+import android.net.http.HeaderBlock;
 import android.net.http.UrlRequest;
 import android.net.http.UrlResponseInfo;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -31,42 +30,6 @@ public final class UrlResponseInfoImpl extends UrlResponseInfo {
     private final String mProxyServer;
     private final AtomicLong mReceivedByteCount;
     private final HeaderBlockImpl mHeaders;
-
-    /**
-     * Unmodifiable container of response headers or trailers.
-     */
-    public static final class HeaderBlockImpl extends HeaderBlock {
-        private final List<Map.Entry<String, String>> mAllHeadersList;
-        private Map<String, List<String>> mHeadersMap;
-
-        HeaderBlockImpl(List<Map.Entry<String, String>> allHeadersList) {
-            mAllHeadersList = allHeadersList;
-        }
-
-        @Override
-        public List<Map.Entry<String, String>> getAsList() {
-            return mAllHeadersList;
-        }
-
-        @Override
-        public Map<String, List<String>> getAsMap() {
-            // This is potentially racy...but races will only result in wasted resource.
-            if (mHeadersMap != null) {
-                return mHeadersMap;
-            }
-            Map<String, List<String>> map = new TreeMap<>(String.CASE_INSENSITIVE_ORDER);
-            for (Map.Entry<String, String> entry : mAllHeadersList) {
-                List<String> values = new ArrayList<String>();
-                if (map.containsKey(entry.getKey())) {
-                    values.addAll(map.get(entry.getKey()));
-                }
-                values.add(entry.getValue());
-                map.put(entry.getKey(), Collections.unmodifiableList(values));
-            }
-            mHeadersMap = Collections.unmodifiableMap(map);
-            return mHeadersMap;
-        }
-    }
 
     /**
      * Creates an implementation of {@link UrlResponseInfo}.
