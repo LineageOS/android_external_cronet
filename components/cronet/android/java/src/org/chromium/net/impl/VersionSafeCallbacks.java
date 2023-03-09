@@ -93,7 +93,7 @@ public class VersionSafeCallbacks {
     /**
      * Wrap a {@link BidirectionalStream.Callback} in a version safe manner.
      */
-    public static final class BidirectionalStreamCallback extends BidirectionalStream.Callback {
+    public static final class BidirectionalStreamCallback implements BidirectionalStream.Callback {
         private final BidirectionalStream.Callback mWrappedCallback;
 
         public BidirectionalStreamCallback(BidirectionalStream.Callback callback) {
