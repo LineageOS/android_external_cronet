@@ -17,29 +17,6 @@ import java.util.Map;
  * response.
  */
 public abstract class UrlResponseInfo {
-    /**
-     * Unmodifiable container of response headers or trailers.
-     */
-    public abstract static class HeaderBlock {
-        /**
-         * Returns an unmodifiable list of the response header field and value pairs.
-         * The headers are in the same order they are received over the wire.
-         *
-         * @return an unmodifiable list of response header field and value pairs
-         */
-        @NonNull
-        public abstract List<Map.Entry<String, String>> getAsList();
-
-        /**
-         * Returns an unmodifiable map from response-header field names to lists of values.
-         * Each list of values for a single header field is in the same order they
-         * were received over the wire. The iteration order of keys is unspecified.
-         *
-         * @return an unmodifiable map from response-header field names to lists of values
-         */
-        @NonNull
-        public abstract Map<String, List<String>> getAsMap();
-    }
 
     /**
      * Returns the URL the response is for. This is the URL after following
