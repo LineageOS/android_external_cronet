@@ -67,7 +67,7 @@ public abstract class ExperimentalBidirectionalStream extends BidirectionalStrea
         public abstract Builder setPriority(int priority);
 
         @Override
-        public abstract Builder delayRequestHeadersUntilFirstFlush(
+        public abstract Builder setDelayRequestHeadersUntilFirstFlushEnabled(
                 boolean delayRequestHeadersUntilFirstFlush);
 
         @Override
