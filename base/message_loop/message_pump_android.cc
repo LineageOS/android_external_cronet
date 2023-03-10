@@ -4,7 +4,13 @@
 
 #include "base/message_loop/message_pump_android.h"
 
+// This file is included by modules that have host support but android/looper.h is not supported
+// on host. __REMOVED_IN needs to be defined in order for android/looper.h to be compiled.
+#ifndef __BIONIC__
+#define __REMOVED_IN(x) __attribute__((deprecated))
+#endif
 #include <android/looper.h>
+
 #include <errno.h>
 #include <fcntl.h>
 #include <jni.h>
