@@ -1,0 +1,55 @@
+From 9c41bd9a103c8ff2d0744872f1fcb26736db60f5 Mon Sep 17 00:00:00 2001
+From: Chidera Olibie <colibie@google.com>
+Date: Fri, 10 Mar 2023 19:04:14 +0000
+Subject: [PATCH] Fix android/looper compilation for cronet
+
+__REMOVED_IN was added to the android looper class in the internal
+branch, cc ag/19458612. Cronet doesn't have host support and thus
+doesn't depend on Bionic which defines the macro.
+
+Test: m
+Change-Id: I19016061f87bae62e115b6141a20fab3d486e6fc
+---
+ base/message_loop/message_pump_android.cc | 6 ++++++
+ base/test/test_support_android.cc         | 6 ++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/base/message_loop/message_pump_android.cc b/base/message_loop/message_pump_android.cc
+index 645a1927..7e3b2bbe 100644
+--- a/base/message_loop/message_pump_android.cc
++++ b/base/message_loop/message_pump_android.cc
+@@ -4,7 +4,13 @@
+ 
+ #include "base/message_loop/message_pump_android.h"
+ 
++// This file is included by modules that have host support but android/looper.h is not supported
++// on host. __REMOVED_IN needs to be defined in order for android/looper.h to be compiled.
++#ifndef __BIONIC__
++#define __REMOVED_IN(x) __attribute__((deprecated))
++#endif
+ #include <android/looper.h>
++
+ #include <errno.h>
+ #include <fcntl.h>
+ #include <jni.h>
+diff --git a/base/test/test_support_android.cc b/base/test/test_support_android.cc
+index c5ec6187..42fa7930 100644
+--- a/base/test/test_support_android.cc
++++ b/base/test/test_support_android.cc
+@@ -2,7 +2,13 @@
+ // Use of this source code is governed by a BSD-style license that can be
+ // found in the LICENSE file.
+ 
++// This file is included by modules that have host support but android/looper.h is not supported
++// on host. __REMOVED_IN needs to be defined in order for android/looper.h to be compiled.
++#ifndef __BIONIC__
++#define __REMOVED_IN(x) __attribute__((deprecated))
++#endif
+ #include <android/looper.h>
++
+ #include <stdarg.h>
+ #include <string.h>
+ 
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+
