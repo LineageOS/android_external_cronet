@@ -13,6 +13,8 @@ import androidx.annotation.Nullable;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
@@ -24,10 +26,45 @@ import java.util.concurrent.Executor;
  */
 public abstract class BidirectionalStream {
     /**
+     * Lowest stream priority. Passed to {@link Builder#setPriority}.
+     */
+    public static final int STREAM_PRIORITY_IDLE = 0;
+    /**
+     * Very low stream priority. Passed to {@link Builder#setPriority}.
+     */
+    public static final int STREAM_PRIORITY_LOWEST = 1;
+    /**
+     * Low stream priority. Passed to {@link Builder#setPriority}.
+     */
+    public static final int STREAM_PRIORITY_LOW = 2;
+    /**
+     * Medium stream priority. Passed to {@link Builder#setPriority}. This is the
+     * default priority given to the stream.
+     */
+    public static final int STREAM_PRIORITY_MEDIUM = 3;
+    /**
+     * Highest stream priority. Passed to {@link Builder#setPriority}.
+     */
+    public static final int STREAM_PRIORITY_HIGHEST = 4;
+
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef({
+            BidirectionalStream.STREAM_PRIORITY_IDLE,
+            BidirectionalStream.STREAM_PRIORITY_LOWEST,
+            BidirectionalStream.STREAM_PRIORITY_LOW,
+            BidirectionalStream.STREAM_PRIORITY_MEDIUM,
+            BidirectionalStream.STREAM_PRIORITY_HIGHEST})
+    public @interface BidirectionalStreamPriority {}
+
+
+    /**
      * Builder for {@link BidirectionalStream}s. Allows configuring stream before constructing
      * it via {@link Builder#build}. Created by
      * {@link ExperimentalHttpEngine#newBidirectionalStreamBuilder}.
      */
+    // SuppressLint: Builder can not be final since this is abstract and inherited
+    @SuppressLint("StaticFinalBuilder")
     public abstract static class Builder {
         /**
          * Sets the HTTP method for the request. Returns builder to facilitate chaining.
@@ -49,38 +86,6 @@ public abstract class BidirectionalStream {
         public abstract Builder addHeader(@NonNull String header, @NonNull String value);
 
         /**
-         * Lowest stream priority. Passed to {@link #setPriority}.
-         */
-        public static final int STREAM_PRIORITY_IDLE = 0;
-        /**
-         * Very low stream priority. Passed to {@link #setPriority}.
-         */
-        public static final int STREAM_PRIORITY_LOWEST = 1;
-        /**
-         * Low stream priority. Passed to {@link #setPriority}.
-         */
-        public static final int STREAM_PRIORITY_LOW = 2;
-        /**
-         * Medium stream priority. Passed to {@link #setPriority}. This is the
-         * default priority given to the stream.
-         */
-        public static final int STREAM_PRIORITY_MEDIUM = 3;
-        /**
-         * Highest stream priority. Passed to {@link #setPriority}.
-         */
-        public static final int STREAM_PRIORITY_HIGHEST = 4;
-
-        /** @hide */
-        @Retention(RetentionPolicy.SOURCE)
-        @IntDef({
-                BidirectionalStream.Builder.STREAM_PRIORITY_IDLE,
-                BidirectionalStream.Builder.STREAM_PRIORITY_LOWEST,
-                BidirectionalStream.Builder.STREAM_PRIORITY_LOW,
-                BidirectionalStream.Builder.STREAM_PRIORITY_MEDIUM,
-                BidirectionalStream.Builder.STREAM_PRIORITY_HIGHEST})
-        public @interface BidirectionalStreamPriority {}
-
-        /**
          * Sets priority of the stream which should be one of the
          * {@link #STREAM_PRIORITY_IDLE STREAM_PRIORITY_*} values.
          * The stream is given {@link #STREAM_PRIORITY_MEDIUM} priority if
@@ -94,7 +99,7 @@ public abstract class BidirectionalStream {
         public abstract Builder setPriority(@BidirectionalStreamPriority int priority);
 
         /**
-         * Delays sending request headers until {@link BidirectionalStream#flush()}
+         * Sets whether to delay sending request headers until {@link BidirectionalStream#flush()}
          * is called. This flag is currently only respected when QUIC is negotiated.
          * When true, QUIC will send request header frame along with data frame(s)
          * as a single packet when possible.
@@ -104,7 +109,7 @@ public abstract class BidirectionalStream {
          * @return the builder to facilitate chaining.
          */
         @NonNull
-        public abstract Builder delayRequestHeadersUntilFirstFlush(
+        public abstract Builder setDelayRequestHeadersUntilFirstFlushEnabled(
                 boolean delayRequestHeadersUntilFirstFlush);
 
         /**
@@ -158,9 +163,9 @@ public abstract class BidirectionalStream {
     }
 
     /**
-     * Callback class used to receive callbacks from a {@link BidirectionalStream}.
+     * Callback interface used to receive callbacks from a {@link BidirectionalStream}.
      */
-    public abstract static class Callback {
+    public interface Callback {
         /**
          * Invoked when the stream is ready for reading and writing.
          * Consumer may call {@link BidirectionalStream#read read()} to start reading data.
@@ -168,7 +173,7 @@ public abstract class BidirectionalStream {
          *
          * @param stream the stream that is ready.
          */
-        public abstract void onStreamReady(@NonNull BidirectionalStream stream);
+        void onStreamReady(@NonNull BidirectionalStream stream);
 
         /**
          * Invoked when initial response headers are received. Headers are available from
@@ -180,8 +185,8 @@ public abstract class BidirectionalStream {
          * @param stream the stream on which response headers were received.
          * @param info the response information.
          */
-        public abstract void onResponseHeadersReceived(
-                @NonNull BidirectionalStream stream, @NonNull UrlResponseInfo info);
+        void onResponseHeadersReceived(@NonNull BidirectionalStream stream,
+                @NonNull UrlResponseInfo info);
 
         /**
          * Invoked when data is read into the buffer passed to {@link BidirectionalStream#read
@@ -200,8 +205,8 @@ public abstract class BidirectionalStream {
          *     and the read side is closed.
          *
          */
-        public abstract void onReadCompleted(@NonNull BidirectionalStream stream,
-                @NonNull UrlResponseInfo info, @NonNull ByteBuffer buffer, boolean endOfStream);
+        void onReadCompleted(@NonNull BidirectionalStream stream, @NonNull UrlResponseInfo info,
+                @NonNull ByteBuffer buffer, boolean endOfStream);
 
         /**
          * Invoked when the entire ByteBuffer passed to {@link BidirectionalStream#write write()}
@@ -217,8 +222,8 @@ public abstract class BidirectionalStream {
          * @param endOfStream the endOfStream flag that was passed to the corresponding
          *     {@link BidirectionalStream#write write()}. If true, the write side is closed.
          */
-        public abstract void onWriteCompleted(@NonNull BidirectionalStream stream,
-                @NonNull UrlResponseInfo info, @NonNull ByteBuffer buffer, boolean endOfStream);
+        void onWriteCompleted(@NonNull BidirectionalStream stream, @NonNull UrlResponseInfo info,
+                @NonNull ByteBuffer buffer, boolean endOfStream);
 
         /**
          * Invoked when trailers are received before closing the stream. Only invoked
@@ -231,8 +236,8 @@ public abstract class BidirectionalStream {
          * @param info the response information
          * @param trailers the trailers received
          */
-        public void onResponseTrailersReceived(@NonNull BidirectionalStream stream,
-                @NonNull UrlResponseInfo info, @NonNull UrlResponseInfo.HeaderBlock trailers) {}
+        void onResponseTrailersReceived(@NonNull BidirectionalStream stream,
+                @NonNull UrlResponseInfo info, @NonNull HeaderBlock trailers);
 
         /**
          * Invoked when there is no data to be read or written and the stream is closed successfully
@@ -242,8 +247,7 @@ public abstract class BidirectionalStream {
          * @param stream the stream which is closed successfully
          * @param info the response information
          */
-        public abstract void onSucceeded(@NonNull BidirectionalStream stream,
-                @NonNull UrlResponseInfo info);
+        void onSucceeded(@NonNull BidirectionalStream stream, @NonNull UrlResponseInfo info);
 
         /**
          * Invoked if the stream failed for any reason after {@link BidirectionalStream#start}.
@@ -256,8 +260,8 @@ public abstract class BidirectionalStream {
          *     received.
          * @param error information about the failure
          */
-        public abstract void onFailed(@NonNull BidirectionalStream stream,
-                @Nullable UrlResponseInfo info, @NonNull HttpException error);
+        void onFailed(@NonNull BidirectionalStream stream, @Nullable UrlResponseInfo info,
+                @NonNull HttpException error);
 
         /**
          * Invoked if the stream was canceled via {@link BidirectionalStream#cancel}. Once
@@ -268,9 +272,50 @@ public abstract class BidirectionalStream {
          * @param info the response information. May be {@code null} if no response was
          *     received.
          */
-        public void onCanceled(@NonNull BidirectionalStream stream,
-                @Nullable UrlResponseInfo info) {}
+        void onCanceled(@NonNull BidirectionalStream stream, @Nullable UrlResponseInfo info);
     }
+
+    /**
+     * See {@link BidirectionalStream.Builder#setHttpMethod(String)}.
+     */
+    @NonNull
+    public abstract String getHttpMethod();
+
+    /**
+     * See {@link BidirectionalStream.Builder#setTrafficStatsTag(int)}
+     */
+    public abstract boolean hasTrafficStatsTag();
+
+    /**
+     * See {@link BidirectionalStream.Builder#setTrafficStatsTag(int)}
+     */
+    public abstract int getTrafficStatsTag();
+
+    /**
+     * See {@link BidirectionalStream.Builder#setTrafficStatsUid(int)}
+     */
+    public abstract boolean hasTrafficStatsUid();
+
+    /**
+     * See {@link BidirectionalStream.Builder#setTrafficStatsUid(int)}
+     */
+    public abstract int getTrafficStatsUid();
+
+    /**
+     * See {@link Builder#addHeader(String, String)}
+     */
+    @NonNull
+    public abstract HeaderBlock getHeaders();
+
+    /**
+     * See {@link Builder#setPriority(int)}
+     */
+    public abstract @BidirectionalStreamPriority int getPriority();
+
+    /**
+     * See {@link Builder#setDelayRequestHeadersUntilFirstFlushEnabled(boolean)}
+     */
+    public abstract boolean isDelayRequestHeadersUntilFirstFlushEnabled();
 
     /**
      * Starts the stream, all callbacks go to the {@code callback} argument passed to {@link

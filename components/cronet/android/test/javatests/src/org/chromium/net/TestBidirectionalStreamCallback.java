@@ -27,7 +27,7 @@ import java.util.concurrent.ThreadFactory;
  * method to block thread until the stream completes on another thread.
  * Allows to cancel, block stream or throw an exception from an arbitrary step.
  */
-public class TestBidirectionalStreamCallback extends BidirectionalStream.Callback {
+public class TestBidirectionalStreamCallback implements BidirectionalStream.Callback {
     public UrlResponseInfo mResponseInfo;
     public HttpException mError;
 

@@ -30,14 +30,6 @@ public abstract class UrlRequestBase extends ExperimentalUrlRequest {
     protected abstract void setHttpMethod(String method);
 
     /**
-     * Adds a request header. Must be done before request has started.
-     *
-     * @param header header name.
-     * @param value header value.
-     */
-    protected abstract void addHeader(String header, String value);
-
-    /**
      * Sets upload data provider. Must be done before request has started. May only be
      * invoked once per request. Switches method to "POST" if not explicitly
      * set. Starting the request will throw an exception if a Content-Type

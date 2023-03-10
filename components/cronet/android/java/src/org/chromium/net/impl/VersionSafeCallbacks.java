@@ -5,6 +5,7 @@
 package org.chromium.net.impl;
 
 import android.net.http.BidirectionalStream;
+import android.net.http.HeaderBlock;
 import android.net.http.HttpException;
 import android.net.http.NetworkQualityRttListener;
 import android.net.http.NetworkQualityThroughputListener;
@@ -92,7 +93,7 @@ public class VersionSafeCallbacks {
     /**
      * Wrap a {@link BidirectionalStream.Callback} in a version safe manner.
      */
-    public static final class BidirectionalStreamCallback extends BidirectionalStream.Callback {
+    public static final class BidirectionalStreamCallback implements BidirectionalStream.Callback {
         private final BidirectionalStream.Callback mWrappedCallback;
 
         public BidirectionalStreamCallback(BidirectionalStream.Callback callback) {
@@ -123,7 +124,7 @@ public class VersionSafeCallbacks {
 
         @Override
         public void onResponseTrailersReceived(BidirectionalStream stream, UrlResponseInfo info,
-                UrlResponseInfo.HeaderBlock trailers) {
+                HeaderBlock trailers) {
             mWrappedCallback.onResponseTrailersReceived(stream, info, trailers);
         }
 

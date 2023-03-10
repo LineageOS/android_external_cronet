@@ -3,6 +3,8 @@
 // found in the LICENSE file.
 package org.chromium.net.impl;
 
+import static android.net.http.BidirectionalStream.STREAM_PRIORITY_MEDIUM;
+
 import android.annotation.SuppressLint;
 import android.os.Build;
 
@@ -115,7 +117,7 @@ public class BidirectionalStreamBuilderImpl extends ExperimentalBidirectionalStr
     }
 
     @Override
-    public BidirectionalStreamBuilderImpl delayRequestHeadersUntilFirstFlush(
+    public BidirectionalStreamBuilderImpl setDelayRequestHeadersUntilFirstFlushEnabled(
             boolean delayRequestHeadersUntilFirstFlush) {
         mDelayRequestHeadersUntilFirstFlush = delayRequestHeadersUntilFirstFlush;
         return this;
