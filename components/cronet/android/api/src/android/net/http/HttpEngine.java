@@ -587,15 +587,13 @@ public abstract class HttpEngine {
      * @param url URL for the generated requests.
      * @param callback callback object that gets invoked on different events.
      * @param executor {@link Executor} on which all callbacks will be invoked.
+     *
+     * @hide
      */
     // This API is kept for the backward compatibility in upstream
-    // TODO(motomuman) Hide this API
-    // This API is not hidden since this API is used in internal master and removing this makes
-    // presubmit fail. Once internal use is replaced by above API, this API will be hidden.
     @NonNull
     public UrlRequest.Builder newUrlRequestBuilder(@NonNull String url,
-            @NonNull UrlRequest.Callback callback,
-            @SuppressLint("ListenerLast") @NonNull Executor executor) {
+            @NonNull UrlRequest.Callback callback, @NonNull Executor executor) {
         return newUrlRequestBuilder(url, executor, callback);
     }
 
