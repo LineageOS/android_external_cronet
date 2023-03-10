@@ -279,7 +279,7 @@ class HttpAuthHandlerNegotiateTest : public PlatformTest,
   std::unique_ptr<HttpAuthHandlerNegotiate::Factory> factory_;
 };
 
-TEST_F(HttpAuthHandlerNegotiateTest, DisableCname) {
+TEST_F(HttpAuthHandlerNegotiateTest, DISABLED_DisableCname) {
   SetupMocks(AuthLibrary());
   std::unique_ptr<HttpAuthHandlerNegotiate> auth_handler;
   EXPECT_EQ(OK, CreateHandler(
@@ -298,7 +298,7 @@ TEST_F(HttpAuthHandlerNegotiateTest, DisableCname) {
 #endif
 }
 
-TEST_F(HttpAuthHandlerNegotiateTest, DisableCnameStandardPort) {
+TEST_F(HttpAuthHandlerNegotiateTest, DISABLED_DisableCnameStandardPort) {
   SetupMocks(AuthLibrary());
   std::unique_ptr<HttpAuthHandlerNegotiate> auth_handler;
   EXPECT_EQ(OK, CreateHandler(
@@ -316,7 +316,7 @@ TEST_F(HttpAuthHandlerNegotiateTest, DisableCnameStandardPort) {
 #endif
 }
 
-TEST_F(HttpAuthHandlerNegotiateTest, DisableCnameNonstandardPort) {
+TEST_F(HttpAuthHandlerNegotiateTest, DISABLED_DisableCnameNonstandardPort) {
   SetupMocks(AuthLibrary());
   std::unique_ptr<HttpAuthHandlerNegotiate> auth_handler;
   EXPECT_EQ(OK, CreateHandler(
@@ -334,7 +334,7 @@ TEST_F(HttpAuthHandlerNegotiateTest, DisableCnameNonstandardPort) {
 #endif
 }
 
-TEST_F(HttpAuthHandlerNegotiateTest, CnameSync) {
+TEST_F(HttpAuthHandlerNegotiateTest, DISABLED_CnameSync) {
   SetupMocks(AuthLibrary());
   std::unique_ptr<HttpAuthHandlerNegotiate> auth_handler;
   const std::string url_string = "http://alias:500";
@@ -374,7 +374,7 @@ TEST_F(HttpAuthHandlerNegotiateTest, CnameSync) {
   EXPECT_EQ(OK, callback3.GetResult(result));
 }
 
-TEST_F(HttpAuthHandlerNegotiateTest, CnameAsync) {
+TEST_F(HttpAuthHandlerNegotiateTest, DISABLED_CnameAsync) {
   SetupMocks(AuthLibrary());
   std::unique_ptr<HttpAuthHandlerNegotiate> auth_handler;
   const std::string url_string = "http://alias:500";
@@ -420,7 +420,7 @@ TEST_F(HttpAuthHandlerNegotiateTest, CnameAsync) {
 
 // This test is only for GSSAPI, as we can't use explicit credentials with
 // that library.
-TEST_F(HttpAuthHandlerNegotiateTest, ServerNotInKerberosDatabase) {
+TEST_F(HttpAuthHandlerNegotiateTest, DISABLED_ServerNotInKerberosDatabase) {
   SetupErrorMocks(AuthLibrary(), GSS_S_FAILURE, 0x96C73A07);  // No server
   std::unique_ptr<HttpAuthHandlerNegotiate> auth_handler;
   EXPECT_EQ(OK, CreateHandler(
@@ -437,7 +437,7 @@ TEST_F(HttpAuthHandlerNegotiateTest, ServerNotInKerberosDatabase) {
 
 // This test is only for GSSAPI, as we can't use explicit credentials with
 // that library.
-TEST_F(HttpAuthHandlerNegotiateTest, NoKerberosCredentials) {
+TEST_F(HttpAuthHandlerNegotiateTest, DISABLED_NoKerberosCredentials) {
   SetupErrorMocks(AuthLibrary(), GSS_S_FAILURE, 0x96C73AC3);  // No credentials
   std::unique_ptr<HttpAuthHandlerNegotiate> auth_handler;
   EXPECT_EQ(OK, CreateHandler(

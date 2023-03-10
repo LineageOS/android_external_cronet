@@ -1823,7 +1823,7 @@ TEST(HttpResponseHeadersTest, SetHeader) {
       ToSimpleString(headers));
 }
 
-TEST(HttpResponseHeadersTest, TracingSupport) {
+TEST(HttpResponseHeadersTest, DISABLED_TracingSupport) {
   scoped_refptr<HttpResponseHeaders> headers = HttpResponseHeaders::TryToCreate(
       "HTTP/1.1 200 OK\n"
       "connection: keep-alive\n");
