@@ -26,6 +26,12 @@ import javax.net.ssl.HttpsURLConnection;
  * available on the current platform. An instance of this class can be created
  * using {@link Builder}.
  */
+// SuppressLint: Making the HttpEngine AutoCloseable indicates to the developers that it's
+// expected to be used in a try-with-resource clause. This in turn promotes local, narrowly
+// scoped instances of HttpEngine. That's the exact opposite of how HttpEngine is supposed
+// to be used - it should live in an application-wide scope and be reused multiple times across
+// the lifespan of the app.
+@SuppressLint("NotCloseable")
 public abstract class HttpEngine {
 
     /**
@@ -437,12 +443,6 @@ public abstract class HttpEngine {
      * Executor on (which is different from the thread the Executor invokes
      * callbacks on). May block until all the {@link HttpEngine} resources have been cleaned up.
      */
-    // SuppressLint: Making the HttpEngine AutoCloseable indicates to the developers that it's
-    // expected to be used in a try-with-resource clause. This in turn promotes local, narrowly
-    // scoped instances of HttpEngine. That's the exact opposite of how CronetEngine is supposed
-    // to be used - it should live in an application-wide scope and be reused multiple times across
-    // the lifespan of the app.
-    @SuppressLint("NotCloseable")
     public abstract void shutdown();
 
     /**
@@ -587,15 +587,13 @@ public abstract class HttpEngine {
      * @param url URL for the generated requests.
      * @param callback callback object that gets invoked on different events.
      * @param executor {@link Executor} on which all callbacks will be invoked.
+     *
+     * @hide
      */
     // This API is kept for the backward compatibility in upstream
-    // TODO(motomuman) Hide this API
-    // This API is not hidden since this API is used in internal master and removing this makes
-    // presubmit fail. Once internal use is replaced by above API, this API will be hidden.
     @NonNull
     public UrlRequest.Builder newUrlRequestBuilder(@NonNull String url,
-            @NonNull UrlRequest.Callback callback,
-            @SuppressLint("ListenerLast") @NonNull Executor executor) {
+            @NonNull UrlRequest.Callback callback, @NonNull Executor executor) {
         return newUrlRequestBuilder(url, executor, callback);
     }
 
