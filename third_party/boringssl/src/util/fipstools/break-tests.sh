@@ -141,13 +141,13 @@ else # Device mode
 
     TEST_FIPS_BIN="$ANDROID_PRODUCT_OUT/system/bin/test_fips"
     check_file "$TEST_FIPS_BIN"
-    LIBCRYPTO_BIN="$ANDROID_PRODUCT_OUT/system/lib64/libcrypto.so"
+    LIBCRYPTO_BIN="$ANDROID_PRODUCT_OUT/system_ext/apex/com.android.tethering/lib/libcrypto.so"
     check_file "$LIBCRYPTO_BIN"
 
     test "$ANDROID_SERIAL" || die "ANDROID_SERIAL not set"
     DEVICE_TMP=/data/local/tmp
 
-    BORINGSSL="$ANDROID_BUILD_TOP/external/boringssl/src"
+    BORINGSSL="$ANDROID_BUILD_TOP/external/cronet/third_party/boringssl/src"
     RUN=run_test_on_device
     INTEGRITY_BREAK_TEST=device_integrity_break_test
     KAT_BREAK_TEST=device_kat_break_test
