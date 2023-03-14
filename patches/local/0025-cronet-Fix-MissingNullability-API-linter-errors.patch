@@ -1,7 +1,7 @@
-From 12bc5ee3df09b237c9e54c498a60e0802d850526 Mon Sep 17 00:00:00 2001
+From 9c56718907281476c5e4b4ce4553363db68f2f88 Mon Sep 17 00:00:00 2001
 From: Motomu Utsumi <motomuman@google.com>
 Date: Wed, 15 Feb 2023 13:16:52 +0900
-Subject: [PATCH] cronet: Fix MissingNullability API linter errors
+Subject: [PATCH 1/1] cronet: Fix MissingNullability API linter errors
 
 Most fix are from aosp/2427180 and removed dupped fix with aosp/2402861
 
@@ -16,11 +16,12 @@ Change-Id: I76eafad4e6f0c86ab054188f76a77bafde616573
  .../android/net/http/UploadDataProvider.java  |  8 ++--
  .../src/android/net/http/UploadDataSink.java  |  6 ++-
  .../api/src/android/net/http/UrlRequest.java  | 40 ++++++++++++-------
- .../src/android/net/http/UrlResponseInfo.java |  9 +++++
- 8 files changed, 60 insertions(+), 25 deletions(-)
+ .../src/android/net/http/UrlResponseInfo.java | 15 ++++++-
+ .../org/chromium/net/UrlResponseInfoTest.java |  1 -
+ 9 files changed, 65 insertions(+), 27 deletions(-)
 
 diff --git a/components/cronet/android/api/src/android/net/http/HttpException.java b/components/cronet/android/api/src/android/net/http/HttpException.java
-index 4f3d4497..628a1673 100644
+index 4f3d44976..628a1673d 100644
 --- a/components/cronet/android/api/src/android/net/http/HttpException.java
 +++ b/components/cronet/android/api/src/android/net/http/HttpException.java
 @@ -4,6 +4,8 @@
@@ -42,7 +43,7 @@ index 4f3d4497..628a1673 100644
      }
  }
 diff --git a/components/cronet/android/api/src/android/net/http/NetworkException.java b/components/cronet/android/api/src/android/net/http/NetworkException.java
-index 2c5a1033..d8cf0b90 100644
+index 2c5a10336..d8cf0b905 100644
 --- a/components/cronet/android/api/src/android/net/http/NetworkException.java
 +++ b/components/cronet/android/api/src/android/net/http/NetworkException.java
 @@ -4,6 +4,8 @@
@@ -64,7 +65,7 @@ index 2c5a1033..d8cf0b90 100644
      }
  
 diff --git a/components/cronet/android/api/src/android/net/http/QuicException.java b/components/cronet/android/api/src/android/net/http/QuicException.java
-index ff272d74..8dd0f603 100644
+index ff272d740..8dd0f6037 100644
 --- a/components/cronet/android/api/src/android/net/http/QuicException.java
 +++ b/components/cronet/android/api/src/android/net/http/QuicException.java
 @@ -4,6 +4,8 @@
@@ -86,7 +87,7 @@ index ff272d74..8dd0f603 100644
      }
  
 diff --git a/components/cronet/android/api/src/android/net/http/QuicOptions.java b/components/cronet/android/api/src/android/net/http/QuicOptions.java
-index 2c40a068..828ea0b4 100644
+index 2c40a068c..828ea0b43 100644
 --- a/components/cronet/android/api/src/android/net/http/QuicOptions.java
 +++ b/components/cronet/android/api/src/android/net/http/QuicOptions.java
 @@ -4,6 +4,7 @@
@@ -142,7 +143,7 @@ index 2c40a068..828ea0b4 100644
              return new QuicOptions(this);
          }
 diff --git a/components/cronet/android/api/src/android/net/http/UploadDataProvider.java b/components/cronet/android/api/src/android/net/http/UploadDataProvider.java
-index 4c72416d..1a90f2cf 100644
+index 4c72416d4..1a90f2cf0 100644
 --- a/components/cronet/android/api/src/android/net/http/UploadDataProvider.java
 +++ b/components/cronet/android/api/src/android/net/http/UploadDataProvider.java
 @@ -4,6 +4,8 @@
@@ -175,7 +176,7 @@ index 4c72416d..1a90f2cf 100644
      /**
       * Called when this UploadDataProvider is no longer needed by a request, so that resources
 diff --git a/components/cronet/android/api/src/android/net/http/UploadDataSink.java b/components/cronet/android/api/src/android/net/http/UploadDataSink.java
-index bb5c83b0..7782be0a 100644
+index bb5c83b09..7782be0a6 100644
 --- a/components/cronet/android/api/src/android/net/http/UploadDataSink.java
 +++ b/components/cronet/android/api/src/android/net/http/UploadDataSink.java
 @@ -4,6 +4,8 @@
@@ -204,7 +205,7 @@ index bb5c83b0..7782be0a 100644
 +    public abstract void onRewindError(@NonNull Exception exception);
  }
 diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
-index 0350de5f..9ff63c24 100644
+index 0350de5f7..9ff63c242 100644
 --- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
 +++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
 @@ -7,6 +7,7 @@ package android.net.http;
@@ -367,7 +368,7 @@ index 0350de5f..9ff63c24 100644
      // Note:  There are deliberately no accessors for the results of the request
      // here. Having none removes any ambiguity over when they are populated,
 diff --git a/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java b/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java
-index aef3d624..837685ba 100644
+index aef3d6243..1360654f1 100644
 --- a/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java
 +++ b/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java
 @@ -4,6 +4,9 @@
@@ -410,7 +411,7 @@ index aef3d624..837685ba 100644
      public abstract HeaderBlock getHeaders();
  
      /**
-@@ -86,12 +93,14 @@ public abstract class UrlResponseInfo {
+@@ -86,13 +93,19 @@ public abstract class UrlResponseInfo {
       */
      // TODO(mef): Figure out what this returns in the cached case, both with
      // and without a revalidation request.
@@ -420,11 +421,30 @@ index aef3d624..837685ba 100644
      /**
       * Returns the proxy server that was used for the request.
       * @return the proxy server that was used for the request.
++     *
++     * @hide
       */
+-    public abstract String getProxyServer();
 +    @Nullable
-     public abstract String getProxyServer();
++    public String getProxyServer(){
++        return null;
++    };
  
      /**
+      * Returns a minimum count of bytes received from the network to process this
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
+index 79af73d8b..43996391a 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
+@@ -72,7 +72,6 @@ public class UrlResponseInfoTest {
+                 allHeadersList.get(0).getValue());
+         Assert.assertEquals(info.wasCached(), wasCached);
+         Assert.assertEquals(info.getNegotiatedProtocol(), negotiatedProtocol);
+-        Assert.assertEquals(info.getProxyServer(), proxyServer);
+         Assert.assertEquals(info.getReceivedByteCount(), receivedByteCount);
+     }
+ }
+\ No newline at end of file
 -- 
-2.39.2.637.g21b0678d19-goog
+2.40.0.rc1.284.g88254d51c5-goog
 
