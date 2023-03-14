@@ -521,7 +521,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         return -1;
     }
 
-    private class CronetUrlRequestCallback extends UrlRequest.Callback {
+    private class CronetUrlRequestCallback implements UrlRequest.Callback {
         public CronetUrlRequestCallback() {}
 
         @Override

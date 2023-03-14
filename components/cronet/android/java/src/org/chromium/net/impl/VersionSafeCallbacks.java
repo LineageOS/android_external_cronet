@@ -34,7 +34,7 @@ public class VersionSafeCallbacks {
     /**
      * Wrap a {@link UrlRequest.Callback} in a version safe manner.
      */
-    public static final class UrlRequestCallback extends UrlRequest.Callback {
+    public static final class UrlRequestCallback implements UrlRequest.Callback {
         private final UrlRequest.Callback mWrappedCallback;
 
         public UrlRequestCallback(UrlRequest.Callback callback) {
