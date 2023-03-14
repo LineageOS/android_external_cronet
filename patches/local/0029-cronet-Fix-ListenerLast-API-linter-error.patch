@@ -1,7 +1,7 @@
-From 0d15bb2998608945383326d478cca4791e2bc4dc Mon Sep 17 00:00:00 2001
+From fba967c5219d7cba5065d07c93129d1107abf8c7 Mon Sep 17 00:00:00 2001
 From: Motomu Utsumi <motomuman@google.com>
 Date: Fri, 17 Feb 2023 11:52:14 +0900
-Subject: [PATCH] cronet: Fix ListenerLast API linter error
+Subject: [PATCH 1/1] cronet: Fix ListenerLast API linter error
 
 Update UrlRequest.Builder#newUrlRequestBuilder and
 UrlRequest.Builder#newBidirectionalStreamBuilder
@@ -21,7 +21,7 @@ Change-Id: Ie5ad5072f356ebc6a72a5b9915fd30c1f8e887d9
  5 files changed, 51 insertions(+), 9 deletions(-)
 
 diff --git a/components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java b/components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java
-index 8a195f21..4f3f74a1 100644
+index 4b8e54a73..ab93f7a23 100644
 --- a/components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java
 +++ b/components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java
 @@ -502,11 +502,11 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
@@ -39,7 +39,7 @@ index 8a195f21..4f3f74a1 100644
      /**
       * Starts NetLog logging to a specified directory with a bounded size. The NetLog will contain
 diff --git a/components/cronet/android/api/src/android/net/http/HttpEngine.java b/components/cronet/android/api/src/android/net/http/HttpEngine.java
-index 27a0da94..8b6d93ae 100644
+index 44001d202..9b4103935 100644
 --- a/components/cronet/android/api/src/android/net/http/HttpEngine.java
 +++ b/components/cronet/android/api/src/android/net/http/HttpEngine.java
 @@ -524,11 +524,31 @@ public abstract class HttpEngine {
@@ -114,7 +114,7 @@ index 27a0da94..8b6d93ae 100644
 +    }
  }
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
-index 47d60752..2a636ee0 100644
+index 47d607528..2a636ee09 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
 @@ -109,7 +109,7 @@ public abstract class CronetEngineBase extends ExperimentalHttpEngine {
@@ -127,10 +127,10 @@ index 47d60752..2a636ee0 100644
      }
  
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
-index 4afac795..077f1271 100644
+index 6ed3b1228..dd81849bb 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java
-@@ -274,7 +274,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
+@@ -275,7 +275,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
  
      @Override
      public ExperimentalBidirectionalStream.Builder newBidirectionalStreamBuilder(
@@ -140,7 +140,7 @@ index 4afac795..077f1271 100644
      }
  
 diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
-index 8fe5bc27..85bcce7f 100644
+index 8fe5bc27a..85bcce7f2 100644
 --- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
 +++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
 @@ -257,7 +257,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
@@ -153,5 +153,5 @@ index 8fe5bc27..85bcce7f 100644
              if (method.equals("GET")) {
                  method = "POST";
 -- 
-2.39.2.637.g21b0678d19-goog
+2.40.0.rc1.284.g88254d51c5-goog
 
