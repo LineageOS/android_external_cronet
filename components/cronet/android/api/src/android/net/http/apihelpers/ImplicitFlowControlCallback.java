@@ -18,7 +18,7 @@ import java.nio.ByteBuffer;
  * An implementation of {@link UrlRequest.Callback} that takes away the difficulty of managing the
  * request lifecycle away, and automatically proceeds to read the response entirely.
  */
-public abstract class ImplicitFlowControlCallback extends UrlRequest.Callback {
+public abstract class ImplicitFlowControlCallback implements UrlRequest.Callback {
     private static final int BYTE_BUFFER_CAPACITY = 32 * 1024;
 
     /**
