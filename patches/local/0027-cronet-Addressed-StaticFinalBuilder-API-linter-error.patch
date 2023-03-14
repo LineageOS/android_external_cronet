@@ -1,7 +1,7 @@
-From 5f4693dec10ddba75e905c47d9ca8f232b4f9044 Mon Sep 17 00:00:00 2001
+From 7ca4615e90753b4aa205dd776cda3a61b1ffb275 Mon Sep 17 00:00:00 2001
 From: Motomu Utsumi <motomuman@google.com>
 Date: Wed, 15 Feb 2023 17:34:47 +0900
-Subject: [PATCH] cronet: Addressed StaticFinalBuilder API linter errors
+Subject: [PATCH 1/1] cronet: Addressed StaticFinalBuilder API linter errors
 
 Bug: 265674359
 Test: TH
@@ -14,7 +14,7 @@ Change-Id: Ib94c658712c685d04656b1aa97b1645cd1a689c6
  4 files changed, 9 insertions(+), 2 deletions(-)
 
 diff --git a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
-index 1ab720e4..eb65ee6d 100644
+index 1ab720e4d..eb65ee6db 100644
 --- a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
 +++ b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
 @@ -152,7 +152,7 @@ public class ConnectionMigrationOptions {
@@ -27,7 +27,7 @@ index 1ab720e4..eb65ee6d 100644
          private Boolean mEnableDefaultNetworkMigration;
          @Nullable
 diff --git a/components/cronet/android/api/src/android/net/http/HttpEngine.java b/components/cronet/android/api/src/android/net/http/HttpEngine.java
-index 2e1fde01..44001d20 100644
+index 2e1fde017..44001d202 100644
 --- a/components/cronet/android/api/src/android/net/http/HttpEngine.java
 +++ b/components/cronet/android/api/src/android/net/http/HttpEngine.java
 @@ -4,6 +4,7 @@
@@ -49,7 +49,7 @@ index 2e1fde01..44001d20 100644
  
          /**
 diff --git a/components/cronet/android/api/src/android/net/http/QuicOptions.java b/components/cronet/android/api/src/android/net/http/QuicOptions.java
-index 0726ebf3..5ac8440f 100644
+index 828ea0b43..b97855791 100644
 --- a/components/cronet/android/api/src/android/net/http/QuicOptions.java
 +++ b/components/cronet/android/api/src/android/net/http/QuicOptions.java
 @@ -282,7 +282,7 @@ public class QuicOptions {
@@ -62,7 +62,7 @@ index 0726ebf3..5ac8440f 100644
          private final Set<String> mEnabledQuicVersions = new LinkedHashSet<>();
          private final Set<String> mConnectionOptions = new LinkedHashSet<>();
 diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
-index 4da662bb..ab9e86d4 100644
+index 4da662bb1..ab9e86d4e 100644
 --- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
 +++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
 @@ -32,6 +32,9 @@ public abstract class UrlRequest {
@@ -76,5 +76,5 @@ index 4da662bb..ab9e86d4 100644
  
          Builder() {}
 -- 
-2.39.2.637.g21b0678d19-goog
+2.40.0.rc1.284.g88254d51c5-goog
 
