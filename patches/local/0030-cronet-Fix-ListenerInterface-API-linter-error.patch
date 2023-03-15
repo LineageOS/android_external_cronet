@@ -1,7 +1,7 @@
-From 23c7c4c636f4caf365a9302d22718e0453320944 Mon Sep 17 00:00:00 2001
+From a4fca76358051de71292e8769fb03133b7607a46 Mon Sep 17 00:00:00 2001
 From: Motomu Utsumi <motomuman@google.com>
 Date: Fri, 17 Feb 2023 12:30:04 +0900
-Subject: [PATCH] cronet: Fix ListenerInterface API linter error
+Subject: [PATCH 1/1] cronet: Fix ListenerInterface API linter error
 
 Update UrlRequest.StatusListener to interface
 
@@ -15,7 +15,7 @@ Change-Id: Ic7e50047bf72bb281aff2649440d34179c73c0f3
  3 files changed, 5 insertions(+), 5 deletions(-)
 
 diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
-index ab9e86d4..81351bab 100644
+index ab9e86d4e..81351bab6 100644
 --- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
 +++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
 @@ -441,17 +441,17 @@ public abstract class UrlRequest {
@@ -40,7 +40,7 @@ index ab9e86d4..81351bab 100644
  
      /**
 diff --git a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
-index 2d9169de..2277d3f4 100644
+index 2d9169de3..2277d3f48 100644
 --- a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
 +++ b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
 @@ -76,7 +76,7 @@ public class VersionSafeCallbacks {
@@ -53,7 +53,7 @@ index 2d9169de..2277d3f4 100644
  
          public UrlRequestStatusListener(UrlRequest.StatusListener listener) {
 diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
-index 9a1c2e7d..4e3a0a43 100644
+index 9a1c2e7d3..4e3a0a432 100644
 --- a/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
 +++ b/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
 @@ -48,7 +48,7 @@ public class GetStatusTest {
@@ -66,5 +66,5 @@ index 9a1c2e7d..4e3a0a43 100644
          int mStatus = Integer.MAX_VALUE;
          private final ConditionVariable mBlock = new ConditionVariable();
 -- 
-2.39.2.637.g21b0678d19-goog
+2.40.0.rc1.284.g88254d51c5-goog
 

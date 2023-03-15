@@ -1,0 +1,61 @@
+From ffacdcf4c29a7e145ae87ae71553e534495461d6 Mon Sep 17 00:00:00 2001
+From: Motomu Utsumi <motomuman@google.com>
+Date: Wed, 8 Mar 2023 16:57:21 +0900
+Subject: [PATCH 1/1] cronet: Address remaining API linter issues
+
+Bug: 265674359
+Test: TH
+Change-Id: I4708de7bab791c8d45dc5cdc16b77c4796d5bf20
+---
+ .../api/src/android/net/http/BidirectionalStream.java       | 2 ++
+ .../cronet/android/api/src/android/net/http/HttpEngine.java | 6 ++++++
+ .../cronet/android/api/src/android/net/http/UrlRequest.java | 3 +++
+ 3 files changed, 11 insertions(+)
+
+diff --git a/components/cronet/android/api/src/android/net/http/BidirectionalStream.java b/components/cronet/android/api/src/android/net/http/BidirectionalStream.java
+index 0542365c3..4138ea5bc 100644
+--- a/components/cronet/android/api/src/android/net/http/BidirectionalStream.java
++++ b/components/cronet/android/api/src/android/net/http/BidirectionalStream.java
+@@ -63,6 +63,8 @@ public abstract class BidirectionalStream {
+      * it via {@link Builder#build}. Created by
+      * {@link ExperimentalHttpEngine#newBidirectionalStreamBuilder}.
+      */
++    // SuppressLint: Builder can not be final since this is abstract and inherited
++    @SuppressLint("StaticFinalBuilder")
+     public abstract static class Builder {
+         /**
+          * Sets the HTTP method for the request. Returns builder to facilitate chaining.
+diff --git a/components/cronet/android/api/src/android/net/http/HttpEngine.java b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+index 24b5f760e..d2719c45b 100644
+--- a/components/cronet/android/api/src/android/net/http/HttpEngine.java
++++ b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+@@ -437,6 +437,12 @@ public abstract class HttpEngine {
+      * Executor on (which is different from the thread the Executor invokes
+      * callbacks on). May block until all the {@link HttpEngine} resources have been cleaned up.
+      */
++    // SuppressLint: Making the HttpEngine AutoCloseable indicates to the developers that it's
++    // expected to be used in a try-with-resource clause. This in turn promotes local, narrowly
++    // scoped instances of HttpEngine. That's the exact opposite of how CronetEngine is supposed
++    // to be used - it should live in an application-wide scope and be reused multiple times across
++    // the lifespan of the app.
++    @SuppressLint("NotCloseable")
+     public abstract void shutdown();
+ 
+     /**
+diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+index 7d5d17b95..28289210b 100644
+--- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
++++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+@@ -581,6 +581,9 @@ public abstract class UrlRequest {
+      * @param listener a {@link StatusListener} that will be invoked with
+      *         the request's current status.
+      */
++    // SuppressLint: The listener will be invoked back on the Executor passed in when the request
++    // was created.
++    @SuppressLint("ExecutorRegistration")
+     public abstract void getStatus(@NonNull final StatusListener listener);
+ 
+     // Note:  There are deliberately no accessors for the results of the request
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+
