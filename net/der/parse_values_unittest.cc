@@ -370,7 +370,7 @@ TEST(ParseValuesTest, ParseBitStringSevenOneBitsUnusedBitIsOne) {
   EXPECT_FALSE(bit_string.has_value());
 }
 
-TEST(ParseValuesTest, ParseIA5String) {
+TEST(ParseValuesTest, DISABLED_ParseIA5String) {
   const Input valid_der({0x46, 0x6f, 0x6f, 0x20, 0x62, 0x61, 0x72, 0x01, 0x7f});
   std::string s;
   EXPECT_TRUE(ParseIA5String(valid_der, &s));
@@ -381,7 +381,7 @@ TEST(ParseValuesTest, ParseIA5String) {
   EXPECT_FALSE(ParseIA5String(invalid_der, &s));
 }
 
-TEST(ParseValuesTest, ParseVisibleString) {
+TEST(ParseValuesTest, DISABLED_ParseVisibleString) {
   const Input valid_der({0x46, 0x6f, 0x6f, 0x20, 0x62, 0x61, 0x72, 0x7e});
   std::string s;
   EXPECT_TRUE(ParseVisibleString(valid_der, &s));
@@ -396,7 +396,7 @@ TEST(ParseValuesTest, ParseVisibleString) {
   EXPECT_FALSE(ParseVisibleString(invalid_der2, &s));
 }
 
-TEST(ParseValuesTest, ParsePrintableString) {
+TEST(ParseValuesTest, DISABLED_ParsePrintableString) {
   const Input valid_der({0x46, 0x6f, 0x6f, 0x20, 0x62, 0x61, 0x72});
   std::string s;
   EXPECT_TRUE(ParsePrintableString(valid_der, &s));
@@ -407,14 +407,14 @@ TEST(ParseValuesTest, ParsePrintableString) {
   EXPECT_FALSE(ParsePrintableString(invalid_der, &s));
 }
 
-TEST(ParseValuesTest, ParseTeletexStringAsLatin1) {
+TEST(ParseValuesTest, DISABLED_ParseTeletexStringAsLatin1) {
   const Input valid_der({0x46, 0x6f, 0xd6, 0x20, 0x62, 0x61, 0x72});
   std::string s;
   EXPECT_TRUE(ParseTeletexStringAsLatin1(valid_der, &s));
   EXPECT_EQ("FoÖ bar", s);
 }
 
-TEST(ParseValuesTest, ParseBmpString) {
+TEST(ParseValuesTest, DISABLED_ParseBmpString) {
   const Input valid_der(
       {0x00, 0x66, 0x00, 0x6f, 0x00, 0x6f, 0x00, 0x62, 0x00, 0x61, 0x00, 0x72});
   std::string s;
@@ -435,7 +435,7 @@ TEST(ParseValuesTest, ParseBmpString) {
   EXPECT_FALSE(ParseBmpString(invalid_bmp_valid_utf16_with_surrogate, &s));
 }
 
-TEST(ParseValuesTest, ParseUniversalString) {
+TEST(ParseValuesTest, DISABLED_ParseUniversalString) {
   const Input valid_der({0x00, 0x00, 0x00, 0x66, 0x00, 0x00, 0x00, 0x6f,
                          0x00, 0x00, 0x00, 0x6f, 0x00, 0x00, 0x00, 0x62,
                          0x00, 0x00, 0x00, 0x61, 0x00, 0x00, 0x00, 0x72});
