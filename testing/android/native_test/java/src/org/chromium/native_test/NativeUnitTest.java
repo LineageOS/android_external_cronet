@@ -12,14 +12,15 @@ import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.PowerMonitor;
 import org.chromium.base.library_loader.LibraryLoader;
-import org.chromium.build.NativeLibraries;
 
 /**
  * A helper for running native unit tests (i.e., not browser tests)
  */
 public class NativeUnitTest extends NativeTest {
     private static final String TAG = "NativeTest";
-    private static final String[] LIBRARIES = {"cronet_aml_components_cronet_android_cronet_unittests_android__library"};
+
+    private static final String LIBRARY_UNDER_TEST_NAME =
+            "org.chromium.native_test.NativeTestInstrumentationTestRunner.LibraryUnderTest";
     private static class NativeUnitTestLibraryLoader extends LibraryLoader {
         static void setLibrariesLoaded() {
             LibraryLoader.setLibrariesLoadedForNativeTests();
@@ -46,17 +47,21 @@ public class NativeUnitTest extends NativeTest {
         // For NativeActivity based tests,
         // dependency libraries must be loaded before NativeActivity::OnCreate,
         // otherwise loading android.app.lib_name will fail
-        loadLibraries();
+        String libraryToLoad = activity.getIntent().getStringExtra(LIBRARY_UNDER_TEST_NAME);
+        if (libraryToLoad != null) {
+            loadLibrary(libraryToLoad);
+        } else {
+            Log.e(TAG, "No Library provided for native tests! Exiting");
+            activity.finish();
+        }
     }
 
-    private void loadLibraries() {
+    private void loadLibrary(String library) {
+
         LibraryLoader.setEnvForNative();
-        Log.i(TAG, "LOADING LIBRARIES");
-        for (String library : LIBRARIES) {
-            Log.i(TAG, "loading: %s", library);
-            System.loadLibrary(library);
-            Log.i(TAG, "loaded: %s", library);
-        }
+        Log.i(TAG, "loading: %s", library);
+        System.loadLibrary(library);
+        Log.i(TAG, "loaded: %s", library);
         NativeUnitTestLibraryLoader.setLibrariesLoaded();
     }
 }

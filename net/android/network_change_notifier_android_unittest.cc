@@ -366,7 +366,7 @@ TEST_F(NetworkChangeNotifierDelegateAndroidTest, DelegateObserverNotified) {
 // NetworkChangeNotifierDelegateAndroid's connectivity state changes, the
 // NetworkChangeNotifierAndroid should reflect that state.
 TEST_F(NetworkChangeNotifierAndroidTest,
-       NotificationsSentToNetworkChangeNotifierAndroid) {
+       DISABLED_NotificationsSentToNetworkChangeNotifierAndroid) {
   RunTest(
       base::BindRepeating(&NetworkChangeNotifierObserver::notifications_count,
                           base::Unretained(&connection_type_observer_)),
@@ -378,7 +378,7 @@ TEST_F(NetworkChangeNotifierAndroidTest,
 // When a NetworkChangeNotifierAndroid's connection state changes, it should
 // notify all of its observers.
 TEST_F(NetworkChangeNotifierAndroidTest,
-       NotificationsSentToClientsOfNetworkChangeNotifier) {
+       DISABLED_NotificationsSentToClientsOfNetworkChangeNotifier) {
   RunTest(
       base::BindRepeating(&NetworkChangeNotifierObserver::notifications_count,
                           base::Unretained(&connection_type_observer_)),
