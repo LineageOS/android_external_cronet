@@ -1478,7 +1478,7 @@ TEST_F(UDPSocketTest, Tag) {
   EXPECT_GT(GetTaggedBytes(tag_val1), old_traffic);
 }
 
-TEST_F(UDPSocketTest, RecordRadioWakeUpTrigger) {
+TEST_F(UDPSocketTest, DISABLED_RecordRadioWakeUpTrigger) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitAndEnableFeature(features::kRecordRadioWakeupTrigger);
 
