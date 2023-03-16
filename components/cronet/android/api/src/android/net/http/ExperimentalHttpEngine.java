@@ -225,7 +225,7 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                             "set_quic_flags", String.join(",", options.getExtraQuicheFlags()));
                 }
 
-                if (options.getInMemoryServerConfigsCacheSize() != null) {
+                if (options.hasInMemoryServerConfigsCacheSize()) {
                     quicOptions.put("max_server_configs_stored_in_properties",
                             options.getInMemoryServerConfigsCacheSize());
                 }
