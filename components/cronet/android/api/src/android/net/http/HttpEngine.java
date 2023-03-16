@@ -432,7 +432,7 @@ public abstract class HttpEngine {
      */
     @NonNull
     public static String getVersionString() {
-        return ApiVersion.getCronetVersionWithLastChange();
+        return ApiVersion.getCronetVersion();
     }
 
     /**
