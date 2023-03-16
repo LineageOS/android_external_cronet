@@ -1,0 +1,34 @@
+From a6583e9e2de81eebad5221def6cfc717ec1136f3 Mon Sep 17 00:00:00 2001
+From: Dan Stahr <danstahr@google.com>
+Date: Wed, 15 Mar 2023 15:21:08 +0000
+Subject: [PATCH] Use the version string without sha1 prefix for public
+ purposes in AOSP.
+
+Imports to AOPS should be limited to stable builds which have a well
+defined version so the SHA isn't necessary (this should be the case for
+other channels too in case we need to switch at some later date).
+Moreover, the filling in the SHA would require additional infra
+support (b/271846308).
+
+Test: m
+Change-Id: I334dcb4d11e31e52b5cca189ad9ba9ec531096f6
+---
+ .../cronet/android/api/src/android/net/http/HttpEngine.java     | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/HttpEngine.java b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+index 1115ed9e..91cb0173 100644
+--- a/components/cronet/android/api/src/android/net/http/HttpEngine.java
++++ b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+@@ -432,7 +432,7 @@ public abstract class HttpEngine {
+      */
+     @NonNull
+     public static String getVersionString() {
+-        return ApiVersion.getCronetVersionWithLastChange();
++        return ApiVersion.getCronetVersion();
+     }
+ 
+     /**
+-- 
+2.40.0.rc2.332.ga46443480c-goog
+
