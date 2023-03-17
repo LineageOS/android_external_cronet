@@ -43,13 +43,13 @@ import java.time.Duration;
 // SuppressLint to be consistent with other cronet code
 @SuppressLint("UserHandleName")
 public final class DnsOptions {
-    private final @DnsOptionEnabled int mUseHttpStackDnsResolver;
-    private final @DnsOptionEnabled int mPersistHostCache;
-    private final @DnsOptionEnabled int mEnableStaleDns;
+    private final @DnsOptionState int mUseHttpStackDnsResolver;
+    private final @DnsOptionState int mPersistHostCache;
+    private final @DnsOptionState int mEnableStaleDns;
     @Nullable
     private final Duration mPersistHostCachePeriod;
 
-    private final @DnsOptionEnabled int mPreestablishConnectionsToStaleDnsResults;
+    private final @DnsOptionState int mPreestablishConnectionsToStaleDnsResults;
     @Nullable
     private final StaleDnsOptions mStaleDnsOptions;
 
@@ -85,27 +85,27 @@ public final class DnsOptions {
             DNS_OPTION_ENABLED,
             DNS_OPTION_DISABLED,
     })
-    public @interface DnsOptionEnabled {}
+    public @interface DnsOptionState {}
 
     /**
-     * See {@link Builder#setUseHttpStackDnsResolverEnabled(int)}
+     * See {@link Builder#setUseHttpStackDnsResolver(int)}
      */
-    public @DnsOptionEnabled int getUseHttpStackDnsResolverEnabled() {
+    public @DnsOptionState int getUseHttpStackDnsResolver() {
         return mUseHttpStackDnsResolver;
     }
 
     /**
-     * See {@link Builder#setPersistHostCacheEnabled(int)}
+     * See {@link Builder#setPersistHostCache(int)}
      */
-    public @DnsOptionEnabled int getPersistHostCacheEnabled() {
+    public @DnsOptionState int getPersistHostCache() {
         return mPersistHostCache;
     }
 
     /**
-     * See {@link Builder#setStaleDnsEnabled(int)}
+     * See {@link Builder#setStaleDns(int)}
      */
     @Experimental
-    public @DnsOptionEnabled int getStaleDnsEnabled() {
+    public @DnsOptionState int getStaleDns() {
         return mEnableStaleDns;
     }
 
@@ -118,10 +118,10 @@ public final class DnsOptions {
     }
 
     /**
-     * See {@link Builder#setPreestablishConnectionsToStaleDnsResultsEnabled(int)}
+     * See {@link Builder#setPreestablishConnectionsToStaleDnsResults(int)}
      */
     @Experimental
-    public @DnsOptionEnabled int getPreestablishConnectionsToStaleDnsResultsEnabled() {
+    public @DnsOptionState int getPreestablishConnectionsToStaleDnsResults() {
         return mPreestablishConnectionsToStaleDnsResults;
     }
 
@@ -176,10 +176,10 @@ public final class DnsOptions {
             return mMaxExpiredDelay;
         }
 
-        public @DnsOptionEnabled int getAllowCrossNetworkUsageEnabled() {
+        public @DnsOptionState int getAllowCrossNetworkUsage() {
             return mAllowCrossNetworkUsage;
         }
-        public @DnsOptionEnabled int getUseStaleOnNameNotResolvedEnabled() {
+        public @DnsOptionState int getUseStaleOnNameNotResolved() {
             return mUseStaleOnNameNotResolved;
         }
 
@@ -195,8 +195,8 @@ public final class DnsOptions {
         private final Duration mFreshLookupTimeout;
         @Nullable
         private final Duration mMaxExpiredDelay;
-        private final @DnsOptionEnabled int mAllowCrossNetworkUsage;
-        private final @DnsOptionEnabled int mUseStaleOnNameNotResolved;
+        private final @DnsOptionState int mAllowCrossNetworkUsage;
+        private final @DnsOptionState int mUseStaleOnNameNotResolved;
 
         StaleDnsOptions(@NonNull Builder builder) {
             this.mFreshLookupTimeout = builder.mFreshLookupTimeout;
@@ -211,8 +211,8 @@ public final class DnsOptions {
         public static final class Builder {
             private Duration mFreshLookupTimeout;
             private Duration mMaxExpiredDelay;
-            private @DnsOptionEnabled int mAllowCrossNetworkUsage;
-            private @DnsOptionEnabled int mUseStaleOnNameNotResolved;
+            private @DnsOptionState int mAllowCrossNetworkUsage;
+            private @DnsOptionState int mUseStaleOnNameNotResolved;
 
             public Builder() {}
 
@@ -246,12 +246,12 @@ public final class DnsOptions {
              * the HTTP stack clears the DNS cache entirely when switching connections, e.g. between
              * two Wi-Fi networks or from Wi-Fi to 4G.
              *
-             * @param enabled one of the DNS_OPTION_* values
+             * @param state one of the DNS_OPTION_* values
              * @return the builder for chaining
              */
             @NonNull
-            public Builder setAllowCrossNetworkUsageEnabled(@DnsOptionEnabled int enabled) {
-                this.mAllowCrossNetworkUsage = enabled;
+            public Builder setAllowCrossNetworkUsage(@DnsOptionState int state) {
+                this.mAllowCrossNetworkUsage = state;
                 return this;
             }
 
@@ -264,12 +264,12 @@ public final class DnsOptions {
              * had such a fresh result quickly; or, prefer having any result (even if stale) to use
              * over dealing with a DNS failure.
              *
-             * @param enabled one of the DNS_OPTION_* values
+             * @param state one of the DNS_OPTION_* values
              * @return the builder for chaining
              */
             @NonNull
-            public Builder setUseStaleOnNameNotResolvedEnabled(@DnsOptionEnabled int enabled) {
-                this.mUseStaleOnNameNotResolved = enabled;
+            public Builder setUseStaleOnNameNotResolved(@DnsOptionState int state) {
+                this.mUseStaleOnNameNotResolved = state;
                 return this;
             }
 
@@ -288,14 +288,14 @@ public final class DnsOptions {
      * Builder for {@link DnsOptions}.
      */
     public static final class Builder {
-        private @DnsOptionEnabled int mUseHttpStackDnsResolver;
-        private @DnsOptionEnabled int mEnableStaleDns;
+        private @DnsOptionState int mUseHttpStackDnsResolver;
+        private @DnsOptionState int mEnableStaleDns;
         @Nullable
         private StaleDnsOptions mStaleDnsOptions;
-        private @DnsOptionEnabled int mPersistHostCache;
+        private @DnsOptionState int mPersistHostCache;
         @Nullable
         private Duration mPersistHostCachePeriod;
-        private @DnsOptionEnabled int mPreestablishConnectionsToStaleDnsResults;
+        private @DnsOptionState int mPreestablishConnectionsToStaleDnsResults;
 
         public Builder() {}
 
@@ -306,32 +306,32 @@ public final class DnsOptions {
          * of {@link DnsOptions} to work, unless specified otherwise. See the {@link DnsOptions}
          * documentation for more details.
          *
-         * @param enabled one of the DNS_OPTION_* values
+         * @param state one of the DNS_OPTION_* values
          * @return the builder for chaining
          */
         @NonNull
-        public Builder setUseHttpStackDnsResolverEnabled(@DnsOptionEnabled int enabled) {
-            this.mUseHttpStackDnsResolver = enabled;
+        public Builder setUseHttpStackDnsResolver(@DnsOptionState int state) {
+            this.mUseHttpStackDnsResolver = state;
             return this;
         }
 
         /**
          * Sets whether to use stale DNS results at all.
          *
-         * @param enabled one of the DNS_OPTION_* values
+         * @param state one of the DNS_OPTION_* values
          * @return the builder for chaining
          */
         @Experimental
         @NonNull
-        public Builder setStaleDnsEnabled(@DnsOptionEnabled int enabled) {
-            this.mEnableStaleDns = enabled;
+        public Builder setStaleDns(@DnsOptionState int state) {
+            this.mEnableStaleDns = state;
             return this;
         }
 
         /**
          * Sets detailed configuration for stale DNS.
          *
-         * Only relevant if {@link #setStaleDnsEnabled(boolean)} is set.
+         * Only relevant if {@link #setStaleDns(int)} is set.
          *
          * @return this builder for chaining.
          */
@@ -361,19 +361,19 @@ public final class DnsOptions {
          * expired. Such connections won't be used further until a new DNS lookup confirms the
          * cached record was up to date.
          *
-         * <p>To use cached DNS records straight away, use {@link #setStaleDnsEnabled} and {@link
+         * <p>To use cached DNS records straight away, use {@link #setStaleDns(int)} and {@link
          * StaleDnsOptions} configuration options.
          *
          * <p>This option may not be available for all networking protocols.
          *
-         * @param enabled one of the DNS_OPTION_* values
+         * @param state one of the DNS_OPTION_* values
          * @return the builder for chaining
          */
         @Experimental
         @NonNull
-        public Builder setPreestablishConnectionsToStaleDnsResultsEnabled(
-                @DnsOptionEnabled int enabled) {
-            this.mPreestablishConnectionsToStaleDnsResults = enabled;
+        public Builder setPreestablishConnectionsToStaleDnsResults(
+                @DnsOptionState int state) {
+            this.mPreestablishConnectionsToStaleDnsResults = state;
             return this;
         }
 
@@ -383,19 +383,19 @@ public final class DnsOptions {
          * <p>Only relevant if {@link HttpEngine.Builder#setStoragePath(String)} is
          * set.
          *
-         * @param enabled one of the DNS_OPTION_* values
+         * @param state one of the DNS_OPTION_* values
          * @return the builder for chaining
          */
         @NonNull
-        public Builder setPersistHostCacheEnabled(@DnsOptionEnabled int enabled) {
-            this.mPersistHostCache = enabled;
+        public Builder setPersistHostCache(@DnsOptionState int state) {
+            this.mPersistHostCache = state;
             return this;
         }
 
         /**
          * Sets the minimum period between subsequent writes to disk for DNS cache persistence.
          *
-         * <p>Only relevant if {@link #setPersistHostCacheEnabled(int)} is set to
+         * <p>Only relevant if {@link #setPersistHostCache(int)} is set to
          * {@link #DNS_OPTION_ENABLED}.
          *
          * @return the builder for chaining
