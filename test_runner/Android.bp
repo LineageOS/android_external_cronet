@@ -41,3 +41,32 @@ java_test_host {
         },
     },
 }
+
+java_test_host {
+    name: "cronet_unittests_tester",
+    srcs: ["src/**/*.java"],
+    auto_gen_config: false,
+    test_config: "AndroidTest.xml",
+    libs: [
+        "tradefed",
+    ],
+    defaults: [
+        "CronetTestJavaDefaults",
+    ],
+    data: [
+        ":cronet_tester_app",
+    ],
+    test_suites: [
+        "general-tests",
+    ],
+    // It will get build error if just set enabled to true. It fails with "windows_common"
+    // depends on some disabled modules that are used by this test and it looks like set
+    // CronetTestJavaDefaults to true also enables "windows" variant. Thus,
+    // disable this on target windows.
+    // TODO(aymanm): Remove this when b/201754360 is fixed.
+    target: {
+        windows: {
+            enabled: false,
+        },
+    },
+}
