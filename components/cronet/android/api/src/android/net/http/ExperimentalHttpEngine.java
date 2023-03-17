@@ -305,21 +305,21 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
             mExperimentalOptionsPatches.add((experimentalOptions) -> {
                 JSONObject asyncDnsOptions = createDefaultIfAbsent(experimentalOptions, "AsyncDNS");
 
-                if (options.getUseHttpStackDnsResolverEnabled() != DNS_OPTION_UNSPECIFIED) {
+                if (options.getUseHttpStackDnsResolver() != DNS_OPTION_UNSPECIFIED) {
                     asyncDnsOptions.put("enable",
-                            options.getUseHttpStackDnsResolverEnabled() == DNS_OPTION_ENABLED);
+                            options.getUseHttpStackDnsResolver() == DNS_OPTION_ENABLED);
                 }
 
                 JSONObject staleDnsOptions = createDefaultIfAbsent(experimentalOptions, "StaleDNS");
 
-                if (options.getStaleDnsEnabled() != DNS_OPTION_UNSPECIFIED) {
+                if (options.getStaleDns() != DNS_OPTION_UNSPECIFIED) {
                     staleDnsOptions.put("enable",
-                            options.getStaleDnsEnabled() == DNS_OPTION_ENABLED);
+                            options.getStaleDns() == DNS_OPTION_ENABLED);
                 }
 
-                if (options.getPersistHostCacheEnabled() != DNS_OPTION_UNSPECIFIED) {
+                if (options.getPersistHostCache() != DNS_OPTION_UNSPECIFIED) {
                     staleDnsOptions.put("persist_to_disk",
-                            options.getPersistHostCacheEnabled() == DNS_OPTION_ENABLED);
+                            options.getPersistHostCache() == DNS_OPTION_ENABLED);
                 }
 
                 if (options.getPersistHostCachePeriod() != null) {
@@ -330,10 +330,10 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                 if (options.getStaleDnsOptions() != null) {
                     StaleDnsOptions staleDnsOptionsJava = options.getStaleDnsOptions();
 
-                    if (staleDnsOptionsJava.getAllowCrossNetworkUsageEnabled()
+                    if (staleDnsOptionsJava.getAllowCrossNetworkUsage()
                             != DNS_OPTION_UNSPECIFIED) {
                         staleDnsOptions.put("allow_other_network",
-                                staleDnsOptionsJava.getAllowCrossNetworkUsageEnabled()
+                                staleDnsOptionsJava.getAllowCrossNetworkUsage()
                                         == DNS_OPTION_ENABLED);
                     }
 
@@ -342,10 +342,10 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                                 "delay_ms", staleDnsOptionsJava.getFreshLookupTimeout().toMillis());
                     }
 
-                    if (staleDnsOptionsJava.getUseStaleOnNameNotResolvedEnabled()
+                    if (staleDnsOptionsJava.getUseStaleOnNameNotResolved()
                             != DNS_OPTION_UNSPECIFIED) {
                         staleDnsOptions.put("use_stale_on_name_not_resolved",
-                                staleDnsOptionsJava.getUseStaleOnNameNotResolvedEnabled()
+                                staleDnsOptionsJava.getUseStaleOnNameNotResolved()
                                         == DNS_OPTION_ENABLED);
                     }
 
@@ -356,10 +356,10 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                 }
 
                 JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
-                if (options.getPreestablishConnectionsToStaleDnsResultsEnabled()
+                if (options.getPreestablishConnectionsToStaleDnsResults()
                         != DNS_OPTION_UNSPECIFIED) {
                     quicOptions.put("race_stale_dns_on_connection",
-                            options.getPreestablishConnectionsToStaleDnsResultsEnabled()
+                            options.getPreestablishConnectionsToStaleDnsResults()
                                     == DNS_OPTION_ENABLED);
                 }
             });
@@ -380,9 +380,9 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
             mExperimentalOptionsPatches.add((experimentalOptions) -> {
                 JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
 
-                if (options.getDefaultNetworkMigrationEnabled() != MIGRATION_OPTION_UNSPECIFIED) {
+                if (options.getDefaultNetworkMigration() != MIGRATION_OPTION_UNSPECIFIED) {
                     quicOptions.put("migrate_sessions_on_network_change_v2",
-                            options.getDefaultNetworkMigrationEnabled()
+                            options.getDefaultNetworkMigration()
                                     == MIGRATION_OPTION_ENABLED);
                 }
                 if (options.getAllowServerMigration() != null) {
@@ -407,16 +407,16 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
                     quicOptions.put("max_migrations_to_non_default_network_on_write_error",
                             options.getMaxWriteErrorNonDefaultNetworkMigrationsCount());
                 }
-                if (options.getPathDegradationMigrationEnabled() != MIGRATION_OPTION_UNSPECIFIED) {
-                    boolean pathDegradationValue = (options.getPathDegradationMigrationEnabled()
+                if (options.getPathDegradationMigration() != MIGRATION_OPTION_UNSPECIFIED) {
+                    boolean pathDegradationValue = (options.getPathDegradationMigration()
                             == MIGRATION_OPTION_ENABLED);
 
                     boolean skipPortMigrationFlag = false;
 
-                    if (options.getAllowNonDefaultNetworkUsageEnabled()
+                    if (options.getAllowNonDefaultNetworkUsage()
                             != MIGRATION_OPTION_UNSPECIFIED) {
                         boolean nonDefaultNetworkValue =
-                                (options.getAllowNonDefaultNetworkUsageEnabled()
+                                (options.getAllowNonDefaultNetworkUsage()
                                         == MIGRATION_OPTION_ENABLED);
                         if (!pathDegradationValue && nonDefaultNetworkValue) {
                             // Misconfiguration which doesn't translate easily to the JSON flags
