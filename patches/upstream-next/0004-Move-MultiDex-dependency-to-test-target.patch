@@ -1,0 +1,53 @@
+From 719e23ede4040de61c2862242dd8981da191e447 Mon Sep 17 00:00:00 2001
+From: Stefano Duo <stefanoduo@google.com>
+Date: Tue, 10 Jan 2023 16:50:15 +0000
+Subject: [PATCH] Move MultiDex dependency to test target
+
+Change-Id: I02d197a47c9cd13bb234a23a1ce6e2c8d363cdbc
+---
+ base/BUILD.gn                                                 | 4 ++--
+ .../org/chromium/base/multidex/ChromiumMultiDexInstaller.java | 0
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+ rename base/{ => test}/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java (100%)
+
+diff --git a/base/BUILD.gn b/base/BUILD.gn
+index a56c5fc8..5062dd82 100644
+--- a/base/BUILD.gn
++++ b/base/BUILD.gn
+@@ -4179,7 +4179,6 @@ if (is_android) {
+       "//third_party/androidx:androidx_annotation_annotation_java",
+       "//third_party/androidx:androidx_collection_collection_java",
+       "//third_party/androidx:androidx_core_core_java",
+-      "//third_party/androidx:androidx_multidex_multidex_java",
+     ]
+ 
+     sources = [
+@@ -4292,7 +4291,6 @@ if (is_android) {
+       "android/java/src/org/chromium/base/metrics/TimingMetric.java",
+       "android/java/src/org/chromium/base/metrics/UmaRecorder.java",
+       "android/java/src/org/chromium/base/metrics/UmaRecorderHolder.java",
+-      "android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
+       "android/java/src/org/chromium/base/process_launcher/BindService.java",
+       "android/java/src/org/chromium/base/process_launcher/ChildConnectionAllocator.java",
+       "android/java/src/org/chromium/base/process_launcher/ChildProcessConnection.java",
+@@ -4424,11 +4422,13 @@ if (is_android) {
+       "//third_party/androidx:androidx_annotation_annotation_java",
+       "//third_party/androidx:androidx_core_core_java",
+       "//third_party/androidx:androidx_test_uiautomator_uiautomator_java",
++      "//third_party/androidx:androidx_multidex_multidex_java",
+       "//third_party/hamcrest:hamcrest_java",
+       "//third_party/junit",
+     ]
+ 
+     sources = [
++      "test/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
+       "test/android/javatests/src/org/chromium/base/FakeTimeTestRule.java",
+       "test/android/javatests/src/org/chromium/base/test/BaseActivityTestRule.java",
+       "test/android/javatests/src/org/chromium/base/test/BaseChromiumAndroidJUnitRunner.java",
+diff --git a/base/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java b/base/test/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java
+similarity index 100%
+rename from base/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java
+rename to base/test/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java
+-- 
+2.39.0.314.g84b9a713c41-goog
+

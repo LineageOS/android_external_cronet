@@ -1,0 +1,149 @@
+From 5f0ff41181f714e4380a3c6326ba199364d20dad Mon Sep 17 00:00:00 2001
+From: Motomu Utsumi <motomuman@google.com>
+Date: Wed, 15 Feb 2023 16:51:22 +0900
+Subject: [PATCH 1/1] cronet: Fix BuilderSetStyle API lint errors
+
+Bug: 265674359
+Test: TH
+Change-Id: I875291d99093f0697a4af94d05adfa4c6cd58ab5
+---
+ .../net/http/ExperimentalUrlRequest.java      |  4 ++--
+ .../api/src/android/net/http/UrlRequest.java  | 24 ++++++++++++-------
+ .../net/impl/UrlRequestBuilderImpl.java       |  8 +++----
+ .../CronetHttpURLConnection.java              |  4 +---
+ 4 files changed, 22 insertions(+), 18 deletions(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java b/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
+index 2ede5f7d8..b4828ccc7 100644
+--- a/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
++++ b/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
+@@ -104,7 +104,7 @@ public abstract class ExperimentalUrlRequest extends UrlRequest {
+         public abstract Builder addHeader(String header, String value);
+ 
+         @Override
+-        public abstract Builder disableCache();
++        public abstract Builder setDisableCache(boolean disableCache);
+ 
+         @Override
+         public abstract Builder setPriority(int priority);
+@@ -114,7 +114,7 @@ public abstract class ExperimentalUrlRequest extends UrlRequest {
+                 UploadDataProvider uploadDataProvider, Executor executor);
+ 
+         @Override
+-        public abstract Builder allowDirectExecutor();
++        public abstract Builder setAllowDirectExecutor(boolean allowDirectExecutor);
+ 
+         @Override
+         public abstract ExperimentalUrlRequest build();
+diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+index 9ff63c242..4da662bb1 100644
+--- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
++++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+@@ -5,6 +5,7 @@
+ package android.net.http;
+ 
+ import android.annotation.IntDef;
++import android.annotation.SuppressLint;
+ import android.net.Network;
+ 
+ import androidx.annotation.NonNull;
+@@ -58,12 +59,13 @@ public abstract class UrlRequest {
+         public abstract Builder addHeader(@NonNull String header, @NonNull String value);
+ 
+         /**
+-         * Disables cache for the request. If context is not set up to use cache,
++         * Whether to disable cache for the request. If the engine is not set up to use cache,
+          * this call has no effect.
++         * @param disableCache {@code true} to disable cache, {@code false} otherwise.
+          * @return the builder to facilitate chaining.
+          */
+         @NonNull
+-        public abstract Builder disableCache();
++        public abstract Builder setDisableCache(boolean disableCache);
+ 
+         /**
+          * Lowest request priority. Passed to {@link #setPriority}.
+@@ -116,28 +118,32 @@ public abstract class UrlRequest {
+                 @NonNull UploadDataProvider uploadDataProvider, @NonNull Executor executor);
+ 
+         /**
+-         * Marks that the executors this request will use to notify callbacks (for
++         * Marks whether the executors this request will use to notify callbacks (for
+          * {@code UploadDataProvider}s and {@code UrlRequest.Callback}s) is intentionally performing
+          * inline execution, like Guava's directExecutor or
+          * {@link java.util.concurrent.ThreadPoolExecutor.CallerRunsPolicy}.
+          *
+-         * <p><b>Warning:</b> This option makes it easy to accidentally block the network thread.
+-         * It should not be used if your callbacks perform disk I/O, acquire locks, or call into
+-         * other code you don't carefully control and audit.
++         * <p><b>Warning:</b> If set to true: This option makes it easy to accidentally block the
++         * network thread. This should not be done if your callbacks perform disk I/O, acquire
++         * locks, or call into other code you don't carefully control and audit.
++         *
++         * @param allowDirectExecutor {@code true} to allow executors performing inline execution,
++         *                            {@code false} otherwise.
++         * @return the builder to facilitate chaining.
+          */
+         @NonNull
+-        public abstract Builder allowDirectExecutor();
++        public abstract Builder setAllowDirectExecutor(boolean allowDirectExecutor);
+ 
+         /**
+          * Binds the request to the specified network. The HTTP stack will send this request
+          * only using the network associated to this handle. If this network disconnects the request
+-         * will  fail, the exact error will depend on the stage of request processing when
++         * will fail, the exact error will depend on the stage of request processing when
+          * the network disconnects.
+          *
+          * @param network the network to bind the request to. Specify {@code null} to unbind.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        @NonNull @SuppressLint("BuilderSetStyle")
+         public abstract Builder bindToNetwork(@Nullable Network network);
+ 
+         /**
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
+index f90111ddc..d9f0bb025 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
+@@ -131,8 +131,8 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
+     }
+ 
+     @Override
+-    public UrlRequestBuilderImpl disableCache() {
+-        mDisableCache = true;
++    public UrlRequestBuilderImpl setDisableCache(boolean disableCache) {
++        mDisableCache = disableCache;
+         return this;
+     }
+ 
+@@ -172,8 +172,8 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
+     }
+ 
+     @Override
+-    public UrlRequestBuilderImpl allowDirectExecutor() {
+-        mAllowDirectExecutor = true;
++    public UrlRequestBuilderImpl setAllowDirectExecutor(boolean allowDirectExecutor) {
++        mAllowDirectExecutor = allowDirectExecutor;
+         return this;
+     }
+ 
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
+index 4717dd020..8fe5bc27a 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
+@@ -286,9 +286,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
+         for (Pair<String, String> requestHeader : mRequestHeaders) {
+             requestBuilder.addHeader(requestHeader.first, requestHeader.second);
+         }
+-        if (!getUseCaches()) {
+-            requestBuilder.disableCache();
+-        }
++        requestBuilder.setDisableCache(!getUseCaches());
+         // Set HTTP method.
+         requestBuilder.setHttpMethod(method);
+         if (checkTrafficStatsTag()) {
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+

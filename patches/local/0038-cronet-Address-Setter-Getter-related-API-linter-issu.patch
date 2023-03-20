@@ -1,0 +1,1536 @@
+From 14e9d91efba40b258ecede2fca5b871880106bab Mon Sep 17 00:00:00 2001
+From: Motomu Utsumi <motomuman@google.com>
+Date: Mon, 6 Mar 2023 11:03:26 +0900
+Subject: [PATCH 1/1] cronet: Address Setter/Getter related API linter issues
+
+Bug: 271423645
+Bug: 265674359
+Test: TH
+Change-Id: If21f38aff96ff7c4e7f71431fe4a1ee0667a00c0
+---
+ .../android/net/http/BidirectionalStream.java | 113 ++++++++----
+ .../net/http/ConnectionMigrationOptions.java  | 101 ++++++-----
+ .../api/src/android/net/http/DnsOptions.java  | 166 ++++++++++--------
+ .../http/ExperimentalBidirectionalStream.java |   2 +-
+ .../net/http/ExperimentalHttpEngine.java      |  67 ++++---
+ .../net/http/ExperimentalUrlRequest.java      |   4 +-
+ .../api/src/android/net/http/HttpEngine.java  |  40 +++--
+ .../api/src/android/net/http/QuicOptions.java |   2 +-
+ .../api/src/android/net/http/UrlRequest.java  | 101 ++++++++---
+ .../impl/BidirectionalStreamBuilderImpl.java  |   4 +-
+ .../net/impl/CronetBidirectionalStream.java   |  71 +++++++-
+ .../chromium/net/impl/CronetEngineBase.java   |  16 +-
+ .../chromium/net/impl/CronetUrlRequest.java   |  72 +++++++-
+ .../net/impl/UrlRequestBuilderImpl.java       |   5 +-
+ .../CronetHttpURLConnection.java              |   2 +-
+ 15 files changed, 527 insertions(+), 239 deletions(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/BidirectionalStream.java b/components/cronet/android/api/src/android/net/http/BidirectionalStream.java
+index bae8b98de..096886357 100644
+--- a/components/cronet/android/api/src/android/net/http/BidirectionalStream.java
++++ b/components/cronet/android/api/src/android/net/http/BidirectionalStream.java
+@@ -13,6 +13,8 @@ import androidx.annotation.Nullable;
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+ import java.nio.ByteBuffer;
++import java.util.List;
++import java.util.Map;
+ import java.util.concurrent.Executor;
+ 
+ /**
+@@ -23,6 +25,39 @@ import java.util.concurrent.Executor;
+  * please see individual methods for description of restrictions.
+  */
+ public abstract class BidirectionalStream {
++    /**
++     * Lowest stream priority. Passed to {@link Builder#setPriority}.
++     */
++    public static final int STREAM_PRIORITY_IDLE = 0;
++    /**
++     * Very low stream priority. Passed to {@link Builder#setPriority}.
++     */
++    public static final int STREAM_PRIORITY_LOWEST = 1;
++    /**
++     * Low stream priority. Passed to {@link Builder#setPriority}.
++     */
++    public static final int STREAM_PRIORITY_LOW = 2;
++    /**
++     * Medium stream priority. Passed to {@link Builder#setPriority}. This is the
++     * default priority given to the stream.
++     */
++    public static final int STREAM_PRIORITY_MEDIUM = 3;
++    /**
++     * Highest stream priority. Passed to {@link Builder#setPriority}.
++     */
++    public static final int STREAM_PRIORITY_HIGHEST = 4;
++
++    /** @hide */
++    @Retention(RetentionPolicy.SOURCE)
++    @IntDef({
++            BidirectionalStream.STREAM_PRIORITY_IDLE,
++            BidirectionalStream.STREAM_PRIORITY_LOWEST,
++            BidirectionalStream.STREAM_PRIORITY_LOW,
++            BidirectionalStream.STREAM_PRIORITY_MEDIUM,
++            BidirectionalStream.STREAM_PRIORITY_HIGHEST})
++    public @interface BidirectionalStreamPriority {}
++
++
+     /**
+      * Builder for {@link BidirectionalStream}s. Allows configuring stream before constructing
+      * it via {@link Builder#build}. Created by
+@@ -48,38 +83,6 @@ public abstract class BidirectionalStream {
+         @NonNull
+         public abstract Builder addHeader(@NonNull String header, @NonNull String value);
+ 
+-        /**
+-         * Lowest stream priority. Passed to {@link #setPriority}.
+-         */
+-        public static final int STREAM_PRIORITY_IDLE = 0;
+-        /**
+-         * Very low stream priority. Passed to {@link #setPriority}.
+-         */
+-        public static final int STREAM_PRIORITY_LOWEST = 1;
+-        /**
+-         * Low stream priority. Passed to {@link #setPriority}.
+-         */
+-        public static final int STREAM_PRIORITY_LOW = 2;
+-        /**
+-         * Medium stream priority. Passed to {@link #setPriority}. This is the
+-         * default priority given to the stream.
+-         */
+-        public static final int STREAM_PRIORITY_MEDIUM = 3;
+-        /**
+-         * Highest stream priority. Passed to {@link #setPriority}.
+-         */
+-        public static final int STREAM_PRIORITY_HIGHEST = 4;
+-
+-        /** @hide */
+-        @Retention(RetentionPolicy.SOURCE)
+-        @IntDef({
+-                BidirectionalStream.Builder.STREAM_PRIORITY_IDLE,
+-                BidirectionalStream.Builder.STREAM_PRIORITY_LOWEST,
+-                BidirectionalStream.Builder.STREAM_PRIORITY_LOW,
+-                BidirectionalStream.Builder.STREAM_PRIORITY_MEDIUM,
+-                BidirectionalStream.Builder.STREAM_PRIORITY_HIGHEST})
+-        public @interface BidirectionalStreamPriority {}
+-
+         /**
+          * Sets priority of the stream which should be one of the
+          * {@link #STREAM_PRIORITY_IDLE STREAM_PRIORITY_*} values.
+@@ -94,7 +97,7 @@ public abstract class BidirectionalStream {
+         public abstract Builder setPriority(@BidirectionalStreamPriority int priority);
+ 
+         /**
+-         * Delays sending request headers until {@link BidirectionalStream#flush()}
++         * Sets whether to delay sending request headers until {@link BidirectionalStream#flush()}
+          * is called. This flag is currently only respected when QUIC is negotiated.
+          * When true, QUIC will send request header frame along with data frame(s)
+          * as a single packet when possible.
+@@ -104,7 +107,7 @@ public abstract class BidirectionalStream {
+          * @return the builder to facilitate chaining.
+          */
+         @NonNull
+-        public abstract Builder delayRequestHeadersUntilFirstFlush(
++        public abstract Builder setDelayRequestHeadersUntilFirstFlushEnabled(
+                 boolean delayRequestHeadersUntilFirstFlush);
+ 
+         /**
+@@ -272,6 +275,48 @@ public abstract class BidirectionalStream {
+                 @Nullable UrlResponseInfo info) {}
+     }
+ 
++    /**
++     * See {@link BidirectionalStream.Builder#setHttpMethod(String)}.
++     */
++    @NonNull
++    public abstract String getHttpMethod();
++
++    /**
++     * See {@link BidirectionalStream.Builder#setTrafficStatsTag(int)}
++     */
++    public abstract boolean hasTrafficStatsTag();
++
++    /**
++     * See {@link BidirectionalStream.Builder#setTrafficStatsTag(int)}
++     */
++    public abstract int getTrafficStatsTag();
++
++    /**
++     * See {@link BidirectionalStream.Builder#setTrafficStatsUid(int)}
++     */
++    public abstract boolean hasTrafficStatsUid();
++
++    /**
++     * See {@link BidirectionalStream.Builder#setTrafficStatsUid(int)}
++     */
++    public abstract int getTrafficStatsUid();
++
++    /**
++     * See {@link Builder#addHeader(String, String)}
++     */
++    @NonNull
++    public abstract List<Map.Entry<String, String>> getHeaders();
++
++    /**
++     * See {@link Builder#setPriority(int)}
++     */
++    public abstract @BidirectionalStreamPriority int getPriority();
++
++    /**
++     * See {@link Builder#setDelayRequestHeadersUntilFirstFlushEnabled(boolean)}
++     */
++    public abstract boolean isDelayRequestHeadersUntilFirstFlushEnabled();
++
+     /**
+      * Starts the stream, all callbacks go to the {@code callback} argument passed to {@link
+      * BidirectionalStream.Builder}'s constructor. Should only be called once.
+diff --git a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+index 0854db0bb..0e007b954 100644
+--- a/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
++++ b/components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java
+@@ -4,11 +4,14 @@
+ 
+ package android.net.http;
+ 
++import android.annotation.IntDef;
+ import android.annotation.SuppressLint;
+ 
+ import androidx.annotation.NonNull;
+ import androidx.annotation.Nullable;
+ 
++import java.lang.annotation.Retention;
++import java.lang.annotation.RetentionPolicy;
+ import java.time.Duration;
+ 
+ /**
+@@ -32,18 +35,15 @@ import java.time.Duration;
+ // SuppressLint to be consistent with other cronet code
+ @SuppressLint("UserHandleName")
+ public class ConnectionMigrationOptions {
+-    @Nullable
+-    private final Boolean mEnableDefaultNetworkMigration;
+-    @Nullable
+-    private final Boolean mEnablePathDegradationMigration;
++    private final @MigrationOptionEnabled int mEnableDefaultNetworkMigration;
++    private final @MigrationOptionEnabled int mEnablePathDegradationMigration;
+     @Nullable
+     private final Boolean mAllowServerMigration;
+     @Nullable
+     private final Boolean mMigrateIdleConnections;
+     @Nullable
+     private final Duration mIdleMigrationPeriod;
+-    @Nullable
+-    private final Boolean mAllowNonDefaultNetworkUsage;
++    private final @MigrationOptionEnabled int mAllowNonDefaultNetworkUsage;
+     @Nullable
+     private final Duration mMaxTimeOnNonDefaultNetwork;
+     @Nullable
+@@ -52,20 +52,40 @@ public class ConnectionMigrationOptions {
+     private final Integer mMaxPathDegradingNonDefaultMigrationsCount;
+ 
+     /**
+-     * See {@link Builder#setEnableDefaultNetworkMigration}
++     * Option is unspecified, platform default value will be used.
++     */
++    public static final int MIGRATION_OPTION_UNSPECIFIED = 0;
++
++    /**
++     * Option is enabled.
++     */
++    public static final int MIGRATION_OPTION_ENABLED = 1;
++
++    /**
++     * Option is disabled.
++     */
++    public static final int MIGRATION_OPTION_DISABLED = 2;
++
++    /** @hide */
++    @Retention(RetentionPolicy.SOURCE)
++    @IntDef(flag = false, prefix = "MIGRATION_OPTION_", value = {
++            MIGRATION_OPTION_UNSPECIFIED,
++            MIGRATION_OPTION_ENABLED,
++            MIGRATION_OPTION_DISABLED,
++    })
++    public @interface MigrationOptionEnabled {}
++
++    /**
++     * See {@link Builder#setDefaultNetworkMigrationEnabled}
+      */
+-    // SuppressLint since return value is @Nullable
+-    @Nullable @SuppressLint("AutoBoxing")
+-    public Boolean getEnableDefaultNetworkMigration() {
++    public @MigrationOptionEnabled int getDefaultNetworkMigrationEnabled() {
+         return mEnableDefaultNetworkMigration;
+     }
+ 
+     /**
+-     * See {@link Builder#setEnablePathDegradationMigration}
++     * See {@link Builder#setPathDegradationMigrationEnabled}
+      */
+-    // SuppressLint since return value is @Nullable
+-    @Nullable @SuppressLint("AutoBoxing")
+-    public Boolean getEnablePathDegradationMigration() {
++    public @MigrationOptionEnabled int getPathDegradationMigrationEnabled() {
+         return mEnablePathDegradationMigration;
+     }
+ 
+@@ -103,12 +123,10 @@ public class ConnectionMigrationOptions {
+     }
+ 
+     /**
+-     * See {@link Builder#setAllowNonDefaultNetworkUsage}
++     * See {@link Builder#setAllowNonDefaultNetworkUsageEnabled(int)}
+      */
+     @Experimental
+-    // SuppressLint since return value is @Nullable
+-    @Nullable @SuppressLint("AutoBoxing")
+-    public Boolean getAllowNonDefaultNetworkUsage() {
++    public @MigrationOptionEnabled int getAllowNonDefaultNetworkUsageEnabled() {
+         return mAllowNonDefaultNetworkUsage;
+     }
+ 
+@@ -161,18 +179,15 @@ public class ConnectionMigrationOptions {
+      * Builder for {@link ConnectionMigrationOptions}.
+      */
+     public static final class Builder {
+-        @Nullable
+-        private Boolean mEnableDefaultNetworkMigration;
+-        @Nullable
+-        private Boolean mEnablePathDegradationMigration;
++        private @MigrationOptionEnabled int mEnableDefaultNetworkMigration;
++        private @MigrationOptionEnabled int mEnablePathDegradationMigration;
+         @Nullable
+         private Boolean mAllowServerMigration;
+         @Nullable
+         private Boolean mMigrateIdleConnections;
+         @Nullable
+         private Duration mIdleConnectionMigrationPeriod;
+-        @Nullable
+-        private Boolean mAllowNonDefaultNetworkUsage;
++        private @MigrationOptionEnabled int mAllowNonDefaultNetworkUsage;
+         @Nullable
+         private Duration mMaxTimeOnNonDefaultNetwork;
+         @Nullable
+@@ -183,34 +198,35 @@ public class ConnectionMigrationOptions {
+         public Builder() {}
+ 
+         /**
+-         * Enables the possibility of migrating connections on default network change. If enabled,
+-         * active QUIC connections will be migrated onto the new network when the platform indicates
+-         * that the default network is changing.
++         * Sets whether to enable the possibility of migrating connections on default network
++         * change. If enabled, active QUIC connections will be migrated onto the new network when
++         * the platform indicates that the default network is changing.
+          *
+          * @see <a href="https://developer.android.com/training/basics/network-ops/reading-network-state#listening-events">Android
+          *     Network State</a>
+          *
++         * @param enabled one of the MIGRATION_OPTION_* values
+          * @return this builder for chaining
+          */
+         @NonNull
+-        public Builder setEnableDefaultNetworkMigration(
+-                boolean enableDefaultNetworkConnectionMigration) {
+-            this.mEnableDefaultNetworkMigration = enableDefaultNetworkConnectionMigration;
++        public Builder setDefaultNetworkMigrationEnabled(@MigrationOptionEnabled int enabled) {
++            this.mEnableDefaultNetworkMigration = enabled;
+             return this;
+         }
+ 
+         /**
+-         * Enables the possibility of migrating connections if the current path is performing
+-         * poorly.
++         * Sets whether to enable the possibility of migrating connections if the current path is
++         * performing poorly.
+          *
+          * <p>Depending on other configuration, this can result to migrating the connections within
+          * the same default network, or to a non-default network.
+          *
++         * @param enabled one of the MIGRATION_OPTION_* values
+          * @return this builder for chaining
+          */
+         @NonNull
+-        public Builder setEnablePathDegradationMigration(boolean enable) {
+-            this.mEnablePathDegradationMigration = enable;
++        public Builder setPathDegradationMigrationEnabled(@MigrationOptionEnabled int enabled) {
++            this.mEnablePathDegradationMigration = enabled;
+             return this;
+         }
+ 
+@@ -269,18 +285,20 @@ public class ConnectionMigrationOptions {
+         /**
+          * Sets whether connections can be migrated to an alternate network when Cronet detects
+          * a degradation of the path currently in use. Requires setting
+-         * {@link #setEnablePathDegradationMigration} to true to have any effect.
++         * {@link #setPathDegradationMigrationEnabled(int)} to {@link #MIGRATION_OPTION_ENABLED} to
++         * have any effect.
+          *
+          * <p>Note: This setting can result in requests being sent on non-default metered networks,
+          * eating into the users' data budgets and incurring extra costs. Make sure you're using
+          * metered networks sparingly.
+          *
++         * @param enabled one of the MIGRATION_OPTION_* values
+          * @return this builder for chaining
+          */
+         @Experimental
+         @NonNull
+-        public Builder setAllowNonDefaultNetworkUsage(boolean enable) {
+-            this.mAllowNonDefaultNetworkUsage = enable;
++        public Builder setAllowNonDefaultNetworkUsageEnabled(@MigrationOptionEnabled int enabled) {
++            this.mAllowNonDefaultNetworkUsage = enabled;
+             return this;
+         }
+ 
+@@ -289,7 +307,8 @@ public class ConnectionMigrationOptions {
+          * there before they're migrated back. This time is not cumulative - each migration off
+          * the default network for each connection measures and compares to this value separately.
+          *
+-         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsage(boolean)} is enabled.
++         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsageEnabled(int)} is set to
++         * {@link #MIGRATION_OPTION_ENABLED}
+          *
+          * @return this builder for chaining
+          *
+@@ -307,7 +326,8 @@ public class ConnectionMigrationOptions {
+          * Sets the maximum number of migrations to the non-default network upon encountering write
+          * errors. Counted cumulatively per network per connection.
+          *
+-         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsage(boolean)} is enabled.
++         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsageEnabled(int)} is set to
++         * {@link #MIGRATION_OPTION_ENABLED}
+          *
+          * @return this builder for chaining
+          *
+@@ -325,7 +345,8 @@ public class ConnectionMigrationOptions {
+          * Sets the maximum number of migrations to the non-default network upon encountering path
+          * degradation for the existing connection. Counted cumulatively per network per connection.
+          *
+-         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsage(boolean)} is enabled.
++         * <p>Only relevant if {@link #setAllowNonDefaultNetworkUsageEnabled(int)} is set to
++         * {@link #MIGRATION_OPTION_ENABLED}
+          *
+          * @return this builder for chaining
+          *
+diff --git a/components/cronet/android/api/src/android/net/http/DnsOptions.java b/components/cronet/android/api/src/android/net/http/DnsOptions.java
+index 849fdec13..15d7af37c 100644
+--- a/components/cronet/android/api/src/android/net/http/DnsOptions.java
++++ b/components/cronet/android/api/src/android/net/http/DnsOptions.java
+@@ -4,6 +4,7 @@
+ 
+ package android.net.http;
+ 
++import android.annotation.IntDef;
+ import android.annotation.SuppressLint;
+ import android.os.Build.VERSION_CODES;
+ 
+@@ -11,6 +12,8 @@ import androidx.annotation.NonNull;
+ import androidx.annotation.Nullable;
+ import androidx.annotation.RequiresApi;
+ 
++import java.lang.annotation.Retention;
++import java.lang.annotation.RetentionPolicy;
+ import java.time.Duration;
+ 
+ /**
+@@ -40,17 +43,13 @@ import java.time.Duration;
+ // SuppressLint to be consistent with other cronet code
+ @SuppressLint("UserHandleName")
+ public final class DnsOptions {
+-    @Nullable
+-    private final Boolean mUseHttpStackDnsResolver;
+-    @Nullable
+-    private final Boolean mPersistHostCache;
+-    @Nullable
+-    private final Boolean mEnableStaleDns;
++    private final @DnsOptionEnabled int mUseHttpStackDnsResolver;
++    private final @DnsOptionEnabled int mPersistHostCache;
++    private final @DnsOptionEnabled int mEnableStaleDns;
+     @Nullable
+     private final Duration mPersistHostCachePeriod;
+ 
+-    @Nullable
+-    private final Boolean mPreestablishConnectionsToStaleDnsResults;
++    private final @DnsOptionEnabled int mPreestablishConnectionsToStaleDnsResults;
+     @Nullable
+     private final StaleDnsOptions mStaleDnsOptions;
+ 
+@@ -65,30 +64,48 @@ public final class DnsOptions {
+     }
+ 
+     /**
+-     * See {@link Builder#setUseHttpStackDnsResolver}
++     * Option is unspecified, platform default value will be used.
++     */
++    public static final int DNS_OPTION_UNSPECIFIED = 0;
++
++    /**
++     * Option is enabled.
+      */
+-    // SuppressLint since return value is @Nullable
+-    @Nullable @SuppressLint("AutoBoxing")
+-    public Boolean getUseHttpStackDnsResolver() {
++    public static final int DNS_OPTION_ENABLED = 1;
++
++    /**
++     * Option is disabled.
++     */
++    public static final int DNS_OPTION_DISABLED = 2;
++
++    /** @hide */
++    @Retention(RetentionPolicy.SOURCE)
++    @IntDef(flag = false, prefix = "DNS_OPTION_", value = {
++            DNS_OPTION_UNSPECIFIED,
++            DNS_OPTION_ENABLED,
++            DNS_OPTION_DISABLED,
++    })
++    public @interface DnsOptionEnabled {}
++
++    /**
++     * See {@link Builder#setUseHttpStackDnsResolverEnabled(int)}
++     */
++    public @DnsOptionEnabled int getUseHttpStackDnsResolverEnabled() {
+         return mUseHttpStackDnsResolver;
+     }
+ 
+     /**
+-     * See {@link Builder#setPersistHostCache}
++     * See {@link Builder#setPersistHostCacheEnabled(int)}
+      */
+-    // SuppressLint since return value is @Nullable
+-    @Nullable @SuppressLint("AutoBoxing")
+-    public Boolean getPersistHostCache() {
++    public @DnsOptionEnabled int getPersistHostCacheEnabled() {
+         return mPersistHostCache;
+     }
+ 
+     /**
+-     * See {@link Builder#setEnableStaleDns}
++     * See {@link Builder#setStaleDnsEnabled(int)}
+      */
+-    // SuppressLint since return value is @Nullable
+     @Experimental
+-    @Nullable @SuppressLint("AutoBoxing")
+-    public Boolean getEnableStaleDns() {
++    public @DnsOptionEnabled int getStaleDnsEnabled() {
+         return mEnableStaleDns;
+     }
+ 
+@@ -101,12 +118,10 @@ public final class DnsOptions {
+     }
+ 
+     /**
+-     * See {@link Builder#setPreestablishConnectionsToStaleDnsResults}
++     * See {@link Builder#setPreestablishConnectionsToStaleDnsResultsEnabled(int)}
+      */
+-    // SuppressLint since return value is @Nullable
+     @Experimental
+-    @Nullable @SuppressLint("AutoBoxing")
+-    public Boolean getPreestablishConnectionsToStaleDnsResults() {
++    public @DnsOptionEnabled int getPreestablishConnectionsToStaleDnsResultsEnabled() {
+         return mPreestablishConnectionsToStaleDnsResults;
+     }
+ 
+@@ -151,27 +166,20 @@ public final class DnsOptions {
+     // SuppressLint to be consistent with other cronet code
+     @Experimental @SuppressLint("UserHandleName")
+     public static class StaleDnsOptions {
+-        // SuppressLint since return value is @Nullable
+-        @Nullable @SuppressLint("AutoBoxing")
+-        public Long getFreshLookupTimeoutMillis() {
+-            return mFreshLookupTimeoutMillis;
++        @Nullable
++        public Duration getFreshLookupTimeout() {
++            return mFreshLookupTimeout;
+         }
+ 
+-        // SuppressLint since return value is @Nullable
+-        @Nullable @SuppressLint("AutoBoxing")
+-        public Long getMaxExpiredDelayMillis() {
+-            return mMaxExpiredDelayMillis;
++        @Nullable
++        public Duration getMaxExpiredDelay() {
++            return mMaxExpiredDelay;
+         }
+ 
+-        // SuppressLint since return value is @Nullable
+-        @Nullable @SuppressLint("AutoBoxing")
+-        public Boolean getAllowCrossNetworkUsage() {
++        public @DnsOptionEnabled int getAllowCrossNetworkUsageEnabled() {
+             return mAllowCrossNetworkUsage;
+         }
+-
+-        // SuppressLint since return value is @Nullable
+-        @Nullable @SuppressLint("AutoBoxing")
+-        public Boolean getUseStaleOnNameNotResolved() {
++        public @DnsOptionEnabled int getUseStaleOnNameNotResolvedEnabled() {
+             return mUseStaleOnNameNotResolved;
+         }
+ 
+@@ -184,17 +192,15 @@ public final class DnsOptions {
+         }
+ 
+         @Nullable
+-        private final Long mFreshLookupTimeoutMillis;
+-        @Nullable
+-        private final Long mMaxExpiredDelayMillis;
+-        @Nullable
+-        private final Boolean mAllowCrossNetworkUsage;
++        private final Duration mFreshLookupTimeout;
+         @Nullable
+-        private final Boolean mUseStaleOnNameNotResolved;
++        private final Duration mMaxExpiredDelay;
++        private final @DnsOptionEnabled int mAllowCrossNetworkUsage;
++        private final @DnsOptionEnabled int mUseStaleOnNameNotResolved;
+ 
+         StaleDnsOptions(@NonNull Builder builder) {
+-            this.mFreshLookupTimeoutMillis = builder.mFreshLookupTimeoutMillis;
+-            this.mMaxExpiredDelayMillis = builder.mMaxExpiredDelayMillis;
++            this.mFreshLookupTimeout = builder.mFreshLookupTimeout;
++            this.mMaxExpiredDelay = builder.mMaxExpiredDelay;
+             this.mAllowCrossNetworkUsage = builder.mAllowCrossNetworkUsage;
+             this.mUseStaleOnNameNotResolved = builder.mUseStaleOnNameNotResolved;
+         }
+@@ -203,10 +209,10 @@ public final class DnsOptions {
+          * Builder for {@link StaleDnsOptions}.
+          */
+         public static final class Builder {
+-            private Long mFreshLookupTimeoutMillis;
+-            private Long mMaxExpiredDelayMillis;
+-            private Boolean mAllowCrossNetworkUsage;
+-            private Boolean mUseStaleOnNameNotResolved;
++            private Duration mFreshLookupTimeout;
++            private Duration mMaxExpiredDelay;
++            private @DnsOptionEnabled int mAllowCrossNetworkUsage;
++            private @DnsOptionEnabled int mUseStaleOnNameNotResolved;
+ 
+             public Builder() {}
+ 
+@@ -219,7 +225,7 @@ public final class DnsOptions {
+              */
+             @NonNull
+             public Builder setFreshLookupTimeout(@NonNull Duration freshLookupTimeout) {
+-                this.mFreshLookupTimeoutMillis = freshLookupTimeout.toMillis();
++                this.mFreshLookupTimeout = freshLookupTimeout;
+                 return this;
+             }
+ 
+@@ -231,7 +237,7 @@ public final class DnsOptions {
+              */
+             @NonNull
+             public Builder setMaxExpiredDelay(@NonNull Duration maxExpiredDelay) {
+-                this.mMaxExpiredDelayMillis = maxExpiredDelay.toMillis();
++                this.mMaxExpiredDelay = maxExpiredDelay;
+                 return this;
+             }
+ 
+@@ -240,11 +246,12 @@ public final class DnsOptions {
+              * the HTTP stack clears the DNS cache entirely when switching connections, e.g. between
+              * two Wi-Fi networks or from Wi-Fi to 4G.
+              *
++             * @param enabled one of the DNS_OPTION_* values
+              * @return the builder for chaining
+              */
+             @NonNull
+-            public Builder setAllowCrossNetworkUsage(boolean allowCrossNetworkUsage) {
+-                this.mAllowCrossNetworkUsage = allowCrossNetworkUsage;
++            public Builder setAllowCrossNetworkUsageEnabled(@DnsOptionEnabled int enabled) {
++                this.mAllowCrossNetworkUsage = enabled;
+                 return this;
+             }
+ 
+@@ -257,11 +264,12 @@ public final class DnsOptions {
+              * had such a fresh result quickly; or, prefer having any result (even if stale) to use
+              * over dealing with a DNS failure.
+              *
++             * @param enabled one of the DNS_OPTION_* values
+              * @return the builder for chaining
+              */
+             @NonNull
+-            public Builder setUseStaleOnNameNotResolved(boolean useStaleOnNameNotResolved) {
+-                this.mUseStaleOnNameNotResolved = useStaleOnNameNotResolved;
++            public Builder setUseStaleOnNameNotResolvedEnabled(@DnsOptionEnabled int enabled) {
++                this.mUseStaleOnNameNotResolved = enabled;
+                 return this;
+             }
+ 
+@@ -280,50 +288,50 @@ public final class DnsOptions {
+      * Builder for {@link DnsOptions}.
+      */
+     public static final class Builder {
+-        @Nullable
+-        private Boolean mUseHttpStackDnsResolver;
+-        @Nullable
+-        private Boolean mEnableStaleDns;
++        private @DnsOptionEnabled int mUseHttpStackDnsResolver;
++        private @DnsOptionEnabled int mEnableStaleDns;
+         @Nullable
+         private StaleDnsOptions mStaleDnsOptions;
+-        @Nullable
+-        private Boolean mPersistHostCache;
++        private @DnsOptionEnabled int mPersistHostCache;
+         @Nullable
+         private Duration mPersistHostCachePeriod;
+-        @Nullable
+-        private Boolean mPreestablishConnectionsToStaleDnsResults;
++        private @DnsOptionEnabled int mPreestablishConnectionsToStaleDnsResults;
+ 
+         public Builder() {}
+ 
+         /**
+          * Enables the use of the HTTP-stack-specific DNS resolver.
+          *
+-         * <p>Setting this to {@code true} is necessary for other functionality
++         * <p>Setting this to {@link #DNS_OPTION_ENABLED} is necessary for other functionality
+          * of {@link DnsOptions} to work, unless specified otherwise. See the {@link DnsOptions}
+          * documentation for more details.
++         *
++         * @param enabled one of the DNS_OPTION_* values
++         * @return the builder for chaining
+          */
+         @NonNull
+-        public Builder setUseHttpStackDnsResolver(boolean enable) {
+-            this.mUseHttpStackDnsResolver = enable;
++        public Builder setUseHttpStackDnsResolverEnabled(@DnsOptionEnabled int enabled) {
++            this.mUseHttpStackDnsResolver = enabled;
+             return this;
+         }
+ 
+         /**
+          * Sets whether to use stale DNS results at all.
+          *
++         * @param enabled one of the DNS_OPTION_* values
+          * @return the builder for chaining
+          */
+         @Experimental
+         @NonNull
+-        public Builder setEnableStaleDns(boolean enable) {
+-            this.mEnableStaleDns = enable;
++        public Builder setStaleDnsEnabled(@DnsOptionEnabled int enabled) {
++            this.mEnableStaleDns = enabled;
+             return this;
+         }
+ 
+         /**
+          * Sets detailed configuration for stale DNS.
+          *
+-         * Only relevant if {@link #setEnableStaleDns(boolean)} is set.
++         * Only relevant if {@link #setStaleDnsEnabled(boolean)} is set.
+          *
+          * @return this builder for chaining.
+          */
+@@ -353,17 +361,19 @@ public final class DnsOptions {
+          * expired. Such connections won't be used further until a new DNS lookup confirms the
+          * cached record was up to date.
+          *
+-         * <p>To use cached DNS records straight away, use {@link #setEnableStaleDns} and {@link
++         * <p>To use cached DNS records straight away, use {@link #setStaleDnsEnabled} and {@link
+          * StaleDnsOptions} configuration options.
+          *
+          * <p>This option may not be available for all networking protocols.
+          *
++         * @param enabled one of the DNS_OPTION_* values
+          * @return the builder for chaining
+          */
+         @Experimental
+         @NonNull
+-        public Builder setPreestablishConnectionsToStaleDnsResults(boolean enable) {
+-            this.mPreestablishConnectionsToStaleDnsResults = enable;
++        public Builder setPreestablishConnectionsToStaleDnsResultsEnabled(
++                @DnsOptionEnabled int enabled) {
++            this.mPreestablishConnectionsToStaleDnsResults = enabled;
+             return this;
+         }
+ 
+@@ -373,18 +383,20 @@ public final class DnsOptions {
+          * <p>Only relevant if {@link HttpEngine.Builder#setStoragePath(String)} is
+          * set.
+          *
++         * @param enabled one of the DNS_OPTION_* values
+          * @return the builder for chaining
+          */
+         @NonNull
+-        public Builder setPersistHostCache(boolean persistHostCache) {
+-            this.mPersistHostCache = persistHostCache;
++        public Builder setPersistHostCacheEnabled(@DnsOptionEnabled int enabled) {
++            this.mPersistHostCache = enabled;
+             return this;
+         }
+ 
+         /**
+          * Sets the minimum period between subsequent writes to disk for DNS cache persistence.
+          *
+-         * <p>Only relevant if {@link #setPersistHostCache(boolean)} is set to true.
++         * <p>Only relevant if {@link #setPersistHostCacheEnabled(int)} is set to
++         * {@link #DNS_OPTION_ENABLED}.
+          *
+          * @return the builder for chaining
+          */
+diff --git a/components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java b/components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java
+index 8f4af1d73..c1ab2bcb5 100644
+--- a/components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java
++++ b/components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java
+@@ -67,7 +67,7 @@ public abstract class ExperimentalBidirectionalStream extends BidirectionalStrea
+         public abstract Builder setPriority(int priority);
+ 
+         @Override
+-        public abstract Builder delayRequestHeadersUntilFirstFlush(
++        public abstract Builder setDelayRequestHeadersUntilFirstFlushEnabled(
+                 boolean delayRequestHeadersUntilFirstFlush);
+ 
+         @Override
+diff --git a/components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java b/components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java
+index e288e46ea..2ed7ab3d3 100644
+--- a/components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java
++++ b/components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java
+@@ -3,6 +3,11 @@
+ // found in the LICENSE file.
+ package android.net.http;
+ 
++import static android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_ENABLED;
++import static android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_UNSPECIFIED;
++import static android.net.http.DnsOptions.DNS_OPTION_ENABLED;
++import static android.net.http.DnsOptions.DNS_OPTION_UNSPECIFIED;
++
+ import android.content.Context;
+ import android.net.http.DnsOptions.StaleDnsOptions;
+ 
+@@ -199,9 +204,9 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
+ 
+                 // Note: using the experimental APIs always overwrites what's in the experimental
+                 // JSON, even though "repeated" fields could in theory be additive.
+-                if (!options.getQuicHostAllowlist().isEmpty()) {
++                if (!options.getAllowedQuicHosts().isEmpty()) {
+                     quicOptions.put(
+-                            "host_whitelist", String.join(",", options.getQuicHostAllowlist()));
++                            "host_whitelist", String.join(",", options.getAllowedQuicHosts()));
+                 }
+                 if (!options.getEnabledQuicVersions().isEmpty()) {
+                     quicOptions.put(
+@@ -300,18 +305,21 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
+             mExperimentalOptionsPatches.add((experimentalOptions) -> {
+                 JSONObject asyncDnsOptions = createDefaultIfAbsent(experimentalOptions, "AsyncDNS");
+ 
+-                if (options.getUseHttpStackDnsResolver() != null) {
+-                    asyncDnsOptions.put("enable", options.getUseHttpStackDnsResolver());
++                if (options.getUseHttpStackDnsResolverEnabled() != DNS_OPTION_UNSPECIFIED) {
++                    asyncDnsOptions.put("enable",
++                            options.getUseHttpStackDnsResolverEnabled() == DNS_OPTION_ENABLED);
+                 }
+ 
+                 JSONObject staleDnsOptions = createDefaultIfAbsent(experimentalOptions, "StaleDNS");
+ 
+-                if (options.getEnableStaleDns() != null) {
+-                    staleDnsOptions.put("enable", options.getEnableStaleDns());
++                if (options.getStaleDnsEnabled() != DNS_OPTION_UNSPECIFIED) {
++                    staleDnsOptions.put("enable",
++                            options.getStaleDnsEnabled() == DNS_OPTION_ENABLED);
+                 }
+ 
+-                if (options.getPersistHostCache() != null) {
+-                    staleDnsOptions.put("persist_to_disk", options.getPersistHostCache());
++                if (options.getPersistHostCacheEnabled() != DNS_OPTION_UNSPECIFIED) {
++                    staleDnsOptions.put("persist_to_disk",
++                            options.getPersistHostCacheEnabled() == DNS_OPTION_ENABLED);
+                 }
+ 
+                 if (options.getPersistHostCachePeriod() != null) {
+@@ -322,31 +330,37 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
+                 if (options.getStaleDnsOptions() != null) {
+                     StaleDnsOptions staleDnsOptionsJava = options.getStaleDnsOptions();
+ 
+-                    if (staleDnsOptionsJava.getAllowCrossNetworkUsage() != null) {
++                    if (staleDnsOptionsJava.getAllowCrossNetworkUsageEnabled()
++                            != DNS_OPTION_UNSPECIFIED) {
+                         staleDnsOptions.put("allow_other_network",
+-                                staleDnsOptionsJava.getAllowCrossNetworkUsage());
++                                staleDnsOptionsJava.getAllowCrossNetworkUsageEnabled()
++                                        == DNS_OPTION_ENABLED);
+                     }
+ 
+-                    if (staleDnsOptionsJava.getFreshLookupTimeoutMillis() != null) {
++                    if (staleDnsOptionsJava.getFreshLookupTimeout() != null) {
+                         staleDnsOptions.put(
+-                                "delay_ms", staleDnsOptionsJava.getFreshLookupTimeoutMillis());
++                                "delay_ms", staleDnsOptionsJava.getFreshLookupTimeout().toMillis());
+                     }
+ 
+-                    if (staleDnsOptionsJava.getUseStaleOnNameNotResolved() != null) {
++                    if (staleDnsOptionsJava.getUseStaleOnNameNotResolvedEnabled()
++                            != DNS_OPTION_UNSPECIFIED) {
+                         staleDnsOptions.put("use_stale_on_name_not_resolved",
+-                                staleDnsOptionsJava.getUseStaleOnNameNotResolved());
++                                staleDnsOptionsJava.getUseStaleOnNameNotResolvedEnabled()
++                                        == DNS_OPTION_ENABLED);
+                     }
+ 
+-                    if (staleDnsOptionsJava.getMaxExpiredDelayMillis() != null) {
++                    if (staleDnsOptionsJava.getMaxExpiredDelay() != null) {
+                         staleDnsOptions.put("max_expired_time_ms",
+-                                staleDnsOptionsJava.getMaxExpiredDelayMillis());
++                                staleDnsOptionsJava.getMaxExpiredDelay().toMillis());
+                     }
+                 }
+ 
+                 JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
+-                if (options.getPreestablishConnectionsToStaleDnsResults() != null) {
++                if (options.getPreestablishConnectionsToStaleDnsResultsEnabled()
++                        != DNS_OPTION_UNSPECIFIED) {
+                     quicOptions.put("race_stale_dns_on_connection",
+-                            options.getPreestablishConnectionsToStaleDnsResults());
++                            options.getPreestablishConnectionsToStaleDnsResultsEnabled()
++                                    == DNS_OPTION_ENABLED);
+                 }
+             });
+             return this;
+@@ -366,9 +380,10 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
+             mExperimentalOptionsPatches.add((experimentalOptions) -> {
+                 JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
+ 
+-                if (options.getEnableDefaultNetworkMigration() != null) {
++                if (options.getDefaultNetworkMigrationEnabled() != MIGRATION_OPTION_UNSPECIFIED) {
+                     quicOptions.put("migrate_sessions_on_network_change_v2",
+-                            options.getEnableDefaultNetworkMigration());
++                            options.getDefaultNetworkMigrationEnabled()
++                                    == MIGRATION_OPTION_ENABLED);
+                 }
+                 if (options.getAllowServerMigration() != null) {
+                     quicOptions.put("allow_server_migration", options.getAllowServerMigration());
+@@ -392,13 +407,17 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
+                     quicOptions.put("max_migrations_to_non_default_network_on_write_error",
+                             options.getMaxWriteErrorNonDefaultNetworkMigrationsCount());
+                 }
+-                if (options.getEnablePathDegradationMigration() != null) {
+-                    boolean pathDegradationValue = options.getEnablePathDegradationMigration();
++                if (options.getPathDegradationMigrationEnabled() != MIGRATION_OPTION_UNSPECIFIED) {
++                    boolean pathDegradationValue = (options.getPathDegradationMigrationEnabled()
++                            == MIGRATION_OPTION_ENABLED);
+ 
+                     boolean skipPortMigrationFlag = false;
+ 
+-                    if (options.getAllowNonDefaultNetworkUsage() != null) {
+-                        boolean nonDefaultNetworkValue = options.getAllowNonDefaultNetworkUsage();
++                    if (options.getAllowNonDefaultNetworkUsageEnabled()
++                            != MIGRATION_OPTION_UNSPECIFIED) {
++                        boolean nonDefaultNetworkValue =
++                                (options.getAllowNonDefaultNetworkUsageEnabled()
++                                        == MIGRATION_OPTION_ENABLED);
+                         if (!pathDegradationValue && nonDefaultNetworkValue) {
+                             // Misconfiguration which doesn't translate easily to the JSON flags
+                             throw new IllegalArgumentException(
+diff --git a/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java b/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
+index b4828ccc7..86c800002 100644
+--- a/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
++++ b/components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java
+@@ -104,7 +104,7 @@ public abstract class ExperimentalUrlRequest extends UrlRequest {
+         public abstract Builder addHeader(String header, String value);
+ 
+         @Override
+-        public abstract Builder setDisableCache(boolean disableCache);
++        public abstract Builder setCacheDisabled(boolean disableCache);
+ 
+         @Override
+         public abstract Builder setPriority(int priority);
+@@ -114,7 +114,7 @@ public abstract class ExperimentalUrlRequest extends UrlRequest {
+                 UploadDataProvider uploadDataProvider, Executor executor);
+ 
+         @Override
+-        public abstract Builder setAllowDirectExecutor(boolean allowDirectExecutor);
++        public abstract Builder setDirectExecutorAllowed(boolean allowDirectExecutor);
+ 
+         @Override
+         public abstract ExperimentalUrlRequest build();
+diff --git a/components/cronet/android/api/src/android/net/http/HttpEngine.java b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+index aa34319a3..24b5f760e 100644
+--- a/components/cronet/android/api/src/android/net/http/HttpEngine.java
++++ b/components/cronet/android/api/src/android/net/http/HttpEngine.java
+@@ -95,7 +95,9 @@ public abstract class HttpEngine {
+          *
+          * @return User-Agent string.
+          */
+-        @NonNull
++        // SuppressLint: API to get default user agent that could include system build version,
++        // model, Id, and Cronet version.
++        @NonNull @SuppressLint("GetterOnBuilder")
+         public String getDefaultUserAgent() {
+             return mBuilderDelegate.getDefaultUserAgent();
+         }
+@@ -109,7 +111,8 @@ public abstract class HttpEngine {
+          * @param userAgent the User-Agent string to use for all requests.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder setUserAgent(@NonNull String userAgent) {
+             mBuilderDelegate.setUserAgent(userAgent);
+             return this;
+@@ -126,7 +129,8 @@ public abstract class HttpEngine {
+          * @param value path to existing directory.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder setStoragePath(@NonNull String value) {
+             mBuilderDelegate.setStoragePath(value);
+             return this;
+@@ -139,7 +143,8 @@ public abstract class HttpEngine {
+          * @param value {@code true} to enable QUIC, {@code false} to disable.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder setEnableQuic(boolean value) {
+             mBuilderDelegate.enableQuic(value);
+             return this;
+@@ -151,7 +156,8 @@ public abstract class HttpEngine {
+          * @param value {@code true} to enable HTTP/2, {@code false} to disable.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder setEnableHttp2(boolean value) {
+             mBuilderDelegate.enableHttp2(value);
+             return this;
+@@ -164,7 +170,8 @@ public abstract class HttpEngine {
+          * @param value {@code true} to enable Brotli, {@code false} to disable.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder setEnableBrotli(boolean value) {
+             mBuilderDelegate.enableBrotli(value);
+             return this;
+@@ -205,7 +212,8 @@ public abstract class HttpEngine {
+          * exceeded at times).
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder setEnableHttpCache(int cacheMode, long maxSize) {
+             mBuilderDelegate.enableHttpCache(cacheMode, maxSize);
+             return this;
+@@ -222,7 +230,8 @@ public abstract class HttpEngine {
+          * @param alternatePort alternate port to use for QUIC.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder addQuicHint(@NonNull String host, int port, int alternatePort) {
+             mBuilderDelegate.addQuicHint(host, port, alternatePort);
+             return this;
+@@ -269,7 +278,8 @@ public abstract class HttpEngine {
+          *                                  contains a byte array that does not represent a valid
+          *                                  SHA-256 hash.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder addPublicKeyPins(@NonNull String hostName, @NonNull Set<byte[]> pinsSha256,
+                 boolean includeSubdomains, @NonNull Instant expirationInstant) {
+             mBuilderDelegate.addPublicKeyPins(
+@@ -290,7 +300,8 @@ public abstract class HttpEngine {
+          * @param value {@code true} to enable the bypass, {@code false} to disable.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public Builder setEnablePublicKeyPinningBypassForLocalTrustAnchors(boolean value) {
+             mBuilderDelegate.enablePublicKeyPinningBypassForLocalTrustAnchors(value);
+             return this;
+@@ -305,7 +316,8 @@ public abstract class HttpEngine {
+          *
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         @QuicOptions.Experimental
+         public Builder setQuicOptions(@NonNull QuicOptions quicOptions) {
+             mBuilderDelegate.setQuicOptions(quicOptions);
+@@ -331,7 +343,8 @@ public abstract class HttpEngine {
+          *
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         @DnsOptions.Experimental
+         public Builder setDnsOptions(@NonNull DnsOptions dnsOptions) {
+             mBuilderDelegate.setDnsOptions(dnsOptions);
+@@ -358,7 +371,8 @@ public abstract class HttpEngine {
+          *
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         @ConnectionMigrationOptions.Experimental
+         public Builder setConnectionMigrationOptions(
+                 @NonNull ConnectionMigrationOptions connectionMigrationOptions) {
+diff --git a/components/cronet/android/api/src/android/net/http/QuicOptions.java b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+index c8c696077..c0895cfb0 100644
+--- a/components/cronet/android/api/src/android/net/http/QuicOptions.java
++++ b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+@@ -93,7 +93,7 @@ public class QuicOptions {
+      * See {@link Builder#addAllowedQuicHost}
+      */
+     @NonNull
+-    public Set<String> getQuicHostAllowlist() {
++    public Set<String> getAllowedQuicHosts() {
+         return mQuicHostAllowlist;
+     }
+ 
+diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+index 04d53f304..87a0f6d50 100644
+--- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
++++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+@@ -14,6 +14,8 @@ import androidx.annotation.Nullable;
+ import java.lang.annotation.Retention;
+ import java.lang.annotation.RetentionPolicy;
+ import java.nio.ByteBuffer;
++import java.util.List;
++import java.util.Map;
+ import java.util.concurrent.Executor;
+ 
+ /**
+@@ -27,6 +29,28 @@ public abstract class UrlRequest {
+ 
+     UrlRequest() {}
+ 
++    /**
++     * Lowest request priority. Passed to {@link Builder#setPriority}.
++     */
++    public static final int REQUEST_PRIORITY_IDLE = 0;
++    /**
++     * Very low request priority. Passed to {@link Builder#setPriority}.
++     */
++    public static final int REQUEST_PRIORITY_LOWEST = 1;
++    /**
++     * Low request priority. Passed to {@link Builder#setPriority}.
++     */
++    public static final int REQUEST_PRIORITY_LOW = 2;
++    /**
++     * Medium request priority. Passed to {@link Builder#setPriority}. This is the
++     * default priority given to the request.
++     */
++    public static final int REQUEST_PRIORITY_MEDIUM = 3;
++    /**
++     * Highest request priority. Passed to {@link Builder#setPriority}.
++     */
++    public static final int REQUEST_PRIORITY_HIGHEST = 4;
++
+     /**
+      * Builder for {@link UrlRequest}s. Allows configuring requests before constructing them
+      * with {@link Builder#build}. The builder can be created by calling
+@@ -68,29 +92,7 @@ public abstract class UrlRequest {
+          * @return the builder to facilitate chaining.
+          */
+         @NonNull
+-        public abstract Builder setDisableCache(boolean disableCache);
+-
+-        /**
+-         * Lowest request priority. Passed to {@link #setPriority}.
+-         */
+-        public static final int REQUEST_PRIORITY_IDLE = 0;
+-        /**
+-         * Very low request priority. Passed to {@link #setPriority}.
+-         */
+-        public static final int REQUEST_PRIORITY_LOWEST = 1;
+-        /**
+-         * Low request priority. Passed to {@link #setPriority}.
+-         */
+-        public static final int REQUEST_PRIORITY_LOW = 2;
+-        /**
+-         * Medium request priority. Passed to {@link #setPriority}. This is the
+-         * default priority given to the request.
+-         */
+-        public static final int REQUEST_PRIORITY_MEDIUM = 3;
+-        /**
+-         * Highest request priority. Passed to {@link #setPriority}.
+-         */
+-        public static final int REQUEST_PRIORITY_HIGHEST = 4;
++        public abstract Builder setCacheDisabled(boolean disableCache);
+ 
+         /**
+          * Sets priority of the request which should be one of the
+@@ -116,7 +118,9 @@ public abstract class UrlRequest {
+          *     {@code Executor} the request itself is using.
+          * @return the builder to facilitate chaining.
+          */
+-        @NonNull
++        // SuppressLint: UploadDataProvider is wrapped by other classes after set.
++        // Also, UploadDataProvider is a class to provide an upload body and getter is not useful
++        @NonNull @SuppressLint("MissingGetterMatchingBuilder")
+         public abstract Builder setUploadDataProvider(
+                 @NonNull UploadDataProvider uploadDataProvider, @NonNull Executor executor);
+ 
+@@ -135,7 +139,7 @@ public abstract class UrlRequest {
+          * @return the builder to facilitate chaining.
+          */
+         @NonNull
+-        public abstract Builder setAllowDirectExecutor(boolean allowDirectExecutor);
++        public abstract Builder setDirectExecutorAllowed(boolean allowDirectExecutor);
+ 
+         /**
+          * Binds the request to the specified network. The HTTP stack will send this request
+@@ -462,6 +466,53 @@ public abstract class UrlRequest {
+         void onStatus(@UrlRequestStatus int status);
+     }
+ 
++    /**
++     * See {@link UrlRequest.Builder#setHttpMethod(String)}.
++     */
++    @Nullable
++    public abstract String getHttpMethod();
++
++    /**
++     * See {@link UrlRequest.Builder#addHeader(String, String)}
++     */
++    @NonNull
++    public abstract List<Map.Entry<String, String>> getHeaders();
++
++    /**
++     * See {@link Builder#setCacheDisabled(boolean)}
++     */
++    public abstract boolean isCacheDisabled();
++
++    /**
++     * See {@link UrlRequest.Builder#setDirectExecutorAllowed(boolean)}
++     */
++    public abstract boolean isDirectExecutorAllowed();
++
++    /**
++     * See {@link Builder#setPriority(int)}
++     */
++    public abstract int getPriority();
++
++    /**
++     * See {@link Builder#setTrafficStatsTag(int)}
++     */
++    public abstract boolean hasTrafficStatsTag();
++
++    /**
++     * See {@link Builder#setTrafficStatsTag(int)}
++     */
++    public abstract int getTrafficStatsTag();
++
++    /**
++     * See {@link Builder#setTrafficStatsUid(int)}
++     */
++    public abstract boolean hasTrafficStatsUid();
++
++    /**
++     * See {@link Builder#setTrafficStatsUid(int)}
++     */
++    public abstract int getTrafficStatsUid();
++
+     /**
+      * Starts the request, all callbacks go to {@link Callback}. May only be called
+      * once. May not be called if {@link #cancel} has been called.
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/BidirectionalStreamBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/BidirectionalStreamBuilderImpl.java
+index 14dbb6989..15765c64c 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/BidirectionalStreamBuilderImpl.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/BidirectionalStreamBuilderImpl.java
+@@ -3,6 +3,8 @@
+ // found in the LICENSE file.
+ package org.chromium.net.impl;
+ 
++import static android.net.http.BidirectionalStream.STREAM_PRIORITY_MEDIUM;
++
+ import android.annotation.SuppressLint;
+ import android.os.Build;
+ 
+@@ -115,7 +117,7 @@ public class BidirectionalStreamBuilderImpl extends ExperimentalBidirectionalStr
+     }
+ 
+     @Override
+-    public BidirectionalStreamBuilderImpl delayRequestHeadersUntilFirstFlush(
++    public BidirectionalStreamBuilderImpl setDelayRequestHeadersUntilFirstFlushEnabled(
+             boolean delayRequestHeadersUntilFirstFlush) {
+         mDelayRequestHeadersUntilFirstFlush = delayRequestHeadersUntilFirstFlush;
+         return this;
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetBidirectionalStream.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetBidirectionalStream.java
+index a9e6b8e62..65edda28c 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetBidirectionalStream.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetBidirectionalStream.java
+@@ -93,6 +93,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
+     private final int mInitialPriority;
+     private final String mInitialMethod;
+     private final String mRequestHeaders[];
++    private final List<Map.Entry<String, String>> mRequestHeaderEntries;
+     private final boolean mDelayRequestHeadersUntilFirstFlush;
+     private final Collection<Object> mRequestAnnotations;
+     private final boolean mTrafficStatsTagSet;
+@@ -250,6 +251,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
+         mExecutor = executor;
+         mInitialMethod = httpMethod;
+         mRequestHeaders = stringsFromHeaderList(requestHeaders);
++        mRequestHeaderEntries = requestHeaders;
+         mDelayRequestHeadersUntilFirstFlush = delayRequestHeadersUntilNextFlush;
+         mPendingData = new LinkedList<>();
+         mFlushData = new LinkedList<>();
+@@ -261,6 +263,65 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
+         mNetworkHandle = networkHandle;
+     }
+ 
++    @Override
++    public String getHttpMethod() {
++        return mInitialMethod;
++    }
++
++    @Override
++    public boolean hasTrafficStatsTag() {
++        return mTrafficStatsTagSet;
++    }
++
++    @Override
++    public int getTrafficStatsTag() {
++        if (!hasTrafficStatsTag()) {
++            throw new IllegalStateException("TrafficStatsTag is not set");
++        }
++        return mTrafficStatsTag;
++    }
++
++    @Override
++    public boolean hasTrafficStatsUid() {
++        return mTrafficStatsUidSet;
++    }
++
++    @Override
++    public int getTrafficStatsUid() {
++        if (!hasTrafficStatsUid()) {
++            throw new IllegalStateException("TrafficStatsUid is not set");
++        }
++        return mTrafficStatsUid;
++    }
++
++    @Override
++    public List<Map.Entry<String, String>> getHeaders() {
++        return mRequestHeaderEntries;
++    }
++
++    @Override
++    public int getPriority() {
++        switch (mInitialPriority) {
++            case RequestPriority.IDLE:
++                return STREAM_PRIORITY_IDLE;
++            case RequestPriority.LOWEST:
++                return STREAM_PRIORITY_LOWEST;
++            case RequestPriority.LOW:
++                return STREAM_PRIORITY_LOW;
++            case RequestPriority.MEDIUM:
++                return STREAM_PRIORITY_MEDIUM;
++            case RequestPriority.HIGHEST:
++                return STREAM_PRIORITY_HIGHEST;
++            default:
++                throw new IllegalStateException("Invalid stream priority: " + mInitialPriority);
++        }
++    }
++
++    @Override
++    public boolean isDelayRequestHeadersUntilFirstFlushEnabled() {
++        return mDelayRequestHeadersUntilFirstFlush;
++    }
++
+     @Override
+     public void start() {
+         synchronized (mNativeStreamLock) {
+@@ -720,15 +781,15 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
+ 
+     private static int convertStreamPriority(@CronetEngineBase.StreamPriority int priority) {
+         switch (priority) {
+-            case Builder.STREAM_PRIORITY_IDLE:
++            case STREAM_PRIORITY_IDLE:
+                 return RequestPriority.IDLE;
+-            case Builder.STREAM_PRIORITY_LOWEST:
++            case STREAM_PRIORITY_LOWEST:
+                 return RequestPriority.LOWEST;
+-            case Builder.STREAM_PRIORITY_LOW:
++            case STREAM_PRIORITY_LOW:
+                 return RequestPriority.LOW;
+-            case Builder.STREAM_PRIORITY_MEDIUM:
++            case STREAM_PRIORITY_MEDIUM:
+                 return RequestPriority.MEDIUM;
+-            case Builder.STREAM_PRIORITY_HIGHEST:
++            case STREAM_PRIORITY_HIGHEST:
+                 return RequestPriority.HIGHEST;
+             default:
+                 throw new IllegalArgumentException("Invalid stream priority.");
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
+index 2a636ee09..5b5311f3e 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetEngineBase.java
+@@ -113,18 +113,18 @@ public abstract class CronetEngineBase extends ExperimentalHttpEngine {
+         return new UrlRequestBuilderImpl(url, callback, executor, this);
+     }
+ 
+-    @IntDef({UrlRequest.Builder.REQUEST_PRIORITY_IDLE, UrlRequest.Builder.REQUEST_PRIORITY_LOWEST,
+-            UrlRequest.Builder.REQUEST_PRIORITY_LOW, UrlRequest.Builder.REQUEST_PRIORITY_MEDIUM,
+-            UrlRequest.Builder.REQUEST_PRIORITY_HIGHEST})
++    @IntDef({UrlRequest.REQUEST_PRIORITY_IDLE, UrlRequest.REQUEST_PRIORITY_LOWEST,
++            UrlRequest.REQUEST_PRIORITY_LOW, UrlRequest.REQUEST_PRIORITY_MEDIUM,
++            UrlRequest.REQUEST_PRIORITY_HIGHEST})
+     @Retention(RetentionPolicy.SOURCE)
+     public @interface RequestPriority {}
+ 
+     @IntDef({
+-            BidirectionalStream.Builder.STREAM_PRIORITY_IDLE,
+-            BidirectionalStream.Builder.STREAM_PRIORITY_LOWEST,
+-            BidirectionalStream.Builder.STREAM_PRIORITY_LOW,
+-            BidirectionalStream.Builder.STREAM_PRIORITY_MEDIUM,
+-            BidirectionalStream.Builder.STREAM_PRIORITY_HIGHEST,
++            BidirectionalStream.STREAM_PRIORITY_IDLE,
++            BidirectionalStream.STREAM_PRIORITY_LOWEST,
++            BidirectionalStream.STREAM_PRIORITY_LOW,
++            BidirectionalStream.STREAM_PRIORITY_MEDIUM,
++            BidirectionalStream.STREAM_PRIORITY_HIGHEST,
+     })
+     @Retention(RetentionPolicy.SOURCE)
+     public @interface StreamPriority {}
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java
+index a361f7e60..7827b18f4 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java
+@@ -198,6 +198,68 @@ public final class CronetUrlRequest extends UrlRequestBase {
+         }
+         mInitialMethod = method;
+     }
++    @Override
++    public String getHttpMethod() {
++        return mInitialMethod;
++    }
++
++    @Override
++    public boolean isDirectExecutorAllowed() {
++        return mAllowDirectExecutor;
++    }
++
++    @Override
++    public boolean isCacheDisabled() {
++        return mDisableCache;
++    }
++
++    @Override
++    public boolean hasTrafficStatsTag() {
++        return mTrafficStatsTagSet;
++    }
++
++    @Override
++    public int getTrafficStatsTag() {
++        if (!hasTrafficStatsTag()) {
++            throw new IllegalStateException("TrafficStatsTag is not set");
++        }
++        return mTrafficStatsTag;
++    }
++
++    @Override
++    public boolean hasTrafficStatsUid() {
++        return mTrafficStatsUidSet;
++    }
++
++    @Override
++    public int getTrafficStatsUid() {
++        if (!hasTrafficStatsUid()) {
++            throw new IllegalStateException("TrafficStatsUid is not set");
++        }
++        return mTrafficStatsUid;
++    }
++    @Override
++    public int getPriority() {
++        switch (mPriority) {
++            case RequestPriority.IDLE:
++                return REQUEST_PRIORITY_IDLE;
++            case RequestPriority.LOWEST:
++                return REQUEST_PRIORITY_LOWEST;
++            case RequestPriority.LOW:
++                return REQUEST_PRIORITY_LOW;
++            case RequestPriority.MEDIUM:
++                return REQUEST_PRIORITY_MEDIUM;
++            case RequestPriority.HIGHEST:
++                return REQUEST_PRIORITY_HIGHEST;
++            default:
++                throw new IllegalStateException("Invalid request priority: " + mPriority);
++        }
++    }
++
++    @Override
++    public List<Map.Entry<String, String>> getHeaders() {
++        return mRequestHeaders;
++    }
+ 
+     @Override
+     public void addHeader(String header, String value) {
+@@ -421,15 +483,15 @@ public final class CronetUrlRequest extends UrlRequestBase {
+ 
+     private static int convertRequestPriority(int priority) {
+         switch (priority) {
+-            case Builder.REQUEST_PRIORITY_IDLE:
++            case REQUEST_PRIORITY_IDLE:
+                 return RequestPriority.IDLE;
+-            case Builder.REQUEST_PRIORITY_LOWEST:
++            case REQUEST_PRIORITY_LOWEST:
+                 return RequestPriority.LOWEST;
+-            case Builder.REQUEST_PRIORITY_LOW:
++            case REQUEST_PRIORITY_LOW:
+                 return RequestPriority.LOW;
+-            case Builder.REQUEST_PRIORITY_MEDIUM:
++            case REQUEST_PRIORITY_MEDIUM:
+                 return RequestPriority.MEDIUM;
+-            case Builder.REQUEST_PRIORITY_HIGHEST:
++            case REQUEST_PRIORITY_HIGHEST:
+                 return RequestPriority.HIGHEST;
+             default:
+                 return RequestPriority.MEDIUM;
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
+index d9f0bb025..0b94de7cf 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/UrlRequestBuilderImpl.java
+@@ -4,6 +4,7 @@
+ package org.chromium.net.impl;
+ 
+ import static android.net.http.ExperimentalHttpEngine.UNBIND_NETWORK_HANDLE;
++import static android.net.http.UrlRequest.REQUEST_PRIORITY_MEDIUM;
+ 
+ import android.annotation.SuppressLint;
+ import android.net.Network;
+@@ -131,7 +132,7 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
+     }
+ 
+     @Override
+-    public UrlRequestBuilderImpl setDisableCache(boolean disableCache) {
++    public UrlRequestBuilderImpl setCacheDisabled(boolean disableCache) {
+         mDisableCache = disableCache;
+         return this;
+     }
+@@ -172,7 +173,7 @@ public class UrlRequestBuilderImpl extends ExperimentalUrlRequest.Builder {
+     }
+ 
+     @Override
+-    public UrlRequestBuilderImpl setAllowDirectExecutor(boolean allowDirectExecutor) {
++    public UrlRequestBuilderImpl setDirectExecutorAllowed(boolean allowDirectExecutor) {
+         mAllowDirectExecutor = allowDirectExecutor;
+         return this;
+     }
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
+index 85bcce7f2..0b16184ff 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLConnection.java
+@@ -286,7 +286,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
+         for (Pair<String, String> requestHeader : mRequestHeaders) {
+             requestBuilder.addHeader(requestHeader.first, requestHeader.second);
+         }
+-        requestBuilder.setDisableCache(!getUseCaches());
++        requestBuilder.setCacheDisabled(!getUseCaches());
+         // Set HTTP method.
+         requestBuilder.setHttpMethod(method);
+         if (checkTrafficStatsTag()) {
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+

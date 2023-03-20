@@ -1,0 +1,70 @@
+From a4fca76358051de71292e8769fb03133b7607a46 Mon Sep 17 00:00:00 2001
+From: Motomu Utsumi <motomuman@google.com>
+Date: Fri, 17 Feb 2023 12:30:04 +0900
+Subject: [PATCH 1/1] cronet: Fix ListenerInterface API linter error
+
+Update UrlRequest.StatusListener to interface
+
+Bug: 265674359
+Test: TH
+Change-Id: Ic7e50047bf72bb281aff2649440d34179c73c0f3
+---
+ .../cronet/android/api/src/android/net/http/UrlRequest.java | 6 +++---
+ .../src/org/chromium/net/impl/VersionSafeCallbacks.java     | 2 +-
+ .../test/javatests/src/org/chromium/net/GetStatusTest.java  | 2 +-
+ 3 files changed, 5 insertions(+), 5 deletions(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+index ab9e86d4e..81351bab6 100644
+--- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
++++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+@@ -441,17 +441,17 @@ public abstract class UrlRequest {
+     }
+ 
+     /**
+-     * Listener class used with {@link #getStatus} to receive the status of a
++     * Listener interface used with {@link #getStatus} to receive the status of a
+      * {@link UrlRequest}.
+      */
+-    public abstract static class StatusListener {
++    public interface StatusListener {
+         /**
+          * Invoked on {@link UrlRequest}'s {@link Executor}'s thread when request
+          * status is obtained.
+          * @param status integer representing the status of the request. It is
+          *         one of the values defined in {@link Status}.
+          */
+-        public abstract void onStatus(@UrlRequestStatus int status);
++        void onStatus(@UrlRequestStatus int status);
+     }
+ 
+     /**
+diff --git a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
+index 2d9169de3..2277d3f48 100644
+--- a/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
++++ b/components/cronet/android/java/src/org/chromium/net/impl/VersionSafeCallbacks.java
+@@ -76,7 +76,7 @@ public class VersionSafeCallbacks {
+     /**
+      * Wrap a {@link UrlRequest.StatusListener} in a version safe manner.
+      */
+-    public static final class UrlRequestStatusListener extends UrlRequest.StatusListener {
++    public static final class UrlRequestStatusListener implements UrlRequest.StatusListener {
+         private final UrlRequest.StatusListener mWrappedListener;
+ 
+         public UrlRequestStatusListener(UrlRequest.StatusListener listener) {
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
+index 9a1c2e7d3..4e3a0a432 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/GetStatusTest.java
+@@ -48,7 +48,7 @@ public class GetStatusTest {
+ 
+     private CronetTestFramework mTestFramework;
+ 
+-    private static class TestStatusListener extends StatusListener {
++    private static class TestStatusListener implements StatusListener {
+         boolean mOnStatusCalled;
+         int mStatus = Integer.MAX_VALUE;
+         private final ConditionVariable mBlock = new ConditionVariable();
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+

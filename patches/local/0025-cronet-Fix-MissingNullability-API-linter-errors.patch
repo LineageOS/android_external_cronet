@@ -1,0 +1,450 @@
+From 9c56718907281476c5e4b4ce4553363db68f2f88 Mon Sep 17 00:00:00 2001
+From: Motomu Utsumi <motomuman@google.com>
+Date: Wed, 15 Feb 2023 13:16:52 +0900
+Subject: [PATCH 1/1] cronet: Fix MissingNullability API linter errors
+
+Most fix are from aosp/2427180 and removed dupped fix with aosp/2402861
+
+Bug: 265674359
+Test: TH
+Change-Id: I76eafad4e6f0c86ab054188f76a77bafde616573
+---
+ .../src/android/net/http/HttpException.java   |  4 +-
+ .../android/net/http/NetworkException.java    |  4 +-
+ .../src/android/net/http/QuicException.java   |  4 +-
+ .../api/src/android/net/http/QuicOptions.java | 10 ++++-
+ .../android/net/http/UploadDataProvider.java  |  8 ++--
+ .../src/android/net/http/UploadDataSink.java  |  6 ++-
+ .../api/src/android/net/http/UrlRequest.java  | 40 ++++++++++++-------
+ .../src/android/net/http/UrlResponseInfo.java | 15 ++++++-
+ .../org/chromium/net/UrlResponseInfoTest.java |  1 -
+ 9 files changed, 65 insertions(+), 27 deletions(-)
+
+diff --git a/components/cronet/android/api/src/android/net/http/HttpException.java b/components/cronet/android/api/src/android/net/http/HttpException.java
+index 4f3d44976..628a1673d 100644
+--- a/components/cronet/android/api/src/android/net/http/HttpException.java
++++ b/components/cronet/android/api/src/android/net/http/HttpException.java
+@@ -4,6 +4,8 @@
+ 
+ package android.net.http;
+ 
++import androidx.annotation.Nullable;
++
+ import java.io.IOException;
+ 
+ /**
+@@ -18,7 +20,7 @@ public class HttpException extends IOException {
+      *         java.io.IOException#getCause getCause()} method). A null value is permitted, and
+      *         indicates that the cause is nonexistent or unknown.
+      */
+-    public HttpException(String message, Throwable cause) {
++    public HttpException(@Nullable String message, @Nullable Throwable cause) {
+         super(message, cause);
+     }
+ }
+diff --git a/components/cronet/android/api/src/android/net/http/NetworkException.java b/components/cronet/android/api/src/android/net/http/NetworkException.java
+index 2c5a10336..d8cf0b905 100644
+--- a/components/cronet/android/api/src/android/net/http/NetworkException.java
++++ b/components/cronet/android/api/src/android/net/http/NetworkException.java
+@@ -4,6 +4,8 @@
+ 
+ package android.net.http;
+ 
++import androidx.annotation.Nullable;
++
+ /**
+  * Exception passed to {@link UrlRequest.Callback#onFailed UrlRequest.Callback.onFailed()} when
+  * the HTTP stack fails to process a network request. In this case {@link #getErrorCode} can be used
+@@ -70,7 +72,7 @@ public abstract class NetworkException extends HttpException {
+      *         java.io.IOException#getCause getCause()} method). A null value is permitted, and
+      *         indicates that the cause is nonexistent or unknown.
+      */
+-    public NetworkException(String message, Throwable cause) {
++    public NetworkException(@Nullable String message, @Nullable Throwable cause) {
+         super(message, cause);
+     }
+ 
+diff --git a/components/cronet/android/api/src/android/net/http/QuicException.java b/components/cronet/android/api/src/android/net/http/QuicException.java
+index ff272d740..8dd0f6037 100644
+--- a/components/cronet/android/api/src/android/net/http/QuicException.java
++++ b/components/cronet/android/api/src/android/net/http/QuicException.java
+@@ -4,6 +4,8 @@
+ 
+ package android.net.http;
+ 
++import androidx.annotation.Nullable;
++
+ /**
+  * Subclass of {@link NetworkException} which contains a detailed
+  * <a href="https://www.chromium.org/quic">QUIC</a> error code from <a
+@@ -21,7 +23,7 @@ public abstract class QuicException extends NetworkException {
+      *         java.io.IOException#getCause getCause()} method). A null value is permitted, and
+      *         indicates that the cause is nonexistent or unknown.
+      */
+-    protected QuicException(String message, Throwable cause) {
++    protected QuicException(@Nullable String message, @Nullable Throwable cause) {
+         super(message, cause);
+     }
+ 
+diff --git a/components/cronet/android/api/src/android/net/http/QuicOptions.java b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+index 2c40a068c..828ea0b43 100644
+--- a/components/cronet/android/api/src/android/net/http/QuicOptions.java
++++ b/components/cronet/android/api/src/android/net/http/QuicOptions.java
+@@ -4,6 +4,7 @@
+ 
+ package android.net.http;
+ 
++import androidx.annotation.NonNull;
+ import androidx.annotation.Nullable;
+ 
+ import java.time.Duration;
+@@ -87,6 +88,7 @@ public class QuicOptions {
+     /**
+      * See {@link Builder#addAllowedQuicHost}
+      */
++    @NonNull
+     public Set<String> getQuicHostAllowlist() {
+         return mQuicHostAllowlist;
+     }
+@@ -323,7 +325,8 @@ public class QuicOptions {
+          *
+          * @return the builder for chaining
+          */
+-        public Builder addAllowedQuicHost(String quicHost) {
++        @NonNull
++        public Builder addAllowedQuicHost(@NonNull String quicHost) {
+             mQuicHostAllowlist.add(quicHost);
+             return this;
+         }
+@@ -394,6 +397,7 @@ public class QuicOptions {
+          *
+          * @return the builder for chaining
+          */
++        @NonNull
+         public Builder setInMemoryServerConfigsCacheSize(int inMemoryServerConfigsCacheSize) {
+             this.mInMemoryServerConfigsCacheSize = inMemoryServerConfigsCacheSize;
+             return this;
+@@ -408,7 +412,8 @@ public class QuicOptions {
+          *
+          * @return the builder for chaining
+          */
+-        public Builder setHandshakeUserAgent(String handshakeUserAgent) {
++        @NonNull
++        public Builder setHandshakeUserAgent(@NonNull String handshakeUserAgent) {
+             this.mHandshakeUserAgent = handshakeUserAgent;
+             return this;
+         }
+@@ -622,6 +627,7 @@ public class QuicOptions {
+          * Creates and returns the final {@link QuicOptions} instance, based on the values
+          * in this builder.
+          */
++        @NonNull
+         public QuicOptions build() {
+             return new QuicOptions(this);
+         }
+diff --git a/components/cronet/android/api/src/android/net/http/UploadDataProvider.java b/components/cronet/android/api/src/android/net/http/UploadDataProvider.java
+index 4c72416d4..1a90f2cf0 100644
+--- a/components/cronet/android/api/src/android/net/http/UploadDataProvider.java
++++ b/components/cronet/android/api/src/android/net/http/UploadDataProvider.java
+@@ -4,6 +4,8 @@
+ 
+ package android.net.http;
+ 
++import androidx.annotation.NonNull;
++
+ import java.io.Closeable;
+ import java.io.IOException;
+ import java.nio.ByteBuffer;
+@@ -49,8 +51,8 @@ public abstract class UploadDataProvider implements Closeable {
+      *         thrown exception set as the cause of the
+      *         {@link CallbackException}.
+      */
+-    public abstract void read(UploadDataSink uploadDataSink, ByteBuffer byteBuffer)
+-            throws IOException;
++    public abstract void read(@NonNull UploadDataSink uploadDataSink,
++            @NonNull ByteBuffer byteBuffer) throws IOException;
+ 
+     /**
+      * Rewinds upload data. Each call must be followed be a single
+@@ -75,7 +77,7 @@ public abstract class UploadDataProvider implements Closeable {
+      *         thrown exception set as the cause of the
+      *         {@link CallbackException}.
+      */
+-    public abstract void rewind(UploadDataSink uploadDataSink) throws IOException;
++    public abstract void rewind(@NonNull UploadDataSink uploadDataSink) throws IOException;
+ 
+     /**
+      * Called when this UploadDataProvider is no longer needed by a request, so that resources
+diff --git a/components/cronet/android/api/src/android/net/http/UploadDataSink.java b/components/cronet/android/api/src/android/net/http/UploadDataSink.java
+index bb5c83b09..7782be0a6 100644
+--- a/components/cronet/android/api/src/android/net/http/UploadDataSink.java
++++ b/components/cronet/android/api/src/android/net/http/UploadDataSink.java
+@@ -4,6 +4,8 @@
+ 
+ package android.net.http;
+ 
++import androidx.annotation.NonNull;
++
+ /**
+  * Defines callbacks methods for {@link UploadDataProvider}. All methods
+  * may be called synchronously or asynchronously, on any thread.
+@@ -20,7 +22,7 @@ public abstract class UploadDataSink {
+      * Called by {@link UploadDataProvider} when a read fails.
+      * @param exception Exception passed on to the embedder.
+      */
+-    public abstract void onReadError(Exception exception);
++    public abstract void onReadError(@NonNull Exception exception);
+ 
+     /**
+      * Called by {@link UploadDataProvider} when a rewind succeeds.
+@@ -32,5 +34,5 @@ public abstract class UploadDataSink {
+      * uploads is not supported.
+      * @param exception Exception passed on to the embedder.
+      */
+-    public abstract void onRewindError(Exception exception);
++    public abstract void onRewindError(@NonNull Exception exception);
+ }
+diff --git a/components/cronet/android/api/src/android/net/http/UrlRequest.java b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+index 0350de5f7..9ff63c242 100644
+--- a/components/cronet/android/api/src/android/net/http/UrlRequest.java
++++ b/components/cronet/android/api/src/android/net/http/UrlRequest.java
+@@ -7,6 +7,7 @@ package android.net.http;
+ import android.annotation.IntDef;
+ import android.net.Network;
+ 
++import androidx.annotation.NonNull;
+ import androidx.annotation.Nullable;
+ 
+ import java.lang.annotation.Retention;
+@@ -43,7 +44,8 @@ public abstract class UrlRequest {
+          * @param method "GET", "HEAD", "DELETE", "POST" or "PUT".
+          * @return the builder to facilitate chaining.
+          */
+-        public abstract Builder setHttpMethod(String method);
++        @NonNull
++        public abstract Builder setHttpMethod(@NonNull String method);
+ 
+         /**
+          * Adds a request header.
+@@ -52,13 +54,15 @@ public abstract class UrlRequest {
+          * @param value header value.
+          * @return the builder to facilitate chaining.
+          */
+-        public abstract Builder addHeader(String header, String value);
++        @NonNull
++        public abstract Builder addHeader(@NonNull String header, @NonNull String value);
+ 
+         /**
+          * Disables cache for the request. If context is not set up to use cache,
+          * this call has no effect.
+          * @return the builder to facilitate chaining.
+          */
++        @NonNull
+         public abstract Builder disableCache();
+ 
+         /**
+@@ -93,6 +97,7 @@ public abstract class UrlRequest {
+          *         {@link #REQUEST_PRIORITY_IDLE REQUEST_PRIORITY_*} values.
+          * @return the builder to facilitate chaining.
+          */
++        @NonNull
+         public abstract Builder setPriority(int priority);
+ 
+         /**
+@@ -106,8 +111,9 @@ public abstract class UrlRequest {
+          *     {@code Executor} the request itself is using.
+          * @return the builder to facilitate chaining.
+          */
++        @NonNull
+         public abstract Builder setUploadDataProvider(
+-                UploadDataProvider uploadDataProvider, Executor executor);
++                @NonNull UploadDataProvider uploadDataProvider, @NonNull Executor executor);
+ 
+         /**
+          * Marks that the executors this request will use to notify callbacks (for
+@@ -119,6 +125,7 @@ public abstract class UrlRequest {
+          * It should not be used if your callbacks perform disk I/O, acquire locks, or call into
+          * other code you don't carefully control and audit.
+          */
++        @NonNull
+         public abstract Builder allowDirectExecutor();
+ 
+         /**
+@@ -130,6 +137,7 @@ public abstract class UrlRequest {
+          * @param network the network to bind the request to. Specify {@code null} to unbind.
+          * @return the builder to facilitate chaining.
+          */
++        @NonNull
+         public abstract Builder bindToNetwork(@Nullable Network network);
+ 
+         /**
+@@ -176,6 +184,7 @@ public abstract class UrlRequest {
+          * @return constructed {@link UrlRequest} using configuration within
+          *         this {@link Builder}.
+          */
++        @NonNull
+         public abstract UrlRequest build();
+     }
+ 
+@@ -207,8 +216,8 @@ public abstract class UrlRequest {
+          *         will be called with the thrown exception set as the cause of the
+          *         {@link CallbackException}.
+          */
+-        public abstract void onRedirectReceived(
+-                UrlRequest request, UrlResponseInfo info, String newLocationUrl) throws Exception;
++        public abstract void onRedirectReceived(@NonNull UrlRequest request,
++                @NonNull UrlResponseInfo info, @NonNull String newLocationUrl) throws Exception;
+ 
+         /**
+          * Invoked when the final set of headers, after all redirects, is received.
+@@ -227,8 +236,8 @@ public abstract class UrlRequest {
+          *         will be called with the thrown exception set as the cause of the
+          *         {@link CallbackException}.
+          */
+-        public abstract void onResponseStarted(UrlRequest request, UrlResponseInfo info)
+-                throws Exception;
++        public abstract void onResponseStarted(@NonNull UrlRequest request,
++                @NonNull UrlResponseInfo info) throws Exception;
+ 
+         /**
+          * Invoked whenever part of the response body has been read. Only part of
+@@ -252,8 +261,8 @@ public abstract class UrlRequest {
+          *         {@link #onFailed} will be called with the thrown exception set as the cause of
+          *         the {@link CallbackException}.
+          */
+-        public abstract void onReadCompleted(
+-                UrlRequest request, UrlResponseInfo info, ByteBuffer byteBuffer) throws Exception;
++        public abstract void onReadCompleted(@NonNull UrlRequest request,
++                @NonNull UrlResponseInfo info, @NonNull ByteBuffer byteBuffer) throws Exception;
+ 
+         /**
+          * Invoked when request is completed successfully. Once invoked, no other
+@@ -262,7 +271,8 @@ public abstract class UrlRequest {
+          * @param request Request that succeeded.
+          * @param info Response information.
+          */
+-        public abstract void onSucceeded(UrlRequest request, UrlResponseInfo info);
++        public abstract void onSucceeded(
++                @NonNull UrlRequest request, @NonNull UrlResponseInfo info);
+ 
+         /**
+          * Invoked if request failed for any reason after {@link UrlRequest#start}.
+@@ -274,8 +284,8 @@ public abstract class UrlRequest {
+          *         received.
+          * @param error information about error.
+          */
+-        public abstract void onFailed(
+-                UrlRequest request, UrlResponseInfo info, HttpException error);
++        public abstract void onFailed(@NonNull UrlRequest request,
++                @Nullable UrlResponseInfo info, @NonNull HttpException error);
+ 
+         /**
+          * Invoked if request was canceled via {@link UrlRequest#cancel}. Once
+@@ -286,7 +296,7 @@ public abstract class UrlRequest {
+          * @param info Response information. May be {@code null} if no response was
+          *         received.
+          */
+-        public void onCanceled(UrlRequest request, UrlResponseInfo info) {}
++        public void onCanceled(@NonNull UrlRequest request, @Nullable UrlResponseInfo info) {}
+     }
+ 
+     /** @hide */
+@@ -465,7 +475,7 @@ public abstract class UrlRequest {
+      *     position, limit, or data between its position and limit until the
+      *     request calls back into the {@link Callback}.
+      */
+-    public abstract void read(ByteBuffer buffer);
++    public abstract void read(@NonNull ByteBuffer buffer);
+ 
+     /**
+      * Cancels the request. Can be called at any time.
+@@ -503,7 +513,7 @@ public abstract class UrlRequest {
+      * @param listener a {@link StatusListener} that will be invoked with
+      *         the request's current status.
+      */
+-    public abstract void getStatus(final StatusListener listener);
++    public abstract void getStatus(@NonNull final StatusListener listener);
+ 
+     // Note:  There are deliberately no accessors for the results of the request
+     // here. Having none removes any ambiguity over when they are populated,
+diff --git a/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java b/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java
+index aef3d6243..1360654f1 100644
+--- a/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java
++++ b/components/cronet/android/api/src/android/net/http/UrlResponseInfo.java
+@@ -4,6 +4,9 @@
+ 
+ package android.net.http;
+ 
++import androidx.annotation.NonNull;
++import androidx.annotation.Nullable;
++
+ import java.util.List;
+ import java.util.Map;
+ 
+@@ -41,6 +44,7 @@ public abstract class UrlResponseInfo {
+      * redirects, so it may not be the originally requested URL.
+      * @return the URL the response is for.
+      */
++    @NonNull
+     public abstract String getUrl();
+ 
+     /**
+@@ -48,6 +52,7 @@ public abstract class UrlResponseInfo {
+      * the following entries are redirects followed.
+      * @return the URL chain.
+      */
++    @NonNull
+     public abstract List<String> getUrlChain();
+ 
+     /**
+@@ -62,11 +67,13 @@ public abstract class UrlResponseInfo {
+      * request received a "HTTP/1.1 200 OK" response, this method returns "OK".
+      * @return the HTTP status text of the status line.
+      */
++    @NonNull
+     public abstract String getHttpStatusText();
+ 
+     /**
+      * Returns the response headers.
+      */
++    @NonNull
+     public abstract HeaderBlock getHeaders();
+ 
+     /**
+@@ -86,13 +93,19 @@ public abstract class UrlResponseInfo {
+      */
+     // TODO(mef): Figure out what this returns in the cached case, both with
+     // and without a revalidation request.
++    @NonNull
+     public abstract String getNegotiatedProtocol();
+ 
+     /**
+      * Returns the proxy server that was used for the request.
+      * @return the proxy server that was used for the request.
++     *
++     * @hide
+      */
+-    public abstract String getProxyServer();
++    @Nullable
++    public String getProxyServer(){
++        return null;
++    };
+ 
+     /**
+      * Returns a minimum count of bytes received from the network to process this
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
+index 79af73d8b..43996391a 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/UrlResponseInfoTest.java
+@@ -72,7 +72,6 @@ public class UrlResponseInfoTest {
+                 allHeadersList.get(0).getValue());
+         Assert.assertEquals(info.wasCached(), wasCached);
+         Assert.assertEquals(info.getNegotiatedProtocol(), negotiatedProtocol);
+-        Assert.assertEquals(info.getProxyServer(), proxyServer);
+         Assert.assertEquals(info.getReceivedByteCount(), receivedByteCount);
+     }
+ }
+\ No newline at end of file
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+
