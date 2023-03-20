@@ -57,6 +57,8 @@ java_library {
     sdk_version: "module_current",
 }
 
+// ------------------------------ NATIVE TEST TARGETS --------------------------------------------
+
 android_test_helper_app {
     name: "cronet_tester_app",
     srcs: [
@@ -158,5 +160,14 @@ filegroup {
         "net/data/**/*",
         "net/third_party/nist-pkits/**/*",
         "net/third_party/quiche/src/quiche/common/platform/api/testdir/**/*"
+    ],
+}
+
+// ------------------------------ JAVA TEST TARGETS --------------------------------------------
+
+filegroup {
+    name: "cronet_aml_javatests_sources",
+    srcs: [
+        "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java"
     ],
 }
