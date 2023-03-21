@@ -17,11 +17,12 @@
 #ifndef THIRD_PARTY_QUIC_TRACE_LIB_ANALYSIS_TRACE_NUMBERING_H_
 #define THIRD_PARTY_QUIC_TRACE_LIB_ANALYSIS_TRACE_NUMBERING_H_
 
+#include <glog/logging.h>
+
 #include <cstdint>
 #include <unordered_map>
 
 #include "absl/container/flat_hash_map.h"
-#include "absl/log/log.h"
 #include "quic_trace/quic_trace.pb.h"
 
 namespace quic_trace {
