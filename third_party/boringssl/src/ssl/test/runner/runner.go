@@ -32,7 +32,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/big"
 	"net"
 	"os"
@@ -234,7 +233,7 @@ func initCertificates() {
 		*testCerts[i].cert = cert
 	}
 
-	channelIDPEMBlock, err := ioutil.ReadFile(path.Join(*resourceDir, channelIDKeyFile))
+	channelIDPEMBlock, err := os.ReadFile(path.Join(*resourceDir, channelIDKeyFile))
 	if err != nil {
 		panic(err)
 	}
@@ -294,7 +293,7 @@ type delegatedCredentialConfig struct {
 
 func loadRSAPrivateKey(filename string) (priv *rsa.PrivateKey, privPKCS8 []byte, err error) {
 	pemPath := path.Join(*resourceDir, filename)
-	pemBytes, err := ioutil.ReadFile(pemPath)
+	pemBytes, err := os.ReadFile(pemPath)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -712,7 +711,7 @@ func appendTranscript(path string, data []byte) error {
 		return nil
 	}
 
-	settings, err := ioutil.ReadFile(path)
+	settings, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			return err
@@ -723,7 +722,7 @@ func appendTranscript(path string, data []byte) error {
 	}
 
 	settings = append(settings, data...)
-	return ioutil.WriteFile(path, settings, 0644)
+	return os.WriteFile(path, settings, 0644)
 }
 
 // A timeoutConn implements an idle timeout on each Read and Write operation.
@@ -822,7 +821,7 @@ func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool, tr
 				bb := newByteBuilder()
 				bb.addU24LengthPrefixed().addBytes(encodedInner)
 				bb.addBytes(outer)
-				return ioutil.WriteFile(filepath.Join(dir, name), bb.finish(), 0644)
+				return os.WriteFile(filepath.Join(dir, name), bb.finish(), 0644)
 			}
 		}
 
@@ -1091,7 +1090,7 @@ func doExchange(test *testCase, config *Config, conn net.Conn, isResume bool, tr
 			return fmt.Errorf("messageLen < 0 not supported for DTLS tests")
 		}
 		// Read until EOF.
-		_, err := io.Copy(ioutil.Discard, tlsConn)
+		_, err := io.Copy(io.Discard, tlsConn)
 		return err
 	}
 	if messageLen == 0 {
@@ -9853,13 +9852,15 @@ func addSignatureAlgorithmTests() {
 						[]string{
 							"-cert-file", path.Join(*resourceDir, getShimCertificate(alg.cert)),
 							"-key-file", path.Join(*resourceDir, getShimKey(alg.cert)),
-							"-signing-prefs", strconv.Itoa(int(alg.id)),
 						},
 						flagInts("-curves", shimConfig.AllCurves)...,
 					),
 					expectations: connectionExpectations{
 						peerSignatureAlgorithm: alg.id,
 					},
+				}
+				if alg.id != 0 {
+					negotiateTest.flags = append(negotiateTest.flags, "-signing-prefs", strconv.Itoa(int(alg.id)))
 				}
 
 				if testType == serverTest {
@@ -9893,20 +9894,18 @@ func addSignatureAlgorithmTests() {
 							IgnorePeerSignatureAlgorithmPreferences: shouldFail,
 						},
 					},
-					flags: append(
-						[]string{
-							"-expect-peer-signature-algorithm", strconv.Itoa(int(alg.id)),
-							// The algorithm may be disabled by default, so explicitly enable it.
-							"-verify-prefs", strconv.Itoa(int(alg.id)),
-						},
-						flagInts("-curves", shimConfig.AllCurves)...,
-					),
+					flags: flagInts("-curves", shimConfig.AllCurves),
 					// Resume the session to assert the peer signature
 					// algorithm is reported on both handshakes.
 					resumeSession:      !shouldFail,
 					shouldFail:         shouldFail,
 					expectedError:      verifyError,
 					expectedLocalError: verifyLocalError,
+				}
+				if alg.id != 0 {
+					verifyTest.flags = append(verifyTest.flags, "-expect-peer-signature-algorithm", strconv.Itoa(int(alg.id)))
+					// The algorithm may be disabled by default, so explicitly enable it.
+					verifyTest.flags = append(verifyTest.flags, "-verify-prefs", strconv.Itoa(int(alg.id)))
 				}
 
 				// Test whether the shim expects the algorithm enabled by default.
@@ -9952,13 +9951,13 @@ func addSignatureAlgorithmTests() {
 							InvalidSignature: true,
 						},
 					},
-					flags: append(
-						// The algorithm may be disabled by default, so explicitly enable it.
-						[]string{"-verify-prefs", strconv.Itoa(int(alg.id))},
-						flagInts("-curves", shimConfig.AllCurves)...,
-					),
+					flags:         flagInts("-curves", shimConfig.AllCurves),
 					shouldFail:    true,
 					expectedError: ":BAD_SIGNATURE:",
+				}
+				if alg.id != 0 {
+					// The algorithm may be disabled by default, so explicitly enable it.
+					invalidTest.flags = append(invalidTest.flags, "-verify-prefs", strconv.Itoa(int(alg.id)))
 				}
 
 				if testType == serverTest {
@@ -10478,10 +10477,8 @@ func addSignatureAlgorithmTests() {
 		flags: []string{
 			"-cert-file", path.Join(*resourceDir, rsaCertificateFile),
 			"-key-file", path.Join(*resourceDir, rsaKeyFile),
-			"-signing-prefs", strconv.Itoa(int(fakeSigAlg1)),
 			"-signing-prefs", strconv.Itoa(int(signatureECDSAWithP256AndSHA256)),
 			"-signing-prefs", strconv.Itoa(int(signatureRSAPKCS1WithSHA256)),
-			"-signing-prefs", strconv.Itoa(int(fakeSigAlg2)),
 		},
 		expectations: connectionExpectations{
 			peerSignatureAlgorithm: signatureRSAPKCS1WithSHA256,
@@ -10617,7 +10614,7 @@ func addSignatureAlgorithmTests() {
 			Certificates: []Certificate{ed25519Certificate},
 			Bugs: ProtocolBugs{
 				// Sign with Ed25519 even though it is TLS 1.1.
-				UseLegacySigningAlgorithm: signatureEd25519,
+				SigningAlgorithmForLegacyVersions: signatureEd25519,
 			},
 		},
 		flags:         []string{"-verify-prefs", strconv.Itoa(int(signatureEd25519))},
@@ -10645,7 +10642,7 @@ func addSignatureAlgorithmTests() {
 			Certificates: []Certificate{ed25519Certificate},
 			Bugs: ProtocolBugs{
 				// Sign with Ed25519 even though it is TLS 1.1.
-				UseLegacySigningAlgorithm: signatureEd25519,
+				SigningAlgorithmForLegacyVersions: signatureEd25519,
 			},
 		},
 		flags: []string{
@@ -10765,6 +10762,69 @@ func addSignatureAlgorithmTests() {
 			"-verify-prefs", strconv.Itoa(int(signatureEd25519)),
 		},
 	})
+
+	for _, testType := range []testType{clientTest, serverTest} {
+		for _, ver := range tlsVersions {
+			if ver.version < VersionTLS12 {
+				continue
+			}
+
+			prefix := "Client-" + ver.name + "-"
+			if testType == serverTest {
+				prefix = "Server-" + ver.name + "-"
+			}
+
+			// Test that the shim will not sign MD5/SHA1 with RSA at TLS 1.2,
+			// even if specified in signing preferences.
+			testCases = append(testCases, testCase{
+				testType: testType,
+				name:     prefix + "NoSign-RSA_PKCS1_MD5_SHA1",
+				config: Config{
+					MaxVersion:                ver.version,
+					CipherSuites:              signingCiphers,
+					ClientAuth:                RequireAnyClientCert,
+					VerifySignatureAlgorithms: []signatureAlgorithm{signatureRSAPKCS1WithMD5AndSHA1},
+				},
+				flags: []string{
+					"-cert-file", path.Join(*resourceDir, rsaCertificateFile),
+					"-key-file", path.Join(*resourceDir, rsaKeyFile),
+					"-signing-prefs", strconv.Itoa(int(signatureRSAPKCS1WithMD5AndSHA1)),
+					// Include a valid algorithm as well, to avoid an empty list
+					// if filtered out.
+					"-signing-prefs", strconv.Itoa(int(signatureRSAPKCS1WithSHA256)),
+				},
+				shouldFail:    true,
+				expectedError: ":NO_COMMON_SIGNATURE_ALGORITHMS:",
+			})
+
+			// Test that the shim will not accept MD5/SHA1 with RSA at TLS 1.2,
+			// even if specified in verify preferences.
+			testCases = append(testCases, testCase{
+				testType: testType,
+				name:     prefix + "NoVerify-RSA_PKCS1_MD5_SHA1",
+				config: Config{
+					MaxVersion:   ver.version,
+					Certificates: []Certificate{rsaCertificate},
+					Bugs: ProtocolBugs{
+						IgnorePeerSignatureAlgorithmPreferences: true,
+						AlwaysSignAsLegacyVersion:               true,
+						SendSignatureAlgorithm:                  signatureRSAPKCS1WithMD5AndSHA1,
+					},
+				},
+				flags: []string{
+					"-cert-file", path.Join(*resourceDir, rsaCertificateFile),
+					"-key-file", path.Join(*resourceDir, rsaKeyFile),
+					"-verify-prefs", strconv.Itoa(int(signatureRSAPKCS1WithMD5AndSHA1)),
+					// Include a valid algorithm as well, to avoid an empty list
+					// if filtered out.
+					"-verify-prefs", strconv.Itoa(int(signatureRSAPKCS1WithSHA256)),
+					"-require-any-client-certificate",
+				},
+				shouldFail:    true,
+				expectedError: ":WRONG_SIGNATURE_TYPE:",
+			})
+		}
+	}
 }
 
 // timeouts is the retransmit schedule for BoringSSL. It doubles and
@@ -15613,6 +15673,9 @@ func addRSAKeyUsageTests() {
 			},
 			shouldFail:    true,
 			expectedError: ":KEY_USAGE_BIT_INCORRECT:",
+			flags: []string{
+				"-enforce-rsa-key-usage",
+			},
 		})
 
 		testCases = append(testCases, testCase{
@@ -15623,6 +15686,9 @@ func addRSAKeyUsageTests() {
 				MaxVersion:   ver.version,
 				Certificates: []Certificate{dsCert},
 				CipherSuites: dsSuites,
+			},
+			flags: []string{
+				"-enforce-rsa-key-usage",
 			},
 		})
 
@@ -15637,6 +15703,9 @@ func addRSAKeyUsageTests() {
 					Certificates: []Certificate{encCert},
 					CipherSuites: encSuites,
 				},
+				flags: []string{
+					"-enforce-rsa-key-usage",
+				},
 			})
 
 			testCases = append(testCases, testCase{
@@ -15650,6 +15719,9 @@ func addRSAKeyUsageTests() {
 				},
 				shouldFail:    true,
 				expectedError: ":KEY_USAGE_BIT_INCORRECT:",
+				flags: []string{
+					"-enforce-rsa-key-usage",
+				},
 			})
 
 			// In 1.2 and below, we should not enforce without the enforce-rsa-key-usage flag.
@@ -15662,7 +15734,6 @@ func addRSAKeyUsageTests() {
 					Certificates: []Certificate{dsCert},
 					CipherSuites: encSuites,
 				},
-				flags: []string{"-no-enforce-rsa-key-usage"},
 			})
 
 			testCases = append(testCases, testCase{
@@ -15674,22 +15745,20 @@ func addRSAKeyUsageTests() {
 					Certificates: []Certificate{encCert},
 					CipherSuites: dsSuites,
 				},
-				flags: []string{"-no-enforce-rsa-key-usage"},
 			})
 		}
 
 		if ver.version >= VersionTLS13 {
-			// In 1.3 and above, we enforce keyUsage even when disabled.
+			// In 1.3 and above, we enforce keyUsage even without the flag.
 			testCases = append(testCases, testCase{
 				testType: clientTest,
-				name:     "RSAKeyUsage-Client-WantSignature-GotEncipherment-AlwaysEnforced" + ver.name,
+				name:     "RSAKeyUsage-Client-WantSignature-GotEncipherment-Enforced" + ver.name,
 				config: Config{
 					MinVersion:   ver.version,
 					MaxVersion:   ver.version,
 					Certificates: []Certificate{encCert},
 					CipherSuites: dsSuites,
 				},
-				flags:         []string{"-no-enforce-rsa-key-usage"},
 				shouldFail:    true,
 				expectedError: ":KEY_USAGE_BIT_INCORRECT:",
 			})
@@ -16380,7 +16449,7 @@ func addJDK11WorkaroundTests() {
 
 func addDelegatedCredentialTests() {
 	certPath := path.Join(*resourceDir, rsaCertificateFile)
-	pemBytes, err := ioutil.ReadFile(certPath)
+	pemBytes, err := os.ReadFile(certPath)
 	if err != nil {
 		panic(err)
 	}
@@ -19544,7 +19613,7 @@ func main() {
 	initCertificates()
 
 	if len(*shimConfigFile) != 0 {
-		encoded, err := ioutil.ReadFile(*shimConfigFile)
+		encoded, err := os.ReadFile(*shimConfigFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Couldn't read config file %q: %s\n", *shimConfigFile, err)
 			os.Exit(1)
