@@ -23,13 +23,13 @@ import java.util.List;
 public class CronetOnboardingTest {
     // TODO(noogler): STEP 1 - add your name here
     private static final List<String> CRONET_CONTRIBUTORS =
-            Arrays.asList("colibie", "danstahr", "sporeba", "stefanoduo");
+            Arrays.asList("colibie", "danstahr", "edechamps", "sporeba", "stefanoduo");
 
     // TODO(noogler): STEP 2 - run the test suite and see it fail
     @Test
     @SmallTest
     public void testNumberOfCronetContributors() throws Exception {
         // TODO(noogler): STEP 3 - fix the test, rerun it and see it pass
-        assertEquals(4, CRONET_CONTRIBUTORS.size());
+        assertEquals(5, CRONET_CONTRIBUTORS.size());
     }
 }

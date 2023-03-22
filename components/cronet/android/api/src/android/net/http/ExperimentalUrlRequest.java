@@ -6,62 +6,39 @@ package android.net.http;
 import java.util.concurrent.Executor;
 
 /**
- * {@link UrlRequest} that exposes experimental features. To obtain an
- * instance of this class, cast a {@code UrlRequest} to this type. Every
- * instance of {@code UrlRequest} can be cast to an instance of this class,
- * as they are backed by the same implementation and hence perform identically.
- * Instances of this class are not meant for general use, but instead only
- * to access experimental features. Experimental features may be deprecated in the
- * future. Use at your own risk.
+ * {@link UrlRequest} that exposes experimental features. To obtain an instance of this class, cast
+ * a {@code UrlRequest} to this type. Every instance of {@code UrlRequest} can be cast to an
+ * instance of this class, as they are backed by the same implementation and hence perform
+ * identically. Instances of this class are not meant for general use, but instead only to access
+ * experimental features. Experimental features may be deprecated in the future. Use at your own
+ * risk.
  *
- * {@hide since this class exposes experimental features that should be hidden}.
+ * {@hide for consistency with other experimental classes}
+ *
+ * @deprecated scheduled for deletion, don't use in new code.
  */
+@Deprecated
 public abstract class ExperimentalUrlRequest extends UrlRequest {
     /**
-     * {@link UrlRequest#Builder} that exposes experimental features. To obtain an
-     * instance of this class, cast a {@code UrlRequest.Builder} to this type. Every
-     * instance of {@code UrlRequest.Builder} can be cast to an instance of this class,
-     * as they are backed by the same implementation and hence perform identically.
-     * Instances of this class are not meant for general use, but instead only
-     * to access experimental features. Experimental features may be deprecated in the
-     * future. Use at your own risk.
+     * {@link UrlRequest#Builder} that exposes experimental features. To obtain an instance of this
+     * class, cast a {@code UrlRequest.Builder} to this type. Every instance of {@code
+     * UrlRequest.Builder} can be cast to an instance of this class, as they are backed by the same
+     * implementation and hence perform identically. Instances of this class are not meant for
+     * general use, but instead only to access experimental features. Experimental features may be
+     * deprecated in the future. Use at your own risk.
+     *
+     * {@hide for consistency with other experimental classes}
+     *
+     * @deprecated scheduled for deletion, don't use in new code.
      */
+    @Deprecated
     public abstract static class Builder extends UrlRequest.Builder {
         /**
-         * Disables connection migration for the request if enabled for
-         * the session.
+         * Disables connection migration for the request if enabled for the session.
+         *
          * @return the builder to facilitate chaining.
          */
         public Builder disableConnectionMigration() {
-            return this;
-        }
-
-        /**
-         * Associates the annotation object with this request. May add more than one.
-         * Passed through to a {@link RequestFinishedInfo.Listener},
-         * see {@link RequestFinishedInfo#getAnnotations}.
-         *
-         * @param annotation an object to pass on to the {@link RequestFinishedInfo.Listener} with a
-         * {@link RequestFinishedInfo}.
-         * @return the builder to facilitate chaining.
-         */
-        public Builder addRequestAnnotation(Object annotation) {
-            return this;
-        }
-
-        /**
-         * Sets a listener that gets invoked after {@link Callback#onCanceled onCanceled()},
-         * {@link Callback#onFailed onFailed()} or {@link Callback#onSucceeded onSucceeded()}
-         * return.
-         *
-         * <p>The listener is invoked  with the request finished info on an
-         * {@link java.util.concurrent.Executor} provided by
-         * {@link RequestFinishedInfo.Listener#getExecutor getExecutor()}.
-         *
-         * @param listener the listener for finished requests.
-         * @return the builder to facilitate chaining.
-         */
-        public Builder setRequestFinishedListener(RequestFinishedInfo.Listener listener) {
             return this;
         }
 
@@ -87,7 +64,7 @@ public abstract class ExperimentalUrlRequest extends UrlRequest {
          * enabled for safe HTTP methods (GET, HEAD, OPTIONS, and TRACE).
          *
          * @param idempotency idempotency of the request which should be one of the {@link
-         *         #DEFAULT_IDEMPOTENCY IDEMPOTENT NOT_IDEMPOTENT} values.
+         * #DEFAULT_IDEMPOTENCY IDEMPOTENT NOT_IDEMPOTENT} values.
          * @return the builder to facilitate chaining.
          */
         public Builder setIdempotency(int idempotency) {
@@ -118,5 +95,25 @@ public abstract class ExperimentalUrlRequest extends UrlRequest {
 
         @Override
         public abstract ExperimentalUrlRequest build();
+
+        @Override
+        public Builder addRequestAnnotation(Object annotation) {
+            return this;
+        }
+
+        @Override
+        public Builder setTrafficStatsTag(int tag) {
+            return this;
+        }
+
+        @Override
+        public Builder setTrafficStatsUid(int uid) {
+            return this;
+        }
+
+        @Override
+        public Builder setRequestFinishedListener(RequestFinishedInfo.Listener listener) {
+            return this;
+        }
     }
 }

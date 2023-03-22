@@ -13,6 +13,7 @@ import androidx.annotation.Nullable;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandlerFactory;
@@ -21,10 +22,10 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 import javax.net.ssl.HttpsURLConnection;
+
 /**
- * An engine to process {@link UrlRequest}s, which uses the best HTTP stack
- * available on the current platform. An instance of this class can be created
- * using {@link Builder}.
+ * An engine to process {@link UrlRequest}s, which uses the best HTTP stack available on the current
+ * platform. An instance of this class can be created using {@link Builder}.
  */
 // SuppressLint: Making the HttpEngine AutoCloseable indicates to the developers that it's
 // expected to be used in a try-with-resource clause. This in turn promotes local, narrowly
@@ -50,6 +51,74 @@ public abstract class HttpEngine {
     }
 
     /**
+     * The value of the active request count is unknown
+     *
+     * {@hide}
+     */
+    public static final int ACTIVE_REQUEST_COUNT_UNKNOWN = -1;
+
+    /**
+     * The value of a connection metric is unknown.
+     *
+     * {@hide}
+     */
+    public static final int CONNECTION_METRIC_UNKNOWN = -1;
+
+    /**
+     * The estimate of the effective connection type is unknown.
+     *
+     * {@hide}
+     *
+     * @see #getEffectiveConnectionType
+     */
+    public static final int EFFECTIVE_CONNECTION_TYPE_UNKNOWN = 0;
+
+    /**
+     * The device is offline.
+     *
+     * @see #getEffectiveConnectionType
+     *
+     * {@hide}
+     */
+    public static final int EFFECTIVE_CONNECTION_TYPE_OFFLINE = 1;
+
+    /**
+     * The estimate of the effective connection type is slow 2G.
+     *
+     * @see #getEffectiveConnectionType
+     *
+     * {@hide}
+     */
+    public static final int EFFECTIVE_CONNECTION_TYPE_SLOW_2G = 2;
+
+    /**
+     * The estimate of the effective connection type is 2G.
+     *
+     * @see #getEffectiveConnectionType
+     *
+     * {@hide}
+     */
+    public static final int EFFECTIVE_CONNECTION_TYPE_2G = 3;
+
+    /**
+     * The estimate of the effective connection type is 3G.
+     *
+     * @see #getEffectiveConnectionType
+     *
+     * {@hide}
+     */
+    public static final int EFFECTIVE_CONNECTION_TYPE_3G = 4;
+
+    /**
+     * The estimate of the effective connection type is 4G.
+     *
+     * @see #getEffectiveConnectionType
+     *
+     * {@hide}
+     */
+    public static final int EFFECTIVE_CONNECTION_TYPE_4G = 5;
+
+    /**
      * A builder for {@link HttpEngine}s, which allows runtime configuration of
      * {@link HttpEngine}. Configuration options are set on the builder and
      * then {@link #build} is called to create the {@link HttpEngine}.
@@ -62,8 +131,7 @@ public abstract class HttpEngine {
     public static class Builder {
 
         /**
-         * Reference to the actual builder implementation.
-         * {@hide exclude from JavaDoc}.
+         * Reference to the actual builder implementation. {@hide exclude from JavaDoc}.
          */
         protected final IHttpEngineBuilder mBuilderDelegate;
 
@@ -72,11 +140,9 @@ public abstract class HttpEngine {
          * {@link HttpEngine}. The default configuration enables HTTP/2 and
          * QUIC, but disables the HTTP cache.
          *
-         * @param context Android {@link Context}, which is used by
-         *                {@link Builder} to retrieve the application
-         *                context. A reference to only the application
-         *                context will be kept, so as to avoid extending
-         *                the lifetime of {@code context} unnecessarily.
+         * @param context Android {@link Context}, which is used by {@link Builder} to retrieve the
+         * application context. A reference to only the application context will be kept, so as to
+         * avoid extending the lifetime of {@code context} unnecessarily.
          */
         public Builder(@NonNull Context context) {
             this(createBuilderDelegate(context));
@@ -109,10 +175,9 @@ public abstract class HttpEngine {
         }
 
         /**
-         * Overrides the User-Agent header for all requests. An explicitly
-         * set User-Agent header (set using
-         * {@link UrlRequest.Builder#addHeader}) will override a value set
-         * using this function.
+         * Overrides the User-Agent header for all requests. An explicitly set User-Agent header
+         * (set using {@link UrlRequest.Builder#addHeader}) will override a value set using this
+         * function.
          *
          * @param userAgent the User-Agent string to use for all requests.
          * @return the builder to facilitate chaining.
@@ -157,8 +222,9 @@ public abstract class HttpEngine {
         }
 
         /**
-         * Sets whether <a href="https://tools.ietf.org/html/rfc7540">HTTP/2</a>
-         * protocol is enabled. Defaults to enabled.
+         * Sets whether <a href="https://tools.ietf.org/html/rfc7540">HTTP/2</a> protocol is
+         * enabled. Defaults to enabled.
+         *
          * @param value {@code true} to enable HTTP/2, {@code false} to disable.
          * @return the builder to facilitate chaining.
          */
@@ -173,6 +239,7 @@ public abstract class HttpEngine {
          * Sets whether <a href="https://tools.ietf.org/html/rfc7932">Brotli</a> compression is
          * enabled. If enabled, Brotli will be advertised in Accept-Encoding request headers.
          * Defaults to disabled.
+         *
          * @param value {@code true} to enable Brotli, {@code false} to disable.
          * @return the builder to facilitate chaining.
          */
@@ -210,12 +277,13 @@ public abstract class HttpEngine {
         public static final int HTTP_CACHE_DISK = 3;
 
         /**
-         * Enables or disables caching of HTTP data and other information like QUIC
-         * server information.
-         * @param cacheMode control location and type of cached data. Must be one of
-         *         {@link #HTTP_CACHE_DISABLED HTTP_CACHE_*}.
-         * @param maxSize maximum size in bytes used to cache data (advisory and maybe
-         * exceeded at times).
+         * Enables or disables caching of HTTP data and other information like QUIC server
+         * information.
+         *
+         * @param cacheMode control location and type of cached data. Must be one of {@link
+         * #HTTP_CACHE_DISABLED HTTP_CACHE_*}.
+         * @param maxSize maximum size in bytes used to cache data (advisory and maybe exceeded at
+         * times).
          * @return the builder to facilitate chaining.
          */
         // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
@@ -244,45 +312,37 @@ public abstract class HttpEngine {
         }
 
         /**
-         * <p>
-         * Pins a set of public keys for a given host. By pinning a set of public keys,
-         * {@code pinsSha256}, communication with {@code hostName} is required to
-         * authenticate with a certificate with a public key from the set of pinned ones.
-         * An app can pin the public key of the root certificate, any of the intermediate
-         * certificates or the end-entry certificate. Authentication will fail and secure
-         * communication will not be established if none of the public keys is present in the
-         * host's certificate chain, even if the host attempts to authenticate with a
-         * certificate allowed by the device's trusted store of certificates.
-         * </p>
-         * <p>
-         * Calling this method multiple times with the same host name overrides the previously
+         * Pins a set of public keys for a given host. By pinning a set of public keys, {@code
+         * pinsSha256}, communication with {@code hostName} is required to authenticate with a
+         * certificate with a public key from the set of pinned ones. An app can pin the public key
+         * of the root certificate, any of the intermediate certificates or the end-entry
+         * certificate. Authentication will fail and secure communication will not be established if
+         * none of the public keys is present in the host's certificate chain, even if the host
+         * attempts to authenticate with a certificate allowed by the device's trusted store of
+         * certificates.
+         *
+         * <p>Calling this method multiple times with the same host name overrides the previously
          * set pins for the host.
-         * </p>
-         * <p>
-         * More information about the public key pinning can be found in
-         * <a href="https://tools.ietf.org/html/rfc7469">RFC 7469</a>.
-         * </p>
+         *
+         * <p>More information about the public key pinning can be found in <a
+         * href="https://tools.ietf.org/html/rfc7469">RFC 7469</a>.
          *
          * @param hostName name of the host to which the public keys should be pinned. A host that
-         *                 consists only of digits and the dot character is treated as invalid.
-         * @param pinsSha256 a set of pins. Each pin is the SHA-256 cryptographic
-         *                   hash of the DER-encoded ASN.1 representation of the Subject Public
-         *                   Key Info (SPKI) of the host's X.509 certificate. Use
-         *                   {@link java.security.cert.Certificate#getPublicKey()
-         *                   Certificate.getPublicKey()} and
-         *                   {@link java.security.Key#getEncoded() Key.getEncoded()}
-         *                   to obtain DER-encoded ASN.1 representation of the SPKI.
-         *                   Although, the method does not mandate the presence of the backup pin
-         *                   that can be used if the control of the primary private key has been
-         *                   lost, it is highly recommended to supply one.
+         * consists only of digits and the dot character is treated as invalid.
+         * @param pinsSha256 a set of pins. Each pin is the SHA-256 cryptographic hash of the
+         * DER-encoded ASN.1 representation of the Subject Public Key Info (SPKI) of the host's
+         * X.509 certificate. Use {@link java.security.cert.Certificate#getPublicKey()
+         * Certificate.getPublicKey()} and {@link java.security.Key#getEncoded() Key.getEncoded()}
+         * to obtain DER-encoded ASN.1 representation of the SPKI. Although, the method does not
+         * mandate the presence of the backup pin that can be used if the control of the primary
+         * private key has been lost, it is highly recommended to supply one.
          * @param includeSubdomains indicates whether the pinning policy should be applied to
          *                          subdomains of {@code hostName}.
          * @param expirationInstant specifies the expiration instant for the pins.
          * @return the builder to facilitate chaining.
          * @throws NullPointerException if any of the input parameters are {@code null}.
          * @throws IllegalArgumentException if the given host name is invalid or {@code pinsSha256}
-         *                                  contains a byte array that does not represent a valid
-         *                                  SHA-256 hash.
+         * contains a byte array that does not represent a valid SHA-256 hash.
          */
         // SuppressLint: Value is passed to JNI code and maintained by JNI code after build
         @NonNull @SuppressLint("MissingGetterMatchingBuilder")
@@ -295,12 +355,12 @@ public abstract class HttpEngine {
 
         /**
          * Enables or disables public key pinning bypass for local trust anchors. Disabling the
-         * bypass for local trust anchors is highly discouraged since it may prohibit the app
-         * from communicating with the pinned hosts. E.g., a user may want to send all traffic
-         * through an SSL enabled proxy by changing the device proxy settings and adding the
-         * proxy certificate to the list of local trust anchor. Disabling the bypass will most
-         * likly prevent the app from sending any traffic to the pinned hosts. For more
-         * information see 'How does key pinning interact with local proxies and filters?' at
+         * bypass for local trust anchors is highly discouraged since it may prohibit the app from
+         * communicating with the pinned hosts. E.g., a user may want to send all traffic through an
+         * SSL enabled proxy by changing the device proxy settings and adding the proxy certificate
+         * to the list of local trust anchor. Disabling the bypass will most likely prevent the app
+         * from sending any traffic to the pinned hosts. For more information see 'How does key
+         * pinning interact with local proxies and filters?' at
          * https://www.chromium.org/Home/chromium-security/security-faq
          *
          * @param value {@code true} to enable the bypass, {@code false} to disable.
@@ -396,6 +456,41 @@ public abstract class HttpEngine {
         public Builder setConnectionMigrationOptions(
                 @NonNull ConnectionMigrationOptions.Builder connectionMigrationOptionsBuilder) {
             return setConnectionMigrationOptions(connectionMigrationOptionsBuilder.build());
+        }
+
+        /**
+         * Sets the thread priority of Cronet's internal thread.
+         *
+         * @param priority the thread priority of Cronet's internal thread. A Linux priority level,
+         *         from
+         * -20 for highest scheduling priority to 19 for lowest scheduling priority. For more
+         * information on values, see {@link android.os.Process#setThreadPriority(int, int)} and
+         * {@link android.os.Process#THREAD_PRIORITY_DEFAULT THREAD_PRIORITY_*} values.
+         * @return the builder to facilitate chaining.
+         *
+         * {@hide}
+         */
+        public Builder setThreadPriority(int priority) {
+            mBuilderDelegate.setThreadPriority(priority);
+            return this;
+        }
+
+        /**
+         * Enables the network quality estimator, which collects and reports measurements of round
+         * trip time (RTT) and downstream throughput at various layers of the network stack. After
+         * enabling the estimator, listeners of RTT and throughput can be added with {@link
+         * #addRttListener} and
+         * {@link #addThroughputListener} and removed with {@link #removeRttListener} and {@link
+         * #removeThroughputListener}. The estimator uses memory and CPU only when enabled.
+         *
+         * @param value {@code true} to enable network quality estimator, {@code false} to disable.
+         * @return the builder to facilitate chaining.
+         *
+         * {@hide}
+         */
+        public Builder enableNetworkQualityEstimator(boolean value) {
+            mBuilderDelegate.enableNetworkQualityEstimator(value);
+            return this;
         }
 
         /**
@@ -578,11 +673,10 @@ public abstract class HttpEngine {
             @NonNull String url, @NonNull Executor executor, @NonNull UrlRequest.Callback callback);
 
     /**
-     * Creates a builder for {@link UrlRequest}. All callbacks for
-     * generated {@link UrlRequest} objects will be invoked on
-     * {@code executor}'s threads. {@code executor} must not run tasks on the
-     * thread calling {@link Executor#execute} to prevent blocking networking
-     * operations and causing exceptions during shutdown.
+     * Creates a builder for {@link UrlRequest}. All callbacks for generated {@link UrlRequest}
+     * objects will be invoked on {@code executor}'s threads. {@code executor} must not run tasks on
+     * the thread calling {@link Executor#execute} to prevent blocking networking operations and
+     * causing exceptions during shutdown.
      *
      * @param url URL for the generated requests.
      * @param callback callback object that gets invoked on different events.
@@ -639,4 +733,193 @@ public abstract class HttpEngine {
             @NonNull Executor executor) {
         return newBidirectionalStreamBuilder(url, executor, callback);
     }
+
+    /**
+     * Returns the number of in-flight requests.
+     * <p>
+     * A request is in-flight if its start() method has been called but it hasn't reached a final
+     * state yet. A request reaches the final state when one of the following callbacks has been
+     * called:
+     * <ul>
+     *    <li>onSucceeded</li>
+     *    <li>onCanceled</li>
+     *    <li>onFailed</li>
+     * </ul>
+     *
+     * <a href="https://developer.android.com/guide/topics/connectivity/cronet/lifecycle">Cronet
+     *         requests's lifecycle</a> for more information.
+     *
+     * {@hide}
+     */
+    public int getActiveRequestCount() {
+        return ACTIVE_REQUEST_COUNT_UNKNOWN;
+    }
+
+    /**
+     * Registers a listener that gets called after the end of each request with the request info.
+     *
+     * <p>The listener is called on an {@link java.util.concurrent.Executor} provided by the
+     * listener.
+     *
+     * @param listener the listener for finished requests.
+     *
+     * {@hide}
+     */
+    public void addRequestFinishedListener(RequestFinishedInfo.Listener listener) {}
+
+    /**
+     * Removes a finished request listener.
+     *
+     * @param listener the listener to remove.
+     *
+     * {@hide}
+     */
+    public void removeRequestFinishedListener(RequestFinishedInfo.Listener listener) {}
+
+    /**
+     * Returns the HTTP RTT estimate (in milliseconds) computed by the network quality estimator.
+     * Set to {@link #CONNECTION_METRIC_UNKNOWN} if the value is unavailable. This must be called
+     * after
+     * {@link Builder#enableNetworkQualityEstimator}, and will throw an exception otherwise.
+     *
+     * @return Estimate of the HTTP RTT in milliseconds.
+     *
+     * {@hide}
+     */
+    public int getHttpRttMs() {
+        return CONNECTION_METRIC_UNKNOWN;
+    }
+
+    /**
+     * Returns the transport RTT estimate (in milliseconds) computed by the network quality
+     * estimator. Set to {@link #CONNECTION_METRIC_UNKNOWN} if the value is unavailable. This must
+     * be called after {@link Builder#enableNetworkQualityEstimator}, and will throw an exception
+     * otherwise.
+     *
+     * @return Estimate of the transport RTT in milliseconds.
+     *
+     * {@hide}
+     */
+    public int getTransportRttMs() {
+        return CONNECTION_METRIC_UNKNOWN;
+    }
+
+    /**
+     * Returns the downstream throughput estimate (in kilobits per second) computed by the network
+     * quality estimator. Set to {@link #CONNECTION_METRIC_UNKNOWN} if the value is unavailable.
+     * This must be called after {@link Builder#enableNetworkQualityEstimator}, and will throw an
+     * exception otherwise.
+     *
+     * @return Estimate of the downstream throughput in kilobits per second.
+     *
+     * {@hide}
+     */
+    public int getDownstreamThroughputKbps() {
+        return CONNECTION_METRIC_UNKNOWN;
+    }
+
+    /**
+     * Starts NetLog logging to a specified directory with a bounded size. The NetLog will contain
+     * events emitted by all live CronetEngines. The NetLog is useful for debugging. Once logging
+     * has stopped {@link #stopNetLog}, the data will be written to netlog.json in {@code dirPath}.
+     * If logging is interrupted, you can stitch the files found in .inprogress subdirectory
+     * manually using:
+     * https://chromium.googlesource.com/chromium/src/+/main/net/tools/stitch_net_log_files.py. The
+     * log can be viewed using a Chrome browser navigated to chrome://net-internals/#import.
+     *
+     * @param dirPath the directory where the netlog.json file will be created. dirPath must already
+     * exist. NetLog files must not exist in the directory. If actively logging, this method is
+     * ignored.
+     * @param logAll {@code true} to include basic events, user cookies, credentials and all
+     * transferred bytes in the log. This option presents a privacy risk, since it exposes the
+     * user's credentials, and should only be used with the user's consent and in situations where
+     * the log won't be public. {@code false} to just include basic events.
+     * @param maxSize the maximum total disk space in bytes that should be used by NetLog. Actual
+     *         disk
+     * space usage may exceed this limit slightly.
+     *
+     * {@hide}
+     */
+    public void startNetLogToDisk(String dirPath, boolean logAll, int maxSize) {}
+
+    /**
+     * Returns an estimate of the effective connection type computed by the network quality
+     * estimator. Call {@link Builder#enableNetworkQualityEstimator} to begin computing this value.
+     *
+     * @return the estimated connection type. The returned value is one of {@link
+     * #EFFECTIVE_CONNECTION_TYPE_UNKNOWN EFFECTIVE_CONNECTION_TYPE_* }.
+     *
+     * {@hide}
+     */
+    public int getEffectiveConnectionType() {
+        return EFFECTIVE_CONNECTION_TYPE_UNKNOWN;
+    }
+
+    /**
+     * Configures the network quality estimator for testing. This must be called before round trip
+     * time and throughput listeners are added, and after the network quality estimator has been
+     * enabled.
+     *
+     * @param useLocalHostRequests include requests to localhost in estimates.
+     * @param useSmallerResponses include small responses in throughput estimates.
+     * @param disableOfflineCheck when set to true, disables the device offline checks when
+     *         computing
+     * the effective connection type or when writing the prefs.
+     *
+     * {@hide}
+     */
+    @VisibleForTesting
+    public void configureNetworkQualityEstimatorForTesting(boolean useLocalHostRequests,
+            boolean useSmallerResponses, boolean disableOfflineCheck) {}
+
+    /**
+     * Registers a listener that gets called whenever the network quality estimator witnesses a
+     * sample round trip time. This must be called after {@link
+     * Builder#enableNetworkQualityEstimator}, and with throw an exception otherwise. Round trip
+     * times may be recorded at various layers of the network stack, including TCP, QUIC, and at the
+     * URL request layer. The listener is called on the
+     * {@link java.util.concurrent.Executor} that is passed to {@link
+     * Builder#enableNetworkQualityEstimator}.
+     *
+     * @param listener the listener of round trip times.
+     *
+     * {@hide}
+     */
+    public void addRttListener(NetworkQualityRttListener listener) {}
+
+    /**
+     * Removes a listener of round trip times if previously registered with {@link #addRttListener}.
+     * This should be called after a {@link NetworkQualityRttListener} is added in order to stop
+     * receiving observations.
+     *
+     * @param listener the listener of round trip times.
+     *
+     * {@hide}
+     */
+    public void removeRttListener(NetworkQualityRttListener listener) {}
+
+    /**
+     * Registers a listener that gets called whenever the network quality estimator witnesses a
+     * sample throughput measurement. This must be called after {@link
+     * Builder#enableNetworkQualityEstimator}. Throughput observations are computed by measuring
+     * bytes read over the active network interface at times when at least one URL response is being
+     * received. The listener is called on the {@link java.util.concurrent.Executor} that is passed
+     * to {@link Builder#enableNetworkQualityEstimator}.
+     *
+     * @param listener the listener of throughput.
+     *
+     * {@hide}
+     */
+    public void addThroughputListener(NetworkQualityThroughputListener listener) {}
+
+    /**
+     * Removes a listener of throughput. This should be called after a {@link
+     * NetworkQualityThroughputListener} is added with {@link #addThroughputListener} in order to
+     * stop receiving observations.
+     *
+     * @param listener the listener of throughput.
+     *
+     * {@hide}
+     */
+    public void removeThroughputListener(NetworkQualityThroughputListener listener) {}
 }

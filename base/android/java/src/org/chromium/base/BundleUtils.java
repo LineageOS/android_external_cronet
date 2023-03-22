@@ -66,6 +66,14 @@ public class BundleUtils {
     // restoring from recents.
     private static ArrayList<String> sSplitsToRestore;
 
+    public static void resetForTesting() {
+        sIsBundle = null;
+        sCachedClassLoaders.clear();
+        sInflationClassLoaders.clear();
+        sSplitCompatClassLoaderInstance = null;
+        sSplitsToRestore = null;
+    }
+
     /**
      * {@link BundleUtils#isBundle()}  is not called directly by native because
      * {@link CalledByNative} prevents inlining, causing the bundle support lib to not be
@@ -97,17 +105,26 @@ public class BundleUtils {
         return BuildConfig.ISOLATED_SPLITS_ENABLED;
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.O)
+    private static String getSplitApkPath(String splitName) {
+        ApplicationInfo appInfo = ContextUtils.getApplicationContext().getApplicationInfo();
+        String[] splitNames = appInfo.splitNames;
+        if (splitNames == null) {
+            return null;
+        }
+        int idx = Arrays.binarySearch(splitNames, splitName);
+        return idx < 0 ? null : appInfo.splitSourceDirs[idx];
+    }
+
     /**
      * Returns whether splitName is installed. Note, this will return false on Android versions
      * below O, where isolated splits are not supported.
      */
-    public static boolean isIsolatedSplitInstalled(Context context, String splitName) {
+    public static boolean isIsolatedSplitInstalled(String splitName) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return false;
         }
-
-        String[] splitNames = ApiHelperForO.getSplitNames(context.getApplicationInfo());
-        return splitNames != null && Arrays.asList(splitNames).contains(splitName);
+        return getSplitApkPath(splitName) != null;
     }
 
     /**
@@ -158,14 +175,11 @@ public class BundleUtils {
                     && !parent.equals(appContext.getClassLoader());
             synchronized (sCachedClassLoaders) {
                 if (shouldReplaceClassLoader && !sCachedClassLoaders.containsKey(splitName)) {
-                    String[] splitNames = ApiHelperForO.getSplitNames(context.getApplicationInfo());
-                    int idx = Arrays.binarySearch(splitNames, splitName);
-                    assert idx >= 0;
+                    String apkPath = getSplitApkPath(splitName);
                     // The librarySearchPath argument to PathClassLoader is not needed here
                     // because the framework doesn't pass it either, see b/171269960.
-                    sCachedClassLoaders.put(splitName,
-                            new PathClassLoader(context.getApplicationInfo().splitSourceDirs[idx],
-                                    appContext.getClassLoader()));
+                    sCachedClassLoaders.put(
+                            splitName, new PathClassLoader(apkPath, appContext.getClassLoader()));
                 }
                 // Always replace the ClassLoader if we have a cached version to make sure all
                 // ClassLoaders are consistent.
@@ -276,7 +290,7 @@ public class BundleUtils {
      * layouts which reference classes from a split.
      */
     public static Context createContextForInflation(Context context, String splitName) {
-        if (!BundleUtils.isIsolatedSplitInstalled(context, splitName)) {
+        if (!isIsolatedSplitInstalled(splitName)) {
             return context;
         }
         ClassLoader splitClassLoader = registerSplitClassLoaderForInflation(splitName);
@@ -297,15 +311,30 @@ public class BundleUtils {
         };
     }
 
-    public static ClassLoader registerSplitClassLoaderForInflation(String splitName) {
-        ClassLoader splitClassLoader = sInflationClassLoaders.get(splitName);
-        if (splitClassLoader == null) {
-            splitClassLoader = BundleUtils
-                                       .createIsolatedSplitContext(
-                                               ContextUtils.getApplicationContext(), splitName)
-                                       .getClassLoader();
-            sInflationClassLoaders.put(splitName, splitClassLoader);
+    /**
+     * Returns the ClassLoader for the given split, loading the split if it has not yet been
+     * loaded.
+     */
+    public static ClassLoader getOrCreateSplitClassLoader(String splitName) {
+        ClassLoader ret;
+        synchronized (sCachedClassLoaders) {
+            ret = sCachedClassLoaders.get(splitName);
         }
+
+        if (ret == null) {
+            // Do not hold lock since split loading can be slow.
+            createIsolatedSplitContext(ContextUtils.getApplicationContext(), splitName);
+            synchronized (sCachedClassLoaders) {
+                ret = sCachedClassLoaders.get(splitName);
+                assert ret != null;
+            }
+        }
+        return ret;
+    }
+
+    public static ClassLoader registerSplitClassLoaderForInflation(String splitName) {
+        ClassLoader splitClassLoader = getOrCreateSplitClassLoader(splitName);
+        sInflationClassLoaders.put(splitName, splitClassLoader);
         return splitClassLoader;
     }
 
@@ -342,10 +371,13 @@ public class BundleUtils {
     }
 
     private static class SplitCompatClassLoader extends ClassLoader {
+        private static final String TAG = "SplitCompatClassLoader";
+
         public SplitCompatClassLoader() {
             // The chrome split classloader if the chrome split exists, otherwise
             // the base module class loader.
             super(ContextUtils.getApplicationContext().getClassLoader());
+            Log.i(TAG, "Splits: %s", sSplitsToRestore);
         }
 
         private Class<?> checkSplitsClassLoaders(String className) throws ClassNotFoundException {
@@ -380,6 +412,7 @@ public class BundleUtils {
                     return foundClass;
                 }
             }
+            Log.w(TAG, "No class %s amongst %s", cn, sInflationClassLoaders.keySet());
             throw new ClassNotFoundException(cn);
         }
 
@@ -401,22 +434,16 @@ public class BundleUtils {
             return null;
         }
 
-        ApplicationInfo info = ContextUtils.getApplicationContext().getApplicationInfo();
-        String[] splitNames = ApiHelperForO.getSplitNames(info);
-        if (splitNames == null) {
-            return null;
-        }
-
-        int idx = Arrays.binarySearch(splitNames, splitName);
-        if (idx < 0) {
+        String apkPath = getSplitApkPath(splitName);
+        if (apkPath == null) {
             return null;
         }
 
         try {
+            ApplicationInfo info = ContextUtils.getApplicationContext().getApplicationInfo();
             String primaryCpuAbi = (String) info.getClass().getField("primaryCpuAbi").get(info);
             // This matches the logic LoadedApk.java uses to construct library paths.
-            return info.splitSourceDirs[idx] + "!/lib/" + primaryCpuAbi + "/"
-                    + System.mapLibraryName(libraryName);
+            return apkPath + "!/lib/" + primaryCpuAbi + "/" + System.mapLibraryName(libraryName);
         } catch (ReflectiveOperationException e) {
             throw new RuntimeException(e);
         }

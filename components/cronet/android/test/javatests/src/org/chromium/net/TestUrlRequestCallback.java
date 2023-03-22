@@ -58,12 +58,19 @@ public class TestUrlRequestCallback extends UrlRequest.Callback {
     // Whether to permit calls on the network thread.
     private boolean mAllowDirectExecutor;
 
+    // Whether to stop the executor thread after reaching a terminal method.
+    // Terminal methods are (onSucceeded, onFailed or onCancelled)
+    private boolean mBlockOnTerminalState;
+
     // Conditionally fail on certain steps.
     private FailureType mFailureType = FailureType.NONE;
     private ResponseStep mFailureStep = ResponseStep.NOTHING;
 
     // Signals when request is done either successfully or not.
     private final ConditionVariable mDone = new ConditionVariable();
+
+    // Hangs the calling thread until a terminal method has started executing.
+    private final ConditionVariable mWaitForTerminalToStart = new ConditionVariable();
 
     // Signaled on each step when mAutoAdvance is false.
     private final ConditionVariable mStepBlock = new ConditionVariable();
@@ -145,6 +152,19 @@ public class TestUrlRequestCallback extends UrlRequest.Callback {
         fillInExecutorThread();
     }
 
+    /**
+     * This blocks the callback executor thread once it has reached a final state callback.
+     * In order to continue execution, this method must be called again and providing {@code false}
+     * to continue execution.
+     * @param blockOnTerminalState the state to set for the executor thread
+     */
+    public void setBlockOnTerminalState(boolean blockOnTerminalState) {
+        mBlockOnTerminalState = blockOnTerminalState;
+        if (!blockOnTerminalState) {
+            mDone.open();
+        }
+    }
+
     public void setAutoAdvance(boolean autoAdvance) {
         mAutoAdvance = autoAdvance;
     }
@@ -160,6 +180,14 @@ public class TestUrlRequestCallback extends UrlRequest.Callback {
 
     public void blockForDone() {
         mDone.block();
+    }
+
+    /**
+     * Blocks the calling thread until one of the final states has been called.
+     * This is called before the callback has finished executed.
+     */
+    public void waitForTerminalToStart() {
+        mWaitForTerminalToStart.block();
     }
 
     public void waitForNextStep() {
@@ -264,6 +292,8 @@ public class TestUrlRequestCallback extends UrlRequest.Callback {
 
         mResponseStep = ResponseStep.ON_SUCCEEDED;
         mResponseInfo = info;
+        mWaitForTerminalToStart.open();
+        if (mBlockOnTerminalState) mDone.block();
         openDone();
         maybeThrowCancelOrPause(request);
     }
@@ -294,6 +324,8 @@ public class TestUrlRequestCallback extends UrlRequest.Callback {
         mResponseStep = ResponseStep.ON_FAILED;
         mOnErrorCalled = true;
         mError = error;
+        mWaitForTerminalToStart.open();
+        if (mBlockOnTerminalState) mDone.block();
         openDone();
         maybeThrowCancelOrPause(request);
     }
@@ -309,6 +341,8 @@ public class TestUrlRequestCallback extends UrlRequest.Callback {
 
         mResponseStep = ResponseStep.ON_CANCELED;
         mOnCanceledCalled = true;
+        mWaitForTerminalToStart.open();
+        if (mBlockOnTerminalState) mDone.block();
         openDone();
         maybeThrowCancelOrPause(request);
     }

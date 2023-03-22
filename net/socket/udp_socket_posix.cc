@@ -222,6 +222,7 @@ void UDPSocketPosix::ReceivedActivityMonitor::OnTimerFired() {
 
 void UDPSocketPosix::Close() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  CHECK(!dont_close_);
 
   owned_socket_count_.Reset();
 
@@ -1068,6 +1069,10 @@ int UDPSocketPosix::SetIOSNetworkServiceType(int ios_network_service_type) {
   }
 #endif  // BUILDFLAG(IS_IOS)
   return OK;
+}
+
+void UDPSocketPosix::SetDontClose(bool dont_close) {
+  dont_close_ = dont_close;
 }
 
 }  // namespace net
