@@ -6,6 +6,8 @@ package org.chromium.net.urlconnection;
 
 import android.net.http.ExperimentalHttpEngine;
 
+import androidx.annotation.VisibleForTesting;
+
 import java.io.IOException;
 import java.net.Proxy;
 import java.net.URL;
@@ -22,7 +24,8 @@ import java.net.URLStreamHandler;
  * <b>Note:</b> Cronet's {@code HttpURLConnection} implementation is subject to some limitations
  * listed {@link CronetURLStreamHandlerFactory here}.
  */
-class CronetHttpURLStreamHandler extends URLStreamHandler {
+@VisibleForTesting
+public class CronetHttpURLStreamHandler extends URLStreamHandler {
     private final ExperimentalHttpEngine mCronetEngine;
 
     public CronetHttpURLStreamHandler(ExperimentalHttpEngine cronetEngine) {

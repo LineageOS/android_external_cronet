@@ -1,0 +1,212 @@
+From 05d91f4b8ccf8a144d530ef8fad017031035df99 Mon Sep 17 00:00:00 2001
+From: Chidera Olibie <colibie@google.com>
+Date: Tue, 21 Mar 2023 17:42:02 +0000
+Subject: [PATCH] Increase visibility of url connection classes
+
+The tests are in a separate apk and cannot
+access tethering module's package private classes.
+
+Test: atest NetHttpCoverageTest
+Bug: 267353182
+Change-Id: I771a519059c5ff9a00166f202401f9bff11c1327
+---
+ .../net/urlconnection/CronetBufferedOutputStream.java      | 5 ++++-
+ .../net/urlconnection/CronetChunkedOutputStream.java       | 5 ++++-
+ .../net/urlconnection/CronetFixedModeOutputStream.java     | 7 +++++--
+ .../net/urlconnection/CronetHttpURLStreamHandler.java      | 5 ++++-
+ .../org/chromium/net/urlconnection/CronetInputStream.java  | 7 +++++--
+ .../org/chromium/net/urlconnection/CronetOutputStream.java | 5 ++++-
+ .../src/org/chromium/net/urlconnection/MessageLoop.java    | 7 +++++--
+ 7 files changed, 31 insertions(+), 10 deletions(-)
+
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java
+index b38891ad..69cbd8ef 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetBufferedOutputStream.java
+@@ -7,6 +7,8 @@ package org.chromium.net.urlconnection;
+ import android.net.http.UploadDataProvider;
+ import android.net.http.UploadDataSink;
+ 
++import androidx.annotation.VisibleForTesting;
++
+ import java.io.IOException;
+ import java.net.ProtocolException;
+ import java.nio.ByteBuffer;
+@@ -17,7 +19,8 @@ import java.nio.ByteBuffer;
+  * {@link CronetHttpURLConnection#setFixedLengthStreamingMode}
+  * nor {@link CronetHttpURLConnection#setChunkedStreamingMode} is set.
+  */
+-final class CronetBufferedOutputStream extends CronetOutputStream {
++@VisibleForTesting
++public final class CronetBufferedOutputStream extends CronetOutputStream {
+     // QUIC uses a read buffer of 14520 bytes, SPDY uses 2852 bytes, and normal
+     // stream uses 16384 bytes. Therefore, use 16384 for now to avoid growing
+     // the buffer too many times.
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetChunkedOutputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetChunkedOutputStream.java
+index 7ce7d838..56ce9464 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetChunkedOutputStream.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetChunkedOutputStream.java
+@@ -7,6 +7,8 @@ package org.chromium.net.urlconnection;
+ import android.net.http.UploadDataProvider;
+ import android.net.http.UploadDataSink;
+ 
++import androidx.annotation.VisibleForTesting;
++
+ import java.io.IOException;
+ import java.net.HttpRetryException;
+ import java.nio.ByteBuffer;
+@@ -18,7 +20,8 @@ import java.nio.ByteBuffer;
+  * It does not support rewind. Note that {@link #write} should only be called
+  * from the thread on which the {@link #mConnection} is created.
+  */
+-final class CronetChunkedOutputStream extends CronetOutputStream {
++@VisibleForTesting
++public final class CronetChunkedOutputStream extends CronetOutputStream {
+     private final CronetHttpURLConnection mConnection;
+     private final MessageLoop mMessageLoop;
+     private final ByteBuffer mBuffer;
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetFixedModeOutputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetFixedModeOutputStream.java
+index c2ba3992..7b933464 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetFixedModeOutputStream.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetFixedModeOutputStream.java
+@@ -9,6 +9,8 @@ import androidx.annotation.VisibleForTesting;
+ import android.net.http.UploadDataProvider;
+ import android.net.http.UploadDataSink;
+ 
++import androidx.annotation.VisibleForTesting;
++
+ import java.io.IOException;
+ import java.net.HttpRetryException;
+ import java.net.ProtocolException;
+@@ -21,7 +23,8 @@ import java.nio.ByteBuffer;
+  * It does not support rewind. Note that {@link #write} should only be called
+  * from the thread on which the {@link #mConnection} is created.
+  */
+-final class CronetFixedModeOutputStream extends CronetOutputStream {
++@VisibleForTesting
++public final class CronetFixedModeOutputStream extends CronetOutputStream {
+     // CronetFixedModeOutputStream buffers up to this value and wait for UploadDataStream
+     // to consume the data. This field is non-final, so it can be changed for tests.
+     // Using 16384 bytes is because the internal read buffer is 14520 for QUIC,
+@@ -201,7 +204,7 @@ final class CronetFixedModeOutputStream extends CronetOutputStream {
+      * Sets the default buffer length for use in tests.
+      */
+     @VisibleForTesting
+-    static void setDefaultBufferLengthForTesting(int length) {
++    public static void setDefaultBufferLengthForTesting(int length) {
+         sDefaultBufferLength = length;
+     }
+ }
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandler.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandler.java
+index eff3dd79..5c141c4c 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandler.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetHttpURLStreamHandler.java
+@@ -6,6 +6,8 @@ package org.chromium.net.urlconnection;
+ 
+ import android.net.http.ExperimentalHttpEngine;
+ 
++import androidx.annotation.VisibleForTesting;
++
+ import java.io.IOException;
+ import java.net.Proxy;
+ import java.net.URL;
+@@ -22,7 +24,8 @@ import java.net.URLStreamHandler;
+  * <b>Note:</b> Cronet's {@code HttpURLConnection} implementation is subject to some limitations
+  * listed {@link CronetURLStreamHandlerFactory here}.
+  */
+-class CronetHttpURLStreamHandler extends URLStreamHandler {
++@VisibleForTesting
++public class CronetHttpURLStreamHandler extends URLStreamHandler {
+     private final ExperimentalHttpEngine mCronetEngine;
+ 
+     public CronetHttpURLStreamHandler(ExperimentalHttpEngine cronetEngine) {
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetInputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetInputStream.java
+index 9f36fa10..3e55fd42 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetInputStream.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetInputStream.java
+@@ -4,6 +4,8 @@
+ 
+ package org.chromium.net.urlconnection;
+ 
++import androidx.annotation.VisibleForTesting;
++
+ import java.io.IOException;
+ import java.io.InputStream;
+ import java.nio.ByteBuffer;
+@@ -12,7 +14,8 @@ import java.nio.ByteBuffer;
+  * An InputStream that is used by {@link CronetHttpURLConnection} to request
+  * data from the network stack as needed.
+  */
+-class CronetInputStream extends InputStream {
++@VisibleForTesting
++public class CronetInputStream extends InputStream {
+     private final CronetHttpURLConnection mHttpURLConnection;
+     // Indicates whether listener's onSucceeded or onFailed callback is invoked.
+     private boolean mResponseDataCompleted;
+@@ -77,7 +80,7 @@ class CronetInputStream extends InputStream {
+      * @param exception if not {@code null}, it is the exception to throw when caller
+      *            tries to read more data.
+      */
+-    void setResponseDataCompleted(IOException exception) {
++    public void setResponseDataCompleted(IOException exception) {
+         mException = exception;
+         mResponseDataCompleted = true;
+         // Nothing else to read, so can free the buffer.
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetOutputStream.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetOutputStream.java
+index 4923f509..29e493ba 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetOutputStream.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/CronetOutputStream.java
+@@ -6,6 +6,8 @@ package org.chromium.net.urlconnection;
+ 
+ import android.net.http.UploadDataProvider;
+ 
++import androidx.annotation.VisibleForTesting;
++
+ import java.io.IOException;
+ import java.io.OutputStream;
+ 
+@@ -13,7 +15,8 @@ import java.io.OutputStream;
+  * An abstract class of {@link OutputStream} that concrete implementations must
+  * extend in order to be used in {@link CronetHttpURLConnection}.
+  */
+-abstract class CronetOutputStream extends OutputStream {
++@VisibleForTesting
++public abstract class CronetOutputStream extends OutputStream {
+     private IOException mException;
+     private boolean mClosed;
+     private boolean mRequestCompleted;
+diff --git a/components/cronet/android/java/src/org/chromium/net/urlconnection/MessageLoop.java b/components/cronet/android/java/src/org/chromium/net/urlconnection/MessageLoop.java
+index bccb953e..17a76c9c 100644
+--- a/components/cronet/android/java/src/org/chromium/net/urlconnection/MessageLoop.java
++++ b/components/cronet/android/java/src/org/chromium/net/urlconnection/MessageLoop.java
+@@ -4,6 +4,8 @@
+ 
+ package org.chromium.net.urlconnection;
+ 
++import androidx.annotation.VisibleForTesting;
++
+ import java.io.IOException;
+ import java.io.InterruptedIOException;
+ import java.net.SocketTimeoutException;
+@@ -16,7 +18,8 @@ import java.util.concurrent.TimeUnit;
+ /**
+  * A MessageLoop class for use in {@link CronetHttpURLConnection}.
+  */
+-class MessageLoop implements Executor {
++@VisibleForTesting
++public class MessageLoop implements Executor {
+     private final BlockingQueue<Runnable> mQueue;
+ 
+     // Indicates whether this message loop is currently running.
+@@ -38,7 +41,7 @@ class MessageLoop implements Executor {
+     private static final long INVALID_THREAD_ID = -1;
+     private long mThreadId = INVALID_THREAD_ID;
+ 
+-    MessageLoop() {
++    public MessageLoop() {
+         mQueue = new LinkedBlockingQueue<Runnable>();
+     }
+ 
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+
