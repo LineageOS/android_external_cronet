@@ -29,7 +29,6 @@ java_test_host {
     ],
     test_suites: [
         "general-tests",
-        "mts-tethering",
     ],
     // It will get build error if just set enabled to true. It fails with "windows_common"
     // depends on some disabled modules that are used by this test and it looks like set
@@ -59,7 +58,6 @@ java_test_host {
     ],
     test_suites: [
         "general-tests",
-        "mts-tethering",
     ],
     // It will get build error if just set enabled to true. It fails with "windows_common"
     // depends on some disabled modules that are used by this test and it looks like set
