@@ -7,6 +7,8 @@ package org.chromium.net.urlconnection;
 import android.net.http.UploadDataProvider;
 import android.net.http.UploadDataSink;
 
+import androidx.annotation.VisibleForTesting;
+
 import java.io.IOException;
 import java.net.HttpRetryException;
 import java.nio.ByteBuffer;
@@ -18,7 +20,8 @@ import java.nio.ByteBuffer;
  * It does not support rewind. Note that {@link #write} should only be called
  * from the thread on which the {@link #mConnection} is created.
  */
-final class CronetChunkedOutputStream extends CronetOutputStream {
+@VisibleForTesting
+public final class CronetChunkedOutputStream extends CronetOutputStream {
     private final CronetHttpURLConnection mConnection;
     private final MessageLoop mMessageLoop;
     private final ByteBuffer mBuffer;
