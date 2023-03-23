@@ -7,6 +7,8 @@ package org.chromium.net.urlconnection;
 import android.net.http.UploadDataProvider;
 import android.net.http.UploadDataSink;
 
+import androidx.annotation.VisibleForTesting;
+
 import java.io.IOException;
 import java.net.ProtocolException;
 import java.nio.ByteBuffer;
@@ -17,7 +19,8 @@ import java.nio.ByteBuffer;
  * {@link CronetHttpURLConnection#setFixedLengthStreamingMode}
  * nor {@link CronetHttpURLConnection#setChunkedStreamingMode} is set.
  */
-final class CronetBufferedOutputStream extends CronetOutputStream {
+@VisibleForTesting
+public final class CronetBufferedOutputStream extends CronetOutputStream {
     // QUIC uses a read buffer of 14520 bytes, SPDY uses 2852 bytes, and normal
     // stream uses 16384 bytes. Therefore, use 16384 for now to avoid growing
     // the buffer too many times.
