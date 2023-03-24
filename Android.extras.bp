@@ -55,6 +55,9 @@ java_library {
         "framework-connectivity.stubs.module_lib",
     ],
     sdk_version: "module_current",
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+    ],
 }
 
 // ------------------------------ NATIVE TEST TARGETS --------------------------------------------
@@ -168,6 +171,31 @@ filegroup {
 filegroup {
     name: "cronet_aml_javatests_sources",
     srcs: [
-        "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java"
+        "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
+    ],
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
     ],
 }
+
+java_library {
+    name: "cronet_testserver_utils",
+    sdk_version: "module_current", // this allows us to access hidden apis while test_current doesnt
+    srcs: [
+        "components/cronet/android/test/**/NativeTestServer.java",
+        "components/cronet/android/test/**/TestFilesInstaller.java",
+        "base/test/android/javatests/**/UrlUtils.java",
+    ],
+    static_libs: [
+        "cronet_aml_java__testing",
+        "androidx.test.ext.junit",
+        "junit",
+    ],
+    libs: [
+        "android.test.base",
+    ],
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+    ],
+}
+
