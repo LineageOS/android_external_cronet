@@ -172,6 +172,8 @@ filegroup {
     name: "cronet_aml_javatests_sources",
     srcs: [
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
+        "components/cronet/android/test/javatests/**/CronetTestRule.java",
+        "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
