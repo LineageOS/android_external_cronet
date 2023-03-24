@@ -65,7 +65,6 @@ java_library {
 android_test_helper_app {
     name: "cronet_tester_app",
     srcs: [
-        "base/test/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestIntent.java",
@@ -80,7 +79,6 @@ android_test_helper_app {
         "testing/android/reporter/java/src/org/chromium/test/reporter/TestStatusReporter.java",
     ],
     static_libs: [
-        "android-support-multidex",
         "androidx.annotation_annotation",
         "junit",
         "cronet_aml_java__testing",
@@ -94,7 +92,6 @@ android_test_helper_app {
 android_test_helper_app {
     name: "cronet_net_tester_app",
     srcs: [
-        "base/test/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestIntent.java",
@@ -109,7 +106,6 @@ android_test_helper_app {
         "testing/android/reporter/java/src/org/chromium/test/reporter/TestStatusReporter.java",
     ],
     static_libs: [
-        "android-support-multidex",
         "androidx.annotation_annotation",
         "junit",
         "cronet_for_testing_net_java",
