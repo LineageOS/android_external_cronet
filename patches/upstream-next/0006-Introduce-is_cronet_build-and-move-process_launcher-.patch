@@ -1,4 +1,4 @@
-From 0c8dd96055e3dbb3958675656f07dd7a4abc8606 Mon Sep 17 00:00:00 2001
+From 85b3c2a956d2cef02f16cb45e6b8a470fa2efe26 Mon Sep 17 00:00:00 2001
 From: Stefano Duo <stefanoduo@google.com>
 Date: Wed, 11 Jan 2023 13:46:47 +0000
 Subject: [PATCH] Introduce is_cronet_build and move process_launcher into its
@@ -27,10 +27,10 @@ Change-Id: I84f0d81f4feddce8094b6f400f6291a78c953dff
  create mode 100644 build/config/cronet/config.gni
 
 diff --git a/base/BUILD.gn b/base/BUILD.gn
-index 5062dd82..c2263d7a 100644
+index 255ed8a9806bd..b737dad33c4a7 100644
 --- a/base/BUILD.gn
 +++ b/base/BUILD.gn
-@@ -25,6 +25,7 @@ import("//build/config/c++/c++.gni")
+@@ -26,6 +26,7 @@ import("//build/config/c++/c++.gni")
  import("//build/config/chromecast_build.gni")
  import("//build/config/chromeos/ui_mode.gni")
  import("//build/config/compiler/compiler.gni")
@@ -38,7 +38,7 @@ index 5062dd82..c2263d7a 100644
  import("//build/config/dcheck_always_on.gni")
  import("//build/config/ios/config.gni")
  import("//build/config/logging.gni")
-@@ -4163,10 +4164,39 @@ if (is_android) {
+@@ -4146,10 +4147,39 @@ if (is_android) {
      template = "android/java/src/org/chromium/base/BaseSwitches.java.tmpl"
    }
  
@@ -79,15 +79,15 @@ index 5062dd82..c2263d7a 100644
        ":java_features_srcjar",
        ":java_switches_srcjar",
      ]
-@@ -4209,7 +4239,6 @@ if (is_android) {
-       "android/java/src/org/chromium/base/Function.java",
+@@ -4191,7 +4221,6 @@ if (is_android) {
+       "android/java/src/org/chromium/base/Flag.java",
        "android/java/src/org/chromium/base/ImportantFileWriterAndroid.java",
        "android/java/src/org/chromium/base/IntStringCallback.java",
 -      "android/java/src/org/chromium/base/IntentUtils.java",
        "android/java/src/org/chromium/base/JNIUtils.java",
        "android/java/src/org/chromium/base/JavaExceptionReporter.java",
        "android/java/src/org/chromium/base/JavaHandlerThread.java",
-@@ -4291,18 +4320,6 @@ if (is_android) {
+@@ -4269,18 +4298,6 @@ if (is_android) {
        "android/java/src/org/chromium/base/metrics/TimingMetric.java",
        "android/java/src/org/chromium/base/metrics/UmaRecorder.java",
        "android/java/src/org/chromium/base/metrics/UmaRecorderHolder.java",
@@ -103,10 +103,10 @@ index 5062dd82..c2263d7a 100644
 -      "android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionFactory.java",
 -      "android/java/src/org/chromium/base/process_launcher/ChildServiceConnectionImpl.java",
 -      "android/java/src/org/chromium/base/process_launcher/FileDescriptorInfo.java",
-       "android/java/src/org/chromium/base/supplier/BooleanSupplier.java",
        "android/java/src/org/chromium/base/supplier/DestroyableObservableSupplier.java",
        "android/java/src/org/chromium/base/supplier/ObservableSupplier.java",
-@@ -4331,6 +4348,10 @@ if (is_android) {
+       "android/java/src/org/chromium/base/supplier/ObservableSupplierImpl.java",
+@@ -4308,6 +4325,10 @@ if (is_android) {
        "android/java/src/org/chromium/base/task/TaskTraitsExtensionDescriptor.java",
      ]
  
@@ -117,7 +117,7 @@ index 5062dd82..c2263d7a 100644
      annotation_processor_deps = [ "//base/android/jni_generator:jni_processor" ]
  
      resources_package = "org.chromium.base"
-@@ -4342,7 +4363,7 @@ if (is_android) {
+@@ -4319,7 +4340,7 @@ if (is_android) {
      ]
    }
  
@@ -126,7 +126,7 @@ index 5062dd82..c2263d7a 100644
      import_include = [ "android/java/src" ]
      sources = [
        "android/java/src/org/chromium/base/process_launcher/IChildProcessService.aidl",
-@@ -4517,7 +4538,7 @@ if (is_android) {
+@@ -4513,7 +4534,7 @@ if (is_android) {
    android_library("base_java_process_launcher_test_support") {
      testonly = true
  
@@ -136,10 +136,10 @@ index 5062dd82..c2263d7a 100644
      sources = [ "test/android/javatests/src/org/chromium/base/process_launcher/TestChildProcessConnection.java" ]
    }
 diff --git a/base/test/BUILD.gn b/base/test/BUILD.gn
-index 96149187..f3bdead3 100644
+index ca4a051cce41c..061c169690918 100644
 --- a/base/test/BUILD.gn
 +++ b/base/test/BUILD.gn
-@@ -393,6 +393,7 @@ if (is_android) {
+@@ -397,6 +397,7 @@ if (is_android) {
      deps = [
        "//base:base_java",
        "//base:jni_java",
@@ -149,7 +149,7 @@ index 96149187..f3bdead3 100644
      ]
 diff --git a/build/config/cronet/config.gni b/build/config/cronet/config.gni
 new file mode 100644
-index 00000000..1468ec17
+index 0000000000000..1468ec17a05ee
 --- /dev/null
 +++ b/build/config/cronet/config.gni
 @@ -0,0 +1,10 @@
@@ -164,7 +164,7 @@ index 00000000..1468ec17
 +  is_cronet_build = false
 +}
 diff --git a/build/config/ios/config.gni b/build/config/ios/config.gni
-index 74d06453..c5c10c3f 100644
+index 74d064532d5f8..c5c10c3f7e5c3 100644
 --- a/build/config/ios/config.gni
 +++ b/build/config/ios/config.gni
 @@ -9,11 +9,6 @@ declare_args() {
@@ -180,7 +180,7 @@ index 74d06453..c5c10c3f 100644
  
  if (target_environment == "") {
 diff --git a/net/BUILD.gn b/net/BUILD.gn
-index e3e66c97..c8039a5b 100644
+index c633dcd9554d0..2fc1a575d0387 100644
 --- a/net/BUILD.gn
 +++ b/net/BUILD.gn
 @@ -6,8 +6,8 @@ import("//build/buildflag_header.gni")
@@ -194,5 +194,5 @@ index e3e66c97..c8039a5b 100644
  import("//net/features.gni")
  import("//testing/libfuzzer/fuzzer_test.gni")
 -- 
-2.39.0.314.g84b9a713c41-goog
+2.40.0.348.gf938b09366-goog
 
