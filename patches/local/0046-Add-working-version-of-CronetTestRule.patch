@@ -1,0 +1,73 @@
+From 28a2ef599c54459cfa231372140ebe16b37d74b2 Mon Sep 17 00:00:00 2001
+From: Chidera Olibie <colibie@google.com>
+Date: Tue, 21 Mar 2023 15:52:59 +0000
+Subject: [PATCH] Add working version of CronetTestRule
+
+This is a base class used to setup all tests.
+This cl removes reference to methods that were deleted
+on import and also fixes a ClassCastException between the
+HttpEngine and ExperimentalHttpEngine
+
+Test: atest NetHttpCoverageTest
+Bug: 267353182
+Change-Id: Iedfba707e4b7ae4b15e2223d5051d33be9d2a041
+---
+ .../src/org/chromium/net/CronetTestRule.java          | 11 +++++------
+ .../src/org/chromium/net/CronetTestRuleTest.java      |  2 --
+ 2 files changed, 5 insertions(+), 8 deletions(-)
+
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
+index 805151bc..3f6d343e 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRule.java
+@@ -6,6 +6,7 @@ package org.chromium.net;
+ 
+ import static org.junit.Assume.assumeTrue;
+ 
++import android.net.http.ApiVersion;
+ import android.net.http.HttpEngine;
+ import android.net.http.ExperimentalHttpEngine;
+ import android.net.http.UrlResponseInfo;
+@@ -246,9 +247,7 @@ public class CronetTestRule implements TestRule {
+     }
+ 
+     private CronetTestFramework createCronetTestFramework() {
+-        mCronetTestFramework = testingJavaImpl()
+-                ? CronetTestFramework.createUsingJavaImpl(getContext())
+-                : CronetTestFramework.createUsingNativeImpl(getContext());
++        mCronetTestFramework = CronetTestFramework.createUsingNativeImpl(getContext());
+         return mCronetTestFramework;
+     }
+ 
+@@ -275,12 +274,12 @@ public class CronetTestRule implements TestRule {
+      * @return the {@code CronetEngine.Builder} that builds Chromium-based {@code Cronet engine}.
+      */
+     public static ExperimentalHttpEngine.Builder createNativeEngineBuilder(Context context) {
+-        return (ExperimentalHttpEngine.Builder) HttpEngine.builder(context);
++        return new ExperimentalHttpEngine.Builder(context);
+     }
+ 
+     public void assertResponseEquals(UrlResponseInfo expected, UrlResponseInfo actual) {
+-        Assert.assertEquals(expected.getAllHeaders(), actual.getAllHeaders());
+-        Assert.assertEquals(expected.getAllHeadersAsList(), actual.getAllHeadersAsList());
++        Assert.assertEquals(expected.getHeaders().getAsMap(), actual.getHeaders().getAsMap());
++        Assert.assertEquals(expected.getHeaders().getAsList(), actual.getHeaders().getAsList());
+         Assert.assertEquals(expected.getHttpStatusCode(), actual.getHttpStatusCode());
+         Assert.assertEquals(expected.getHttpStatusText(), actual.getHttpStatusText());
+         Assert.assertEquals(expected.getUrlChain(), actual.getUrlChain());
+diff --git a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
+index 298cb629..607e994b 100644
+--- a/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
++++ b/components/cronet/android/test/javatests/src/org/chromium/net/CronetTestRuleTest.java
+@@ -68,8 +68,6 @@ public class CronetTestRuleTest {
+         mTestWasRun = true;
+     }
+ 
+-}
+-
+     @Test
+     @SmallTest
+     @OnlyRunNativeCronet
+-- 
+2.40.0.rc1.284.g88254d51c5-goog
+

@@ -68,8 +68,6 @@ public class CronetTestRuleTest {
         mTestWasRun = true;
     }
 
-}
-
     @Test
     @SmallTest
     @OnlyRunNativeCronet

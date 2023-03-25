@@ -6,6 +6,7 @@ package org.chromium.net;
 
 import static org.junit.Assume.assumeTrue;
 
+import android.net.http.ApiVersion;
 import android.net.http.HttpEngine;
 import android.net.http.ExperimentalHttpEngine;
 import android.net.http.UrlResponseInfo;
@@ -246,9 +247,7 @@ public class CronetTestRule implements TestRule {
     }
 
     private CronetTestFramework createCronetTestFramework() {
-        mCronetTestFramework = testingJavaImpl()
-                ? CronetTestFramework.createUsingJavaImpl(getContext())
-                : CronetTestFramework.createUsingNativeImpl(getContext());
+        mCronetTestFramework = CronetTestFramework.createUsingNativeImpl(getContext());
         return mCronetTestFramework;
     }
 
@@ -275,12 +274,12 @@ public class CronetTestRule implements TestRule {
      * @return the {@code CronetEngine.Builder} that builds Chromium-based {@code Cronet engine}.
      */
     public static ExperimentalHttpEngine.Builder createNativeEngineBuilder(Context context) {
-        return (ExperimentalHttpEngine.Builder) HttpEngine.builder(context);
+        return new ExperimentalHttpEngine.Builder(context);
     }
 
     public void assertResponseEquals(UrlResponseInfo expected, UrlResponseInfo actual) {
-        Assert.assertEquals(expected.getAllHeaders(), actual.getAllHeaders());
-        Assert.assertEquals(expected.getAllHeadersAsList(), actual.getAllHeadersAsList());
+        Assert.assertEquals(expected.getHeaders().getAsMap(), actual.getHeaders().getAsMap());
+        Assert.assertEquals(expected.getHeaders().getAsList(), actual.getHeaders().getAsList());
         Assert.assertEquals(expected.getHttpStatusCode(), actual.getHttpStatusCode());
         Assert.assertEquals(expected.getHttpStatusText(), actual.getHttpStatusText());
         Assert.assertEquals(expected.getUrlChain(), actual.getUrlChain());
