@@ -21,14 +21,16 @@
 #   -d dir: The directory that points to a local checkout of chromium/src.
 #   -r rev: The reference revision of upstream Chromium to use. Must match the
 #           last revision that has been imported using import_cronet.sh.
+#  Optional arguments:
+#   -f: Force reset the chromium/src directory.
 
 set -e -x
 
-OPTSTRING=d:r:
+OPTSTRING=d:fr:
 
 usage() {
     cat <<EOF
-Usage: gen_gn_desc.sh -d dir -r rev
+Usage: gen_gn_desc.sh -d dir -r rev [-f]
 EOF
     exit 1
 }
@@ -43,13 +45,20 @@ OUT_PATH="out/cronet"
 # Arguments:
 #   rev, string
 #   chromium_dir, string
+#   force_reset, boolean
 #######################################
 function setup_chromium_src_repo() (
   local -r rev="$1"
   local -r chromium_dir="$2"
+  local -r force_reset="$3"
 
   cd "${chromium_dir}"
   git fetch --tags
+
+  if [ -n "${force_reset}" ]; then
+    git reset --hard
+  fi
+
   git checkout "${rev}"
   gclient sync \
     --no-history \
@@ -141,6 +150,7 @@ function gn_desc() (
 while getopts "${OPTSTRING}" opt; do
   case "${opt}" in
     d) chromium_dir="${OPTARG}" ;;
+    f) force_reset=true ;;
     r) rev="${OPTARG}" ;;
     ?) usage ;;
     *) echo "'${opt}' '${OPTARG}'"
@@ -157,7 +167,7 @@ if [ -z "${rev}" ]; then
   usage
 fi
 
-setup_chromium_src_repo "${rev}" "${chromium_dir}"
+setup_chromium_src_repo "${rev}" "${chromium_dir}" "${force_reset}"
 apply_patches "${chromium_dir}"
 gn_desc x86 "${chromium_dir}"
 gn_desc x64 "${chromium_dir}"
