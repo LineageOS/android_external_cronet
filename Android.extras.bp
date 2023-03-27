@@ -170,6 +170,7 @@ filegroup {
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
+        "components/cronet/android/test/javatests/**/Http2TestServer.java",
         "components/cronet/android/test/javatests/**/Test*.java",
         "components/cronet/android/test/javatests/**/MetricsTestUtil.java",
     ],
