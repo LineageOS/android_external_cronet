@@ -39,6 +39,25 @@ EOF
 OUT_PATH="out/cronet"
 
 #######################################
+# Sets the chromium/src repository to a reference state.
+# Arguments:
+#   rev, string
+#   chromium_dir, string
+#######################################
+function setup_chromium_src_repo() (
+  local -r rev="$1"
+  local -r chromium_dir="$2"
+
+  cd "${chromium_dir}"
+  git fetch --tags
+  git checkout "${rev}"
+  gclient sync \
+    --no-history \
+    --shallow \
+    --delete_unversioned_trees
+)
+
+#######################################
 # Apply patches in external/cronet.
 # Globals:
 #   ANDROID_BUILD_TOP
@@ -138,6 +157,7 @@ if [ -z "${rev}" ]; then
   usage
 fi
 
+setup_chromium_src_repo "${rev}" "${chromium_dir}"
 apply_patches "${chromium_dir}"
 gn_desc x86 "${chromium_dir}"
 gn_desc x64 "${chromium_dir}"
