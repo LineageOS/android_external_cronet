@@ -14,7 +14,25 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Script to generate `gn desc` json outputs that are used as an input to the
+# gn2bp conversion tool.
+# Inputs:
+#  Arguments:
+#   -d dir: The directory that points to a local checkout of chromium/src.
+#   -r rev: The reference revision of upstream Chromium to use. Must match the
+#           last revision that has been imported using import_cronet.sh.
+
 set -e -x
+
+OPTSTRING=d:r:
+
+usage() {
+    cat <<EOF
+Usage: gen_gn_desc.sh -d dir -r rev
+EOF
+    exit 1
+}
+
 
 # Run this script inside a full chromium checkout.
 
@@ -25,10 +43,13 @@ OUT_PATH="out/cronet"
 # Globals:
 #   ANDROID_BUILD_TOP
 # Arguments:
-#   None
+#   chromium_dir, string
 #######################################
-function apply_patches() {
+function apply_patches() (
+  local -r chromium_dir=$1
   local -r patch_root="${ANDROID_BUILD_TOP}/external/cronet/patches"
+
+  cd "${chromium_dir}"
 
   local upstream_patches
   upstream_patches=$(ls "${patch_root}/upstream-next")
@@ -42,7 +63,7 @@ function apply_patches() {
   for patch in ${local_patches}; do
     git am --3way "${patch_root}/local/${patch}"
   done
-}
+)
 
 #######################################
 # Generate desc.json for a specified architecture.
@@ -50,9 +71,11 @@ function apply_patches() {
 #   OUT_PATH
 # Arguments:
 #   target_cpu, string
+#   chromium_dir, string
 #######################################
-function gn_desc() {
+function gn_desc() (
   local -r target_cpu="$1"
+  local -r chromium_dir="$2"
   local -a gn_args=(
     "target_os = \"android\""
     "enable_websockets = false"
@@ -86,17 +109,38 @@ function gn_desc() {
     gn_args+=("arm_use_neon = false")
   fi
 
+  cd "${chromium_dir}"
+
   # Configure gn args.
   gn gen "${OUT_PATH}" --args="${gn_args[*]}"
 
   # Generate desc.json.
   local -r out_file="desc_${target_cpu}.json"
   gn desc "${OUT_PATH}" --format=json --all-toolchains "//*" > "${out_file}"
-}
+)
 
-apply_patches
-gn_desc x86
-gn_desc x64
-gn_desc arm
-gn_desc arm64
+while getopts "${OPTSTRING}" opt; do
+  case "${opt}" in
+    d) chromium_dir="${OPTARG}" ;;
+    r) rev="${OPTARG}" ;;
+    ?) usage ;;
+    *) echo "'${opt}' '${OPTARG}'"
+  esac
+done
+
+if [ -z "${chromium_dir}" ]; then
+  echo "-d argument required"
+  usage
+fi
+
+if [ -z "${rev}" ]; then
+  echo "-r argument required"
+  usage
+fi
+
+apply_patches "${chromium_dir}"
+gn_desc x86 "${chromium_dir}"
+gn_desc x64 "${chromium_dir}"
+gn_desc arm "${chromium_dir}"
+gn_desc arm64 "${chromium_dir}"
 
