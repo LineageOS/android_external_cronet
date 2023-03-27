@@ -12,7 +12,7 @@ import static org.junit.Assert.assertTrue;
 import android.net.http.RequestFinishedInfo;
 import android.os.ConditionVariable;
 
-import java.util.Date;
+import java.time.Instant;
 import java.util.LinkedList;
 import java.util.NoSuchElementException;
 import java.util.concurrent.Executor;
@@ -89,9 +89,9 @@ public class MetricsTestUtil {
     // Helper method to assert date1 is equals to or after date2.
     // Some implementation of java.util.Date broke the symmetric property, so
     // check both directions.
-    public static void assertAfter(Date date1, Date date2) {
-        assertTrue("date1: " + date1.getTime() + ", date2: " + date2.getTime(),
-                date1.after(date2) || date1.equals(date2) || date2.equals(date1));
+    public static void assertAfter(Instant date1, Instant date2) {
+        assertTrue("date1: " + date1 + ", date2: " + date2,
+                date1.isAfter(date2) || date1.equals(date2) || date2.equals(date1));
     }
 
     /**
@@ -102,7 +102,7 @@ public class MetricsTestUtil {
      * Don't check push times here.
      */
     public static void checkTimingMetrics(
-            RequestFinishedInfo.Metrics metrics, Date startTime, Date endTime) {
+            RequestFinishedInfo.Metrics metrics, Instant startTime, Instant endTime) {
         assertNotNull(metrics.getRequestStart());
         assertAfter(metrics.getRequestStart(), startTime);
         assertNotNull(metrics.getSendingStart());
@@ -121,7 +121,7 @@ public class MetricsTestUtil {
      * except SSL times in the case of non-https requests.
      */
     public static void checkHasConnectTiming(
-            RequestFinishedInfo.Metrics metrics, Date startTime, Date endTime, boolean isSsl) {
+            RequestFinishedInfo.Metrics metrics, Instant startTime, Instant endTime, boolean isSsl) {
         assertNotNull(metrics.getDnsStart());
         assertAfter(metrics.getDnsStart(), startTime);
         assertNotNull(metrics.getDnsEnd());
@@ -157,16 +157,13 @@ public class MetricsTestUtil {
      * Check that RequestFinishedInfo looks the way it should look for a normal successful request.
      */
     public static void checkRequestFinishedInfo(
-            RequestFinishedInfo info, String url, Date startTime, Date endTime) {
+            RequestFinishedInfo info, String url, Instant startTime, Instant endTime) {
         assertNotNull("RequestFinishedInfo.Listener must be called", info);
         assertEquals(url, info.getUrl());
         assertNotNull(info.getResponseInfo());
         assertNull(info.getException());
         RequestFinishedInfo.Metrics metrics = info.getMetrics();
         assertNotNull("RequestFinishedInfo.getMetrics() must not be null", metrics);
-        // Check old (deprecated) timing metrics
-        assertTrue(metrics.getTotalTimeMs() >= 0);
-        assertTrue(metrics.getTotalTimeMs() >= metrics.getTtfbMs());
         // Check new timing metrics
         checkTimingMetrics(metrics, startTime, endTime);
         assertNull(metrics.getPushStart());
