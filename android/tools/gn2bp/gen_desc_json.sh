@@ -1,5 +1,5 @@
 #!/bin/bash
-set -x
+set -e -x
 
 # Run this script inside a full chromium checkout.
 
