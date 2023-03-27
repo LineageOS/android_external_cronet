@@ -52,6 +52,7 @@ function apply_patches() {
 #   target_cpu, string
 #######################################
 function gn_desc() {
+  local -r target_cpu="$1"
   local -a gn_args=(
     "target_os = \"android\""
     "enable_websockets = false"
@@ -77,11 +78,11 @@ function gn_desc() {
     "exclude_unwind_tables=true"
     "symbol_level=1"
   )
-  gn_args+=("target_cpu = \"${1}\"")
+  gn_args+=("target_cpu = \"${target_cpu}\"")
 
   # Only set arm_use_neon on arm architectures to prevent warning from being
   # written to json output.
-  if [[ "$1" = "arm" ]]; then
+  if [[ "${target_cpu}" = "arm" ]]; then
     gn_args+=("arm_use_neon = false")
   fi
 
@@ -89,7 +90,7 @@ function gn_desc() {
   gn gen "${OUT_PATH}" --args="${gn_args[*]}"
 
   # Generate desc.json.
-  local -r out_file="desc_${1}.json"
+  local -r out_file="desc_${target_cpu}.json"
   gn desc "${OUT_PATH}" --format=json --all-toolchains "//*" > "${out_file}"
 }
 
