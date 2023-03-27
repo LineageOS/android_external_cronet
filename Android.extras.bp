@@ -170,6 +170,8 @@ filegroup {
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
+        "components/cronet/android/test/javatests/**/Test*.java",
+        "components/cronet/android/test/javatests/**/MetricsTestUtil.java",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
@@ -182,6 +184,9 @@ java_library {
     srcs: [
         "components/cronet/android/test/**/NativeTestServer.java",
         "components/cronet/android/test/**/TestFilesInstaller.java",
+        "components/cronet/android/test/**/QuicTestServer.java",
+        "components/cronet/android/test/**/CronetTestUtil.java",
+        "components/cronet/android/test/**/MockCertVerifier.java",
         "base/test/android/javatests/**/UrlUtils.java",
     ],
     static_libs: [
@@ -191,6 +196,8 @@ java_library {
     ],
     libs: [
         "android.test.base",
+        "cronet_aml_api_java",
+        "framework-connectivity",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
