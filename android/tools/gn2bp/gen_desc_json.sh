@@ -1,19 +1,83 @@
 #!/bin/bash
-set -x
+
+# Copyright 2023 Google Inc. All rights reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+# Script to generate `gn desc` json outputs that are used as an input to the
+# gn2bp conversion tool.
+# Inputs:
+#  Arguments:
+#   -d dir: The directory that points to a local checkout of chromium/src.
+#   -r rev: The reference revision of upstream Chromium to use. Must match the
+#           last revision that has been imported using import_cronet.sh.
+#  Optional arguments:
+#   -f: Force reset the chromium/src directory.
+
+set -e -x
+
+OPTSTRING=d:fr:
+
+usage() {
+    cat <<EOF
+Usage: gen_gn_desc.sh -d dir -r rev [-f]
+EOF
+    exit 1
+}
+
 
 # Run this script inside a full chromium checkout.
 
 OUT_PATH="out/cronet"
 
 #######################################
+# Sets the chromium/src repository to a reference state.
+# Arguments:
+#   rev, string
+#   chromium_dir, string
+#   force_reset, boolean
+#######################################
+function setup_chromium_src_repo() (
+  local -r rev="$1"
+  local -r chromium_dir="$2"
+  local -r force_reset="$3"
+
+  cd "${chromium_dir}"
+  git fetch --tags
+
+  if [ -n "${force_reset}" ]; then
+    git reset --hard
+  fi
+
+  git checkout "${rev}"
+  gclient sync \
+    --no-history \
+    --shallow \
+    --delete_unversioned_trees
+)
+
+#######################################
 # Apply patches in external/cronet.
 # Globals:
 #   ANDROID_BUILD_TOP
 # Arguments:
-#   None
+#   chromium_dir, string
 #######################################
-function apply_patches() {
+function apply_patches() (
+  local -r chromium_dir=$1
   local -r patch_root="${ANDROID_BUILD_TOP}/external/cronet/patches"
+
+  cd "${chromium_dir}"
 
   local upstream_patches
   upstream_patches=$(ls "${patch_root}/upstream-next")
@@ -27,7 +91,7 @@ function apply_patches() {
   for patch in ${local_patches}; do
     git am --3way "${patch_root}/local/${patch}"
   done
-}
+)
 
 #######################################
 # Generate desc.json for a specified architecture.
@@ -35,8 +99,11 @@ function apply_patches() {
 #   OUT_PATH
 # Arguments:
 #   target_cpu, string
+#   chromium_dir, string
 #######################################
-function gn_desc() {
+function gn_desc() (
+  local -r target_cpu="$1"
+  local -r chromium_dir="$2"
   local -a gn_args=(
     "target_os = \"android\""
     "enable_websockets = false"
@@ -62,25 +129,48 @@ function gn_desc() {
     "exclude_unwind_tables=true"
     "symbol_level=1"
   )
-  gn_args+=("target_cpu = \"${1}\"")
+  gn_args+=("target_cpu = \"${target_cpu}\"")
 
   # Only set arm_use_neon on arm architectures to prevent warning from being
   # written to json output.
-  if [[ "$1" = "arm" ]]; then
+  if [[ "${target_cpu}" = "arm" ]]; then
     gn_args+=("arm_use_neon = false")
   fi
+
+  cd "${chromium_dir}"
 
   # Configure gn args.
   gn gen "${OUT_PATH}" --args="${gn_args[*]}"
 
   # Generate desc.json.
-  local -r out_file="desc_${1}.json"
+  local -r out_file="desc_${target_cpu}.json"
   gn desc "${OUT_PATH}" --format=json --all-toolchains "//*" > "${out_file}"
-}
+)
 
-apply_patches
-gn_desc x86
-gn_desc x64
-gn_desc arm
-gn_desc arm64
+while getopts "${OPTSTRING}" opt; do
+  case "${opt}" in
+    d) chromium_dir="${OPTARG}" ;;
+    f) force_reset=true ;;
+    r) rev="${OPTARG}" ;;
+    ?) usage ;;
+    *) echo "'${opt}' '${OPTARG}'"
+  esac
+done
+
+if [ -z "${chromium_dir}" ]; then
+  echo "-d argument required"
+  usage
+fi
+
+if [ -z "${rev}" ]; then
+  echo "-r argument required"
+  usage
+fi
+
+setup_chromium_src_repo "${rev}" "${chromium_dir}" "${force_reset}"
+apply_patches "${chromium_dir}"
+gn_desc x86 "${chromium_dir}"
+gn_desc x64 "${chromium_dir}"
+gn_desc arm "${chromium_dir}"
+gn_desc arm64 "${chromium_dir}"
 
