@@ -4,6 +4,8 @@
 
 package org.chromium.net;
 
+import static java.time.temporal.ChronoUnit.MILLIS;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -87,11 +89,12 @@ public class MetricsTestUtil {
     }
 
     // Helper method to assert date1 is equals to or after date2.
-    // Some implementation of java.util.Date broke the symmetric property, so
-    // check both directions.
+    // Truncate to MILLIS because CronetMetrics are in MILLIS.
     public static void assertAfter(Instant date1, Instant date2) {
-        assertTrue("date1: " + date1 + ", date2: " + date2,
-                date1.isAfter(date2) || date1.equals(date2) || date2.equals(date1));
+        Instant date1Ms = date1.truncatedTo(MILLIS);
+        Instant date2Ms = date2.truncatedTo(MILLIS);
+        assertTrue("date1: " + date1 + ", date2: " + date2Ms,
+                date1Ms.isAfter(date2Ms) || date1Ms.equals(date2Ms));
     }
 
     /**
