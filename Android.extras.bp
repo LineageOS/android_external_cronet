@@ -170,6 +170,18 @@ filegroup {
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
+        "components/cronet/android/test/javatests/**/Http2TestServer.java",
+        "components/cronet/android/test/javatests/**/Test*.java",
+        "components/cronet/android/test/javatests/**/MetricsTestUtil.java",
+        "components/cronet/android/test/javatests/**/urlconnection/*.java",
+    ],
+    exclude_srcs: [
+        // Todo(b/275345637): setup quic test server
+        "components/cronet/android/test/javatests/**/urlconnection/QuicUploadTest.java",
+        "components/cronet/android/test/javatests/**/urlconnection/CronetHttpURLConnectionTest.java",
+
+        // Todo(b/275345611): fix failure
+        "components/cronet/android/test/javatests/**/urlconnection/CronetInputStreamTest.java",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
@@ -180,9 +192,12 @@ java_library {
     name: "cronet_testserver_utils",
     sdk_version: "module_current", // this allows us to access hidden apis while test_current doesnt
     srcs: [
+        "base/test/android/javatests/**/UrlUtils.java",
+        "components/cronet/android/test/**/CronetTestUtil.java",
         "components/cronet/android/test/**/NativeTestServer.java",
         "components/cronet/android/test/**/TestFilesInstaller.java",
-        "base/test/android/javatests/**/UrlUtils.java",
+        "components/cronet/android/test/**/QuicTestServer.java",
+        "components/cronet/android/test/**/MockCertVerifier.java",
     ],
     static_libs: [
         "cronet_aml_java__testing",
@@ -191,9 +206,11 @@ java_library {
     ],
     libs: [
         "android.test.base",
+        "cronet_aml_api_java",
+        // android.net.Network dependency
+        "framework-connectivity",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
     ],
 }
-
