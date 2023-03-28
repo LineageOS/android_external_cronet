@@ -55,6 +55,9 @@ java_library {
         "framework-connectivity.stubs.module_lib",
     ],
     sdk_version: "module_current",
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+    ],
 }
 
 // ------------------------------ NATIVE TEST TARGETS --------------------------------------------
@@ -62,7 +65,6 @@ java_library {
 android_test_helper_app {
     name: "cronet_tester_app",
     srcs: [
-        "base/test/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestIntent.java",
@@ -77,7 +79,6 @@ android_test_helper_app {
         "testing/android/reporter/java/src/org/chromium/test/reporter/TestStatusReporter.java",
     ],
     static_libs: [
-        "android-support-multidex",
         "androidx.annotation_annotation",
         "junit",
         "cronet_aml_java__testing",
@@ -91,7 +92,6 @@ android_test_helper_app {
 android_test_helper_app {
     name: "cronet_net_tester_app",
     srcs: [
-        "base/test/android/java/src/org/chromium/base/multidex/ChromiumMultiDexInstaller.java",
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestIntent.java",
@@ -106,7 +106,6 @@ android_test_helper_app {
         "testing/android/reporter/java/src/org/chromium/test/reporter/TestStatusReporter.java",
     ],
     static_libs: [
-        "android-support-multidex",
         "androidx.annotation_annotation",
         "junit",
         "cronet_for_testing_net_java",
@@ -168,6 +167,59 @@ filegroup {
 filegroup {
     name: "cronet_aml_javatests_sources",
     srcs: [
-        "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java"
+        "components/cronet/android/test/javatests/**/GetStatusTest.java",
+        "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
+        "components/cronet/android/test/javatests/**/CronetTestRule.java",
+        "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
+        "components/cronet/android/test/javatests/**/DiskStorageTest.java",
+        "components/cronet/android/test/javatests/**/Http2TestServer.java",
+        "components/cronet/android/test/javatests/**/Test*.java",
+        "components/cronet/android/test/javatests/**/MetricsTestUtil.java",
+        "components/cronet/android/test/javatests/**/RequestFinishedInfoTest.java",
+        "components/cronet/android/test/javatests/**/urlconnection/*.java",
+    ],
+    exclude_srcs: [
+        // Todo(b/275345637): setup quic test server
+        "components/cronet/android/test/javatests/**/urlconnection/QuicUploadTest.java",
+        "components/cronet/android/test/javatests/**/urlconnection/CronetHttpURLConnectionTest.java",
+
+        // Todo(b/275345611): fix failure
+        "components/cronet/android/test/javatests/**/urlconnection/CronetInputStreamTest.java",
+    ],
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+    ],
+}
+
+android_library {
+    name: "cronet_testserver_utils",
+    asset_dirs: [
+        "components/cronet/testing/test_server/data/",
+        "net/data/ssl/certificates/",
+    ],
+    sdk_version: "module_current", // this allows us to access hidden apis while test_current doesnt
+    min_sdk_version: "30",
+    manifest: "components/cronet/android/test/src/org/chromium/net/AndroidManifest.xml",
+    srcs: [
+        "base/test/android/javatests/**/UrlUtils.java",
+        "components/cronet/android/test/**/CronetTestUtil.java",
+        "components/cronet/android/test/**/NativeTestServer.java",
+        "components/cronet/android/test/**/TestFilesInstaller.java",
+        "components/cronet/android/test/**/QuicTestServer.java",
+        "components/cronet/android/test/**/MockCertVerifier.java",
+    ],
+    static_libs: [
+        "cronet_aml_java__testing",
+        "androidx.test.ext.junit",
+        "junit",
+    ],
+    libs: [
+        "android.test.base",
+        "cronet_aml_api_java",
+        // android.net.Network dependency
+        "framework-connectivity",
+    ],
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
     ],
 }

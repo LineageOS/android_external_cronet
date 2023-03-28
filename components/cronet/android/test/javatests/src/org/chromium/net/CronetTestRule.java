@@ -6,6 +6,7 @@ package org.chromium.net;
 
 import static org.junit.Assume.assumeTrue;
 
+import android.net.http.ApiVersion;
 import android.net.http.HttpEngine;
 import android.net.http.ExperimentalHttpEngine;
 import android.net.http.UrlResponseInfo;
@@ -30,6 +31,7 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLStreamHandlerFactory;
 
@@ -55,6 +57,8 @@ public class CronetTestRule implements TestRule {
 
     private boolean mTestingSystemHttpURLConnection;
     private StrictMode.VmPolicy mOldVmPolicy;
+
+    private Field factoryField;
 
     /**
      * Creates and holds pointer to CronetEngine.
@@ -182,6 +186,9 @@ public class CronetTestRule implements TestRule {
                 Build.VERSION.SDK_INT >= requiredAndroidApiVersion);
 
         if (packageName.equals("org.chromium.net.urlconnection")) {
+            // TODO(b/275044376) Switch cronetEngine instead of resetting factory using reflection
+            // Clear the factory field so that the next test can set reset it
+            resetUrlStreamHandlerFactoryField();
             if (desc.getAnnotation(CompareDefaultWithCronet.class) != null) {
                 try {
                     // Run with the default HttpURLConnection implementation first.
@@ -246,9 +253,7 @@ public class CronetTestRule implements TestRule {
     }
 
     private CronetTestFramework createCronetTestFramework() {
-        mCronetTestFramework = testingJavaImpl()
-                ? CronetTestFramework.createUsingJavaImpl(getContext())
-                : CronetTestFramework.createUsingNativeImpl(getContext());
+        mCronetTestFramework = CronetTestFramework.createUsingNativeImpl(getContext());
         return mCronetTestFramework;
     }
 
@@ -275,12 +280,12 @@ public class CronetTestRule implements TestRule {
      * @return the {@code CronetEngine.Builder} that builds Chromium-based {@code Cronet engine}.
      */
     public static ExperimentalHttpEngine.Builder createNativeEngineBuilder(Context context) {
-        return (ExperimentalHttpEngine.Builder) HttpEngine.builder(context);
+        return new ExperimentalHttpEngine.Builder(context);
     }
 
     public void assertResponseEquals(UrlResponseInfo expected, UrlResponseInfo actual) {
-        Assert.assertEquals(expected.getAllHeaders(), actual.getAllHeaders());
-        Assert.assertEquals(expected.getAllHeadersAsList(), actual.getAllHeadersAsList());
+        Assert.assertEquals(expected.getHeaders().getAsMap(), actual.getHeaders().getAsMap());
+        Assert.assertEquals(expected.getHeaders().getAsList(), actual.getHeaders().getAsList());
         Assert.assertEquals(expected.getHttpStatusCode(), actual.getHttpStatusCode());
         Assert.assertEquals(expected.getHttpStatusText(), actual.getHttpStatusText());
         Assert.assertEquals(expected.getUrlChain(), actual.getUrlChain());
@@ -313,8 +318,38 @@ public class CronetTestRule implements TestRule {
      * during setUp() and is installed by {@link runTest()} as the default when Cronet is tested.
      */
     public void setStreamHandlerFactory(HttpEngine cronetEngine) {
-        if (!testingSystemHttpURLConnection()) {
+        // This clears the cached URL handlers
+        if (testingSystemHttpURLConnection()) {
+            URL.setURLStreamHandlerFactory(null);
+        } else {
             URL.setURLStreamHandlerFactory(cronetEngine.createUrlStreamHandlerFactory());
+        }
+    }
+
+    /**
+     * Store and clear URL's StreamHandlerFactory field to a global variable.
+     * {@link URL}'s {@code factory} field cannot be reassigned in a JVM instance so we need
+     * to reflectively clear it in order to switch factory's for the tests.
+     */
+    private void resetUrlStreamHandlerFactoryField() throws IllegalAccessException {
+        try {
+            if (factoryField != null) {
+                // Clear the factory field so the next test run can set it.
+                factoryField.set(null, null);
+                return;
+            }
+            for (Field field : URL.class.getDeclaredFields()) {
+                if (URLStreamHandlerFactory.class.equals(field.getType())) {
+                    factoryField = field;
+                    factoryField.setAccessible(true);
+                    // Clear the factoryField as the first test might have set it.
+                    factoryField.set(null, null);
+                    return;
+                }
+            }
+        } catch (IllegalAccessException e) {
+            Log.e(TAG, "CronetTestBase#runTest: factory could not be reset");
+            throw e;
         }
     }
 

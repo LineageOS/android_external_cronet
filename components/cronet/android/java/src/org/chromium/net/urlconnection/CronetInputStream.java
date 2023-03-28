@@ -4,6 +4,8 @@
 
 package org.chromium.net.urlconnection;
 
+import androidx.annotation.VisibleForTesting;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -12,7 +14,8 @@ import java.nio.ByteBuffer;
  * An InputStream that is used by {@link CronetHttpURLConnection} to request
  * data from the network stack as needed.
  */
-class CronetInputStream extends InputStream {
+@VisibleForTesting
+public class CronetInputStream extends InputStream {
     private final CronetHttpURLConnection mHttpURLConnection;
     // Indicates whether listener's onSucceeded or onFailed callback is invoked.
     private boolean mResponseDataCompleted;
@@ -77,7 +80,7 @@ class CronetInputStream extends InputStream {
      * @param exception if not {@code null}, it is the exception to throw when caller
      *            tries to read more data.
      */
-    void setResponseDataCompleted(IOException exception) {
+    public void setResponseDataCompleted(IOException exception) {
         mException = exception;
         mResponseDataCompleted = true;
         // Nothing else to read, so can free the buffer.
