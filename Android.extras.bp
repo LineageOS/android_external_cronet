@@ -64,6 +64,8 @@ java_library {
 
 android_test_helper_app {
     name: "cronet_tester_app",
+    enforce_default_target_sdk_version: true,
+    min_sdk_version: "31", // b/270049141
     srcs: [
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
@@ -91,6 +93,8 @@ android_test_helper_app {
 
 android_test_helper_app {
     name: "cronet_net_tester_app",
+    enforce_default_target_sdk_version: true,
+    min_sdk_version: "31", // b/270049141
     srcs: [
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
