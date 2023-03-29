@@ -126,7 +126,6 @@ function gn_desc() (
     "media_use_ffmpeg=false"
     "use_thin_lto=false"
     "enable_resource_allowlist_generation=false"
-    "enable_jdk_library_desugaring=false"
     "exclude_unwind_tables=true"
     "symbol_level=1"
   )
