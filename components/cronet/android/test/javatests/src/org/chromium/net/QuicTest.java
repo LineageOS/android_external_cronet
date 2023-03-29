@@ -35,7 +35,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.util.Date;
+import java.time.Instant;
 import java.util.concurrent.Executors;
 
 /**
@@ -56,7 +56,7 @@ public class QuicTest {
         QuicTestServer.startQuicTestServer(getContext());
 
         mBuilder = new ExperimentalHttpEngine.Builder(getContext());
-        mBuilder.enableNetworkQualityEstimator(true).enableQuic(true);
+        mBuilder.enableNetworkQualityEstimator(true).setEnableQuic(true);
         mBuilder.addQuicHint(QuicTestServer.getServerHost(), QuicTestServer.getServerPort(),
                 QuicTestServer.getServerPort());
 
@@ -263,11 +263,11 @@ public class QuicTest {
 
         UrlRequest.Builder requestBuilder =
                 cronetEngine.newUrlRequestBuilder(quicURL, callback, callback.getExecutor());
-        Date startTime = new Date();
+        Instant startTime = Instant.now();
         requestBuilder.build().start();
         callback.blockForDone();
         requestFinishedListener.blockUntilDone();
-        Date endTime = new Date();
+        Instant endTime = Instant.now();
 
         assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
         assertIsQuic(callback.mResponseInfo);
@@ -282,11 +282,11 @@ public class QuicTest {
         requestFinishedListener.reset();
         requestBuilder =
                 cronetEngine.newUrlRequestBuilder(quicURL, callback, callback.getExecutor());
-        startTime = new Date();
+        startTime = Instant.now();
         requestBuilder.build().start();
         callback.blockForDone();
         requestFinishedListener.blockUntilDone();
-        endTime = new Date();
+        endTime = Instant.now();
 
         assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
         assertIsQuic(callback.mResponseInfo);
