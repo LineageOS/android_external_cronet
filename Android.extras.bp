@@ -169,6 +169,8 @@ filegroup {
     srcs: [
         "components/cronet/android/test/javatests/**/GetStatusTest.java",
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
+        "components/cronet/android/test/javatests/**/CronetLoggerTestRule.java",
+        "components/cronet/android/test/javatests/**/CronetLoggerTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
         "components/cronet/android/test/javatests/**/Http2TestServer.java",
