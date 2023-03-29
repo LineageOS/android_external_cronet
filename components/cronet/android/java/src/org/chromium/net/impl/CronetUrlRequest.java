@@ -125,7 +125,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
     private Runnable mOnDestroyedCallbackForTesting;
 
     @VisibleForTesting
-    static final class HeadersList extends ArrayList<Map.Entry<String, String>> {}
+    public static final class HeadersList extends ArrayList<Map.Entry<String, String>> {}
 
     private final class OnReadCompletedRunnable implements Runnable {
         // Buffer passed back from current invocation of onReadCompleted.
@@ -506,7 +506,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
      * We are not really interested in their specific size but something which is close enough.
      */
     @VisibleForTesting
-    static long estimateHeadersSizeInBytes(Map<String, List<String>> headers) {
+    public static long estimateHeadersSizeInBytes(Map<String, List<String>> headers) {
         if (headers == null) return 0;
 
         long responseHeaderSizeInBytes = 0;
@@ -527,7 +527,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
      * We are not really interested in their specific size but something which is close enough.
      */
     @VisibleForTesting
-    static long estimateHeadersSizeInBytes(HeaderBlock headers) {
+    public static long estimateHeadersSizeInBytes(HeaderBlock headers) {
         if (headers == null) return 0;
         long responseHeaderSizeInBytes = 0;
         for (Map.Entry<String, String> entry : headers.getAsList()) {
