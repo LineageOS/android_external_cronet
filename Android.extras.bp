@@ -167,12 +167,15 @@ filegroup {
 filegroup {
     name: "cronet_aml_javatests_sources",
     srcs: [
+        "components/cronet/android/test/javatests/**/GetStatusTest.java",
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
+        "components/cronet/android/test/javatests/**/DiskStorageTest.java",
         "components/cronet/android/test/javatests/**/Http2TestServer.java",
         "components/cronet/android/test/javatests/**/Test*.java",
         "components/cronet/android/test/javatests/**/MetricsTestUtil.java",
+        "components/cronet/android/test/javatests/**/RequestFinishedInfoTest.java",
         "components/cronet/android/test/javatests/**/urlconnection/*.java",
     ],
     exclude_srcs: [
@@ -188,9 +191,15 @@ filegroup {
     ],
 }
 
-java_library {
+android_library {
     name: "cronet_testserver_utils",
+    asset_dirs: [
+        "components/cronet/testing/test_server/data/",
+        "net/data/ssl/certificates/",
+    ],
     sdk_version: "module_current", // this allows us to access hidden apis while test_current doesnt
+    min_sdk_version: "30",
+    manifest: "components/cronet/android/test/src/org/chromium/net/AndroidManifest.xml",
     srcs: [
         "base/test/android/javatests/**/UrlUtils.java",
         "components/cronet/android/test/**/CronetTestUtil.java",
