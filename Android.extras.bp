@@ -171,11 +171,13 @@ filegroup {
 filegroup {
     name: "cronet_aml_javatests_sources",
     srcs: [
-        "components/cronet/android/test/javatests/**/GetStatusTest.java",
+        ":cronet_base_net_javatest_utils",
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
         "components/cronet/android/test/javatests/**/DiskStorageTest.java",
+        "components/cronet/android/test/javatests/**/ExperimentalOptionsTest.java",
+        "components/cronet/android/test/javatests/**/GetStatusTest.java",
         "components/cronet/android/test/javatests/**/Http2TestServer.java",
         "components/cronet/android/test/javatests/**/Test*.java",
         "components/cronet/android/test/javatests/**/MetricsTestUtil.java",
@@ -193,6 +195,13 @@ filegroup {
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
     ],
+}
+
+filegroup {
+    name: "cronet_base_net_javatest_utils",
+    srcs: [
+        "base/test/android/javatests/src/org/chromium/base/test/util/DisabledTest.java"
+    ]
 }
 
 android_library {
