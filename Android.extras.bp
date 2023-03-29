@@ -171,11 +171,12 @@ filegroup {
 filegroup {
     name: "cronet_aml_javatests_sources",
     srcs: [
-        ":cronet_base_net_javatest_utils",
+        ":cronet_aml_java_apihelpers",
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
         "components/cronet/android/test/javatests/**/CronetUploadTest.java",
+        "components/cronet/android/test/javatests/**/CronetUrlRequestTest.java",
         "components/cronet/android/test/javatests/**/DiskStorageTest.java",
         "components/cronet/android/test/javatests/**/ExperimentalOptionsTest.java",
         "components/cronet/android/test/javatests/**/GetStatusTest.java",
@@ -202,7 +203,16 @@ filegroup {
 filegroup {
     name: "cronet_base_net_javatest_utils",
     srcs: [
-        "base/test/android/javatests/src/org/chromium/base/test/util/DisabledTest.java"
+        "base/test/android/javatests/**/UrlUtils.java",
+        "base/test/android/javatests/**/DisabledTest.java",
+        "net/url_request/FailurePhase.java",
+    ]
+}
+
+filegroup {
+    name: "cronet_aml_java_apihelpers",
+    srcs: [
+        "components/cronet/android/**/http/apihelpers/UploadDataProviders.java"
     ]
 }
 
@@ -216,13 +226,14 @@ android_library {
     min_sdk_version: "30",
     manifest: "components/cronet/android/test/src/org/chromium/net/AndroidManifest.xml",
     srcs: [
-        "base/test/android/javatests/**/UrlUtils.java",
+        ":cronet_base_net_javatest_utils",
         "components/cronet/android/test/**/CronetTestUtil.java",
         "components/cronet/android/test/**/NativeTestServer.java",
         "components/cronet/android/test/**/TestFilesInstaller.java",
         "components/cronet/android/test/**/TestUploadDataStreamHandler.java",
         "components/cronet/android/test/**/QuicTestServer.java",
         "components/cronet/android/test/**/MockCertVerifier.java",
+        "components/cronet/android/test/**/MockUrlRequestJobFactory.java",
     ],
     static_libs: [
         "cronet_aml_java__testing",
