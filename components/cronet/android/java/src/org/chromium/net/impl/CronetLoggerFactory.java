@@ -8,6 +8,7 @@ import android.content.Context;
 import android.os.Build;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import org.chromium.net.impl.CronetLogger.CronetSource;
 
@@ -59,7 +60,8 @@ public final class CronetLoggerFactory {
         return sDefaultLogger;
     }
 
-    private static void setLoggerForTesting(@Nullable CronetLogger testingLogger) {
+    @VisibleForTesting
+    public static void setLoggerForTesting(@Nullable CronetLogger testingLogger) {
         sTestingLogger = testingLogger;
     }
 
