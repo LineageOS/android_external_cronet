@@ -1055,7 +1055,7 @@ class WriteBuildFlagHeaderSanitizer(BaseActionSanitizer):
     self._set_value_arg('--output', '$(out)')
     super()._sanitize_args()
 
-class GnRunBinary(BaseActionSanitizer):
+class GnRunBinarySanitizer(BaseActionSanitizer):
   def __init__(self, target, arch):
     super().__init__(target, arch)
     self.binary_to_target = {
@@ -1257,7 +1257,7 @@ def get_action_sanitizer(target, type, arch, is_test_target):
   elif target.script == '//build/android/gyp/write_native_libraries_java.py':
     return WriteNativeLibrariesJavaSanitizer(target, arch)
   elif target.script == '//build/gn_run_binary.py':
-    return GnRunBinary(target, arch)
+    return GnRunBinarySanitizer(target, arch)
   else:
     # TODO: throw exception here once all script hacks have been converted.
     return BaseActionSanitizer(target, arch)
