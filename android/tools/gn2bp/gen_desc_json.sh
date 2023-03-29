@@ -96,6 +96,7 @@ function apply_patches() (
 #######################################
 # Generate desc.json for a specified architecture.
 # Globals:
+#   ANDROID_BUILD_TOP
 #   OUT_PATH
 # Arguments:
 #   target_cpu, string
@@ -143,7 +144,7 @@ function gn_desc() (
   gn gen "${OUT_PATH}" --args="${gn_args[*]}"
 
   # Generate desc.json.
-  local -r out_file="desc_${target_cpu}.json"
+  local -r out_file="${ANDROID_BUILD_TOP}/external/cronet/android/tools/gn2bp/desc_${target_cpu}.json"
   gn desc "${OUT_PATH}" --format=json --all-toolchains "//*" > "${out_file}"
 )
 
