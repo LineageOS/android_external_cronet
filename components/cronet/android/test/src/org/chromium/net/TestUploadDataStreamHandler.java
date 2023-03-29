@@ -5,6 +5,7 @@
 package org.chromium.net;
 
 import android.content.Context;
+import android.net.http.HttpEngine;
 import android.os.ConditionVariable;
 
 import org.junit.Assert;
@@ -21,7 +22,7 @@ import org.chromium.net.impl.CronetUrlRequestContext;
 @JNINamespace("cronet")
 public final class TestUploadDataStreamHandler {
     private final CronetTestUtil.NetworkThreadTestConnector mNetworkThreadTestConnector;
-    private final CronetEngine mCronetEngine;
+    private final HttpEngine mCronetEngine;
     private long mTestUploadDataStreamHandler;
     private ConditionVariable mWaitInitCalled = new ConditionVariable();
     private ConditionVariable mWaitInitComplete = new ConditionVariable();
@@ -36,7 +37,7 @@ public final class TestUploadDataStreamHandler {
     private String mData = "";
 
     public TestUploadDataStreamHandler(Context context, final long uploadDataStream) {
-        mCronetEngine = new CronetEngine.Builder(context).build();
+        mCronetEngine = new HttpEngine.Builder(context).build();
         mNetworkThreadTestConnector = new CronetTestUtil.NetworkThreadTestConnector(mCronetEngine);
         CronetUrlRequestContext requestContext = (CronetUrlRequestContext) mCronetEngine;
         mTestUploadDataStreamHandler = nativeCreateTestUploadDataStreamHandler(
