@@ -95,7 +95,8 @@ public class NetworkChangeNotifierTest {
         CronetLibraryLoader.postToInitThread(new Runnable() {
             @Override
             public void run() {
-                NetworkChangeNotifier.getInstance().notifyObserversOfConnectionTypeChange(
+                NetworkChangeNotifier.getInstance().fakeDefaultNetwork(
+                        NetworkChangeNotifier.getInstance().getCurrentDefaultNetId(),
                         ConnectionType.CONNECTION_4G);
             }
         });
