@@ -176,6 +176,7 @@ filegroup {
         "components/cronet/android/test/javatests/**/Test*.java",
         "components/cronet/android/test/javatests/**/MetricsTestUtil.java",
         "components/cronet/android/test/javatests/**/NetworkChangeNotifierTest.java",
+        "components/cronet/android/test/javatests/**/NQETest.java",
         "components/cronet/android/test/javatests/**/RequestFinishedInfoTest.java",
         "components/cronet/android/test/javatests/**/urlconnection/*.java",
     ],
@@ -196,6 +197,7 @@ filegroup {
     name: "cronet_base_net_javatest_utils",
     srcs: [
         "base/test/android/javatests/**/DisabledTest.java",
+        "base/test/android/javatests/**/MetricsUtils.java",
         "base/test/android/javatests/**/PackageManagerWrapper.java",
         "base/test/android/javatests/**/UrlUtils.java",
         "net/url_request/FailurePhase.java",
