@@ -15,6 +15,9 @@
   ~ limitations under the License.
   -->
 <configuration description="Config for Cronet-unittests">
+    <!-- Cronet runs on S+ -->
+    <object type="module_controller"
+            class="com.android.tradefed.testtype.suite.module.Sdk31ModuleController" />
     <!-- Use root for adb. -->
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
     <!-- This is necessary for the APK to read/write to any file on disk. -->
