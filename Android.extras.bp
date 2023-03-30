@@ -62,8 +62,8 @@ java_library {
 
 // ------------------------------ NATIVE TEST TARGETS --------------------------------------------
 
-android_test_helper_app {
-    name: "cronet_tester_app",
+java_defaults {
+    name: "cronet_native_unittests_defaults",
     compile_multilib: "both",
     enforce_default_target_sdk_version: true,
     min_sdk_version: "31", // b/270049141
@@ -86,43 +86,6 @@ android_test_helper_app {
         "junit",
         "cronet_aml_java__testing",
     ],
-    manifest: "test_runner/AndroidManifest.xml",
-    jni_libs: [
-        "cronet_aml_components_cronet_android_cronet_unittests_android__library__testing",
-    ],
-}
-
-android_test_helper_app {
-    name: "cronet_net_tester_app",
-    compile_multilib: "both",
-    enforce_default_target_sdk_version: true,
-    min_sdk_version: "31", // b/270049141
-    srcs: [
-        "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
-        "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
-        "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestIntent.java",
-        "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/TestStatusIntent.java",
-        "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/TestStatusReceiver.java",
-        "testing/android/native_test/java/src/org/chromium/native_test/NativeTest.java",
-        "testing/android/native_test/java/src/org/chromium/native_test/SignalMaskInfo.java",
-        "testing/android/native_test/java/src/org/chromium/native_test/NativeTestApplication.java",
-        "testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTest.java",
-        "testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTestActivity.java",
-        "testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTestNativeActivity.java",
-        "testing/android/reporter/java/src/org/chromium/test/reporter/TestStatusReporter.java",
-    ],
-    static_libs: [
-        "androidx.annotation_annotation",
-        "junit",
-        "cronet_for_testing_net_java",
-    ],
-    manifest: "test_runner/AndroidNetManifest.xml",
-    jni_libs: [
-        "cronet_aml_net_net_unittests__library__testing",
-    ],
-    resource_dirs : [
-        "net/android/unittest_support/res",
-    ]
 }
 
 java_library {
@@ -166,6 +129,27 @@ filegroup {
         "net/third_party/nist-pkits/**/*",
         "net/third_party/quiche/src/quiche/common/platform/api/testdir/**/*"
     ],
+}
+
+android_test_helper_app {
+    name: "cronet_tester_app",
+    defaults: ["cronet_native_unittests_defaults"],
+    manifest: "test_runner/AndroidManifest.xml",
+    jni_libs: [
+        "cronet_aml_components_cronet_android_cronet_unittests_android__library__testing",
+    ],
+}
+
+android_test_helper_app {
+    name: "cronet_net_tester_app",
+    defaults: ["cronet_native_unittests_defaults"],
+    manifest: "test_runner/AndroidNetManifest.xml",
+    jni_libs: [
+        "cronet_aml_net_net_unittests__library__testing",
+    ],
+    resource_dirs : [
+        "net/android/unittest_support/res",
+    ]
 }
 
 // ------------------------------ JAVA TEST TARGETS --------------------------------------------
