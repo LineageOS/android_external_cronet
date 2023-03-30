@@ -33,6 +33,7 @@ import java.util.Set;
 import javax.annotation.processing.AbstractProcessor;
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
+import javax.annotation.processing.SupportedOptions;
 import javax.lang.model.SourceVersion;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ElementKind;
@@ -55,10 +56,9 @@ import javax.tools.Diagnostic;
  * containing an interface annotated with NativeMethods.
  *
  */
-@SupportedOptions({JniProcessor.SKIP_GEN_JNI_ARG, JniProcessor.PACKAGE_PREFIX_ARG})
+@SupportedOptions({JniProcessor.PACKAGE_PREFIX_ARG})
 @AutoService(Processor.class)
 public class JniProcessor extends AbstractProcessor {
-    static final String SKIP_GEN_JNI_ARG = "org.chromium.chrome.skipGenJni";
     static final String PACKAGE_PREFIX_ARG = "package_prefix";
     private static final Class<NativeMethods> JNI_STATIC_NATIVES_CLASS = NativeMethods.class;
     private static final Class<MainDex> MAIN_DEX_CLASS = MainDex.class;
