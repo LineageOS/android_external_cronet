@@ -73,7 +73,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
      * Mapping between public builder view of HttpCacheMode and internal builder one.
      */
     @VisibleForTesting
-    static enum HttpCacheMode {
+    public enum HttpCacheMode {
         DISABLED(HttpCacheType.DISABLED, false),
         DISK(HttpCacheType.DISK, true),
         DISK_NO_HTTP(HttpCacheType.DISK, false),
@@ -96,7 +96,8 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
         }
 
         @HttpCacheSetting
-        int toPublicBuilderCacheMode() {
+        @VisibleForTesting
+        public int toPublicBuilderCacheMode() {
             switch (this) {
                 case DISABLED:
                     return HttpEngine.Builder.HTTP_CACHE_DISABLED;
@@ -112,7 +113,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
         }
 
         @VisibleForTesting
-        static HttpCacheMode fromPublicBuilderCacheMode(@HttpCacheSetting int cacheMode) {
+        public static HttpCacheMode fromPublicBuilderCacheMode(@HttpCacheSetting int cacheMode) {
             switch (cacheMode) {
                 case HttpEngine.Builder.HTTP_CACHE_DISABLED:
                     return DISABLED;
@@ -177,7 +178,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
     }
 
     @VisibleForTesting
-    String getUserAgent() {
+    public String getUserAgent() {
         return mUserAgent;
     }
 
@@ -191,7 +192,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
     }
 
     @VisibleForTesting
-    String storagePath() {
+    public String storagePath() {
         return mStoragePath;
     }
 
@@ -202,7 +203,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
     }
 
     @VisibleForTesting
-    boolean quicEnabled() {
+    public boolean quicEnabled() {
         return mQuicEnabled;
     }
 
@@ -223,7 +224,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
     }
 
     @VisibleForTesting
-    boolean http2Enabled() {
+    public boolean http2Enabled() {
         return mHttp2Enabled;
     }
 
@@ -239,7 +240,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
     }
 
     @VisibleForTesting
-    boolean brotliEnabled() {
+    public boolean brotliEnabled() {
         return mBrotiEnabled;
     }
 
@@ -271,7 +272,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
     }
 
     @VisibleForTesting
-    int httpCacheMode() {
+    public int httpCacheMode() {
         return mHttpCacheMode.getType();
     }
 
@@ -335,7 +336,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
     }
 
     @VisibleForTesting
-    boolean publicKeyPinningBypassForLocalTrustAnchorsEnabled() {
+    public boolean publicKeyPinningBypassForLocalTrustAnchorsEnabled() {
         return mPublicKeyPinningBypassForLocalTrustAnchorsEnabled;
     }
 
@@ -405,7 +406,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
      * this builder.
      */
     @VisibleForTesting
-    boolean networkQualityEstimatorEnabled() {
+    public boolean networkQualityEstimatorEnabled() {
         return mNetworkQualityEstimatorEnabled;
     }
 
@@ -428,7 +429,7 @@ public abstract class CronetEngineBuilderImpl extends IHttpEngineBuilder {
      * @return thread priority provided by user, or {@code defaultThreadPriority} if none provided.
      */
     @VisibleForTesting
-    int threadPriority(int defaultThreadPriority) {
+    public int threadPriority(int defaultThreadPriority) {
         return mThreadPriority == INVALID_THREAD_PRIORITY ? defaultThreadPriority : mThreadPriority;
     }
 

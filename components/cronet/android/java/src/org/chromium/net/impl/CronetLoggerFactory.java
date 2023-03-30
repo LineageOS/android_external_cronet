@@ -8,6 +8,7 @@ import android.content.Context;
 import android.os.Build;
 
 import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import org.chromium.net.impl.CronetLogger.CronetSource;
 
@@ -59,30 +60,9 @@ public final class CronetLoggerFactory {
         return sDefaultLogger;
     }
 
-    private static void setLoggerForTesting(@Nullable CronetLogger testingLogger) {
+    @VisibleForTesting
+    public static void setLoggerForTesting(@Nullable CronetLogger testingLogger) {
         sTestingLogger = testingLogger;
-    }
-
-    /**
-     * Utility class to safely use a custom CronetLogger for the duration of a test.
-     * To be used within a try-with-resources statement within the test.
-     */
-    public static class SwapLoggerForTesting implements AutoCloseable {
-        /**
-         * Forces {@code CronetLoggerFactory#createLogger} to return @param testLogger instead of
-         * what it would have normally returned.
-         */
-        public SwapLoggerForTesting(CronetLogger testLogger) {
-            CronetLoggerFactory.setLoggerForTesting(testLogger);
-        }
-
-        /**
-         * Restores CronetLoggerFactory to its original state.
-         */
-        @Override
-        public void close() {
-            CronetLoggerFactory.setLoggerForTesting(null);
-        }
     }
 
     private static Class<? extends CronetLogger> fetchLoggerImplClass() {

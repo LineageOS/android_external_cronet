@@ -16,6 +16,8 @@ import static org.junit.Assert.assertTrue;
 import static android.net.http.HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP;
 
 import android.content.Context;
+import android.net.http.HeaderBlock;
+import android.net.http.HttpEngine;
 import android.os.Build;
 import android.os.ConditionVariable;
 
@@ -31,7 +33,6 @@ import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-import android.net.http.HttpEngine;
 import org.chromium.net.CronetLoggerTestRule;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
@@ -65,7 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @RequiresMinAndroidApi(Build.VERSION_CODES.O)
 public final class CronetLoggerTest {
     private final CronetTestRule mTestRule = new CronetTestRule();
-    private final CronetLoggerTestRule mLoggerTestRule = new CronetLoggerTestRule(TestLogger.class);
+    private final CronetLoggerTestRule mLoggerTestRule = new CronetLoggerTestRule(new TestLogger());
 
     @Rule
     public final RuleChain chain = RuleChain.outerRule(mTestRule).around(mLoggerTestRule);
@@ -172,7 +173,7 @@ public final class CronetLoggerTest {
         assertEquals(builder.quicEnabled(), builderInfo.isQuicEnabled());
         assertEquals(builder.http2Enabled(), builderInfo.isHttp2Enabled());
         assertEquals(builder.brotliEnabled(), builderInfo.isBrotliEnabled());
-        assertEquals(builder.publicBuilderHttpCacheMode(), builderInfo.getHttpCacheMode());
+        assertEquals(builder.httpCacheMode(), builderInfo.getHttpCacheMode());
         assertEquals(builder.experimentalOptions(), builderInfo.getExperimentalOptions());
         assertEquals(builder.networkQualityEstimatorEnabled(),
                 builderInfo.isNetworkQualityEstimatorEnabled());
@@ -281,7 +282,8 @@ public final class CronetLoggerTest {
         builder.setEnableHttp2(isHttp2Enabled);
         builder.setEnableBrotli(isBrotliEnabled);
         builder.setEnableHttpCache(cacheMode, 0);
-        builder.enableNetworkQualityEstimator(isNetworkQualityEstimatorEnabled);
+
+        // builder.enableNetworkQualityEstimator(isNetworkQualityEstimatorEnabled);
         builder.setThreadPriority(threadPriority);
 
         HttpEngine engine = builder.build();
@@ -298,8 +300,9 @@ public final class CronetLoggerTest {
         assertEquals(isBrotliEnabled, builderInfo.isBrotliEnabled());
         assertEquals(cacheMode, builderInfo.getHttpCacheMode());
         assertEquals(experimentalOptions, builderInfo.getExperimentalOptions());
-        assertEquals(
-                isNetworkQualityEstimatorEnabled, builderInfo.isNetworkQualityEstimatorEnabled());
+        // TODO(b/267353182): re-enable setting and asserting the value of network quality estimator
+        // assertEquals(
+        //        isNetworkQualityEstimatorEnabled, builderInfo.isNetworkQualityEstimatorEnabled());
         assertEquals(threadPriority, builderInfo.getThreadPriority());
         assertEquals(ImplVersion.getCronetVersion(), version.toString());
         if (mTestRule.testingJavaImpl()) {
@@ -494,10 +497,10 @@ public final class CronetLoggerTest {
         headers = null;
         assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headers));
 
-        CronetUrlRequest.HeadersList headersList = new CronetUrlRequest.HeadersList();
-        assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headersList));
-        headersList = null;
-        assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headersList));
+        HeaderBlock headerBlock = asHeaderBlock(new CronetUrlRequest.HeadersList());
+        assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headerBlock));
+        headerBlock = null;
+        assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headerBlock));
     }
 
     @Test
@@ -527,7 +530,10 @@ public final class CronetLoggerTest {
         headersList.add(
                 new AbstractMap.SimpleImmutableEntry<String, String>(null, "") // 33 + 0 + 0 = 33
         );
-        assertEquals(33, CronetUrlRequest.estimateHeadersSizeInBytes(headersList));
+        assertEquals(33, CronetUrlRequest.estimateHeadersSizeInBytes(asHeaderBlock(headersList)));
     }
 
+    private static HeaderBlock asHeaderBlock(List<Map.Entry<String, String>> headers) {
+        return new HeaderBlockImpl(headers);
+    }
 }

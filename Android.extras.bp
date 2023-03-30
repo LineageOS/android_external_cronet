@@ -64,6 +64,8 @@ java_library {
 
 android_test_helper_app {
     name: "cronet_tester_app",
+    enforce_default_target_sdk_version: true,
+    min_sdk_version: "31", // b/270049141
     srcs: [
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
@@ -91,6 +93,8 @@ android_test_helper_app {
 
 android_test_helper_app {
     name: "cronet_net_tester_app",
+    enforce_default_target_sdk_version: true,
+    min_sdk_version: "31", // b/270049141
     srcs: [
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
         "build/android/gtest_apk/java/src/org/chromium/build/gtest_apk/NativeTestInstrumentationTestRunner.java",
@@ -167,14 +171,20 @@ filegroup {
 filegroup {
     name: "cronet_aml_javatests_sources",
     srcs: [
-        "components/cronet/android/test/javatests/**/GetStatusTest.java",
+        ":cronet_base_net_javatest_utils",
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
+        "components/cronet/android/test/javatests/**/CronetLoggerTestRule.java",
+        "components/cronet/android/test/javatests/**/CronetLoggerTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
+        "components/cronet/android/test/javatests/**/CronetUploadTest.java",
         "components/cronet/android/test/javatests/**/DiskStorageTest.java",
+        "components/cronet/android/test/javatests/**/ExperimentalOptionsTest.java",
+        "components/cronet/android/test/javatests/**/GetStatusTest.java",
         "components/cronet/android/test/javatests/**/Http2TestServer.java",
         "components/cronet/android/test/javatests/**/Test*.java",
         "components/cronet/android/test/javatests/**/MetricsTestUtil.java",
+        "components/cronet/android/test/javatests/**/NetworkChangeNotifierTest.java",
         "components/cronet/android/test/javatests/**/RequestFinishedInfoTest.java",
         "components/cronet/android/test/javatests/**/urlconnection/*.java",
     ],
@@ -191,6 +201,13 @@ filegroup {
     ],
 }
 
+filegroup {
+    name: "cronet_base_net_javatest_utils",
+    srcs: [
+        "base/test/android/javatests/src/org/chromium/base/test/util/DisabledTest.java"
+    ]
+}
+
 android_library {
     name: "cronet_testserver_utils",
     asset_dirs: [
@@ -205,6 +222,7 @@ android_library {
         "components/cronet/android/test/**/CronetTestUtil.java",
         "components/cronet/android/test/**/NativeTestServer.java",
         "components/cronet/android/test/**/TestFilesInstaller.java",
+        "components/cronet/android/test/**/TestUploadDataStreamHandler.java",
         "components/cronet/android/test/**/QuicTestServer.java",
         "components/cronet/android/test/**/MockCertVerifier.java",
     ],
