@@ -64,6 +64,7 @@ java_library {
 
 android_test_helper_app {
     name: "cronet_tester_app",
+    compile_multilib: "both",
     enforce_default_target_sdk_version: true,
     min_sdk_version: "31", // b/270049141
     srcs: [
@@ -93,6 +94,7 @@ android_test_helper_app {
 
 android_test_helper_app {
     name: "cronet_net_tester_app",
+    compile_multilib: "both",
     enforce_default_target_sdk_version: true,
     min_sdk_version: "31", // b/270049141
     srcs: [
