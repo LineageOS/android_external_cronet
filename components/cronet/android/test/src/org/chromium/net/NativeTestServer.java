@@ -76,6 +76,10 @@ public final class NativeTestServer {
         return nativeGetFileURL("/notfound.html");
     }
 
+    public static String getServerErrorURL() {
+        return nativeGetFileURL("/server_error.txt");
+    }
+
     public static int getPort() {
         return nativeGetPort();
     }
