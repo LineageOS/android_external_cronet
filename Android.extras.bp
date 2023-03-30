@@ -158,10 +158,12 @@ filegroup {
     name: "cronet_aml_javatests_sources",
     srcs: [
         ":cronet_aml_java_apihelpers",
+        ":cronet_base_net_javatest_utils",
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
         "components/cronet/android/test/javatests/**/BrotliTest.java",
         "components/cronet/android/test/javatests/**/CronetLoggerTestRule.java",
         "components/cronet/android/test/javatests/**/CronetLoggerTest.java",
+        "components/cronet/android/test/javatests/**/CronetManifestTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
         "components/cronet/android/test/javatests/**/CronetUploadTest.java",
@@ -192,8 +194,9 @@ filegroup {
 filegroup {
     name: "cronet_base_net_javatest_utils",
     srcs: [
-        "base/test/android/javatests/**/UrlUtils.java",
         "base/test/android/javatests/**/DisabledTest.java",
+        "base/test/android/javatests/**/PackageManagerWrapper.java",
+        "base/test/android/javatests/**/UrlUtils.java",
         "net/url_request/FailurePhase.java",
     ]
 }
