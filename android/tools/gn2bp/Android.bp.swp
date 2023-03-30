@@ -7236,9 +7236,7 @@ cc_genrule {
          "--header-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h " +
          "--package_prefix " +
-         "android.net.http.internal " +
-         ";sed -i -e 's/OUT_SOONG_.TEMP_SBOX_.*_OUT/GEN/g'  " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.h",
+         "android.net.http.internal",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
         "jni_headers/components/cronet/android/cronet_jni_registration_generated.h",
@@ -7484,9 +7482,7 @@ java_genrule {
          "--header-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h " +
          "--package_prefix " +
-         "android.net.http.internal " +
-         ";sed -i -e 's/OUT_SOONG_.TEMP_SBOX_.*_OUT/GEN/g'  " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.h",
+         "android.net.http.internal",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
     ],
@@ -7726,9 +7722,7 @@ java_genrule {
          "--use_proxy_hash " +
          "--manual_jni_registration " +
          "--header-path " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h " +
-         ";sed -i -e 's/OUT_SOONG_.TEMP_SBOX_.*_OUT/GEN/g'  " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.h",
+         "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
     ],
@@ -7968,9 +7962,7 @@ cc_genrule {
          "--use_proxy_hash " +
          "--manual_jni_registration " +
          "--header-path " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h " +
-         ";sed -i -e 's/OUT_SOONG_.TEMP_SBOX_.*_OUT/GEN/g'  " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.h",
+         "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
         "jni_headers/components/cronet/android/cronet_jni_registration_generated.h",
