@@ -135,6 +135,24 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
         }
 
         /**
+         * Enables the network quality estimator, which collects and reports
+         * measurements of round trip time (RTT) and downstream throughput at
+         * various layers of the network stack. After enabling the estimator,
+         * listeners of RTT and throughput can be added with
+         * {@link #addRttListener} and {@link #addThroughputListener} and
+         * removed with {@link #removeRttListener} and
+         * {@link #removeThroughputListener}. The estimator uses memory and CPU
+         * only when enabled.
+         * @param value {@code true} to enable network quality estimator,
+         *            {@code false} to disable.
+         * @return the builder to facilitate chaining.
+         */
+        public Builder enableNetworkQualityEstimator(boolean value) {
+            mBuilderDelegate.enableNetworkQualityEstimator(value);
+            return this;
+        }
+
+        /**
          * Sets the thread priority of the internal thread.
          *
          * @param priority the thread priority of the internal thread.
