@@ -11,7 +11,9 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ChangedPackages;
 import android.content.pm.FeatureInfo;
+import android.content.pm.InstantAppInfo;
 import android.content.pm.InstrumentationInfo;
+import android.content.pm.IntentFilterVerificationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageInstaller;
 import android.content.pm.PackageManager;
@@ -27,6 +29,9 @@ import android.content.res.XmlResourceParser;
 import android.graphics.Rect;
 import android.graphics.drawable.Drawable;
 import android.os.UserHandle;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.List;
 
@@ -153,6 +158,12 @@ public class PackageManagerWrapper extends PackageManager {
         return mWrapped.getPackagesHoldingPermissions(permissions, flags);
     }
 
+    @NonNull
+    @Override
+    public List<PackageInfo> getInstalledPackagesAsUser(int flags, int userId) {
+        return null;
+    }
+
     @Override
     public PermissionGroupInfo getPermissionGroupInfo(String name, int flags)
             throws NameNotFoundException {
@@ -194,8 +205,38 @@ public class PackageManagerWrapper extends PackageManager {
     }
 
     @Override
+    public boolean arePermissionsIndividuallyControlled() {
+        return mWrapped.arePermissionsIndividuallyControlled();
+    }
+
+    @Override
     public void removePermission(String name) {
         mWrapped.removePermission(name);
+    }
+
+    @Override
+    public void grantRuntimePermission(@NonNull String packageName, @NonNull String permName,
+            @NonNull UserHandle user) {
+        mWrapped.grantRuntimePermission(packageName, permName, user);
+
+    }
+
+    @Override
+    public void revokeRuntimePermission(@NonNull String packageName, @NonNull String permName,
+            @NonNull UserHandle user) {
+        mWrapped.revokeRuntimePermission(packageName, permName, user);
+    }
+
+    @Override
+    public int getPermissionFlags(@NonNull String permName, @NonNull String packageName,
+            @NonNull UserHandle user) {
+        return mWrapped.getPermissionFlags(permName, packageName, user);
+    }
+
+    @Override
+    public void updatePermissionFlags(@NonNull String permName, @NonNull String packageName,
+            int flagMask, int flagValues, @NonNull UserHandle user) {
+        mWrapped.updatePermissionFlags(permName, packageName, flagMask, flagValues, user);
     }
 
     @Override
@@ -211,6 +252,18 @@ public class PackageManagerWrapper extends PackageManager {
     @Override
     public List<ApplicationInfo> getInstalledApplications(int flags) {
         return mWrapped.getInstalledApplications(flags);
+    }
+
+    @NonNull
+    @Override
+    public List<InstantAppInfo> getInstantApps() {
+        return mWrapped.getInstantApps();
+    }
+
+    @Nullable
+    @Override
+    public Drawable getInstantAppIcon(String packageName) {
+        return mWrapped.getInstantAppIcon(packageName);
     }
 
     @Override
@@ -410,6 +463,17 @@ public class PackageManagerWrapper extends PackageManager {
     }
 
     @Override
+    public int installExistingPackage(@NonNull String packageName) throws NameNotFoundException {
+        return mWrapped.installExistingPackage(packageName);
+    }
+
+    @Override
+    public int installExistingPackage(@NonNull String packageName, int installReason)
+            throws NameNotFoundException {
+        return mWrapped.installExistingPackage(packageName, installReason);
+    }
+
+    @Override
     public void verifyPendingInstall(int id, int verificationCode) {
         mWrapped.verifyPendingInstall(id, verificationCode);
     }
@@ -421,8 +485,54 @@ public class PackageManagerWrapper extends PackageManager {
     }
 
     @Override
+    public void verifyIntentFilter(int verificationId, int verificationCode,
+            @NonNull List<String> failedDomains) {
+        mWrapped.verifyIntentFilter(verificationId, verificationCode, failedDomains);
+    }
+
+    @Override
+    public int getIntentVerificationStatusAsUser(@NonNull String packageName, int userId) {
+        return mWrapped.getIntentVerificationStatusAsUser(packageName, userId);
+    }
+
+    @Override
+    public boolean updateIntentVerificationStatusAsUser(@NonNull String packageName, int status,
+            int userId) {
+        return mWrapped.updateIntentVerificationStatusAsUser(packageName, status, userId);
+    }
+
+    @NonNull
+    @Override
+    public List<IntentFilterVerificationInfo> getIntentFilterVerifications(
+            @NonNull String packageName) {
+        return mWrapped.getIntentFilterVerifications(packageName);
+    }
+
+    @NonNull
+    @Override
+    public List<IntentFilter> getAllIntentFilters(@NonNull String packageName) {
+        return mWrapped.getAllIntentFilters(packageName);
+    }
+
+    @Nullable
+    @Override
+    public String getDefaultBrowserPackageNameAsUser(int userId) {
+        return mWrapped.getDefaultBrowserPackageNameAsUser(userId);
+    }
+
+    @Override
+    public boolean setDefaultBrowserPackageNameAsUser(@Nullable String packageName, int userId) {
+        return mWrapped.setDefaultBrowserPackageNameAsUser(packageName, userId);
+    }
+
+    @Override
     public void setInstallerPackageName(String targetPackage, String installerPackageName) {
         mWrapped.setInstallerPackageName(targetPackage, installerPackageName);
+    }
+
+    @Override
+    public void setUpdateAvailable(@NonNull String packageName, boolean updateAvaialble) {
+        mWrapped.setUpdateAvailable(packageName, updateAvaialble);
     }
 
     @Override
@@ -478,6 +588,16 @@ public class PackageManagerWrapper extends PackageManager {
     }
 
     @Override
+    public void addOnPermissionsChangeListener(@NonNull OnPermissionsChangedListener listener) {
+        mWrapped.addOnPermissionsChangeListener(listener);
+    }
+
+    @Override
+    public void removeOnPermissionsChangeListener(@NonNull OnPermissionsChangedListener listener) {
+        mWrapped.removeOnPermissionsChangeListener(listener);
+    }
+
+    @Override
     public PackageInstaller getPackageInstaller() {
         return mWrapped.getPackageInstaller();
     }
@@ -487,6 +607,24 @@ public class PackageManagerWrapper extends PackageManager {
     @Override
     public boolean canRequestPackageInstalls() {
         return mWrapped.canRequestPackageInstalls();
+    }
+
+    @Nullable
+    @Override
+    public ComponentName getInstantAppResolverSettingsComponent() {
+        return mWrapped.getInstantAppResolverSettingsComponent();
+    }
+
+    @Nullable
+    @Override
+    public ComponentName getInstantAppInstallerComponent() {
+        return mWrapped.getInstantAppInstallerComponent();
+    }
+
+    @Override
+    public void registerDexModule(@NonNull String dexModulePath,
+            @Nullable DexModuleRegisterCallback callback) {
+        mWrapped.registerDexModule(dexModulePath, callback);
     }
 
     @Override
