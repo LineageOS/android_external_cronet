@@ -28,6 +28,18 @@ package {
         "//external/cronet:__subpackages__",
         "//packages/modules/Connectivity/Tethering:__subpackages__",
     ],
+    // See: http://go/android-license-faq
+    // A large-scale-change added 'default_applicable_licenses' to import
+    // all of the 'license_kinds' from "external_cronet_license"
+    // to get the below license kinds:
+    //   legacy_unencumbered
+    //   SPDX-license-identifier-Apache-2.0
+    //   SPDX-license-identifier-BSD
+    //   SPDX-license-identifier-BSD-3-Clause
+    //   SPDX-license-identifier-ISC
+    //   SPDX-license-identifier-MIT
+    //   SPDX-license-identifier-OpenSSL
+    default_applicable_licenses: ["external_cronet_license"],
 }
 
 build = ["sources.bp"]
