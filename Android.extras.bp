@@ -164,6 +164,7 @@ filegroup {
         "components/cronet/android/test/javatests/**/CronetLoggerTestRule.java",
         "components/cronet/android/test/javatests/**/CronetLoggerTest.java",
         "components/cronet/android/test/javatests/**/CronetManifestTest.java",
+        "components/cronet/android/test/javatests/**/CronetStressTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
         "components/cronet/android/test/javatests/**/CronetUploadTest.java",
