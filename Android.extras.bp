@@ -192,6 +192,7 @@ filegroup {
     exclude_srcs: [
         // Todo(b/275345637): setup quic test server
         "components/cronet/android/test/javatests/**/urlconnection/QuicUploadTest.java",
+        "components/cronet/android/test/javatests/**/urlconnection/CronetHttpURLConnectionTest.java",
 
         // Todo(b/275345611): fix failure
         "components/cronet/android/test/javatests/**/urlconnection/CronetInputStreamTest.java",
