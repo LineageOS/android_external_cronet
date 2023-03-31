@@ -18,6 +18,8 @@ package org.chromium.net.impl;
 
 import android.net.http.HeaderBlock;
 
+import androidx.annotation.VisibleForTesting;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -31,7 +33,8 @@ public class HeaderBlockImpl extends HeaderBlock {
     private final List<Map.Entry<String, String>> mAllHeadersList;
     private Map<String, List<String>> mHeadersMap;
 
-    HeaderBlockImpl(List<Map.Entry<String, String>> allHeadersList) {
+    @VisibleForTesting(otherwise = VisibleForTesting.PACKAGE_PRIVATE)
+    public HeaderBlockImpl(List<Map.Entry<String, String>> allHeadersList) {
         mAllHeadersList = Collections.unmodifiableList(allHeadersList);
     }
 
