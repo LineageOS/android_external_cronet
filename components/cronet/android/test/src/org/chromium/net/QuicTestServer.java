@@ -35,8 +35,10 @@ public final class QuicTestServer {
             throw new IllegalStateException("Quic server is already running");
         }
         TestFilesInstaller.installIfNeeded(context);
-        nativeStartQuicTestServer(
-                TestFilesInstaller.getInstalledPath(context), UrlUtils.getIsolatedTestRoot());
+        String test_dir = TestFilesInstaller.getInstalledPath(context);
+        // TestFilesInstaller implementation changed such that the test files and test data dir
+        // are now the same. See aosp/2475670
+        nativeStartQuicTestServer(test_dir, test_dir);
         sBlock.block();
         sBlock.close();
         sServerRunning = true;
