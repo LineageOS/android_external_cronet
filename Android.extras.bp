@@ -64,8 +64,8 @@ java_library {
 
 java_defaults {
     name: "cronet_native_unittests_defaults",
+    defaults: ["mts-target-sdk-version-current"],
     compile_multilib: "both",
-    enforce_default_target_sdk_version: true,
     min_sdk_version: "31", // b/270049141
     srcs: [
         "base/test/android/javatests/src/org/chromium/base/test/util/UrlUtils.java",
