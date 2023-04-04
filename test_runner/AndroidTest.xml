@@ -46,5 +46,6 @@
     <test class="com.android.tradefed.testtype.HostTest">
         <option name="jar" value="cronet_unittests_tester.jar"/>
         <option name="set-option" value="library-to-load:cronet_unittests_android__library"/>
+        <option name="set-option" value="dump-native-coverage:true"/>
     </test>
 </configuration>
