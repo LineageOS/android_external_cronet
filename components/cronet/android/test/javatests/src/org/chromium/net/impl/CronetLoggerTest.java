@@ -235,7 +235,7 @@ public final class CronetLoggerTest {
         ExperimentalHttpEngine.Builder builder =
                 (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
         builder.setExperimentalOptions(experimentalOptions);
-        HttpEngine engine = builder.build();
+        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder requestBuilder =
@@ -286,7 +286,7 @@ public final class CronetLoggerTest {
         // builder.enableNetworkQualityEstimator(isNetworkQualityEstimatorEnabled);
         builder.setThreadPriority(threadPriority);
 
-        HttpEngine engine = builder.build();
+        mTestFramework.startEngine();
         final CronetEngineBuilderInfo builderInfo = mTestLogger.getLastCronetEngineBuilderInfo();
         final CronetVersion version = mTestLogger.getLastCronetVersion();
         final CronetSource source = mTestLogger.getLastCronetSource();
