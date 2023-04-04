@@ -695,9 +695,7 @@ cc_genrule {
 // GN: //base/allocator/partition_allocator:partition_alloc_buildflags__testing
 cc_genrule {
     name: "cronet_aml_base_allocator_partition_allocator_partition_alloc_buildflags__testing",
-    cmd: "if [[ ( $$CC_ARCH == 'x86_64' && $$CC_OS == 'android' ) ]]; " +
-         "then " +
-         "echo '--flags USE_PARTITION_ALLOC=\"false\" ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT=\"false\" BACKUP_REF_PTR_POISON_OOB_PTR=\"false\" PUT_REF_COUNT_IN_PREVIOUS_SLOT=\"false\" USE_ASAN_BACKUP_REF_PTR=\"false\" USE_ASAN_UNOWNED_PTR=\"false\" ENABLE_GWP_ASAN_SUPPORT=\"false\" ENABLE_MTE_CHECKED_PTR_SUPPORT=\"false\" RECORD_ALLOC_INFO=\"false\" USE_FREESLOT_BITMAP=\"false\" GLUE_CORE_POOLS=\"false\" ENABLE_POINTER_COMPRESSION=\"false\" ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=\"false\" STARSCAN=\"true\" ENABLE_PKEYS=\"false\"' | " +
+    cmd: "echo '--flags USE_PARTITION_ALLOC=\"false\" ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT=\"false\" BACKUP_REF_PTR_POISON_OOB_PTR=\"false\" PUT_REF_COUNT_IN_PREVIOUS_SLOT=\"false\" USE_ASAN_BACKUP_REF_PTR=\"false\" USE_ASAN_UNOWNED_PTR=\"false\" ENABLE_GWP_ASAN_SUPPORT=\"false\" ENABLE_MTE_CHECKED_PTR_SUPPORT=\"false\" RECORD_ALLOC_INFO=\"false\" USE_FREESLOT_BITMAP=\"false\" GLUE_CORE_POOLS=\"false\" ENABLE_POINTER_COMPRESSION=\"false\" ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=\"false\" STARSCAN=\"true\" ENABLE_PKEYS=\"false\"' | " +
          "$(location build/write_buildflag_header.py) --output " +
          "$(out) " +
          "--rulename " +
@@ -705,56 +703,7 @@ cc_genrule {
          "--gen-dir " +
          ". " +
          "--definitions " +
-         "/dev/stdin; " +
-         "fi; " +
-         "if [[ $$CC_OS != 'android' ]]; " +
-         "then " +
-         "echo '--flags USE_PARTITION_ALLOC=\"false\" ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT=\"false\" BACKUP_REF_PTR_POISON_OOB_PTR=\"false\" PUT_REF_COUNT_IN_PREVIOUS_SLOT=\"false\" USE_ASAN_BACKUP_REF_PTR=\"false\" USE_ASAN_UNOWNED_PTR=\"false\" ENABLE_GWP_ASAN_SUPPORT=\"false\" ENABLE_MTE_CHECKED_PTR_SUPPORT=\"false\" RECORD_ALLOC_INFO=\"false\" USE_FREESLOT_BITMAP=\"false\" GLUE_CORE_POOLS=\"false\" ENABLE_POINTER_COMPRESSION=\"false\" ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=\"false\" STARSCAN=\"true\" ENABLE_PKEYS=\"true\"' | " +
-         "$(location build/write_buildflag_header.py) --output " +
-         "$(out) " +
-         "--rulename " +
-         "//base/allocator/partition_allocator:partition_alloc_buildflags " +
-         "--gen-dir " +
-         ". " +
-         "--definitions " +
-         "/dev/stdin; " +
-         "fi; " +
-         "if [[ ( $$CC_ARCH == 'x86' && $$CC_OS == 'android' ) ]]; " +
-         "then " +
-         "echo '--flags USE_PARTITION_ALLOC=\"false\" ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT=\"false\" BACKUP_REF_PTR_POISON_OOB_PTR=\"false\" PUT_REF_COUNT_IN_PREVIOUS_SLOT=\"false\" USE_ASAN_BACKUP_REF_PTR=\"false\" USE_ASAN_UNOWNED_PTR=\"false\" ENABLE_GWP_ASAN_SUPPORT=\"false\" ENABLE_MTE_CHECKED_PTR_SUPPORT=\"false\" RECORD_ALLOC_INFO=\"false\" USE_FREESLOT_BITMAP=\"false\" GLUE_CORE_POOLS=\"false\" ENABLE_POINTER_COMPRESSION=\"false\" ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=\"false\" STARSCAN=\"true\" ENABLE_PKEYS=\"false\"' | " +
-         "$(location build/write_buildflag_header.py) --output " +
-         "$(out) " +
-         "--rulename " +
-         "//base/allocator/partition_allocator:partition_alloc_buildflags " +
-         "--gen-dir " +
-         ". " +
-         "--definitions " +
-         "/dev/stdin; " +
-         "fi; " +
-         "if [[ ( $$CC_ARCH == 'arm' && $$CC_OS == 'android' ) ]]; " +
-         "then " +
-         "echo '--flags USE_PARTITION_ALLOC=\"false\" ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT=\"false\" BACKUP_REF_PTR_POISON_OOB_PTR=\"false\" PUT_REF_COUNT_IN_PREVIOUS_SLOT=\"false\" USE_ASAN_BACKUP_REF_PTR=\"false\" USE_ASAN_UNOWNED_PTR=\"false\" ENABLE_GWP_ASAN_SUPPORT=\"false\" ENABLE_MTE_CHECKED_PTR_SUPPORT=\"false\" RECORD_ALLOC_INFO=\"false\" USE_FREESLOT_BITMAP=\"false\" GLUE_CORE_POOLS=\"false\" ENABLE_POINTER_COMPRESSION=\"false\" ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=\"false\" STARSCAN=\"true\" ENABLE_PKEYS=\"false\"' | " +
-         "$(location build/write_buildflag_header.py) --output " +
-         "$(out) " +
-         "--rulename " +
-         "//base/allocator/partition_allocator:partition_alloc_buildflags " +
-         "--gen-dir " +
-         ". " +
-         "--definitions " +
-         "/dev/stdin; " +
-         "fi; " +
-         "if [[ ( $$CC_ARCH == 'arm64' && $$CC_OS == 'android' ) ]]; " +
-         "then " +
-         "echo '--flags USE_PARTITION_ALLOC=\"false\" ENABLE_PARTITION_ALLOC_AS_MALLOC_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SUPPORT=\"false\" ENABLE_BACKUP_REF_PTR_SLOW_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_CHECKS=\"false\" ENABLE_DANGLING_RAW_PTR_PERF_EXPERIMENT=\"false\" BACKUP_REF_PTR_POISON_OOB_PTR=\"false\" PUT_REF_COUNT_IN_PREVIOUS_SLOT=\"false\" USE_ASAN_BACKUP_REF_PTR=\"false\" USE_ASAN_UNOWNED_PTR=\"false\" ENABLE_GWP_ASAN_SUPPORT=\"false\" ENABLE_MTE_CHECKED_PTR_SUPPORT=\"false\" RECORD_ALLOC_INFO=\"false\" USE_FREESLOT_BITMAP=\"false\" GLUE_CORE_POOLS=\"false\" ENABLE_POINTER_COMPRESSION=\"false\" ENABLE_SHADOW_METADATA_FOR_64_BITS_POINTERS=\"false\" STARSCAN=\"true\" ENABLE_PKEYS=\"false\"' | " +
-         "$(location build/write_buildflag_header.py) --output " +
-         "$(out) " +
-         "--rulename " +
-         "//base/allocator/partition_allocator:partition_alloc_buildflags " +
-         "--gen-dir " +
-         ". " +
-         "--definitions " +
-         "/dev/stdin; " +
-         "fi;",
+         "/dev/stdin",
     host_supported: true,
     out: [
         "base/allocator/partition_allocator/partition_alloc_buildflags.h",
@@ -1437,6 +1386,7 @@ cc_library_static {
         "base/trace_event/heap_profiler_allocation_context.cc",
         "base/trace_event/heap_profiler_allocation_context_tracker.cc",
         "base/trace_event/memory_allocator_dump_guid.cc",
+        "base/trace_event/memory_usage_estimator.cc",
         "base/trace_event/trace_event_stub.cc",
         "base/trace_event/trace_id_helper.cc",
         "base/unguessable_token.cc",
@@ -2066,6 +2016,7 @@ cc_library_static {
         "base/trace_event/heap_profiler_allocation_context.cc",
         "base/trace_event/heap_profiler_allocation_context_tracker.cc",
         "base/trace_event/memory_allocator_dump_guid.cc",
+        "base/trace_event/memory_usage_estimator.cc",
         "base/trace_event/trace_event_stub.cc",
         "base/trace_event/trace_id_helper.cc",
         "base/unguessable_token.cc",
