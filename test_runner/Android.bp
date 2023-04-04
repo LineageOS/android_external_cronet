@@ -32,8 +32,10 @@ java_test_host {
     defaults: [
         "CronetTestJavaDefaults",
     ],
+    required: [
+        "cronet_net_tester_app",
+    ],
     data: [
-        ":cronet_net_tester_app",
         ":net_unittests_data",
     ],
     test_suites: [
@@ -63,8 +65,8 @@ java_test_host {
     defaults: [
         "CronetTestJavaDefaults",
     ],
-    data: [
-        ":cronet_tester_app",
+    required: [
+        "cronet_tester_app",
     ],
     test_suites: [
         "general-tests",
