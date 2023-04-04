@@ -67,7 +67,7 @@ function setup_chromium_src_repo() (
 )
 
 #######################################
-# Apply patches in external/cronet.
+# Apply patches in external/cronet/patches.
 # Globals:
 #   ANDROID_BUILD_TOP
 # Arguments:
@@ -75,21 +75,14 @@ function setup_chromium_src_repo() (
 #######################################
 function apply_patches() (
   local -r chromium_dir=$1
-  local -r patch_root="${ANDROID_BUILD_TOP}/external/cronet/patches"
+  local -r patches_dir="${ANDROID_BUILD_TOP}/external/cronet/patches"
 
   cd "${chromium_dir}"
 
-  local upstream_patches
-  upstream_patches=$(ls "${patch_root}/upstream-next")
+  local -r patches=$(ls "${patches_dir}")
   local patch
-  for patch in ${upstream_patches}; do
-    git am --3way "${patch_root}/upstream-next/${patch}"
-  done
-
-  local local_patches
-  local_patches=$(ls "${patch_root}/local")
-  for patch in ${local_patches}; do
-    git am --3way "${patch_root}/local/${patch}"
+  for patch in ${patches}; do
+    git am --3way "${patches_dir}/${patch}"
   done
 )
 
