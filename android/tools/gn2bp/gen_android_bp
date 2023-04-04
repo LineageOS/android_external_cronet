@@ -1143,6 +1143,9 @@ class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
   def _sanitize_inputs(self):
     self.target.inputs = [file for file in self.target.inputs if not file.startswith('//out/')]
 
+  def _sanitize_outputs(self):
+    self.target.outputs = {re.sub('^jni_headers/', '', out) for out in self.target.outputs}
+
   def _sanitize_args(self):
     self._update_value_arg('--depfile', self._sanitize_filepath)
     self._update_value_arg('--srcjar-path', self._sanitize_filepath)

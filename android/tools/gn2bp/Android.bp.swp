@@ -7239,7 +7239,7 @@ cc_genrule {
          "android.net.http.internal",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
-        "jni_headers/components/cronet/android/cronet_jni_registration_generated.h",
+        "components/cronet/android/cronet_jni_registration_generated.h",
     ],
     tool_files: [
         "base/android/jni_generator/jni_generator.py",
@@ -7965,7 +7965,7 @@ cc_genrule {
          "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
-        "jni_headers/components/cronet/android/cronet_jni_registration_generated.h",
+        "components/cronet/android/cronet_jni_registration_generated.h",
     ],
     tool_files: [
         "base/android/jni_generator/jni_generator.py",
