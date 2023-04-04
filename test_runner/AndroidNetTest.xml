@@ -48,7 +48,6 @@
         <option name="push-file" key="data" value="/data/local/tmp/net/data/" />
         <option name="push-file" key="nist-pkits" value="/data/local/tmp/net/third_party/nist-pkits/" />
         <option name="push-file" key="testdir" value="/data/local/tmp/net/third_party/quiche/src/quiche/common/platform/api/testdir/" />
-        <option name="cleanup" value="false" />
     </target_preparer>
     <!-- Runs the test -->
     <test class="com.android.tradefed.testtype.HostTest">
