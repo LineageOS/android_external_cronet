@@ -16,6 +16,8 @@
 
 set -eu
 
+readonly PATCHES_DIR="${ANDROID_BUILD_TOP}/external/cronet/patches"
+
 # Check if the last commit included changes to a .gn or .gni file, which need
 # to be reflected in a .patch
 result=$(git --no-pager diff --name-only HEAD..HEAD~1 | egrep "(\.gn$|\.gni$)")
@@ -35,20 +37,22 @@ if [ -d "$(git rev-parse --git-dir)/rebase-merge" ]; then
     exit 0
 fi
 
-# Create patch (which only reflects changes to .gn and .gni files).
-patches_dir="${ANDROID_BUILD_TOP}/external/cronet/patches"
-number_of_patches=$(git ls-tree -r HEAD~1 -- "${patches_dir}" | wc -l)
-patch_name=$(git format-patch -1 -N --start-number "${number_of_patches}" -o "${patches_dir}" HEAD -- *.gn *.gni)
-git add "${patch_name}"
-
 # There is no flag to skip the post-commit hook (--no-verify only works for
 # pre-commit and commit-msg hooks). Briefly remove the executable
 # permission to prevent recursion.
 chmod -x .git/hooks/post-commit
-# Ignore errors as otherwise the post-commit hook is left without the
-# executable permission.
-git -c "advice.ignoredHook=false" commit --amend --no-edit || true
-chmod +x .git/hooks/post-commit
+# Ensure chmod +x is always run, even when script exits early
+trap "chmod +x .git/hooks/post-commit" EXIT
+
+# Remove any existing .patch files from the commit
+git reset HEAD~1 -- "${PATCHES_DIR}/*.patch"
+git -c "advice.ignoredHook=false" commit --amend --no-edit
+
+# Create patch (which only reflects changes to .gn and .gni files).
+number_of_patches=$(git ls-tree -r HEAD~1 -- "${PATCHES_DIR}" | wc -l)
+patch_name=$(git format-patch -1 -N --start-number "${number_of_patches}" -o "${PATCHES_DIR}" HEAD -- "*.gn" "*.gni")
+git add "${patch_name}"
+git -c "advice.ignoredHook=false" commit --amend --no-edit
 
 echo "INFO: a .patch file was added to your CL"
 
