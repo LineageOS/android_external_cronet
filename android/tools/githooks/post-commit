@@ -31,7 +31,7 @@ fi
 # expected.
 # TODO: find a better solution. One option is to parse `git status` output and
 # grep for the "rebase in progress" string.
-if [ -d "$(git rev-parse --git-dir)/rebase-merge" ]; then
+if [[ -d "$(git rev-parse --git-dir)/rebase-merge" ]]; then
     # interactive rebase in progress.
     echo "WARNING! .patch files are not updated during interactive rebase"
     exit 0
@@ -45,11 +45,11 @@ chmod -x .git/hooks/post-commit
 trap "chmod +x .git/hooks/post-commit" EXIT
 
 # Remove any existing .patch files from the commit
-git reset HEAD~1 -- "${PATCHES_DIR}/*.patch"
+git reset HEAD~ -- "${PATCHES_DIR}/*.patch"
 git -c "advice.ignoredHook=false" commit --amend --no-edit
 
 # Create patch (which only reflects changes to .gn and .gni files).
-number_of_patches=$(git ls-tree -r HEAD~1 -- "${PATCHES_DIR}" | wc -l)
+number_of_patches=$(git ls-tree -r HEAD~ -- "${PATCHES_DIR}" | wc -l)
 patch_name=$(git format-patch -1 -N --start-number "${number_of_patches}" -o "${PATCHES_DIR}" HEAD -- "*.gn" "*.gni")
 git add "${patch_name}"
 git -c "advice.ignoredHook=false" commit --amend --no-edit
