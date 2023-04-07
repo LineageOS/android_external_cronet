@@ -11,6 +11,8 @@ import java.util.concurrent.Executor;
  * Watches observations of various round trip times (RTTs) at various layers of the network stack.
  * These include RTT estimates by QUIC and TCP, as well as the time between when a URL request is
  * sent and when the first byte of the response is received.
+ *
+ * @hide
  */
 public abstract class NetworkQualityRttListener {
     /**
