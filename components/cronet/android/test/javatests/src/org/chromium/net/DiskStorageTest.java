@@ -25,6 +25,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
+import org.chromium.base.FileUtils;
 import org.chromium.base.PathUtils;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 
