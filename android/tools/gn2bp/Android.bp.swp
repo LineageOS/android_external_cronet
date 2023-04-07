@@ -8882,15 +8882,16 @@ java_genrule {
     srcs: [
         "components/cronet/android/proto/request_context_config.proto",
     ],
-    cmd: "$(location build/protoc_java.py) --depfile " +
-         "gen/components/cronet/android/request_context_config_java_proto__protoc_java.d " +
-         "--protoc " +
-         "../../third_party/android_protoc/protoc " +
+    tools: [
+        "cronet_aml_third_party_protobuf_protoc",
+    ],
+    cmd: "$(location build/protoc_java.py) --protoc " +
+         "$(location cronet_aml_third_party_protobuf_protoc) " +
          "--proto-path " +
-         "../../components/cronet/android " +
+         "external/cronet/components/cronet/android " +
          "--srcjar " +
-         "gen/components/cronet/android/request_context_config_java_proto__protoc_java.srcjar " +
-         "../../components/cronet/android/proto/request_context_config.proto",
+         "$(out) " +
+         "$(location components/cronet/android/proto/request_context_config.proto)",
     out: [
         "components/cronet/android/request_context_config_java_proto__protoc_java.srcjar",
     ],
@@ -11551,6 +11552,7 @@ java_library {
         "url/android/java/src/org/chromium/url/IDNStringUtil.java",
     ],
     static_libs: [
+        "libprotobuf-java-lite",
         "modules-utils-build_system",
     ],
     apex_available: [
@@ -11827,6 +11829,7 @@ java_library {
         "url/android/java/src/org/chromium/url/IDNStringUtil.java",
     ],
     static_libs: [
+        "libprotobuf-java-lite",
         "modules-utils-build_system",
     ],
     apex_available: [
