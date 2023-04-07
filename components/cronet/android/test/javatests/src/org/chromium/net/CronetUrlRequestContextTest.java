@@ -592,7 +592,6 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testGetActiveRequestCount() throws Exception {
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
         CronetEngine cronetEngine = testFramework.mCronetEngine;
@@ -622,7 +621,6 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testGetActiveRequestCountOnReachingSucceeded() throws Exception {
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
         CronetEngine cronetEngine = testFramework.mCronetEngine;
@@ -645,7 +643,6 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testGetActiveRequestCountOnReachingCancel() throws Exception {
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
         CronetEngine cronetEngine = testFramework.mCronetEngine;
@@ -667,7 +664,6 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testGetActiveRequestCountOnReachingFail() throws Exception {
         final String badUrl = "www.unreachable-url.com";
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
@@ -689,7 +685,6 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testGetActiveRequestCountWithCancel() throws Exception {
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
         CronetEngine cronetEngine = testFramework.mCronetEngine;
@@ -719,7 +714,6 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testGetActiveRequestCountWithError() throws Exception {
         final String badUrl = "www.unreachable-url.com";
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
@@ -750,7 +744,6 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     @OnlyRunNativeCronet
     // Tests that NetLog contains events emitted by all live CronetEngines.
     public void testNetLogContainEventsFromAllLiveEngines() throws Exception {
