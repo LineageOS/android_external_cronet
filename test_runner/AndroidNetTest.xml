@@ -15,6 +15,9 @@
   ~ limitations under the License.
   -->
 <configuration description="Config for Cronet-unittests">
+    <!-- Cronet runs on S+ -->
+    <object type="module_controller"
+            class="com.android.tradefed.testtype.suite.module.Sdk31ModuleController" />
     <!-- Use root for adb. -->
     <target_preparer class="com.android.tradefed.targetprep.RootTargetPreparer"/>
     <!-- This is necessary for the APK to read/write to any file on disk. -->
@@ -45,7 +48,6 @@
         <option name="push-file" key="data" value="/data/local/tmp/net/data/" />
         <option name="push-file" key="nist-pkits" value="/data/local/tmp/net/third_party/nist-pkits/" />
         <option name="push-file" key="testdir" value="/data/local/tmp/net/third_party/quiche/src/quiche/common/platform/api/testdir/" />
-        <option name="cleanup" value="false" />
     </target_preparer>
     <!-- Runs the test -->
     <test class="com.android.tradefed.testtype.HostTest">

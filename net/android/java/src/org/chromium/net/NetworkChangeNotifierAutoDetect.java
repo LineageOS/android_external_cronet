@@ -200,10 +200,11 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
     }
 
     /** Queries the ConnectivityManager for information about the current connection. */
-    static class ConnectivityManagerDelegate {
+    @VisibleForTesting
+    public static class ConnectivityManagerDelegate {
         private final ConnectivityManager mConnectivityManager;
 
-        ConnectivityManagerDelegate(Context context) {
+        public ConnectivityManagerDelegate(Context context) {
             mConnectivityManager =
                     (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
         }
@@ -442,7 +443,8 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
          * Returns the current default {@link Network}, or {@code null} if disconnected.
          * Only callable on Lollipop and newer releases.
          */
-        Network getDefaultNetwork() {
+        @VisibleForTesting
+        public Network getDefaultNetwork() {
             Network defaultNetwork = null;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 defaultNetwork = ApiHelperForM.getActiveNetwork(mConnectivityManager);

@@ -12,6 +12,7 @@ import static org.chromium.base.CollectionUtil.newHashSet;
 import static org.chromium.net.CronetTestRule.getContext;
 
 import android.net.http.BidirectionalStream;
+import android.net.http.ExperimentalBidirectionalStream;
 import android.net.http.ExperimentalHttpEngine;
 import android.net.http.NetworkException;
 import android.net.http.QuicException;
@@ -32,7 +33,7 @@ import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.MetricsTestUtil.TestRequestFinishedListener;
 
 import java.nio.ByteBuffer;
-import java.util.Date;
+import java.time.Instant;
 import java.util.HashSet;
 
 /**
@@ -111,21 +112,22 @@ public class BidirectionalStreamQuicTest {
         callback.addWriteData("woot!".getBytes());
         TestRequestFinishedListener requestFinishedListener = new TestRequestFinishedListener();
         mCronetEngine.addRequestFinishedListener(requestFinishedListener);
-        BidirectionalStream stream =
-                mCronetEngine
-                        .newBidirectionalStreamBuilder(quicURL, callback, callback.getExecutor())
+        ExperimentalBidirectionalStream.Builder streamBuilder =
+                (ExperimentalBidirectionalStream.Builder) mCronetEngine
+                .newBidirectionalStreamBuilder(quicURL, callback, callback.getExecutor());
+        BidirectionalStream stream = streamBuilder
                         .addHeader("foo", "bar")
                         .addHeader("empty", "")
                         .addHeader("Content-Type", "zebra")
                         .addRequestAnnotation("request annotation")
                         .addRequestAnnotation(this)
                         .build();
-        Date startTime = new Date();
+        Instant startTime = Instant.now();
         stream.start();
         callback.blockForDone();
         assertTrue(stream.isDone());
         requestFinishedListener.blockUntilDone();
-        Date endTime = new Date();
+        Instant endTime = Instant.now();
         RequestFinishedInfo finishedInfo = requestFinishedListener.getRequestInfo();
         MetricsTestUtil.checkRequestFinishedInfo(finishedInfo, quicURL, startTime, endTime);
         assertEquals(RequestFinishedInfo.SUCCEEDED, finishedInfo.getFinishedReason());
@@ -154,7 +156,8 @@ public class BidirectionalStreamQuicTest {
             BidirectionalStream stream = mCronetEngine
                                                  .newBidirectionalStreamBuilder(
                                                          quicURL, callback, callback.getExecutor())
-                                                 .delayRequestHeadersUntilFirstFlush(i == 0)
+                                                 .setDelayRequestHeadersUntilFirstFlushEnabled(
+                                                         i == 0)
                                                  .addHeader("foo", "bar")
                                                  .addHeader("empty", "")
                                                  .addHeader("Content-Type", "zebra")
@@ -189,7 +192,8 @@ public class BidirectionalStreamQuicTest {
             BidirectionalStream stream = mCronetEngine
                                                  .newBidirectionalStreamBuilder(
                                                          quicURL, callback, callback.getExecutor())
-                                                 .delayRequestHeadersUntilFirstFlush(i == 0)
+                                                 .setDelayRequestHeadersUntilFirstFlushEnabled(
+                                                         i == 0)
                                                  .addHeader("foo", "bar")
                                                  .addHeader("empty", "")
                                                  .addHeader("Content-Type", "zebra")
@@ -225,7 +229,7 @@ public class BidirectionalStreamQuicTest {
                     mCronetEngine
                             .newBidirectionalStreamBuilder(url, callback, callback.getExecutor())
                             .setHttpMethod("GET")
-                            .delayRequestHeadersUntilFirstFlush(i == 0)
+                            .setDelayRequestHeadersUntilFirstFlushEnabled(i == 0)
                             .addHeader("foo", "bar")
                             .addHeader("empty", "")
                             .build();
@@ -261,7 +265,7 @@ public class BidirectionalStreamQuicTest {
             BidirectionalStream stream =
                     mCronetEngine
                             .newBidirectionalStreamBuilder(url, callback, callback.getExecutor())
-                            .delayRequestHeadersUntilFirstFlush(i == 0)
+                            .setDelayRequestHeadersUntilFirstFlushEnabled(i == 0)
                             .addHeader("foo", "bar")
                             .addHeader("empty", "")
                             .addHeader("Content-Type", "zebra")
@@ -343,7 +347,7 @@ public class BidirectionalStreamQuicTest {
                 mCronetEngine
                         .newBidirectionalStreamBuilder(quicURL, callback, callback.getExecutor())
                         .setHttpMethod("GET")
-                        .delayRequestHeadersUntilFirstFlush(true)
+                        .setDelayRequestHeadersUntilFirstFlushEnabled(true)
                         .addHeader("Content-Type", "zebra")
                         .build();
         stream.start();
