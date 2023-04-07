@@ -594,7 +594,7 @@ public class CronetUrlRequestContextTest {
     @SmallTest
     public void testGetActiveRequestCount() throws Exception {
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
-        CronetEngine cronetEngine = testFramework.mCronetEngine;
+        HttpEngine cronetEngine = testFramework.mCronetEngine;
         TestUrlRequestCallback callback1 = new TestUrlRequestCallback();
         TestUrlRequestCallback callback2 = new TestUrlRequestCallback();
         callback1.setAutoAdvance(false);
@@ -623,7 +623,7 @@ public class CronetUrlRequestContextTest {
     @SmallTest
     public void testGetActiveRequestCountOnReachingSucceeded() throws Exception {
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
-        CronetEngine cronetEngine = testFramework.mCronetEngine;
+        HttpEngine cronetEngine = testFramework.mCronetEngine;
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         callback.setAutoAdvance(false);
         callback.setBlockOnTerminalState(true);
@@ -645,7 +645,7 @@ public class CronetUrlRequestContextTest {
     @SmallTest
     public void testGetActiveRequestCountOnReachingCancel() throws Exception {
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
-        CronetEngine cronetEngine = testFramework.mCronetEngine;
+        HttpEngine cronetEngine = testFramework.mCronetEngine;
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         callback.setAutoAdvance(false);
         callback.setBlockOnTerminalState(true);
@@ -667,7 +667,7 @@ public class CronetUrlRequestContextTest {
     public void testGetActiveRequestCountOnReachingFail() throws Exception {
         final String badUrl = "www.unreachable-url.com";
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
-        CronetEngine cronetEngine = testFramework.mCronetEngine;
+        HttpEngine cronetEngine = testFramework.mCronetEngine;
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         callback.setAutoAdvance(false);
         callback.setBlockOnTerminalState(true);
@@ -687,7 +687,7 @@ public class CronetUrlRequestContextTest {
     @SmallTest
     public void testGetActiveRequestCountWithCancel() throws Exception {
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
-        CronetEngine cronetEngine = testFramework.mCronetEngine;
+        HttpEngine cronetEngine = testFramework.mCronetEngine;
         TestUrlRequestCallback callback1 = new TestUrlRequestCallback();
         TestUrlRequestCallback callback2 = new TestUrlRequestCallback();
         callback1.setAutoAdvance(false);
@@ -717,7 +717,7 @@ public class CronetUrlRequestContextTest {
     public void testGetActiveRequestCountWithError() throws Exception {
         final String badUrl = "www.unreachable-url.com";
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
-        CronetEngine cronetEngine = testFramework.mCronetEngine;
+        HttpEngine cronetEngine = testFramework.mCronetEngine;
         TestUrlRequestCallback callback1 = new TestUrlRequestCallback();
         TestUrlRequestCallback callback2 = new TestUrlRequestCallback();
         callback1.setAutoAdvance(false);
