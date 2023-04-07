@@ -55,7 +55,7 @@ public class DiskStorageTest {
     @After
     public void tearDown() throws Exception {
         if (mReadOnlyStoragePath != null) {
-            FileUtils.recursivelyDeleteFile(new File(mReadOnlyStoragePath));
+            FileUtils.recursivelyDeleteFile(new File(mReadOnlyStoragePath), FileUtils.DELETE_ALL);
         }
         NativeTestServer.shutdownNativeTestServer();
     }
