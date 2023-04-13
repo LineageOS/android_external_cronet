@@ -67,7 +67,7 @@ function setup_chromium_src_repo() (
 )
 
 #######################################
-# Apply patches in external/cronet.
+# Apply patches in external/cronet/patches.
 # Globals:
 #   ANDROID_BUILD_TOP
 # Arguments:
@@ -75,27 +75,21 @@ function setup_chromium_src_repo() (
 #######################################
 function apply_patches() (
   local -r chromium_dir=$1
-  local -r patch_root="${ANDROID_BUILD_TOP}/external/cronet/patches"
+  local -r patches_dir="${ANDROID_BUILD_TOP}/external/cronet/patches"
 
   cd "${chromium_dir}"
 
-  local upstream_patches
-  upstream_patches=$(ls "${patch_root}/upstream-next")
+  local -r patches=$(ls "${patches_dir}")
   local patch
-  for patch in ${upstream_patches}; do
-    git am --3way "${patch_root}/upstream-next/${patch}"
-  done
-
-  local local_patches
-  local_patches=$(ls "${patch_root}/local")
-  for patch in ${local_patches}; do
-    git am --3way "${patch_root}/local/${patch}"
+  for patch in ${patches}; do
+    git am --3way "${patches_dir}/${patch}"
   done
 )
 
 #######################################
 # Generate desc.json for a specified architecture.
 # Globals:
+#   ANDROID_BUILD_TOP
 #   OUT_PATH
 # Arguments:
 #   target_cpu, string
@@ -125,7 +119,6 @@ function gn_desc() (
     "media_use_ffmpeg=false"
     "use_thin_lto=false"
     "enable_resource_allowlist_generation=false"
-    "enable_jdk_library_desugaring=false"
     "exclude_unwind_tables=true"
     "symbol_level=1"
   )
@@ -143,7 +136,7 @@ function gn_desc() (
   gn gen "${OUT_PATH}" --args="${gn_args[*]}"
 
   # Generate desc.json.
-  local -r out_file="desc_${target_cpu}.json"
+  local -r out_file="${ANDROID_BUILD_TOP}/external/cronet/android/tools/gn2bp/desc_${target_cpu}.json"
   gn desc "${OUT_PATH}" --format=json --all-toolchains "//*" > "${out_file}"
 )
 
