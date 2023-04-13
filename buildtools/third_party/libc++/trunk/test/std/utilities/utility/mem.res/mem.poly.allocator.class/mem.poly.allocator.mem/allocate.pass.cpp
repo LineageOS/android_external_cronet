@@ -10,6 +10,9 @@
 // XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
 // XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx{{11.0|12.0}}
 
+// test_memory_resource requires RTTI for dynamic_cast
+// UNSUPPORTED: no-rtti
+
 // <memory_resource>
 
 // template <class T> class polymorphic_allocator
@@ -52,17 +55,11 @@ void testAllocForSizeThrows() {
 
   // Test that allocating exactly the max size does not throw.
   size_t maxSize = Traits::max_size(a);
-  try {
-    a.allocate(maxSize);
-  } catch (...) {
-    assert(false);
-  }
-
   size_t sizeTypeMax = std::numeric_limits<std::size_t>::max();
   if (maxSize != sizeTypeMax) {
     // Test that allocating size_t(~0) throws bad alloc.
     try {
-      a.allocate(sizeTypeMax);
+      (void)a.allocate(sizeTypeMax);
       assert(false);
     } catch (const std::exception&) {
     }
@@ -70,7 +67,7 @@ void testAllocForSizeThrows() {
     // Test that allocating even one more than the max size does throw.
     size_t overSize = maxSize + 1;
     try {
-      a.allocate(overSize);
+      (void)a.allocate(overSize);
       assert(false);
     } catch (const std::exception&) {
     }

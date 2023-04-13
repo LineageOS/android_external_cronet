@@ -6,9 +6,14 @@
 //
 //===----------------------------------------------------------------------===//
 
-// <memory_resource>
-
 // UNSUPPORTED: c++03, c++11, c++14
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx10.{{9|10|11|12|13|14|15}}
+// XFAIL: use_system_cxx_lib && target={{.+}}-apple-macosx{{11.0|12.0}}
+
+// test_memory_resource requires RTTI for dynamic_cast
+// UNSUPPORTED: no-rtti
+
+// <memory_resource>
 
 //------------------------------------------------------------------------------
 // TESTING void *memory_resource::allocate(size_t, size_t = max_align)
@@ -34,11 +39,11 @@ int main(int, char**) {
   auto& P                      = R.getController();
   std::pmr::memory_resource& M = R;
   {
-    static_assert(std::is_same<decltype(M.allocate(0, 0)), void*>::value, "Must be void*");
+    static_assert(std::is_same<decltype(M.allocate(0, 1)), void*>::value, "Must be void*");
     static_assert(std::is_same<decltype(M.allocate(0)), void*>::value, "Must be void*");
   }
   {
-    static_assert(!noexcept(M.allocate(0, 0)), "Must not be noexcept.");
+    static_assert(!noexcept(M.allocate(0, 1)), "Must not be noexcept.");
     static_assert(!noexcept(M.allocate(0)), "Must not be noexcept.");
   }
   {
@@ -61,7 +66,7 @@ int main(int, char**) {
     P2.throw_on_alloc             = true;
     std::pmr::memory_resource& M2 = R2;
     try {
-      M2.allocate(42);
+      (void)M2.allocate(42);
       assert(false);
     } catch (TestException const&) {
       // do nothing.
