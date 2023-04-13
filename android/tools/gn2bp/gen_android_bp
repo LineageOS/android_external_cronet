@@ -670,6 +670,11 @@ def is_supported_source_file(name):
   return os.path.splitext(name)[1] in ['.c', '.cc', '.cpp', '.java', '.proto', '.S']
 
 
+def get_protoc_module_name(gn):
+  protoc_gn_target_name = gn.get_target('//third_party/protobuf:protoc').name
+  return label_to_module_name(protoc_gn_target_name)
+
+
 def create_proto_modules(blueprint, gn, target):
   """Generate genrules for a proto GN target.
 
@@ -687,8 +692,7 @@ def create_proto_modules(blueprint, gn, target):
     """
   assert (target.type == 'proto_library')
 
-  protoc_gn_target_name = gn.get_target('//third_party/protobuf:protoc').name
-  protoc_module_name = label_to_module_name(protoc_gn_target_name)
+  protoc_module_name = get_protoc_module_name(gn)
   tools = {protoc_module_name}
   cpp_out_dir = '$(genDir)/%s/%s/' % (tree_path, target.proto_in_dir)
   target_module_name = label_to_module_name(target.name)
@@ -957,6 +961,9 @@ class BaseActionSanitizer():
   def _set_arg_at(self, position, value):
     self.target.args[position] = value
 
+  def _update_arg_at(self, position, func):
+    self.target.args[position] = func(self.target.args[position])
+
   def _delete_value_arg(self, arg, throw_if_absent = True):
     if self._should_fail_silently(arg, throw_if_absent):
       return
@@ -1062,7 +1069,7 @@ class WriteBuildFlagHeaderSanitizer(BaseActionSanitizer):
     self._set_value_arg('--output', '$(out)')
     super()._sanitize_args()
 
-class GnRunBinary(BaseActionSanitizer):
+class GnRunBinarySanitizer(BaseActionSanitizer):
   def __init__(self, target, arch):
     super().__init__(target, arch)
     self.binary_to_target = {
@@ -1150,6 +1157,9 @@ class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
   def _sanitize_inputs(self):
     self.target.inputs = [file for file in self.target.inputs if not file.startswith('//out/')]
 
+  def _sanitize_outputs(self):
+    self.target.outputs = {re.sub('^jni_headers/', '', out) for out in self.target.outputs}
+
   def _sanitize_args(self):
     self._update_value_arg('--depfile', self._sanitize_filepath)
     self._update_value_arg('--srcjar-path', self._sanitize_filepath)
@@ -1177,10 +1187,6 @@ class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
                 "done;",
                 cmd]
 
-    # .h file jni_registration_generator.py generates has #define with directory name.
-    # With the genrule env that contains "." which is invalid. So replace that at the end of cmd.
-    commands.append(";sed -i -e 's/OUT_SOONG_.TEMP_SBOX_.*_OUT/GEN/g' ")
-    commands.append("$(genDir)/components/cronet/android/cronet_jni_registration.h")
     return NEWLINE.join(commands)
 
 class JavaJniRegistrationGeneratorSanitizer(JniRegistrationGeneratorSanitizer):
@@ -1239,7 +1245,31 @@ class WriteNativeLibrariesJavaSanitizer(BaseActionSanitizer):
     self._set_value_arg('--output', '$(out)')
     super()._sanitize_args()
 
-def get_action_sanitizer(target, type, arch, is_test_target):
+
+class ProtocJavaSanitizer(BaseActionSanitizer):
+  def __init__(self, target, arch, gn):
+    super().__init__(target, arch)
+    self._protoc = get_protoc_module_name(gn)
+
+  def _sanitize_proto_path(self, arg):
+    arg = self._sanitize_filepath(arg)
+    return tree_path + '/' + arg
+
+  def _sanitize_args(self):
+    super()._sanitize_args()
+    self._delete_value_arg('--depfile')
+    self._set_value_arg('--protoc', '$(location %s)' % self._protoc)
+    self._update_value_arg('--proto-path', self._sanitize_proto_path)
+    self._set_value_arg('--srcjar', '$(out)')
+    self._update_arg_at(-1, self._sanitize_filepath_with_location_tag)
+
+  def get_tools(self):
+    tools = super().get_tools()
+    tools.add(self._protoc)
+    return tools
+
+
+def get_action_sanitizer(gn, target, type, arch, is_test_target):
   if target.script == "//build/write_buildflag_header.py":
     return WriteBuildFlagHeaderSanitizer(target, arch)
   elif target.script == "//build/write_build_date_header.py":
@@ -1264,12 +1294,14 @@ def get_action_sanitizer(target, type, arch, is_test_target):
   elif target.script == '//build/android/gyp/write_native_libraries_java.py':
     return WriteNativeLibrariesJavaSanitizer(target, arch)
   elif target.script == '//build/gn_run_binary.py':
-    return GnRunBinary(target, arch)
+    return GnRunBinarySanitizer(target, arch)
+  elif target.script == '//build/protoc_java.py':
+    return ProtocJavaSanitizer(target, arch, gn)
   else:
     # TODO: throw exception here once all script hacks have been converted.
     return BaseActionSanitizer(target, arch)
 
-def create_action_foreach_modules(blueprint, target, is_test_target):
+def create_action_foreach_modules(blueprint, gn, target, is_test_target):
   """ The following assumes that rebase_path exists in the args.
   The args of an action_foreach contains hints about which output files are generated
   by which source files.
@@ -1305,10 +1337,10 @@ def create_action_foreach_modules(blueprint, target, is_test_target):
         new_args.append(arg)
 
   target.args = new_args
-  return create_action_module(blueprint, target, 'cc_genrule', is_test_target)
+  return create_action_module(blueprint, gn, target, 'cc_genrule', is_test_target)
 
-def create_action_module_internal(target, type, is_test_target, arch=None):
-  sanitizer = get_action_sanitizer(target, type, arch, is_test_target)
+def create_action_module_internal(gn, target, type, is_test_target, arch=None):
+  sanitizer = get_action_sanitizer(gn, target, type, arch, is_test_target)
   sanitizer.sanitize()
 
   module = Module(type, sanitizer.get_name(), target.name)
@@ -1378,7 +1410,7 @@ def merge_modules(modules, genrule_type):
   merged_module.cmd = merge_cmd(modules, genrule_type)
   return merged_module
 
-def create_action_module(blueprint, target, genrule_type, is_test_target):
+def create_action_module(blueprint, gn, target, genrule_type, is_test_target):
   '''
   Create module for action target and add to the blueprint. If target has arch specific attributes
   this function merge them and create a single module.
@@ -1391,11 +1423,14 @@ def create_action_module(blueprint, target, genrule_type, is_test_target):
   # different value for cpu-family arg between archs
   if target.name in ['//build/android:native_libraries_gen',
                      '//build/android:native_libraries_gen__testing']:
-    module = create_action_module_internal(target, genrule_type, is_test_target, target.arch['android_arm'])
+    module = create_action_module_internal(gn, target, genrule_type,
+                                           is_test_target,
+                                           target.arch['android_arm'])
     blueprint.add_module(module)
     return module
 
-  modules = {arch_name: create_action_module_internal(target, genrule_type, is_test_target, arch)
+  modules = {arch_name: create_action_module_internal(gn, target, genrule_type,
+                                                      is_test_target, arch)
              for arch_name, arch in target.arch.items()}
   module = merge_modules(modules, genrule_type)
   blueprint.add_module(module)
@@ -1479,9 +1514,9 @@ def create_modules_from_target(blueprint, gn, gn_target_name, is_test_target):
     if module is None:
       return None
   elif target.type == 'action':
-    module = create_action_module(blueprint, target, 'cc_genrule', is_test_target)
+    module = create_action_module(blueprint, gn, target, 'cc_genrule', is_test_target)
   elif target.type == 'action_foreach':
-    module = create_action_foreach_modules(blueprint, target, is_test_target)
+    module = create_action_foreach_modules(blueprint, gn, target, is_test_target)
   elif target.type == 'copy':
     # TODO: careful now! copy targets are not supported yet, but this will stop
     # traversing the dependency tree. For //base:base, this is not a big
@@ -1715,6 +1750,7 @@ def create_java_module(blueprint, gn, is_test_target):
     "framework-mediaprovider.stubs.module_lib",
   }
   module.static_libs = {
+    "libprotobuf-java-lite",
     "modules-utils-build_system",
   }
   module.aidl["include_dirs"] = {"frameworks/base/core/java/"}
@@ -1735,7 +1771,9 @@ def create_java_module(blueprint, gn, is_test_target):
     if target.script == '//build/android/gyp/gcc_preprocess.py':
       module.srcs.add(':' + create_gcc_preprocess_modules(blueprint, target).name)
     else:
-      module.srcs.add(':' + create_action_module(blueprint, target, 'java_genrule', is_test_target).name)
+      module.srcs.add(':' + create_action_module(blueprint, gn, target,
+                                                 'java_genrule',
+                                                 is_test_target).name)
   preprocessor_module = create_java_jni_preprocessor(blueprint)
   module.plugins.add(preprocessor_module.name)
   module.visibility.append(connectivity_visibility)
@@ -1751,7 +1789,7 @@ def create_java_api_module(blueprint, gn):
   source_module.comment += "\n// TODO(danstahr): add the API helpers separately after the main" \
                            " API is checked in and thoroughly reviewed"
   source_module.srcs.update([
-    ':' + create_action_module(blueprint, gn.get_target(dep), 'java_genrule', False).name
+    ':' + create_action_module(blueprint, gn, gn.get_target(dep), 'java_genrule', False).name
     for dep in get_api_java_actions(gn)])
   blueprint.add_module(source_module)
   source_module.visibility.append(connectivity_visibility)

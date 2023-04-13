@@ -139,7 +139,7 @@ private:
 };
 
 template <class CharT>
-std::vector<std::basic_string_view<CharT>> invalid_types(std::string valid) {
+std::vector<std::basic_string_view<CharT>> invalid_types(std::string_view valid) {
   std::vector<std::basic_string_view<CharT>> result;
 
 #define CASE(T)                                                                                                        \
@@ -147,7 +147,13 @@ case #T[0]:                                                                     
   result.push_back(SV("Invalid formatter type {:" #T "}"));                                                            \
   break;
 
-  for (auto type : "aAbBcdeEfFgGopsxX") {
+#if TEST_STD_VER > 20
+  constexpr std::string_view types = "aAbBcdeEfFgGopsxX?";
+#else
+  constexpr std::string_view types = "aAbBcdeEfFgGopsxX";
+#endif
+
+  for (auto type : types) {
     if (valid.find(type) != std::string::npos)
       continue;
 
@@ -169,6 +175,7 @@ case #T[0]:                                                                     
       CASE(s)
       CASE(x)
       CASE(X)
+      CASE(?)
     case 0:
       break;
     default:
@@ -194,6 +201,7 @@ void format_test_string(const W& world, const U& universe, TestFunction check, E
   check(SV("hello universe and world"), SV("hello {1} and {0}"), world, universe);
 
   check(SV("hello world"), SV("hello {:_>}"), world);
+  check(SV("hello world   "), SV("hello {:8}"), world);
   check(SV("hello    world"), SV("hello {:>8}"), world);
   check(SV("hello ___world"), SV("hello {:_>8}"), world);
   check(SV("hello _world__"), SV("hello {:_^8}"), world);
@@ -293,7 +301,12 @@ void format_test_string(const W& world, const U& universe, TestFunction check, E
   check_exception("The format-spec should consume the input or end with a '}'", SV("hello {:L}"), world);
 
   // *** type ***
-  for (const auto& fmt : invalid_types<CharT>("s"))
+#if TEST_STD_VER > 20
+  const char* valid_types = "s?";
+#else
+  const char* valid_types = "s";
+#endif
+  for (const auto& fmt : invalid_types<CharT>(valid_types))
     check_exception("The format-spec type has a type not supported for a string argument", fmt, world);
 }
 
@@ -871,7 +884,6 @@ void format_test_char(TestFunction check, ExceptionTest check_exception) {
   // ***** Char type *****
   // *** align-fill & width ***
   check(SV("answer is '*     '"), SV("answer is '{:6}'"), CharT('*'));
-
   check(SV("answer is '     *'"), SV("answer is '{:>6}'"), CharT('*'));
   check(SV("answer is '*     '"), SV("answer is '{:<6}'"), CharT('*'));
   check(SV("answer is '  *   '"), SV("answer is '{:^6}'"), CharT('*'));
@@ -921,7 +933,12 @@ void format_test_char(TestFunction check, ExceptionTest check_exception) {
   check(SV("answer is '*'"), SV("answer is '{:Lc}'"), '*');
 
   // *** type ***
-  for (const auto& fmt : invalid_types<CharT>("bBcdoxX"))
+#if TEST_STD_VER > 20
+  const char* valid_types = "bBcdoxX?";
+#else
+  const char* valid_types = "bBcdoxX";
+#endif
+  for (const auto& fmt : invalid_types<CharT>(valid_types))
     check_exception("The format-spec type has a type not supported for a char argument", fmt, CharT('*'));
 }
 
@@ -987,7 +1004,12 @@ void format_test_char_as_integer(TestFunction check, ExceptionTest check_excepti
   // See locale-specific_form.pass.cpp
 
   // *** type ***
-  for (const auto& fmt : invalid_types<CharT>("bBcdoxX"))
+#if TEST_STD_VER > 20
+  const char* valid_types = "bBcdoxX?";
+#else
+  const char* valid_types = "bBcdoxX";
+#endif
+  for (const auto& fmt : invalid_types<CharT>(valid_types))
     check_exception("The format-spec type has a type not supported for a char argument", fmt, '*');
 }
 
