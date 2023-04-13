@@ -24,6 +24,7 @@
 #include <__iterator/iterator_traits.h>
 #include <__memory/destruct_n.h>
 #include <__memory/unique_ptr.h>
+#include <__utility/move.h>
 #include <climits>
 
 #if !defined(_LIBCPP_HAS_NO_PRAGMA_SYSTEM_HEADER)
@@ -174,7 +175,7 @@ _LIBCPP_HIDDEN unsigned __sort5(_ForwardIterator __x1, _ForwardIterator __x2, _F
 }
 
 template <class _AlgPolicy, class _Compare, class _ForwardIterator>
-_LIBCPP_HIDDEN unsigned __sort5_wrap_policy(
+_LIBCPP_HIDE_FROM_ABI unsigned __sort5_wrap_policy(
     _ForwardIterator __x1, _ForwardIterator __x2, _ForwardIterator __x3, _ForwardIterator __x4, _ForwardIterator __x5,
     _Compare __c) {
   using _WrappedComp = typename _WrapAlgPolicy<_AlgPolicy, _Compare>::type;
