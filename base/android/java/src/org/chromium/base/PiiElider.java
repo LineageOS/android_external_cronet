@@ -219,6 +219,9 @@ public class PiiElider {
      * @return Stacktrace with elided URLs.
      */
     public static String sanitizeStacktrace(String stacktrace) {
+        if (TextUtils.isEmpty(stacktrace)) {
+            return "";
+        }
         String[] frames = stacktrace.split("\\n");
         // Sanitize first stacktrace line which contains the exception message.
         frames[0] = elideUrl(frames[0]);

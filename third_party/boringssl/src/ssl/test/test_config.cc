@@ -364,8 +364,7 @@ std::vector<Flag> SortedFlags() {
       IntFlag("-install-one-cert-compression-alg",
               &TestConfig::install_one_cert_compression_alg),
       BoolFlag("-reverify-on-resume", &TestConfig::reverify_on_resume),
-      BoolFlag("-no-enforce-rsa-key-usage",
-               &TestConfig::no_enforce_rsa_key_usage),
+      BoolFlag("-enforce-rsa-key-usage", &TestConfig::enforce_rsa_key_usage),
       BoolFlag("-is-handshaker-supported",
                &TestConfig::is_handshaker_supported),
       BoolFlag("-handshaker-resume", &TestConfig::handshaker_resume),
@@ -1619,7 +1618,7 @@ static unsigned PskClientCallback(SSL *ssl, const char *hint,
 
   OPENSSL_strlcpy(out_identity, config->psk_identity.c_str(), max_identity_len);
   OPENSSL_memcpy(out_psk, config->psk.data(), config->psk.size());
-  return config->psk.size();
+  return static_cast<unsigned>(config->psk.size());
 }
 
 static unsigned PskServerCallback(SSL *ssl, const char *identity,
@@ -1637,7 +1636,7 @@ static unsigned PskServerCallback(SSL *ssl, const char *identity,
   }
 
   OPENSSL_memcpy(out_psk, config->psk.data(), config->psk.size());
-  return config->psk.size();
+  return static_cast<unsigned>(config->psk.size());
 }
 
 static ssl_verify_result_t CustomVerifyCallback(SSL *ssl, uint8_t *out_alert) {
@@ -1743,8 +1742,8 @@ bssl::UniquePtr<SSL> TestConfig::NewSSL(
   if (reverify_on_resume) {
     SSL_CTX_set_reverify_on_resume(ssl_ctx, 1);
   }
-  if (no_enforce_rsa_key_usage) {
-    SSL_set_enforce_rsa_key_usage(ssl.get(), 0);
+  if (enforce_rsa_key_usage) {
+    SSL_set_enforce_rsa_key_usage(ssl.get(), 1);
   }
   if (no_tls13) {
     SSL_set_options(ssl.get(), SSL_OP_NO_TLSv1_3);
