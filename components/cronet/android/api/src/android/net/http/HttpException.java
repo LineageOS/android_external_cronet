@@ -17,8 +17,8 @@ public class HttpException extends IOException {
      *
      * @param message explanation of failure.
      * @param cause the cause (which is saved for later retrieval by the {@link
-     *         java.io.IOException#getCause getCause()} method). A null value is permitted, and
-     *         indicates that the cause is nonexistent or unknown.
+     * java.io.IOException#getCause getCause()} method). A null value is permitted, and indicates
+     * that the cause is nonexistent or unknown.
      */
     public HttpException(@Nullable String message, @Nullable Throwable cause) {
         super(message, cause);
