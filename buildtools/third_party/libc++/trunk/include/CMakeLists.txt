@@ -269,6 +269,10 @@ set(files
   __debug
   __debug_utils/randomize_range.h
   __errc
+  __expected/bad_expected_access.h
+  __expected/expected.h
+  __expected/unexpect.h
+  __expected/unexpected.h
   __filesystem/copy_options.h
   __filesystem/directory_entry.h
   __filesystem/directory_iterator.h
@@ -288,6 +292,7 @@ set(files
   __format/buffer.h
   __format/concepts.h
   __format/enable_insertable.h
+  __format/escaped_output_table.h
   __format/extended_grapheme_cluster_table.h
   __format/format_arg.h
   __format/format_arg_store.h
@@ -309,6 +314,7 @@ set(files
   __format/formatter_pointer.h
   __format/formatter_string.h
   __format/parser_std_format_spec.h
+  __format/range_default_formatter.h
   __format/unicode.h
   __functional/binary_function.h
   __functional/binary_negate.h
@@ -341,8 +347,10 @@ set(files
   __fwd/array.h
   __fwd/get.h
   __fwd/hash.h
+  __fwd/memory_resource.h
   __fwd/pair.h
   __fwd/span.h
+  __fwd/string.h
   __fwd/string_view.h
   __fwd/tuple.h
   __hash_table
@@ -393,6 +401,7 @@ set(files
   __memory/allocation_guard.h
   __memory/allocator.h
   __memory/allocator_arg_t.h
+  __memory/allocator_destructor.h
   __memory/allocator_traits.h
   __memory/assume_aligned.h
   __memory/auto_ptr.h
@@ -481,6 +490,7 @@ set(files
   __ranges/dangling.h
   __ranges/data.h
   __ranges/drop_view.h
+  __ranges/drop_while_view.h
   __ranges/empty.h
   __ranges/empty_view.h
   __ranges/enable_borrowed_range.h
@@ -621,6 +631,7 @@ set(files
   __type_traits/is_scoped_enum.h
   __type_traits/is_signed.h
   __type_traits/is_signed_integer.h
+  __type_traits/is_specialization.h
   __type_traits/is_standard_layout.h
   __type_traits/is_swappable.h
   __type_traits/is_trivial.h
@@ -661,6 +672,7 @@ set(files
   __type_traits/remove_reference.h
   __type_traits/remove_volatile.h
   __type_traits/result_of.h
+  __type_traits/strip_signature.h
   __type_traits/type_identity.h
   __type_traits/type_list.h
   __type_traits/underlying_type.h
@@ -733,6 +745,7 @@ set(files
   errno.h
   exception
   execution
+  expected
   experimental/__config
   experimental/__memory
   experimental/algorithm
@@ -774,6 +787,7 @@ set(files
   istream
   iterator
   latch
+  libcxx.imp
   limits
   limits.h
   list
@@ -833,7 +847,7 @@ set(files
   wctype.h
   )
 
-foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
+foreach(feature LIBCXX_ENABLE_FILESYSTEM LIBCXX_ENABLE_LOCALIZATION LIBCXX_ENABLE_FSTREAM LIBCXX_ENABLE_THREADS LIBCXX_ENABLE_WIDE_CHARACTERS)
   if (NOT ${${feature}})
     set(requires_${feature} "requires LIBCXX_CONFIGURED_WITHOUT_SUPPORT_FOR_THIS_HEADER")
   endif()
