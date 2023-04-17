@@ -23,13 +23,15 @@ class CertVerifyProc;
 class CertVerifyProcFactory;
 class CertNetFetcher;
 class ChromeRootStoreData;
+class CRLSet;
 
 // TrialComparisonCertVerifier is a CertVerifier that can be used to compare
 // the results between two different CertVerifyProcs. The results are reported
 // back to the caller via a ReportCallback, allowing the caller to further
 // examine the differences.
 class NET_EXPORT TrialComparisonCertVerifier
-    : public CertVerifierWithUpdatableProc {
+    : public CertVerifierWithUpdatableProc,
+      public CertVerifier::Observer {
  public:
   using ReportCallback = base::RepeatingCallback<void(
       const std::string& hostname,
@@ -88,8 +90,11 @@ class NET_EXPORT TrialComparisonCertVerifier
              std::unique_ptr<Request>* out_req,
              const NetLogWithSource& net_log) override;
   void SetConfig(const Config& config) override;
-  void UpdateChromeRootStoreData(
+  void AddObserver(Observer* observer) override;
+  void RemoveObserver(Observer* observer) override;
+  void UpdateVerifyProcData(
       scoped_refptr<CertNetFetcher> cert_net_fetcher,
+      scoped_refptr<CRLSet> crl_set,
       const ChromeRootStoreData* root_store_data) override;
 
  private:
@@ -99,11 +104,12 @@ class NET_EXPORT TrialComparisonCertVerifier
   CertVerifier* primary_verifier() const { return primary_verifier_.get(); }
   CertVerifier* primary_reverifier() const { return primary_reverifier_.get(); }
   CertVerifier* trial_verifier() const { return trial_verifier_.get(); }
-  CertVerifier* revocation_trial_verifier() const {
-    return revocation_trial_verifier_.get();
-  }
 
   void RemoveJob(Job* job_ptr);
+  void NotifyJobsOfConfigChange();
+
+  // CertVerifier::Observer methods:
+  void OnCertVerifierChanged() override;
 
   // Whether the trial is allowed.
   bool allowed_ = false;
@@ -115,9 +121,6 @@ class NET_EXPORT TrialComparisonCertVerifier
   std::unique_ptr<CertVerifierWithUpdatableProc> primary_verifier_;
   std::unique_ptr<CertVerifierWithUpdatableProc> primary_reverifier_;
   std::unique_ptr<CertVerifierWithUpdatableProc> trial_verifier_;
-  // Similar to |trial_verifier_|, except configured to always check
-  // revocation information.
-  std::unique_ptr<CertVerifierWithUpdatableProc> revocation_trial_verifier_;
 
   std::set<std::unique_ptr<Job>, base::UniquePtrComparator> jobs_;
 

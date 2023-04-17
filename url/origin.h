@@ -13,13 +13,14 @@
 #include "base/component_export.h"
 #include "base/debug/alias.h"
 #include "base/debug/crash_logging.h"
+#include "base/gtest_prod_util.h"
 #include "base/strings/string_piece_forward.h"
 #include "base/strings/string_util.h"
+#include "base/trace_event/base_tracing_forward.h"
 #include "base/unguessable_token.h"
 #include "build/build_config.h"
 #include "build/buildflag.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value_forward.h"
 #include "url/scheme_host_port.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -40,6 +41,8 @@ class GURL;
 namespace blink {
 class SecurityOrigin;
 class SecurityOriginTest;
+class StorageKey;
+class StorageKeyTest;
 }  // namespace blink
 
 namespace IPC {
@@ -329,6 +332,7 @@ class COMPONENT_EXPORT(URL) Origin {
  private:
   friend class blink::SecurityOrigin;
   friend class blink::SecurityOriginTest;
+  friend class blink::StorageKey;
   // SchemefulSite needs access to the serialization/deserialization logic which
   // includes the nonce.
   friend class net::SchemefulSite;
@@ -339,6 +343,7 @@ class COMPONENT_EXPORT(URL) Origin {
   friend IPC::ParamTraits<url::Origin>;
   friend COMPONENT_EXPORT(URL) std::ostream& operator<<(std::ostream& out,
                                                         const Origin& origin);
+  friend class blink::StorageKeyTest;
 
   // Origin::Nonce is a wrapper around base::UnguessableToken that generates
   // the random value only when the value is first accessed. The lazy generation

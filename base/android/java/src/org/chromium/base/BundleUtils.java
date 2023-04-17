@@ -12,12 +12,11 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.ArrayMap;
 import android.view.LayoutInflater;
 
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
-import androidx.collection.ArrayMap;
-import androidx.collection.SimpleArrayMap;
 
 import dalvik.system.BaseDexClassLoader;
 import dalvik.system.PathClassLoader;
@@ -58,8 +57,7 @@ public class BundleUtils {
 
     // This cache is needed to support the workaround for b/172602571, see
     // createIsolatedSplitContext() for more info.
-    private static final SimpleArrayMap<String, ClassLoader> sCachedClassLoaders =
-            new SimpleArrayMap<>();
+    private static final ArrayMap<String, ClassLoader> sCachedClassLoaders = new ArrayMap<>();
 
     private static final Map<String, ClassLoader> sInflationClassLoaders =
             Collections.synchronizedMap(new ArrayMap<>());
@@ -251,13 +249,6 @@ public class BundleUtils {
 
             return getSplitApkLibraryPath(libraryName, splitName);
         }
-    }
-
-    // TODO(crbug.com/1150459): Remove this once //clank callers have been converted to the new
-    // version.
-    @Nullable
-    public static String getNativeLibraryPath(String libraryName) {
-        return getNativeLibraryPath(libraryName, "");
     }
 
     public static void checkContextClassLoader(Context baseContext, Activity activity) {

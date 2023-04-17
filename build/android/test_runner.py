@@ -199,6 +199,7 @@ def AddCommonOptions(parser):
       namespace.local_output = True
       namespace.num_retries = 0
       namespace.skip_clear_data = True
+      namespace.use_persistent_shell = True
 
   parser.add_argument(
       '--fast-local-dev',
@@ -207,7 +208,7 @@ def AddCommonOptions(parser):
       action=FastLocalDevAction,
       help='Alias for: --num-retries=0 --enable-device-cache '
       '--enable-concurrent-adb --skip-clear-data '
-      '--extract-test-list-from-filter --local-output')
+      '--extract-test-list-from-filter --use-persistent-shell --local-output')
 
   # TODO(jbudorick): Remove this once downstream bots have switched to
   # api.test_results.
@@ -235,6 +236,18 @@ def AddCommonOptions(parser):
       '--isolated-script-test-repeat',
       dest='repeat', type=int, default=0,
       help='Number of times to repeat the specified set of tests.')
+
+  # Not useful for junit tests.
+  parser.add_argument(
+      '--use-persistent-shell',
+      action='store_true',
+      help='Uses a persistent shell connection for the adb connection.')
+
+  parser.add_argument('--disable-test-server',
+                      action='store_true',
+                      help='Disables SpawnedTestServer which doesn'
+                      't work with remote adb. '
+                      'WARNING: Will break tests which require the server.')
 
   # This is currently only implemented for gtests and instrumentation tests.
   parser.add_argument(
@@ -315,10 +328,6 @@ def AddDeviceOptions(parser):
       action='store_true',
       dest='upload_logcats_file',
       help='Whether to upload logcat file to logdog.')
-  parser.add_argument(
-      '--use-persistent-shell',
-      action='store_true',
-      help='Uses a persistent shell connection for the adb connection.')
 
   logcat_output_group = parser.add_mutually_exclusive_group()
   logcat_output_group.add_argument(
@@ -351,6 +360,12 @@ def AddEmulatorOptions(parser):
       action='store_true',
       default=False,
       help='Enable graphical window display on the emulator.')
+  parser.add_argument(
+      '--emulator-debug-tags',
+      help='Comma-separated list of debug tags. This can be used to enable or '
+      'disable debug messages from specific parts of the emulator, e.g. '
+      'init,snapshot. See "emulator -help-debug-tags" '
+      'for a full list of tags.')
 
 
 def AddGTestOptions(parser):
@@ -912,11 +927,12 @@ def _SinkTestResult(test_result, test_file_name, result_sink_client):
                    link_url, test_result.GetName())
   if https_artifacts:
     html_artifact += '<ul>%s</ul>' % '\n'.join(https_artifacts)
-  result_sink_client.Post(test_result.GetName(),
+  result_sink_client.Post(test_result.GetNameForResultSink(),
                           test_result.GetType(),
                           test_result.GetDuration(),
                           log_decoded.encode('utf-8'),
                           test_file_name,
+                          variant=test_result.GetVariantForResultSink(),
                           failure_reason=test_result.GetFailureReason(),
                           html_artifact=html_artifact)
 

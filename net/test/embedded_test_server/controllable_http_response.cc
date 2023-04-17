@@ -4,11 +4,11 @@
 
 #include "net/test/embedded_test_server/controllable_http_response.h"
 
-#include "base/bind.h"
 #include "base/check_op.h"
+#include "base/functional/bind.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/trace_event/typed_macros.h"
+#include "net/base/tracing.h"
 #include "net/test/embedded_test_server/http_response.h"
 
 namespace net::test_server {

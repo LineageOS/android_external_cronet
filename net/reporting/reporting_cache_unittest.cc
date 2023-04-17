@@ -7,8 +7,8 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
 #include "base/test/scoped_feature_list.h"
@@ -186,8 +186,7 @@ class ReportingCacheTest : public ReportingTestBase,
       base::UnguessableToken::Create();
   const NetworkAnonymizationKey kNak_;
   const NetworkAnonymizationKey kOtherNak_ =
-      NetworkAnonymizationKey(SchemefulSite(kOrigin1_),
-                              SchemefulSite(kOrigin2_));
+      NetworkAnonymizationKey::CreateCrossSite(SchemefulSite(kOrigin1_));
   const IsolationInfo kIsolationInfo1_ =
       IsolationInfo::Create(IsolationInfo::RequestType::kOther,
                             kOrigin1_,

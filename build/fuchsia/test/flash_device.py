@@ -5,7 +5,6 @@
 """Implements commands for flashing a Fuchsia device."""
 
 import argparse
-import json
 import logging
 import os
 import subprocess
@@ -14,11 +13,18 @@ import time
 
 from typing import Optional, Tuple
 
-from common import check_ssh_config_file, register_device_args, \
-                   run_ffx_command, SDK_ROOT
+import common
+from common import BootMode, boot_device, check_ssh_config_file, \
+    get_system_info, find_image_in_sdk, register_device_args
 from compatible_utils import get_sdk_hash, get_ssh_keys, pave, \
-    running_unattended, add_exec_to_file, get_host_arch, find_image_in_sdk
-from ffx_integration import ScopedFfxConfig
+    running_unattended, add_exec_to_file, get_host_arch
+from lockfile import lock
+
+# Flash-file lock. Used to restrict number of flash operations per host.
+# File lock should be marked as stale after 15 mins.
+_FF_LOCK = os.path.join('/tmp', 'flash.lock')
+_FF_LOCK_STALE_SECS = 60 * 15
+_FF_LOCK_ACQ_TIMEOUT = _FF_LOCK_STALE_SECS
 
 
 def _get_system_info(target: Optional[str]) -> Tuple[str, str]:
@@ -31,23 +37,14 @@ def _get_system_info(target: Optional[str]) -> Tuple[str, str]:
     # TODO(b/242191374): Remove when devices in swarming are no longer booted
     # into zedboot.
     if running_unattended():
-        with ScopedFfxConfig('discovery.zedboot.enabled', 'true'):
-            run_ffx_command(('target', 'reboot'), target_id=target)
-        run_ffx_command(('target', 'wait'), target)
+        boot_device(target, BootMode.REGULAR)
+        wait_cmd = common.run_ffx_command(('target', 'wait', '-t', '180'),
+                                          target,
+                                          check=False)
+        if wait_cmd.returncode != 0:
+            return ('', '')
 
-    info_cmd = run_ffx_command(('target', 'show', '--json'),
-                               target_id=target,
-                               capture_output=True,
-                               check=False)
-    if info_cmd.returncode == 0:
-        info_json = json.loads(info_cmd.stdout.strip())
-        for info in info_json:
-            if info['title'] == 'Build':
-                return (info['child'][1]['value'], info['child'][0]['value'])
-
-    # If the information was not retrieved, return empty strings to indicate
-    # unknown system info.
-    return ('', '')
+    return get_system_info(target)
 
 
 def update_required(os_check, system_image_dir: Optional[str],
@@ -63,12 +60,7 @@ def update_required(os_check, system_image_dir: Optional[str],
             'System image directory does not exist. Assuming it\'s '
             'a product-bundle name and dynamically searching for '
             'image directory')
-        # SDK_ROOT points to third_party/fuchsia-sdk/sdk, but we want the root
-        # of the overall fuchsia-sdk package.
-        sdk_root_parent = os.path.split(SDK_ROOT)[0]
-        path = find_image_in_sdk(system_image_dir,
-                                 product_bundle=True,
-                                 sdk_root=sdk_root_parent)
+        path = find_image_in_sdk(system_image_dir)
         if not path:
             raise FileNotFoundError(
                 f'System image directory {system_image_dir} could not'
@@ -107,41 +99,54 @@ def _run_flash_command(system_image_dir: str, target_id: Optional[str]):
     if running_unattended():
         flash_cmd = [
             os.path.join(system_image_dir, 'flash.sh'),
-            '--ssh-key=%s' % get_ssh_keys(),
+            '--ssh-key=%s' % get_ssh_keys()
         ]
+        # Target ID could be the nodename or the Serial number.
         if target_id:
             flash_cmd.extend(('-s', target_id))
         subprocess.run(flash_cmd, check=True, timeout=240)
         return
 
     manifest = os.path.join(system_image_dir, 'flash-manifest.manifest')
-    run_ffx_command(('target', 'flash', manifest, '--no-bootloader-reboot'),
-                    target_id=target_id,
-                    configs=[
-                        'fastboot.usb.disabled=true',
-                        'ffx.fastboot.inline_target=true'
-                    ])
+    common.run_ffx_command(
+        ('target', 'flash', manifest, '--no-bootloader-reboot'),
+        target_id=target_id,
+        configs=[
+            'fastboot.usb.disabled=true', 'ffx.fastboot.inline_target=true',
+            'fastboot.reboot.reconnect_timeout=120'
+        ])
+
+
+def _remove_stale_flash_file_lock() -> None:
+    """Check if flash file lock is stale, and delete if so."""
+    try:
+        stat = os.stat(_FF_LOCK)
+        if time.time() - stat.st_mtime > _FF_LOCK_STALE_SECS:
+            os.remove(_FF_LOCK)
+    except FileNotFoundError:
+        logging.info('No lock file found - assuming it is up for grabs')
 
 
 def flash(system_image_dir: str,
           target: Optional[str],
           serial_num: Optional[str] = None) -> None:
     """Flash the device."""
-    with ScopedFfxConfig('fastboot.reboot.reconnect_timeout', '120'):
+    _remove_stale_flash_file_lock()
+    # Flash only with a file lock acquired.
+    # This prevents multiple fastboot binaries from flashing concurrently,
+    # which should increase the odds of flashing success.
+    with lock(_FF_LOCK, timeout=_FF_LOCK_ACQ_TIMEOUT):
         if serial_num:
-            with ScopedFfxConfig('discovery.zedboot.enabled', 'true'):
-                run_ffx_command(('target', 'reboot', '-b'),
-                                target,
-                                check=False)
+            boot_device(target, BootMode.BOOTLOADER)
             for _ in range(10):
                 time.sleep(10)
-                if run_ffx_command(('target', 'list', serial_num),
-                                   check=False).returncode == 0:
+                if common.run_ffx_command(('target', 'list', serial_num),
+                                          check=False).returncode == 0:
                     break
             _run_flash_command(system_image_dir, serial_num)
         else:
             _run_flash_command(system_image_dir, target)
-    run_ffx_command(('target', 'wait'), target)
+    common.run_ffx_command(('target', 'wait'), target)
 
 
 def update(system_image_dir: str,
@@ -168,8 +173,19 @@ def update(system_image_dir: str,
             if running_unattended():
                 assert target, ('Target ID must be specified on swarming when'
                                 ' paving.')
-            pave(system_image_dir, target)
-            time.sleep(120)
+                # TODO(crbug.com/1405525): We should check the device state
+                # before and after rebooting it to avoid unnecessary reboot or
+                # undesired state.
+                boot_device(target, BootMode.RECOVERY)
+            try:
+                pave(system_image_dir, target)
+                time.sleep(180)
+            except subprocess.TimeoutExpired:
+                # Fallback to flashing, just in case it might work.
+                # This could recover the device and make it usable.
+                # If it fails, device is unpaveable anyway, and should be taken
+                # out of fleet - this will do that.
+                flash(system_image_dir, target, serial_num)
         else:
             flash(system_image_dir, target, serial_num)
 
@@ -215,7 +231,7 @@ def main():
     """Stand-alone function for flashing a device."""
     parser = argparse.ArgumentParser()
     register_device_args(parser)
-    register_update_args(parser)
+    register_update_args(parser, default_os_check='update', default_pave=False)
     args = parser.parse_args()
     update(args.system_image_dir, args.os_check, args.target_id,
            args.serial_num, args.pave)

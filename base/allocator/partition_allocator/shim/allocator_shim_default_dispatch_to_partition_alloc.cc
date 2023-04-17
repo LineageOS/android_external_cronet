@@ -10,7 +10,6 @@
 #include <string>
 #include <tuple>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_alloc_features.h"
 #include "base/allocator/partition_allocator/allocation_guard.h"
 #include "base/allocator/partition_allocator/memory_reclaimer.h"
@@ -21,8 +20,8 @@
 #include "base/allocator/partition_allocator/partition_alloc_base/numerics/checked_math.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/numerics/safe_conversions.h"
 #include "base/allocator/partition_allocator/partition_alloc_base/threading/platform_thread.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_check.h"
-#include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/partition_alloc_constants.h"
 #include "base/allocator/partition_allocator/partition_root.h"
 #include "base/allocator/partition_allocator/partition_stats.h"
@@ -585,6 +584,7 @@ void EnablePartitionAllocMemoryReclaimer() {
 void ConfigurePartitions(
     EnableBrp enable_brp,
     EnableBrpZapping enable_brp_zapping,
+    EnableBrpPartitionMemoryReclaimer enable_brp_memory_reclaimer,
     SplitMainPartition split_main_partition,
     UseDedicatedAlignedPartition use_dedicated_aligned_partition,
     AddDummyRefCount add_dummy_ref_count,
@@ -693,6 +693,14 @@ void ConfigurePartitions(
   // is replaced, it must've been g_original_root.
   PA_CHECK(current_aligned_root == g_original_root);
 
+  if (enable_brp_memory_reclaimer) {
+    partition_alloc::MemoryReclaimer::Instance()->RegisterPartition(new_root);
+    if (new_aligned_root != new_root) {
+      partition_alloc::MemoryReclaimer::Instance()->RegisterPartition(
+          new_aligned_root);
+    }
+  }
+
   // Purge memory, now that the traffic to the original partition is cut off.
   current_root->PurgeMemory(
       partition_alloc::PurgeFlags::kDecommitEmptySlotSpans |
@@ -713,7 +721,7 @@ void ConfigurePartitions(
   }
 }
 
-#if defined(PA_ALLOW_PCSCAN)
+#if BUILDFLAG(USE_STARSCAN)
 void EnablePCScan(partition_alloc::internal::PCScan::InitConfig config) {
   partition_alloc::internal::base::PlatformThread::SetThreadNameHook(
       &::base::PlatformThread::SetName);
@@ -730,7 +738,7 @@ void EnablePCScan(partition_alloc::internal::PCScan::InitConfig config) {
   base::internal::NonScannableAllocator::Instance().NotifyPCScanEnabled();
   base::internal::NonQuarantinableAllocator::Instance().NotifyPCScanEnabled();
 }
-#endif  // defined(PA_ALLOW_PCSCAN)
+#endif  // BUILDFLAG(USE_STARSCAN)
 
 #if BUILDFLAG(IS_WIN)
 // Call this as soon as possible during startup.

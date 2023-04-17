@@ -21,8 +21,8 @@
 #include "base/pickle.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_piece.h"
+#include "base/trace_event/base_tracing.h"
 #include "base/unguessable_token.h"
-#include "third_party/perfetto/include/perfetto/tracing/traced_value.h"
 #include "url/gurl.h"
 #include "url/scheme_host_port.h"
 #include "url/url_constants.h"
@@ -375,11 +375,13 @@ absl::optional<Origin> Origin::Deserialize(const std::string& value) {
   if (!reader.ReadUInt64(&nonce_low))
     return absl::nullopt;
 
+  absl::optional<base::UnguessableToken> nonce_token =
+      base::UnguessableToken::Deserialize(nonce_high, nonce_low);
+
   Origin::Nonce nonce;
-  if (nonce_high != 0 && nonce_low != 0) {
+  if (nonce_token.has_value()) {
     // The serialized nonce wasn't empty, so copy it here.
-    nonce = Origin::Nonce(
-        base::UnguessableToken::Deserialize(nonce_high, nonce_low));
+    nonce = Origin::Nonce(nonce_token.value());
   }
   Origin origin;
   origin.nonce_ = std::move(nonce);

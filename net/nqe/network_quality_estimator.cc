@@ -10,9 +10,9 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/metrics/histogram.h"
@@ -27,7 +27,6 @@
 #include "base/task/lazy_thread_pool_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/default_tick_clock.h"
-#include "base/trace_event/trace_event.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 #include "net/base/features.h"
@@ -36,6 +35,7 @@
 #include "net/base/load_timing_info.h"
 #include "net/base/network_interfaces.h"
 #include "net/base/trace_constants.h"
+#include "net/base/tracing.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_response_info.h"
 #include "net/http/http_status_code.h"
@@ -1316,7 +1316,7 @@ void NetworkQualityEstimator::NotifyObserversOfRTTOrThroughputComputed() const {
 }
 
 void NetworkQualityEstimator::NotifyEffectiveConnectionTypeObserverIfPresent(
-    EffectiveConnectionTypeObserver* observer) const {
+    MayBeDangling<EffectiveConnectionTypeObserver> observer) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!effective_connection_type_observer_list_.HasObserver(observer))
@@ -1333,7 +1333,7 @@ void NetworkQualityEstimator::NotifyEffectiveConnectionTypeObserverIfPresent(
 }
 
 void NetworkQualityEstimator::NotifyPeerToPeerConnectionsCountObserverIfPresent(
-    PeerToPeerConnectionsCountObserver* observer) const {
+    MayBeDangling<PeerToPeerConnectionsCountObserver> observer) const {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
 
   if (!peer_to_peer_type_observer_list_.HasObserver(observer))

@@ -12,6 +12,7 @@
 #include <string>
 
 #include "base/android/scoped_java_ref.h"
+#include "base/auto_reset.h"
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
 #include "base/debug/debugging_buildflags.h"
@@ -78,6 +79,9 @@ BASE_EXPORT void InitVM(JavaVM* vm);
 
 // Returns true if the global JVM has been initialized.
 BASE_EXPORT bool IsVMInitialized();
+
+// Returns the global JVM, or nullptr if it has not been initialized.
+BASE_EXPORT JavaVM* GetVM();
 
 // Initializes the global ClassLoader used by the GetClass and LazyGetClass
 // methods. This is needed because JNI will use the base ClassLoader when there
@@ -168,7 +172,7 @@ class BASE_EXPORT JNIStackFrameSaver {
   static void* SavedFrame();
 
  private:
-  void* previous_fp_;
+  const AutoReset<void*> resetter_;
 };
 
 #endif  // BUILDFLAG(CAN_UNWIND_WITH_FRAME_POINTERS)

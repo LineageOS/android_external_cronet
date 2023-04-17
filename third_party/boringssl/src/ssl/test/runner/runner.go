@@ -11901,17 +11901,36 @@ func addCurveTests() {
 		},
 	})
 
-	// ... but only if CECPQ2 is listed first.
+	// ... and the other way around
 	testCases = append(testCases, testCase{
-		name: "CECPQ2KeyShareNotIncludedSecond",
+		name: "CECPQ2KeyShareIncludedSecond",
 		config: Config{
 			MinVersion: VersionTLS13,
 			Bugs: ProtocolBugs{
-				ExpectedKeyShares: []CurveID{CurveX25519},
+				ExpectedKeyShares: []CurveID{CurveX25519, CurveCECPQ2},
 			},
 		},
 		flags: []string{
 			"-curves", strconv.Itoa(int(CurveX25519)),
+			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+			"-expect-curve-id", strconv.Itoa(int(CurveX25519)),
+		},
+	})
+
+        // ... and even if there's another curve in the middle because it's the
+        // first classical and first post-quantum "curves" that get key shares
+        // included.
+	testCases = append(testCases, testCase{
+		name: "CECPQ2KeyShareIncludedThird",
+		config: Config{
+			MinVersion: VersionTLS13,
+			Bugs: ProtocolBugs{
+				ExpectedKeyShares: []CurveID{CurveX25519, CurveCECPQ2},
+			},
+		},
+		flags: []string{
+			"-curves", strconv.Itoa(int(CurveX25519)),
+			"-curves", strconv.Itoa(int(CurveP256)),
 			"-curves", strconv.Itoa(int(CurveCECPQ2)),
 			"-expect-curve-id", strconv.Itoa(int(CurveX25519)),
 		},
@@ -15167,95 +15186,6 @@ func addTLS13CipherPreferenceTests() {
 			"-expect-cipher-no-aes", strconv.Itoa(int(TLS_CHACHA20_POLY1305_SHA256)),
 		},
 	})
-
-	// CECPQ2 prefers 256-bit ciphers but will use AES-128 if there's nothing else.
-	testCases = append(testCases, testCase{
-		testType: serverTest,
-		name:     "TLS13-CipherPreference-CECPQ2-AES128Only",
-		config: Config{
-			MaxVersion: VersionTLS13,
-			CipherSuites: []uint16{
-				TLS_AES_128_GCM_SHA256,
-			},
-		},
-		flags: []string{
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
-		},
-	})
-
-	// When a 256-bit cipher is offered, even if not in first place, it should be
-	// picked.
-	testCases = append(testCases, testCase{
-		testType: serverTest,
-		name:     "TLS13-CipherPreference-CECPQ2-AES256Preferred",
-		config: Config{
-			MaxVersion: VersionTLS13,
-			CipherSuites: []uint16{
-				TLS_AES_128_GCM_SHA256,
-				TLS_AES_256_GCM_SHA384,
-			},
-		},
-		flags: []string{
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
-		},
-		expectations: connectionExpectations{
-			cipher: TLS_AES_256_GCM_SHA384,
-		},
-	})
-	// ... but when CECPQ2 isn't being used, the client's preference controls.
-	testCases = append(testCases, testCase{
-		testType: serverTest,
-		name:     "TLS13-CipherPreference-CECPQ2-AES128PreferredOtherwise",
-		config: Config{
-			MaxVersion: VersionTLS13,
-			CipherSuites: []uint16{
-				TLS_AES_128_GCM_SHA256,
-				TLS_AES_256_GCM_SHA384,
-			},
-		},
-		flags: []string{
-			"-curves", strconv.Itoa(int(CurveX25519)),
-		},
-		expectations: connectionExpectations{
-			cipher: TLS_AES_128_GCM_SHA256,
-		},
-	})
-
-	// Test that CECPQ2 continues to honor AES vs ChaCha20 logic.
-	testCases = append(testCases, testCase{
-		testType: serverTest,
-		name:     "TLS13-CipherPreference-CECPQ2-AES128-ChaCha20-AES256",
-		config: Config{
-			MaxVersion: VersionTLS13,
-			CipherSuites: []uint16{
-				TLS_AES_128_GCM_SHA256,
-				TLS_CHACHA20_POLY1305_SHA256,
-				TLS_AES_256_GCM_SHA384,
-			},
-		},
-		flags: []string{
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
-			"-expect-cipher-aes", strconv.Itoa(int(TLS_CHACHA20_POLY1305_SHA256)),
-			"-expect-cipher-no-aes", strconv.Itoa(int(TLS_CHACHA20_POLY1305_SHA256)),
-		},
-	})
-	testCases = append(testCases, testCase{
-		testType: serverTest,
-		name:     "TLS13-CipherPreference-CECPQ2-AES128-AES256-ChaCha20",
-		config: Config{
-			MaxVersion: VersionTLS13,
-			CipherSuites: []uint16{
-				TLS_AES_128_GCM_SHA256,
-				TLS_AES_256_GCM_SHA384,
-				TLS_CHACHA20_POLY1305_SHA256,
-			},
-		},
-		flags: []string{
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
-			"-expect-cipher-aes", strconv.Itoa(int(TLS_AES_256_GCM_SHA384)),
-			"-expect-cipher-no-aes", strconv.Itoa(int(TLS_CHACHA20_POLY1305_SHA256)),
-		},
-	})
 }
 
 func addPeekTests() {
@@ -15727,24 +15657,26 @@ func addRSAKeyUsageTests() {
 			// In 1.2 and below, we should not enforce without the enforce-rsa-key-usage flag.
 			testCases = append(testCases, testCase{
 				testType: clientTest,
-				name:     "RSAKeyUsage-Client-WantSignature-GotEncipherment-Unenforced" + ver.name,
+				name:     "RSAKeyUsage-Client-WantSignature-GotEncipherment-Unenforced-" + ver.name,
 				config: Config{
 					MinVersion:   ver.version,
 					MaxVersion:   ver.version,
 					Certificates: []Certificate{dsCert},
 					CipherSuites: encSuites,
 				},
+				flags: []string{"-expect-key-usage-invalid"},
 			})
 
 			testCases = append(testCases, testCase{
 				testType: clientTest,
-				name:     "RSAKeyUsage-Client-WantEncipherment-GotSignature-Unenforced" + ver.name,
+				name:     "RSAKeyUsage-Client-WantEncipherment-GotSignature-Unenforced-" + ver.name,
 				config: Config{
 					MinVersion:   ver.version,
 					MaxVersion:   ver.version,
 					Certificates: []Certificate{encCert},
 					CipherSuites: dsSuites,
 				},
+				flags: []string{"-expect-key-usage-invalid"},
 			})
 		}
 
@@ -15752,7 +15684,7 @@ func addRSAKeyUsageTests() {
 			// In 1.3 and above, we enforce keyUsage even without the flag.
 			testCases = append(testCases, testCase{
 				testType: clientTest,
-				name:     "RSAKeyUsage-Client-WantSignature-GotEncipherment-Enforced" + ver.name,
+				name:     "RSAKeyUsage-Client-WantSignature-GotEncipherment-Enforced-" + ver.name,
 				config: Config{
 					MinVersion:   ver.version,
 					MaxVersion:   ver.version,

@@ -9,6 +9,9 @@
 
 #include "base/check_op.h"
 #include "base/containers/stack_container.h"
+#include "base/debug/alias.h"
+#include "base/debug/crash_logging.h"
+#include "base/logging.h"
 #include "base/notreached.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
@@ -178,14 +181,21 @@ size_t IPAddressBytes::EstimateMemoryUsage() const {
 
 // static
 absl::optional<IPAddress> IPAddress::FromValue(const base::Value& value) {
-  if (!value.is_string())
+  if (!value.is_string()) {
     return absl::nullopt;
+  }
 
+  return IPAddress::FromIPLiteral(value.GetString());
+}
+
+// static
+absl::optional<IPAddress> IPAddress::FromIPLiteral(
+    base::StringPiece ip_literal) {
   IPAddress address;
-  bool success = address.AssignFromIPLiteral(value.GetString());
-  if (!success || !address.IsValid())
+  if (!address.AssignFromIPLiteral(ip_literal)) {
     return absl::nullopt;
-
+  }
+  DCHECK(address.IsValid());
   return address;
 }
 
@@ -409,7 +419,17 @@ std::string IPAddressToPackedString(const IPAddress& address) {
 }
 
 IPAddress ConvertIPv4ToIPv4MappedIPv6(const IPAddress& address) {
-  DCHECK(address.IsIPv4());
+  // TODO(https://crbug.com/1414007): Remove crash key and use DCHECK() when
+  // the cause is identified.
+  if (!address.IsIPv4()) {
+    static base::debug::CrashKeyString* crash_key =
+        base::debug::AllocateCrashKeyString("ipaddress",
+                                            base::debug::CrashKeySize::Size64);
+    base::debug::ScopedCrashKeyString addr(crash_key, address.ToString());
+    bool is_valid = address.IsValid();
+    base::debug::Alias(&is_valid);
+    LOG(FATAL) << "expected an IPv4 address but got " << address.ToString();
+  }
   // IPv4-mapped addresses are formed by:
   // <80 bits of zeros>  + <16 bits of ones> + <32-bit IPv4 address>.
   base::StackVector<uint8_t, 16> bytes;
@@ -473,8 +493,9 @@ bool ParseCIDRBlock(base::StringPiece cidr_literal,
 
   // Parse the prefix length.
   uint32_t number_of_bits;
-  if (!ParseUint32(parts[1], &number_of_bits))
+  if (!ParseUint32(parts[1], ParseIntFormat::NON_NEGATIVE, &number_of_bits)) {
     return false;
+  }
 
   // Make sure the prefix length is in a valid range.
   if (number_of_bits > ip_address->size() * 8)

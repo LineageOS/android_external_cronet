@@ -1467,12 +1467,12 @@ TEST_F(NetworkQualityEstimatorTest, TestTransportRttUsedForHttpRttComputation) {
   for (const auto& test : tests) {
     std::map<std::string, std::string> variation_params;
     variation_params["add_default_platform_observations"] = "false";
-    TestNetworkQualityEstimator estimator(variation_params);
 
     base::SimpleTestTickClock tick_clock;
     tick_clock.Advance(base::Seconds(1));
-    estimator.SetTickClockForTesting(&tick_clock);
 
+    TestNetworkQualityEstimator estimator(variation_params);
+    estimator.SetTickClockForTesting(&tick_clock);
     estimator.SetStartTimeNullHttpRtt(test.http_rtt);
     estimator.SetStartTimeNullTransportRtt(test.transport_rtt);
 
@@ -1557,12 +1557,12 @@ TEST_F(NetworkQualityEstimatorTest, TestEndToEndRttUsedForHttpRttComputation) {
     std::map<std::string, std::string> variation_params;
     variation_params["add_default_platform_observations"] = "false";
     variation_params["use_end_to_end_rtt"] = "true";
-    TestNetworkQualityEstimator estimator(variation_params);
 
-    base::SimpleTestTickClock tick_clock;
+    base::SimpleTestTickClock tick_clock;  // Must outlive `estimator`.
     tick_clock.Advance(base::Seconds(1));
-    estimator.SetTickClockForTesting(&tick_clock);
 
+    TestNetworkQualityEstimator estimator(variation_params);
+    estimator.SetTickClockForTesting(&tick_clock);
     estimator.SetStartTimeNullHttpRtt(test.http_rtt);
     estimator.set_start_time_null_end_to_end_rtt(test.end_to_end_rtt);
 
@@ -1897,23 +1897,18 @@ TEST_F(NetworkQualityEstimatorTest, TestRttThroughputObservers) {
   base::TimeDelta quic_rtt(base::Milliseconds(2));
 
   // Use a public IP address so that the socket watcher runs the RTT callback.
-  IPAddressList ip_list;
   IPAddress ip_address;
   ASSERT_TRUE(ip_address.AssignFromIPLiteral("157.0.0.1"));
-  ip_list.push_back(ip_address);
-  std::vector<std::string> aliases({"canonical.example.com"});
-  AddressList address_list =
-      AddressList::CreateFromIPAddressList(ip_list, std::move(aliases));
 
   std::unique_ptr<SocketPerformanceWatcher> tcp_watcher =
       estimator.GetSocketPerformanceWatcherFactory()
           ->CreateSocketPerformanceWatcher(
-              SocketPerformanceWatcherFactory::PROTOCOL_TCP, address_list);
+              SocketPerformanceWatcherFactory::PROTOCOL_TCP, ip_address);
 
   std::unique_ptr<SocketPerformanceWatcher> quic_watcher =
       estimator.GetSocketPerformanceWatcherFactory()
           ->CreateSocketPerformanceWatcher(
-              SocketPerformanceWatcherFactory::PROTOCOL_QUIC, address_list);
+              SocketPerformanceWatcherFactory::PROTOCOL_QUIC, ip_address);
 
   tcp_watcher->OnUpdatedRTTAvailable(tcp_rtt);
   // First RTT sample from QUIC connections is dropped, but the second RTT
@@ -1965,17 +1960,12 @@ TEST_F(NetworkQualityEstimatorTest, TestGlobalSocketWatcherThrottle) {
   auto context = context_builder->Build();
 
   // Use a public IP address so that the socket watcher runs the RTT callback.
-  IPAddressList ip_list;
   IPAddress ip_address;
   ASSERT_TRUE(ip_address.AssignFromIPLiteral("157.0.0.1"));
-  ip_list.push_back(ip_address);
-  std::vector<std::string> aliases({"canonical.example.com"});
-  AddressList address_list =
-      AddressList::CreateFromIPAddressList(ip_list, std::move(aliases));
   std::unique_ptr<SocketPerformanceWatcher> tcp_watcher =
       estimator.GetSocketPerformanceWatcherFactory()
           ->CreateSocketPerformanceWatcher(
-              SocketPerformanceWatcherFactory::PROTOCOL_TCP, address_list);
+              SocketPerformanceWatcherFactory::PROTOCOL_TCP, ip_address);
 
   EXPECT_EQ(0U, rtt_observer.observations().size());
   EXPECT_TRUE(tcp_watcher->ShouldNotifyUpdatedRTT());
@@ -2904,14 +2894,15 @@ TEST_F(NetworkQualityEstimatorTest, HangingRequestUsingTransportAndHttpOnly) {
 }
 
 TEST_F(NetworkQualityEstimatorTest, PeerToPeerConnectionCounts) {
-  TestNetworkQualityEstimator estimator;
   base::SimpleTestTickClock tick_clock;
+  TestNetworkQualityEstimator estimator;
   estimator.SetTickClockForTesting(&tick_clock);
-  base::HistogramTester histogram_tester;
-
   estimator.OnPeerToPeerConnectionsCountChange(3u);
+
   base::TimeDelta advance_1 = base::Minutes(4);
   tick_clock.Advance(advance_1);
+
+  base::HistogramTester histogram_tester;
   histogram_tester.ExpectTotalCount("NQE.PeerToPeerConnectionsDuration", 0);
 
   estimator.OnPeerToPeerConnectionsCountChange(1u);

@@ -99,7 +99,6 @@ class NET_EXPORT UDPSocketPosix {
   int Bind(const IPEndPoint& address);
 
   // Closes the socket.
-  // TODO(rvargas, hidehiko): Disallow re-Open() after Close().
   void Close();
 
   // Copies the remote udp address into |address| and returns a net error code.
@@ -272,8 +271,10 @@ class NET_EXPORT UDPSocketPosix {
   // Sets iOS Network Service Type for option SO_NET_SERVICE_TYPE.
   int SetIOSNetworkServiceType(int ios_network_service_type);
 
-  // Sets "don't close" flag for the socket.
-  void SetDontClose(bool dont_close);
+  // Takes ownership of `socket`, which should be a socket descriptor opened
+  // with the specified address family. The socket should only be created but
+  // not bound or connected to an address.
+  int AdoptOpenedSocket(AddressFamily address_family, int socket);
 
  private:
   enum SocketOptions {
@@ -368,6 +369,9 @@ class NET_EXPORT UDPSocketPosix {
   // Binds to a random port on |address|.
   int RandomBind(const IPAddress& address);
 
+  // Sets `socket_hash_` and `tag_` on opened `socket_`.
+  int ConfigureOpenedSocket();
+
   int socket_;
 
   // Hash of |socket_| to verify that it is not corrupted when calling close().
@@ -453,9 +457,6 @@ class NET_EXPORT UDPSocketPosix {
   // Manages decrementing the global open UDP socket counter when this
   // UDPSocket is destroyed.
   OwnedUDPSocketCount owned_socket_count_;
-
-  // Flag to signify if |socket_| should not be closed.
-  bool dont_close_ = false;
 
   THREAD_CHECKER(thread_checker_);
 };

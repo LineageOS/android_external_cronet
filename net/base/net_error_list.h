@@ -814,10 +814,9 @@ NET_ERROR(TOO_MANY_ACCEPT_CH_RESTARTS, -382)
 // request should be invalidated.
 NET_ERROR(INCONSISTENT_IP_ADDRESS_SPACE, -383)
 
-// The IP address space of the cached remote endpoint is blocked by private
+// The IP address space of the cached remote endpoint is blocked by local
 // network access check.
-NET_ERROR(CACHED_IP_ADDRESS_SPACE_BLOCKED_BY_PRIVATE_NETWORK_ACCESS_POLICY,
-          -384)
+NET_ERROR(CACHED_IP_ADDRESS_SPACE_BLOCKED_BY_LOCAL_NETWORK_ACCESS_POLICY, -384)
 
 // The cache does not have the requested entry.
 NET_ERROR(CACHE_MISS, -400)
@@ -977,6 +976,9 @@ NET_ERROR(CERT_DATABASE_CHANGED, -714)
 
 // Error -715 was removed (CHANNEL_ID_IMPORT_FAILED)
 
+// The certificate verifier configuration changed in some way.
+NET_ERROR(CERT_VERIFIER_CHANGED, -716)
+
 // DNS error codes.
 
 // DNS resolver received a malformed response.
@@ -1026,4 +1028,4 @@ NET_ERROR(DNS_REQUEST_CANCELLED, -810)
 
 // The hostname resolution of HTTPS record was expected to be resolved with
 // alpn values of supported protocols, but did not.
-NET_ERROR(DNS_NO_MACHING_SUPPORTED_ALPN, -811)
+NET_ERROR(DNS_NO_MATCHING_SUPPORTED_ALPN, -811)

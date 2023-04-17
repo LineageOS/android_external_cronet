@@ -3,7 +3,6 @@ build_with_chromium = true
 checkout_android = true
 checkout_android_prebuilts_build_tools = false
 checkout_android_native_support = true
-checkout_google_benchmark = false
 checkout_ios_webkit = false
 checkout_nacl = true
 checkout_openxr = false

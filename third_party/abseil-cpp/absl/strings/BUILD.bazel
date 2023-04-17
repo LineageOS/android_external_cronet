@@ -322,6 +322,7 @@ cc_library(
         "//absl/base:raw_logging_internal",
         "//absl/base:throw_delegate",
         "//absl/container:compressed_tuple",
+        "//absl/container:container_memory",
         "//absl/container:inlined_vector",
         "//absl/container:layout",
         "//absl/crc:crc_cord_state",
@@ -349,6 +350,7 @@ cc_test(
 cc_test(
     name = "cord_rep_btree_test",
     size = "medium",
+    timeout = "long",
     srcs = ["internal/cord_rep_btree_test.cc"],
     copts = ABSL_TEST_COPTS,
     visibility = ["//visibility:private"],
@@ -456,7 +458,6 @@ cc_library(
         ":cordz_update_scope",
         ":cordz_update_tracker",
         ":internal",
-        ":str_format",
         ":strings",
         "//absl/base",
         "//absl/base:config",
@@ -513,6 +514,7 @@ cc_library(
         "//absl/container:inlined_vector",
         "//absl/debugging:stacktrace",
         "//absl/synchronization",
+        "//absl/time",
         "//absl/types:span",
     ],
 )
@@ -792,8 +794,8 @@ cc_test(
         "no_test_android_arm64",
         "no_test_android_x86",
         "no_test_ios_x86_64",
+        "no_test_lexan",
         "no_test_loonix",
-        "no_test_msvc_x64",
     ],
     visibility = ["//visibility:private"],
     deps = [

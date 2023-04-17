@@ -28,6 +28,11 @@
 #include "base/values.h"
 
 namespace base {
+namespace internal {
+BASE_FEATURE(kHistogramNewSnapshotDelta,
+             "HistogramNewSnapshotDelta",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+}  // namespace internal
 
 std::string HistogramTypeToString(HistogramType type) {
   switch (type) {
@@ -101,6 +106,12 @@ void HistogramBase::SetFlags(int32_t flags) {
 
 void HistogramBase::ClearFlags(int32_t flags) {
   flags_.fetch_and(~flags, std::memory_order_relaxed);
+}
+
+bool HistogramBase::HasFlags(int32_t flags) const {
+  // Check this->flags() is a superset of |flags|, i.e. every flag in |flags| is
+  // included.
+  return (this->flags() & flags) == flags;
 }
 
 void HistogramBase::AddScaled(Sample value, int count, int scale) {
@@ -181,8 +192,9 @@ void HistogramBase::FindAndRunCallbacks(HistogramBase::Sample sample) const {
 
   // We check the flag first since it is very cheap and we can avoid the
   // function call and lock overhead of FindAndRunHistogramCallbacks().
-  if ((flags() & kCallbackExists) == 0)
+  if (!HasFlags(kCallbackExists)) {
     return;
+  }
 
   StatisticsRecorder::FindAndRunHistogramCallbacks(
       base::PassKey<HistogramBase>(), histogram_name(), name_hash(), sample);

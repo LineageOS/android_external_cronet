@@ -61,7 +61,7 @@ TEST_P(CookiePartitionKeyTest, Serialization) {
       // With nonce
       {CookiePartitionKey::FromNetworkIsolationKey(NetworkIsolationKey(
            SchemefulSite(GURL("https://toplevelsite.com")),
-           SchemefulSite(GURL("https://cookiesite.com")), &nonce)),
+           SchemefulSite(GURL("https://cookiesite.com")), nonce)),
        false, ""},
       // Invalid partition key
       {absl::make_optional(
@@ -142,7 +142,7 @@ TEST_P(CookiePartitionKeyTest, FromNetworkIsolationKey) {
       },
       {
           "WithNonce",
-          NetworkIsolationKey(kTopLevelSite, kCookieSite, &kNonce),
+          NetworkIsolationKey(kTopLevelSite, kCookieSite, kNonce),
           /*allow_nonced_partition_keys=*/false,
           CookiePartitionKey::FromURLForTesting(kTopLevelSite.GetURL(), kNonce),
       },
@@ -154,7 +154,7 @@ TEST_P(CookiePartitionKeyTest, FromNetworkIsolationKey) {
       },
       {
           "NoncedAllowed_KeyWithoutNonce",
-          NetworkIsolationKey(kTopLevelSite, kCookieSite, &kNonce),
+          NetworkIsolationKey(kTopLevelSite, kCookieSite, kNonce),
           /*allow_nonced_partition_keys=*/true,
           CookiePartitionKey::FromURLForTesting(kTopLevelSite.GetURL(), kNonce),
       },
@@ -181,9 +181,6 @@ TEST_P(CookiePartitionKeyTest, FromNetworkIsolationKey) {
     absl::optional<CookiePartitionKey> got =
         CookiePartitionKey::FromNetworkIsolationKey(
             test_case.network_isolation_key);
-
-    if (got)
-      EXPECT_FALSE(got->from_script());
 
     if (PartitionedCookiesEnabled()) {
       EXPECT_EQ(test_case.expected, got);
@@ -218,11 +215,45 @@ TEST_P(CookiePartitionKeyTest, FromWire) {
   }
 }
 
+TEST_P(CookiePartitionKeyTest, FromStorageKeyComponents) {
+  struct TestCase {
+    const GURL url;
+    const absl::optional<base::UnguessableToken> nonce = absl::nullopt;
+  } test_cases[] = {
+      {GURL("https://foo.com")},
+      {GURL()},
+      {GURL("https://foo.com"), base::UnguessableToken::Create()},
+  };
+
+  for (const auto& test_case : test_cases) {
+    auto want =
+        CookiePartitionKey::FromURLForTesting(test_case.url, test_case.nonce);
+    absl::optional<CookiePartitionKey> got =
+        CookiePartitionKey::FromStorageKeyComponents(want.site(), want.nonce());
+    if (PartitionedCookiesEnabled() ||
+        (NoncedPartitionedCookiesEnabled() && test_case.nonce)) {
+      EXPECT_EQ(got, want);
+    } else {
+      EXPECT_FALSE(got);
+    }
+  }
+}
+
 TEST_P(CookiePartitionKeyTest, FromScript) {
   auto key = CookiePartitionKey::FromScript();
   EXPECT_TRUE(key);
   EXPECT_TRUE(key->from_script());
   EXPECT_TRUE(key->site().opaque());
+
+  auto key2 = CookiePartitionKey::FromScript();
+  EXPECT_TRUE(key2);
+  EXPECT_TRUE(key2->from_script());
+  EXPECT_TRUE(key2->site().opaque());
+
+  // The keys should not be equal because they get created with different opaque
+  // sites. Test both the '==' and '!=' operators here.
+  EXPECT_FALSE(key == key2);
+  EXPECT_TRUE(key != key2);
 }
 
 TEST_P(CookiePartitionKeyTest, IsSerializeable) {
@@ -230,6 +261,16 @@ TEST_P(CookiePartitionKeyTest, IsSerializeable) {
   EXPECT_EQ(PartitionedCookiesEnabled(), CookiePartitionKey::FromURLForTesting(
                                              GURL("https://www.example.com"))
                                              .IsSerializeable());
+}
+
+TEST_P(CookiePartitionKeyTest, Equality) {
+  // Same eTLD+1 but different scheme are not equal.
+  EXPECT_NE(CookiePartitionKey::FromURLForTesting(GURL("https://foo.com")),
+            CookiePartitionKey::FromURLForTesting(GURL("http://foo.com")));
+
+  // Different subdomains of the same site are equal.
+  EXPECT_EQ(CookiePartitionKey::FromURLForTesting(GURL("https://a.foo.com")),
+            CookiePartitionKey::FromURLForTesting(GURL("https://b.foo.com")));
 }
 
 TEST_P(CookiePartitionKeyTest, Equality_WithNonce) {
@@ -240,7 +281,7 @@ TEST_P(CookiePartitionKeyTest, Equality_WithNonce) {
   base::UnguessableToken nonce2 = base::UnguessableToken::Create();
   EXPECT_NE(nonce1, nonce2);
   auto key1 = CookiePartitionKey::FromNetworkIsolationKey(
-      NetworkIsolationKey(top_level_site, frame_site, &nonce1));
+      NetworkIsolationKey(top_level_site, frame_site, nonce1));
   bool partitioned_cookies_enabled =
       PartitionedCookiesEnabled() || NoncedPartitionedCookiesEnabled();
   EXPECT_EQ(partitioned_cookies_enabled, key1.has_value());
@@ -248,12 +289,12 @@ TEST_P(CookiePartitionKeyTest, Equality_WithNonce) {
     return;
 
   auto key2 = CookiePartitionKey::FromNetworkIsolationKey(
-      NetworkIsolationKey(top_level_site, frame_site, &nonce2));
+      NetworkIsolationKey(top_level_site, frame_site, nonce2));
   EXPECT_TRUE(key1.has_value() && key2.has_value());
   EXPECT_NE(key1, key2);
 
   auto key3 = CookiePartitionKey::FromNetworkIsolationKey(
-      NetworkIsolationKey(top_level_site, frame_site, &nonce1));
+      NetworkIsolationKey(top_level_site, frame_site, nonce1));
   EXPECT_EQ(key1, key3);
 
   auto unnonced_key = CookiePartitionKey::FromNetworkIsolationKey(

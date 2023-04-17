@@ -11,11 +11,11 @@
 #include <tuple>
 #include <unordered_set>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
@@ -49,13 +49,14 @@ using base::Time;
 
 namespace {
 
-base::Value CookieKeyedLoadNetLogParams(const std::string& key,
-                                        net::NetLogCaptureMode capture_mode) {
+base::Value::Dict CookieKeyedLoadNetLogParams(
+    const std::string& key,
+    net::NetLogCaptureMode capture_mode) {
   if (!net::NetLogCaptureIncludesSensitive(capture_mode))
-    return base::Value();
+    return base::Value::Dict();
   base::Value::Dict dict;
   dict.Set("key", key);
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 // Used to populate a histogram for problems when loading cookies.
@@ -256,13 +257,15 @@ class SQLitePersistentCookieStore::Backend
           scoped_refptr<base::SequencedTaskRunner> client_task_runner,
           scoped_refptr<base::SequencedTaskRunner> background_task_runner,
           bool restore_old_session_cookies,
-          CookieCryptoDelegate* crypto_delegate)
+          CookieCryptoDelegate* crypto_delegate,
+          bool enable_exclusive_access)
       : SQLitePersistentStoreBackendBase(path,
                                          /* histogram_tag = */ "Cookie",
                                          kCurrentVersionNumber,
                                          kCompatibleVersionNumber,
                                          std::move(background_task_runner),
-                                         std::move(client_task_runner)),
+                                         std::move(client_task_runner),
+                                         enable_exclusive_access),
         restore_old_session_cookies_(restore_old_session_cookies),
         crypto_(crypto_delegate) {}
 
@@ -429,7 +432,7 @@ class SQLitePersistentCookieStore::Backend
   // cookies stored persistently).
   //
   // Not owned.
-  raw_ptr<CookieCryptoDelegate> crypto_;
+  raw_ptr<CookieCryptoDelegate, DanglingUntriaged> crypto_;
 };
 
 namespace {
@@ -1102,10 +1105,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
     if (!db()->Execute("DROP TABLE cookies_old"))
       return absl::nullopt;
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   if (cur_version == 10) {
@@ -1144,10 +1149,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
       return absl::nullopt;
 
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   if (cur_version == 11) {
@@ -1163,10 +1170,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
       return absl::nullopt;
 
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   if (cur_version == 12) {
@@ -1184,10 +1193,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
       return absl::nullopt;
 
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   if (cur_version == 13) {
@@ -1242,10 +1253,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
     }
 #endif
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   if (cur_version == 14) {
@@ -1278,10 +1291,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
       return absl::nullopt;
 
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   if (cur_version == 15) {
@@ -1314,10 +1329,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
       return absl::nullopt;
 
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   if (cur_version == 16) {
@@ -1352,10 +1369,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
       return absl::nullopt;
 
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   if (cur_version == 17) {
@@ -1391,10 +1410,12 @@ SQLitePersistentCookieStore::Backend::DoMigrateDatabaseSchema() {
       return absl::nullopt;
 
     ++cur_version;
-    meta_table()->SetVersionNumber(cur_version);
-    meta_table()->SetCompatibleVersionNumber(
-        std::min(cur_version, kCompatibleVersionNumber));
-    transaction.Commit();
+    if (!meta_table()->SetVersionNumber(cur_version) ||
+        !meta_table()->SetCompatibleVersionNumber(
+            std::min(cur_version, kCompatibleVersionNumber)) ||
+        !transaction.Commit()) {
+      return absl::nullopt;
+    }
   }
 
   // Put future migration cases here.
@@ -1700,12 +1721,14 @@ SQLitePersistentCookieStore::SQLitePersistentCookieStore(
     const scoped_refptr<base::SequencedTaskRunner>& client_task_runner,
     const scoped_refptr<base::SequencedTaskRunner>& background_task_runner,
     bool restore_old_session_cookies,
-    CookieCryptoDelegate* crypto_delegate)
+    CookieCryptoDelegate* crypto_delegate,
+    bool enable_exclusive_access)
     : backend_(base::MakeRefCounted<Backend>(path,
                                              client_task_runner,
                                              background_task_runner,
                                              restore_old_session_cookies,
-                                             crypto_delegate)) {}
+                                             crypto_delegate,
+                                             enable_exclusive_access)) {}
 
 void SQLitePersistentCookieStore::DeleteAllInList(
     const std::list<CookieOrigin>& cookies) {

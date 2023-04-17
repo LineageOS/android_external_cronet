@@ -4,15 +4,13 @@
 
 package org.chromium.net;
 
-import android.support.test.runner.AndroidJUnit4;
-
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.test.util.Feature;
 import org.chromium.net.impl.UrlResponseInfoImpl;
 
 import java.util.AbstractMap;
@@ -30,7 +28,6 @@ public class UrlResponseInfoTest {
      */
     @Test
     @SmallTest
-    @Feature({"Cronet"})
     public void testPublicAPI() throws Exception {
         final List<String> urlChain = new ArrayList<String>();
         urlChain.add("chromium.org");
@@ -49,6 +46,7 @@ public class UrlResponseInfoTest {
                 new UrlResponseInfoImpl(urlChain, httpStatusCode, httpStatusText, allHeadersList,
                         wasCached, negotiatedProtocol, proxyServer, receivedByteCount);
         Assert.assertEquals(info.getUrlChain(), urlChain);
+        Assert.assertEquals(info.getUrl(), urlChain.get(urlChain.size() - 1));
         try {
             info.getUrlChain().add("example.com");
             Assert.fail("getUrlChain() returned modifyable list.");

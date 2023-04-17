@@ -34,7 +34,7 @@ AddressPoolManager& AddressPoolManager::GetInstance() {
   return singleton_;
 }
 
-#if defined(PA_HAS_64_BITS_POINTERS)
+#if BUILDFLAG(HAS_64_BIT_POINTERS)
 
 namespace {
 
@@ -62,23 +62,26 @@ void AddressPoolManager::GetPoolUsedSuperPages(
     pool_handle handle,
     std::bitset<kMaxSuperPagesInPool>& used) {
   Pool* pool = GetPool(handle);
-  if (!pool)
+  if (!pool) {
     return;
+  }
 
   pool->GetUsedSuperPages(used);
 }
 
 uintptr_t AddressPoolManager::GetPoolBaseAddress(pool_handle handle) {
   Pool* pool = GetPool(handle);
-  if (!pool)
+  if (!pool) {
     return 0;
+  }
 
   return pool->GetBaseAddress();
 }
 
 void AddressPoolManager::ResetForTesting() {
-  for (pool_handle i = 0; i < std::size(aligned_pools_.pools_); ++i)
+  for (size_t i = 0; i < std::size(aligned_pools_.pools_); ++i) {
     aligned_pools_.pools_[i].Reset();
+  }
 }
 
 void AddressPoolManager::Remove(pool_handle handle) {
@@ -91,18 +94,20 @@ uintptr_t AddressPoolManager::Reserve(pool_handle handle,
                                       uintptr_t requested_address,
                                       size_t length) {
   Pool* pool = GetPool(handle);
-  if (!requested_address)
+  if (!requested_address) {
     return pool->FindChunk(length);
+  }
   const bool is_available = pool->TryReserveChunk(requested_address, length);
-  if (is_available)
+  if (is_available) {
     return requested_address;
+  }
   return pool->FindChunk(length);
 }
 
 void AddressPoolManager::UnreserveAndDecommit(pool_handle handle,
                                               uintptr_t address,
                                               size_t length) {
-  PA_DCHECK(0 < handle && handle <= kNumPools);
+  PA_DCHECK(kNullPoolHandle < handle && handle <= kNumPools);
   Pool* pool = GetPool(handle);
   PA_DCHECK(pool->IsInitialized());
   DecommitPages(address, length);
@@ -162,8 +167,9 @@ uintptr_t AddressPoolManager::Pool::FindChunk(size_t requested_size) {
     // |end_bit| points 1 past the last bit that needs to be 0. If it goes past
     // |total_bits_|, return |nullptr| to signal no free chunk was found.
     size_t end_bit = beg_bit + need_bits;
-    if (end_bit > total_bits_)
+    if (end_bit > total_bits_) {
       return 0;
+    }
 
     bool found = true;
     for (; curr_bit < end_bit; ++curr_bit) {
@@ -175,8 +181,9 @@ uintptr_t AddressPoolManager::Pool::FindChunk(size_t requested_size) {
         // next outer loop pass from checking the same bits.
         beg_bit = curr_bit + 1;
         found = false;
-        if (bit_hint_ == curr_bit)
+        if (bit_hint_ == curr_bit) {
           ++bit_hint_;
+        }
       }
     }
 
@@ -211,12 +218,14 @@ bool AddressPoolManager::Pool::TryReserveChunk(uintptr_t address,
   const size_t need_bits = requested_size / kSuperPageSize;
   const size_t end_bit = begin_bit + need_bits;
   // Check that requested address is not too high.
-  if (end_bit > total_bits_)
+  if (end_bit > total_bits_) {
     return false;
+  }
   // Check if any bit of the requested region is set already.
   for (size_t i = begin_bit; i < end_bit; ++i) {
-    if (alloc_bitset_.test(i))
+    if (alloc_bitset_.test(i)) {
       return false;
+    }
   }
   // Otherwise, set the bits.
   for (size_t i = begin_bit; i < end_bit; ++i) {
@@ -299,7 +308,7 @@ bool AddressPoolManager::GetStats(AddressSpaceStats* stats) {
   return true;
 }
 
-#else  // defined(PA_HAS_64_BITS_POINTERS)
+#else  // BUILDFLAG(HAS_64_BIT_POINTERS)
 
 static_assert(
     kSuperPageSize % AddressPoolManagerBitmap::kBytesPer1BitOfBRPPoolBitmap ==
@@ -519,8 +528,9 @@ bool AddressPoolManager::GetStats(AddressSpaceStats* stats) {
   // Get blocklist size.
   for (const auto& blocked :
        AddressPoolManagerBitmap::brp_forbidden_super_page_map_) {
-    if (blocked.load(std::memory_order_relaxed))
+    if (blocked.load(std::memory_order_relaxed)) {
       stats->blocklist_size += 1;
+    }
   }
 
   // Count failures in finding non-blocklisted addresses.
@@ -531,7 +541,7 @@ bool AddressPoolManager::GetStats(AddressSpaceStats* stats) {
   return true;
 }
 
-#endif  // defined(PA_HAS_64_BITS_POINTERS)
+#endif  // BUILDFLAG(HAS_64_BIT_POINTERS)
 
 void AddressPoolManager::DumpStats(AddressSpaceStatsDumper* dumper) {
   AddressSpaceStats stats{};

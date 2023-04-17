@@ -4,10 +4,10 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/files/file.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/field_trial_param_associator.h"
 #include "base/run_loop.h"
@@ -19,7 +19,6 @@
 #include "base/time/time.h"
 #include "build/build_config.h"
 #include "net/base/completion_once_callback.h"
-#include "net/base/features.h"
 #include "net/base/io_buffer.h"
 #include "net/base/net_errors.h"
 #include "net/base/request_priority.h"
@@ -2329,7 +2328,7 @@ TEST_F(DiskCacheEntryTest, DoomSparseEntry2) {
 
   entry->Close();
   disk_cache::Backend* cache = cache_.get();
-  SparseTestCompletionCallback cb(std::move(cache_));
+  SparseTestCompletionCallback cb(TakeCache());
   int rv = cache->DoomEntry(key, net::HIGHEST, cb.callback());
   EXPECT_THAT(rv, IsError(net::ERR_IO_PENDING));
   EXPECT_THAT(cb.WaitForResult(), IsOk());
@@ -4472,7 +4471,7 @@ void DiskCacheEntryTest::TruncateFileFromEnd(int file_index,
 void DiskCacheEntryTest::UseAfterBackendDestruction() {
   disk_cache::Entry* entry = nullptr;
   ASSERT_THAT(CreateEntry("the first key", &entry), IsOk());
-  cache_.reset();
+  ResetCaches();
 
   const int kSize = 100;
   scoped_refptr<net::IOBuffer> buffer =
@@ -4498,7 +4497,7 @@ void DiskCacheEntryTest::CloseSparseAfterBackendDestruction() {
   ASSERT_THAT(CreateEntry("the first key", &entry), IsOk());
   WriteSparseData(entry, 20000, buffer.get(), kSize);
 
-  cache_.reset();
+  ResetCaches();
 
   // This call shouldn't DCHECK or crash.
   entry->Close();
@@ -5576,65 +5575,12 @@ TEST_F(DiskCacheEntryTest, BlockFileSparsePendingAfterDtor) {
   EXPECT_EQ(net::ERR_IO_PENDING,
             entry->WriteSparseData(2560, buf.get(), kSize, base::DoNothing()));
   entry->Close();
-  cache_.reset();
+  ResetCaches();
 
   // Create a new instance as a way of flushing the thread.
   InitCache();
   FlushQueueForTest();
 }
-
-#if BUILDFLAG(IS_WIN)
-TEST_F(DiskCacheEntryTest, BlockFileOptimisticWrite) {
-  base::test::ScopedFeatureList feature_list;
-  feature_list.InitAndEnableFeature(net::features::kOptimisticBlockfileWrite);
-
-  CreateBackend(disk_cache::kNone);
-  disk_cache::Entry* entry = nullptr;
-  ASSERT_THAT(CreateEntry("key", &entry), IsOk());
-  ASSERT_TRUE(entry != nullptr);
-
-  // To ensure `EntryImpl::user_buffers_` aren't used in this test:
-  // 1) make an initial write bigger than kMaxBlockSize
-  // 2) second write has to be bigger than kMaxBlockSize but smaller than the
-  // first so that truncation happens.
-  const int kSize1 = disk_cache::kMaxBlockSize + 100;
-  scoped_refptr<net::IOBuffer> write_buf1 =
-      base::MakeRefCounted<net::IOBuffer>(kSize1);
-  CacheTestFillBuffer(write_buf1->data(), kSize1, false);
-
-  net::TestCompletionCallback cb_write1;
-  EXPECT_EQ(net::ERR_IO_PENDING,
-            entry->WriteData(0, 0, write_buf1.get(), kSize1,
-                             cb_write1.callback(), true));
-  EXPECT_EQ(kSize1, cb_write1.WaitForResult());
-
-  entry->Close();
-
-  ASSERT_THAT(OpenEntry("key", &entry), IsOk());
-  ASSERT_TRUE(entry != nullptr);
-
-  const int kSize2 = disk_cache::kMaxBlockSize + 1;
-  scoped_refptr<net::IOBuffer> write_buf2 =
-      base::MakeRefCounted<net::IOBuffer>(kSize2);
-  CacheTestFillBuffer(write_buf2->data(), kSize2, false);
-
-  net::TestCompletionCallback cb_write2;
-  EXPECT_EQ(net::ERR_IO_PENDING,
-            entry->WriteData(0, 0, write_buf2.get(), kSize2,
-                             cb_write2.callback(), true));
-  EXPECT_EQ(kSize2, cb_write2.WaitForResult());
-
-  scoped_refptr<net::IOBuffer> read_buf =
-      base::MakeRefCounted<net::IOBuffer>(kSize2);
-  net::TestCompletionCallback cb_read;
-  EXPECT_EQ(net::ERR_IO_PENDING,
-            entry->ReadData(0, 0, read_buf.get(), kSize2, cb_read.callback()));
-  EXPECT_EQ(kSize2, cb_read.WaitForResult());
-  EXPECT_EQ(0, memcmp(read_buf->data(), write_buf2->data(), kSize2));
-
-  entry->Close();
-}
-#endif
 
 class DiskCacheSimplePrefetchTest : public DiskCacheEntryTest {
  public:

@@ -14,12 +14,15 @@ import shutil
 import sys
 import time
 import zipfile
+import pathlib
 
 import javac_output_processor
 from util import build_utils
 from util import md5_check
 from util import jar_info_utils
 from util import server_utils
+import action_helpers  # build_utils adds //build to sys.path.
+import zip_helpers
 
 _JAVAC_EXTRACTOR = os.path.join(build_utils.DIR_SOURCE_ROOT, 'third_party',
                                 'android_prebuilts', 'build_tools', 'common',
@@ -244,10 +247,39 @@ def ProcessJavacOutput(output, target_name):
   return '\n'.join(lines)
 
 
-def _ParsePackageAndClassNames(java_file):
+def CreateJarFile(jar_path,
+                  classes_dir,
+                  service_provider_configuration_dir=None,
+                  additional_jar_files=None,
+                  extra_classes_jar=None):
+  """Zips files from compilation into a single jar."""
+  logging.info('Start creating jar file: %s', jar_path)
+  with action_helpers.atomic_output(jar_path) as f:
+    with zipfile.ZipFile(f.name, 'w') as z:
+      zip_helpers.zip_directory(z, classes_dir)
+      if service_provider_configuration_dir:
+        config_files = build_utils.FindInDirectory(
+            service_provider_configuration_dir)
+        for config_file in config_files:
+          zip_path = os.path.relpath(config_file,
+                                     service_provider_configuration_dir)
+          zip_helpers.add_to_zip_hermetic(z, zip_path, src_path=config_file)
+
+      if additional_jar_files:
+        for src_path, zip_path in additional_jar_files:
+          zip_helpers.add_to_zip_hermetic(z, zip_path, src_path=src_path)
+      if extra_classes_jar:
+        path_transform = lambda p: p if p.endswith('.class') else None
+        zip_helpers.merge_zips(z, [extra_classes_jar],
+                               path_transform=path_transform)
+  logging.info('Completed jar file: %s', jar_path)
+
+
+def _ParsePackageAndClassNames(source_file):
+  """This should support both Java and Kotlin files."""
   package_name = ''
   class_names = []
-  with open(java_file) as f:
+  with open(source_file) as f:
     for l in f:
       # Strip unindented comments.
       # Considers a leading * as a continuation of a multi-line comment (our
@@ -258,7 +290,8 @@ def _ParsePackageAndClassNames(java_file):
       # (with escaped quotes) but covers a very large percentage of cases.
       l = re.sub('(?:".*?")', '', l)
 
-      m = re.match(r'package\s+(.*?);', l)
+      # Java lines end in semicolon, whereas Kotlin lines do not.
+      m = re.match(r'package\s+(.*?)(;|\s*$)', l)
       if m and not package_name:
         package_name = m.group(1)
 
@@ -270,9 +303,9 @@ def _ParsePackageAndClassNames(java_file):
   return package_name, class_names
 
 
-def _ProcessJavaFileForInfo(java_file):
-  package_name, class_names = _ParsePackageAndClassNames(java_file)
-  return java_file, package_name, class_names
+def _ProcessSourceFileForInfo(source_file):
+  package_name, class_names = _ParsePackageAndClassNames(source_file)
+  return source_file, package_name, class_names
 
 
 class _InfoFileContext:
@@ -295,23 +328,29 @@ class _InfoFileContext:
       self._srcjar_files[path] = '{}/{}'.format(
           srcjar_path, os.path.relpath(path, parent_dir))
 
-  def SubmitFiles(self, java_files):
+  def SubmitFiles(self, source_files):
+    if not source_files:
+      return
     if self._pool is None:
       # Restrict to just one process to not slow down compiling. Compiling
       # is always slower.
       self._pool = multiprocessing.Pool(1)
-    logging.info('Submitting %d files for info', len(java_files))
+    logging.info('Submitting %d files for info', len(source_files))
     self._results.append(
-        self._pool.imap_unordered(
-            _ProcessJavaFileForInfo, java_files, chunksize=1000))
+        self._pool.imap_unordered(_ProcessSourceFileForInfo,
+                                  source_files,
+                                  chunksize=1000))
 
-  def _CheckPathMatchesClassName(self, java_file, package_name, class_name):
-    parts = package_name.split('.') + [class_name + '.java']
-    expected_path_suffix = os.path.sep.join(parts)
-    if not java_file.endswith(expected_path_suffix):
-      raise Exception(('Java package+class name do not match its path.\n'
+  def _CheckPathMatchesClassName(self, source_file, package_name, class_name):
+    if source_file.endswith('.java'):
+      parts = package_name.split('.') + [class_name + '.java']
+    else:
+      parts = package_name.split('.') + [class_name + '.kt']
+    expected_suffix = os.path.sep.join(parts)
+    if not source_file.endswith(expected_suffix):
+      raise Exception(('Source package+class name do not match its path.\n'
                        'Actual path: %s\nExpected path: %s') %
-                      (java_file, expected_path_suffix))
+                      (source_file, expected_suffix))
 
   def _ProcessInfo(self, java_file, package_name, class_names, source):
     for class_name in class_names:
@@ -361,32 +400,12 @@ class _InfoFileContext:
     entries = self._Collect()
 
     logging.info('Writing info file: %s', output_path)
-    with build_utils.AtomicOutput(output_path, mode='wb') as f:
+    with action_helpers.atomic_output(output_path, mode='wb') as f:
       jar_info_utils.WriteJarInfoFile(f, entries, self._srcjar_files)
     logging.info('Completed info file: %s', output_path)
 
 
-def _CreateJarFile(jar_path, service_provider_configuration_dir,
-                   additional_jar_files, classes_dir):
-  logging.info('Start creating jar file: %s', jar_path)
-  with build_utils.AtomicOutput(jar_path) as f:
-    with zipfile.ZipFile(f.name, 'w') as z:
-      build_utils.ZipDir(z, classes_dir)
-      if service_provider_configuration_dir:
-        config_files = build_utils.FindInDirectory(
-            service_provider_configuration_dir)
-        for config_file in config_files:
-          zip_path = os.path.relpath(config_file,
-                                     service_provider_configuration_dir)
-          build_utils.AddToZipHermetic(z, zip_path, src_path=config_file)
-
-      if additional_jar_files:
-        for src_path, zip_path in additional_jar_files:
-          build_utils.AddToZipHermetic(z, zip_path, src_path=src_path)
-  logging.info('Completed jar file: %s', jar_path)
-
-
-def _OnStaleMd5(changes, options, javac_cmd, javac_args, java_files):
+def _OnStaleMd5(changes, options, javac_cmd, javac_args, java_files, kt_files):
   logging.info('Starting _OnStaleMd5')
   if options.enable_kythe_annotations:
     # Kythe requires those env variables to be set and compile_java.py does the
@@ -397,6 +416,11 @@ def _OnStaleMd5(changes, options, javac_cmd, javac_args, java_files):
                       'KYTHE_ROOT_DIRECTORY and KYTHE_OUTPUT_DIRECTORY '
                       'environment variables to be set.')
     javac_extractor_cmd = build_utils.JavaCmd() + [
+        '--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED',
+        '--add-exports=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED',
+        '--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED',
+        '--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED',
+        '--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED',
         '-jar',
         _JAVAC_EXTRACTOR,
     ]
@@ -431,6 +455,7 @@ def _OnStaleMd5(changes, options, javac_cmd, javac_args, java_files):
                javac_cmd + javac_args,
                java_files,
                options.jar_path,
+               kt_files=kt_files,
                jar_info_path=jar_info_path,
                intermediates_out_dir=intermediates_out_dir,
                enable_partial_javac=True)
@@ -442,6 +467,7 @@ def _RunCompiler(changes,
                  javac_cmd,
                  java_files,
                  jar_path,
+                 kt_files=None,
                  jar_info_path=None,
                  intermediates_out_dir=None,
                  enable_partial_javac=False):
@@ -453,6 +479,7 @@ def _RunCompiler(changes,
     javac_cmd: Command to execute.
     java_files: List of java files passed from command line.
     jar_path: Path of output jar file.
+    kt_files: List of Kotlin files passed from command line if any.
     jar_info_path: Path of the .info file to generate.
         If None, .info file will not be generated.
     intermediates_out_dir: Directory for saving intermediate outputs.
@@ -509,9 +536,9 @@ def _RunCompiler(changes,
                                            options.jar_info_exclude_globs)
 
     if intermediates_out_dir is None:
-      input_srcjars_dir = os.path.join(temp_dir, 'input_srcjars')
-    else:
-      input_srcjars_dir = os.path.join(intermediates_out_dir, 'input_srcjars')
+      intermediates_out_dir = temp_dir
+
+    input_srcjars_dir = os.path.join(intermediates_out_dir, 'input_srcjars')
 
     if java_srcjars:
       logging.info('Extracting srcjars to %s', input_srcjars_dir)
@@ -537,6 +564,7 @@ def _RunCompiler(changes,
 
     if save_info_file and java_files:
       info_file_context.SubmitFiles(java_files)
+      info_file_context.SubmitFiles(kt_files)
 
     if java_files:
       # Don't include the output directory in the initial set of args since it
@@ -567,8 +595,8 @@ def _RunCompiler(changes,
       end = time.time() - start
       logging.info('Java compilation took %ss', end)
 
-    _CreateJarFile(jar_path, service_provider_configuration,
-                   options.additional_jar_files, classes_dir)
+    CreateJarFile(jar_path, classes_dir, service_provider_configuration,
+                  options.additional_jar_files, options.kotlin_jar_path)
 
     if save_info_file:
       info_file_context.Commit(jar_info_path)
@@ -582,7 +610,7 @@ def _RunCompiler(changes,
 
 def _ParseOptions(argv):
   parser = optparse.OptionParser()
-  build_utils.AddDepfileOption(parser)
+  action_helpers.add_depfile_arg(parser)
 
   parser.add_option('--target-name', help='Fully qualified GN target name.')
   parser.add_option('--skip-build-server',
@@ -653,14 +681,18 @@ def _ParseOptions(argv):
       '--header-jar',
       help='This is the header jar for the current target that contains '
       'META-INF/services/* files to be included in the output jar.')
+  parser.add_option(
+      '--kotlin-jar-path',
+      help='Kotlin jar to be merged into the output jar. This contains the '
+      ".class files from this target's .kt files.")
 
   options, args = parser.parse_args(argv)
   build_utils.CheckOptions(options, parser, required=('jar_path', ))
 
-  options.classpath = build_utils.ParseGnList(options.classpath)
-  options.processorpath = build_utils.ParseGnList(options.processorpath)
-  options.java_srcjars = build_utils.ParseGnList(options.java_srcjars)
-  options.jar_info_exclude_globs = build_utils.ParseGnList(
+  options.classpath = action_helpers.parse_gn_list(options.classpath)
+  options.processorpath = action_helpers.parse_gn_list(options.processorpath)
+  options.java_srcjars = action_helpers.parse_gn_list(options.java_srcjars)
+  options.jar_info_exclude_globs = action_helpers.parse_gn_list(
       options.jar_info_exclude_globs)
 
   additional_jar_files = []
@@ -669,21 +701,29 @@ def _ParseOptions(argv):
     additional_jar_files.append((filepath, jar_filepath))
   options.additional_jar_files = additional_jar_files
 
-  java_files = []
+  files = []
   for arg in args:
     # Interpret a path prefixed with @ as a file containing a list of sources.
     if arg.startswith('@'):
-      java_files.extend(build_utils.ReadSourcesList(arg[1:]))
+      files.extend(build_utils.ReadSourcesList(arg[1:]))
     else:
-      java_files.append(arg)
+      files.append(arg)
 
-  return options, java_files
+  # The target's .sources file contains both Java and Kotlin files. We use
+  # compile_kt.py to compile the Kotlin files to .class and header jars. Javac
+  # is run only on .java files.
+  java_files = [f for f in files if f.endswith('.java')]
+  # Kotlin files are needed to populate the info file and attribute size in
+  # supersize back to the appropriate Kotlin file.
+  kt_files = [f for f in files if f.endswith('.kt')]
+
+  return options, java_files, kt_files
 
 
 def main(argv):
   build_utils.InitLogging('JAVAC_DEBUG')
   argv = build_utils.ExpandFileArgs(argv)
-  options, java_files = _ParseOptions(argv)
+  options, java_files, kt_files = _ParseOptions(argv)
 
   # Only use the build server for errorprone runs.
   if (options.enable_errorprone and not options.skip_build_server
@@ -700,7 +740,8 @@ def main(argv):
 
   javac_args = [
       '-g',
-      # We currently target JDK 11 everywhere.
+      # We currently target JDK 11 everywhere, since Mockito is broken by JDK17.
+      # See crbug.com/1409661 for more details.
       '--release',
       '11',
       # Chromium only allows UTF8 source files.  Being explicit avoids
@@ -735,6 +776,22 @@ def main(argv):
           '-XepPatchChecks:,' + ','.join(ERRORPRONE_CHECKS_TO_APPLY)
       ]
 
+    # These are required to use JDK 16, and are taken directly from
+    # https://errorprone.info/docs/installation
+    javac_args += [
+        '-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED',
+        '-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED',
+        '-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED',
+        '-J--add-exports=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED',
+        '-J--add-exports=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED',
+        '-J--add-exports=jdk.compiler/com.sun.tools.javac.processing='
+        'ALL-UNNAMED',
+        '-J--add-exports=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED',
+        '-J--add-exports=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED',
+        '-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED',
+        '-J--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED',
+    ]
+
     javac_args += ['-XDcompilePolicy=simple', ' '.join(errorprone_flags)]
 
     # This flag quits errorprone after checks and before code generation, since
@@ -761,7 +818,7 @@ def main(argv):
 
   depfile_deps = classpath_inputs
   # Files that are already inputs in GN should go in input_paths.
-  input_paths = depfile_deps + options.java_srcjars + java_files
+  input_paths = depfile_deps + options.java_srcjars + java_files + kt_files
   if options.header_jar:
     input_paths.append(options.header_jar)
   input_paths += [x[0] for x in options.additional_jar_files]
@@ -770,13 +827,13 @@ def main(argv):
   if not options.enable_errorprone:
     output_paths += [options.jar_path + '.info']
 
-  input_strings = javac_cmd + javac_args + options.classpath + java_files + [
-      options.warnings_as_errors, options.jar_info_exclude_globs
-  ]
+  input_strings = (javac_cmd + javac_args + options.classpath + java_files +
+                   kt_files +
+                   [options.warnings_as_errors, options.jar_info_exclude_globs])
 
   # Use md5_check for |pass_changes| feature.
   md5_check.CallAndWriteDepfileIfStale(lambda changes: _OnStaleMd5(
-      changes, options, javac_cmd, javac_args, java_files),
+      changes, options, javac_cmd, javac_args, java_files, kt_files),
                                        options,
                                        depfile_deps=depfile_deps,
                                        input_paths=input_paths,
