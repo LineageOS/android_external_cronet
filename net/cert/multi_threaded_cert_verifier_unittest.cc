@@ -83,8 +83,7 @@ class SwapWithNewProcFactory : public CertVerifyProcFactory {
 
   scoped_refptr<net::CertVerifyProc> CreateCertVerifyProc(
       scoped_refptr<CertNetFetcher> cert_net_fetcher,
-      scoped_refptr<CRLSet> crl_set,
-      const ChromeRootStoreData* root_store_data) override {
+      const ImplParams& impl_params) override {
     return mock_verify_proc_;
   }
 
@@ -299,6 +298,37 @@ TEST_F(MultiThreadedCertVerifierTest, ConvertsConfigToFlags) {
   }
 }
 
+// Tests propagation of CertVerifier flags into CertVerifyProc flags
+TEST_F(MultiThreadedCertVerifierTest, ConvertsFlagsToFlags) {
+  scoped_refptr<X509Certificate> test_cert(
+      ImportCertFromFile(GetTestCertsDirectory(), "ok_cert.pem"));
+  ASSERT_TRUE(test_cert);
+
+  EXPECT_CALL(
+      *mock_verify_proc_,
+      VerifyInternal(_, _, _, _, CertVerifyProc::VERIFY_DISABLE_NETWORK_FETCHES,
+                     _, _, _))
+      .WillRepeatedly(
+          DoAll(SetCertVerifyRevokedResult(), Return(ERR_CERT_REVOKED)));
+
+  CertVerifyResult verify_result;
+  TestCompletionCallback callback;
+  std::unique_ptr<CertVerifier::Request> request;
+  int error = verifier_->Verify(
+      CertVerifier::RequestParams(test_cert, "www.example.com",
+                                  CertVerifier::VERIFY_DISABLE_NETWORK_FETCHES,
+                                  /*ocsp_response=*/std::string(),
+                                  /*sct_list=*/std::string()),
+      &verify_result, callback.callback(), &request, NetLogWithSource());
+  ASSERT_THAT(error, IsError(ERR_IO_PENDING));
+  EXPECT_TRUE(request);
+  error = callback.WaitForResult();
+  EXPECT_TRUE(IsCertificateError(error));
+  EXPECT_THAT(error, IsError(ERR_CERT_REVOKED));
+
+  testing::Mock::VerifyAndClearExpectations(mock_verify_proc_.get());
+}
+
 // Tests swapping in new Chrome Root Store Data.
 TEST_F(MultiThreadedCertVerifierTest, VerifyProcChangeChromeRootStore) {
   CertVerifierObserverCounter observer_counter(verifier_.get());
@@ -313,7 +343,7 @@ TEST_F(MultiThreadedCertVerifierTest, VerifyProcChangeChromeRootStore) {
   EXPECT_CALL(*mock_new_verify_proc_, VerifyInternal(_, _, _, _, _, _, _, _))
       .WillRepeatedly(
           DoAll(SetCertVerifyRevokedResult(), Return(ERR_CERT_REVOKED)));
-  verifier_->UpdateVerifyProcData(nullptr, nullptr, nullptr);
+  verifier_->UpdateVerifyProcData(nullptr, {});
 
   EXPECT_EQ(observer_counter.change_count(), 1u);
 
@@ -353,7 +383,7 @@ TEST_F(MultiThreadedCertVerifierTest, VerifyProcChangeRequest) {
       &verify_result, callback.callback(), &request, NetLogWithSource());
   ASSERT_THAT(error, IsError(ERR_IO_PENDING));
   EXPECT_TRUE(request);
-  verifier_->UpdateVerifyProcData(nullptr, nullptr, nullptr);
+  verifier_->UpdateVerifyProcData(nullptr, {});
   error = callback.WaitForResult();
   EXPECT_TRUE(IsCertificateError(error));
   EXPECT_THAT(error, IsError(ERR_CERT_COMMON_NAME_INVALID));

@@ -17,6 +17,10 @@
 #include "net/base/net_export.h"
 #include "net/net_buildflags.h"
 
+#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
+#include "net/cert/internal/trust_store_chrome.h"
+#endif
+
 namespace net {
 
 class CertNetFetcher;
@@ -24,7 +28,6 @@ class CertVerifyResult;
 class CRLSet;
 class NetLogWithSource;
 class X509Certificate;
-class ChromeRootStoreData;
 typedef std::vector<scoped_refptr<X509Certificate>> CertificateList;
 
 // Class to perform certificate path building and verification for various
@@ -36,17 +39,14 @@ class NET_EXPORT CertVerifyProc
   enum VerifyFlags {
     // If set, enables online revocation checking via CRLs and OCSP for the
     // certificate chain.
+    // Note: has no effect if VERIFY_DISABLE_NETWORK_FETCHES is set.
     VERIFY_REV_CHECKING_ENABLED = 1 << 0,
 
     // If set, this is equivalent to VERIFY_REV_CHECKING_ENABLED, in that it
     // enables online revocation checking via CRLs or OCSP, but only
     // for certificates issued by non-public trust anchors. Failure to check
     // revocation is treated as a hard failure.
-    // Note: If VERIFY_CERT_IO_ENABLE is not also supplied, certificates
-    // that chain to local trust anchors will likely fail - for example, due to
-    // lacking fresh cached revocation issue (Windows) or because OCSP stapling
-    // can only provide information for the leaf, and not for any
-    // intermediates.
+    // Note: has no effect if VERIFY_DISABLE_NETWORK_FETCHES is set.
     VERIFY_REV_CHECKING_REQUIRED_LOCAL_ANCHORS = 1 << 1,
 
     // If set, certificates with SHA-1 signatures will be allowed, but only if
@@ -56,6 +56,12 @@ class NET_EXPORT CertVerifyProc
     // If set, disables the policy enforcement described at
     // https://security.googleblog.com/2017/09/chromes-plan-to-distrust-symantec.html
     VERIFY_DISABLE_SYMANTEC_ENFORCEMENT = 1 << 3,
+
+    // Disable network fetches during verification. This will override
+    // VERIFY_REV_CHECKING_ENABLED and
+    // VERIFY_REV_CHECKING_REQUIRED_LOCAL_ANCHORS if they are also specified.
+    // TODO(https://crbug.com/1432793): This should also disable AIA fetching.
+    VERIFY_DISABLE_NETWORK_FETCHES = 1 << 4,
   };
 
   // These values are persisted to logs. Entries should not be renumbered and
@@ -213,12 +219,35 @@ class NET_EXPORT CertVerifyProc
 class NET_EXPORT CertVerifyProcFactory
     : public base::RefCountedThreadSafe<CertVerifyProcFactory> {
  public:
+  // The set of factory parameters that are variable over time, but are
+  // expected to be consistent between multiple verifiers that are created. For
+  // example, CertNetFetcher is not in this struct as it is expected that
+  // different verifiers will have different net fetchers. (There is no
+  // technical restriction against creating different verifiers with different
+  // ImplParams, structuring the parameters this way just makes some APIs more
+  // convenient for the common case.)
+  struct NET_EXPORT ImplParams {
+    ImplParams();
+    ~ImplParams();
+    ImplParams(const ImplParams&);
+    ImplParams& operator=(const ImplParams& other);
+    ImplParams(ImplParams&&);
+    ImplParams& operator=(ImplParams&& other);
+
+    scoped_refptr<CRLSet> crl_set;
+#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
+    absl::optional<net::ChromeRootStoreData> root_store_data;
+#endif
+#if BUILDFLAG(CHROME_ROOT_STORE_OPTIONAL)
+    bool use_chrome_root_store;
+#endif
+  };
+
   // Create a new CertVerifyProc that uses the passed in CRLSet and
   // ChromeRootStoreData.
   virtual scoped_refptr<CertVerifyProc> CreateCertVerifyProc(
       scoped_refptr<CertNetFetcher> cert_net_fetcher,
-      scoped_refptr<CRLSet> crl_set,
-      const ChromeRootStoreData* root_store_data) = 0;
+      const ImplParams& impl_params) = 0;
 
  protected:
   virtual ~CertVerifyProcFactory() = default;

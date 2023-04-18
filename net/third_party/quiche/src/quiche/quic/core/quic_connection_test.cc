@@ -8,9 +8,7 @@
 
 #include <cstdint>
 #include <memory>
-#include <ostream>
 #include <string>
-#include <type_traits>
 #include <utility>
 
 #include "absl/base/macros.h"
@@ -22,7 +20,6 @@
 #include "quiche/quic/core/crypto/null_decrypter.h"
 #include "quiche/quic/core/crypto/null_encrypter.h"
 #include "quiche/quic/core/crypto/quic_decrypter.h"
-#include "quiche/quic/core/crypto/quic_encrypter.h"
 #include "quiche/quic/core/frames/quic_connection_close_frame.h"
 #include "quiche/quic/core/frames/quic_new_connection_id_frame.h"
 #include "quiche/quic/core/frames/quic_path_response_frame.h"
@@ -56,7 +53,6 @@
 #include "quiche/quic/test_tools/quic_test_utils.h"
 #include "quiche/quic/test_tools/simple_data_producer.h"
 #include "quiche/quic/test_tools/simple_session_notifier.h"
-#include "quiche/common/platform/api/quiche_reference_counted.h"
 #include "quiche/common/simple_buffer_allocator.h"
 
 using testing::_;
@@ -17463,6 +17459,57 @@ TEST_P(QuicConnectionTest,
   EXPECT_EQ(kServerPreferredAddress.host(),
             writer_->last_write_source_address());
   EXPECT_EQ(kSelfAddress, connection_.self_address());
+}
+
+TEST_P(QuicConnectionTest, EcnCodepointsRejected) {
+  TestPerPacketOptions per_packet_options;
+  connection_.set_per_packet_options(&per_packet_options);
+  for (QuicEcnCodepoint ecn : {ECN_NOT_ECT, ECN_ECT0, ECN_ECT1, ECN_CE}) {
+    per_packet_options.ecn_codepoint = ecn;
+    if (ecn == ECN_ECT0) {
+      EXPECT_CALL(*send_algorithm_, SupportsECT0()).WillOnce(Return(false));
+    } else if (ecn == ECN_ECT1) {
+      EXPECT_CALL(*send_algorithm_, SupportsECT1()).WillOnce(Return(false));
+    }
+    EXPECT_CALL(connection_, OnSerializedPacket(_));
+    SendPing();
+    EXPECT_EQ(per_packet_options.ecn_codepoint, ECN_NOT_ECT);
+    EXPECT_EQ(writer_->last_ecn_sent(), ECN_NOT_ECT);
+  }
+}
+
+TEST_P(QuicConnectionTest, EcnCodepointsAccepted) {
+  TestPerPacketOptions per_packet_options;
+  connection_.set_per_packet_options(&per_packet_options);
+  for (QuicEcnCodepoint ecn : {ECN_NOT_ECT, ECN_ECT0, ECN_ECT1, ECN_CE}) {
+    per_packet_options.ecn_codepoint = ecn;
+    if (ecn == ECN_ECT0) {
+      EXPECT_CALL(*send_algorithm_, SupportsECT0()).WillOnce(Return(true));
+    } else if (ecn == ECN_ECT1) {
+      EXPECT_CALL(*send_algorithm_, SupportsECT1()).WillOnce(Return(true));
+    }
+    EXPECT_CALL(connection_, OnSerializedPacket(_));
+    SendPing();
+    QuicEcnCodepoint expected_codepoint = ecn;
+    if (ecn == ECN_CE) {
+      expected_codepoint = ECN_NOT_ECT;
+    }
+    EXPECT_EQ(per_packet_options.ecn_codepoint, expected_codepoint);
+    EXPECT_EQ(writer_->last_ecn_sent(), expected_codepoint);
+  }
+}
+
+TEST_P(QuicConnectionTest, EcnValidationDisabled) {
+  TestPerPacketOptions per_packet_options;
+  connection_.set_per_packet_options(&per_packet_options);
+  QuicConnectionPeer::DisableEcnCodepointValidation(&connection_);
+  for (QuicEcnCodepoint ecn : {ECN_NOT_ECT, ECN_ECT0, ECN_ECT1, ECN_CE}) {
+    per_packet_options.ecn_codepoint = ecn;
+    EXPECT_CALL(connection_, OnSerializedPacket(_));
+    SendPing();
+    EXPECT_EQ(per_packet_options.ecn_codepoint, ecn);
+    EXPECT_EQ(writer_->last_ecn_sent(), ecn);
+  }
 }
 
 }  // namespace

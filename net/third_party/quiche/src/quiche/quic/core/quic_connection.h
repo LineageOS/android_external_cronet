@@ -34,7 +34,6 @@
 #include "quiche/quic/core/frames/quic_ack_frequency_frame.h"
 #include "quiche/quic/core/frames/quic_max_streams_frame.h"
 #include "quiche/quic/core/frames/quic_new_connection_id_frame.h"
-#include "quiche/quic/core/proto/cached_network_parameters_proto.h"
 #include "quiche/quic/core/quic_alarm.h"
 #include "quiche/quic/core/quic_alarm_factory.h"
 #include "quiche/quic/core/quic_blocked_writer_interface.h"
@@ -1961,6 +1960,22 @@ class QUIC_EXPORT_PRIVATE QuicConnection
   // Returns true if |address| is known server address.
   bool IsKnownServerAddress(const QuicSocketAddress& address) const;
 
+  // Retrieves the ECN codepoint to be sent on the next packet.
+  QuicEcnCodepoint GetNextEcnCodepoint() const {
+    return (per_packet_options_ != nullptr) ? per_packet_options_->ecn_codepoint
+                                            : ECN_NOT_ECT;
+  }
+
+  // Sets the ECN codepoint to Not-ECT.
+  void ClearEcnCodepoint();
+
+  // Writes the packet to the writer and clears the ECN codepoint in |options|
+  // if it is invalid.
+  WriteResult SendPacketToWriter(const char* buffer, size_t buf_len,
+                                 const QuicIpAddress& self_address,
+                                 const QuicSocketAddress& peer_address,
+                                 PerPacketOptions* options);
+
   QuicConnectionContext context_;
 
   QuicFramer framer_;
@@ -2357,6 +2372,14 @@ class QUIC_EXPORT_PRIVATE QuicConnection
   // original address.
   QuicLRUCache<QuicSocketAddress, bool, QuicSocketAddressHash>
       received_client_addresses_cache_;
+
+  // Endpoints should never mark packets with Congestion Experienced (CE), as
+  // this is only done by routers. Endpoints cannot send ECT(0) or ECT(1) if
+  // their congestion control cannot respond to these signals in accordance with
+  // the spec, or if the QUIC implementation doesn't validate ECN feedback. When
+  // true, the connection will not verify that the requested codepoint adheres
+  // to these policies. This is only accessible through QuicConnectionPeer.
+  bool disable_ecn_codepoint_validation_ = false;
 };
 
 }  // namespace quic
