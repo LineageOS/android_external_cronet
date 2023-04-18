@@ -191,10 +191,6 @@ filegroup {
         "components/cronet/android/test/javatests/**/QuicTest.java",
         "components/cronet/android/test/javatests/**/urlconnection/*.java",
     ],
-    exclude_srcs: [
-        // Todo(b/275345611): fix failure
-        "components/cronet/android/test/javatests/**/urlconnection/CronetInputStreamTest.java",
-    ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
     ],
