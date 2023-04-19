@@ -13,11 +13,11 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/check_op.h"
 #include "base/containers/circular_deque.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
@@ -29,8 +29,6 @@
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
-#include "base/threading/thread_local.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/trace_event/memory_allocator_dump.h"
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/memory_dump_provider.h"
@@ -50,6 +48,7 @@
 #include "mojo/public/cpp/bindings/pipe_control_message_proxy.h"
 #include "mojo/public/cpp/bindings/sequence_local_sync_event_watcher.h"
 #include "mojo/public/cpp/bindings/tracing_helpers.h"
+#include "third_party/abseil-cpp/absl/base/attributes.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace IPC {
@@ -58,14 +57,7 @@ namespace {
 
 class ChannelAssociatedGroupController;
 
-base::ThreadLocalBoolean& GetOffSequenceBindingAllowedFlag() {
-  static base::NoDestructor<base::ThreadLocalBoolean> flag;
-  return *flag;
-}
-
-bool CanBindOffSequence() {
-  return GetOffSequenceBindingAllowedFlag().Get();
-}
+ABSL_CONST_INIT thread_local bool off_sequence_binding_allowed = false;
 
 // Used to track some internal Channel state in pursuit of message leaks.
 //
@@ -542,8 +534,9 @@ class ChannelAssociatedGroupController
       task_runner_ = std::move(runner);
       client_ = client;
 
-      if (CanBindOffSequence())
+      if (off_sequence_binding_allowed) {
         was_bound_off_sequence_ = true;
+      }
     }
 
     void DetachClient() {
@@ -888,7 +881,7 @@ class ChannelAssociatedGroupController
 
   // `endpoint` might be a dangling ptr and must be checked before dereference.
   void NotifyEndpointOfErrorOnEndpointThread(mojo::InterfaceId id,
-                                             Endpoint* endpoint) {
+                                             MayBeDangling<Endpoint> endpoint) {
     base::AutoLock locker(lock_);
     auto iter = endpoints_.find(id);
     if (iter == endpoints_.end() || iter->second.get() != endpoint)
@@ -1266,14 +1259,10 @@ class MojoBootstrapImpl : public MojoBootstrap {
 
 ScopedAllowOffSequenceChannelAssociatedBindings::
     ScopedAllowOffSequenceChannelAssociatedBindings()
-    : outer_flag_(GetOffSequenceBindingAllowedFlag().Get()) {
-  GetOffSequenceBindingAllowedFlag().Set(true);
-}
+    : resetter_(&off_sequence_binding_allowed, true) {}
 
 ScopedAllowOffSequenceChannelAssociatedBindings::
-    ~ScopedAllowOffSequenceChannelAssociatedBindings() {
-  GetOffSequenceBindingAllowedFlag().Set(outer_flag_);
-}
+    ~ScopedAllowOffSequenceChannelAssociatedBindings() = default;
 
 // static
 std::unique_ptr<MojoBootstrap> MojoBootstrap::Create(

@@ -44,6 +44,7 @@ import org.junit.runner.RunWith;
 import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import android.net.http.DnsOptions.StaleDnsOptions;
@@ -67,13 +68,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
-/**
- * Tests for experimental options.
- */
+/** Tests for experimental options. */
 @RunWith(AndroidJUnit4.class)
 @JNINamespace("cronet")
 @OptIn(markerClass = {ConnectionMigrationOptions.Experimental.class, DnsOptions.Experimental.class,
-        QuicOptions.Experimental.class, QuicOptions.QuichePassthroughOption.class})
+               QuicOptions.Experimental.class, QuicOptions.QuichePassthroughOption.class})
 public class ExperimentalOptionsTest {
     private static final String EXPECTED_CONNECTION_MIGRATION_ENABLED_STRING =
             "{\"QUIC\":{\"migrate_sessions_on_network_change_v2\":true}}";
@@ -132,6 +131,29 @@ public class ExperimentalOptionsTest {
         assertFileContainsString(logfile, "HostResolverRules");
         assertTrue(logfile.delete());
         assertFalse(logfile.exists());
+        cronetEngine.shutdown();
+    }
+
+    @Test
+    @MediumTest
+    @OnlyRunNativeCronet
+    public void testEnableTelemetryTrue() throws Exception {
+        JSONObject experimentalOptions = new JSONObject().put("enable_telemetry", true);
+        mBuilder.setExperimentalOptions(experimentalOptions.toString());
+
+        CronetEngine cronetEngine = mBuilder.build();
+        CronetUrlRequestContext context = (CronetUrlRequestContext) mBuilder.build();
+        assertTrue(context.getEnableTelemetryForTesting());
+        cronetEngine.shutdown();
+    }
+
+    @Test
+    @MediumTest
+    @OnlyRunNativeCronet
+    public void testEnableTelemetryDefault() throws Exception {
+        CronetEngine cronetEngine = mBuilder.build();
+        CronetUrlRequestContext context = (CronetUrlRequestContext) mBuilder.build();
+        assertFalse(context.getEnableTelemetryForTesting());
         cronetEngine.shutdown();
     }
 
@@ -233,7 +255,8 @@ public class ExperimentalOptionsTest {
         CronetUrlRequestContext context = (CronetUrlRequestContext) mBuilder.build();
 
         // Create a HostCache entry for "host-cache-test-host".
-        nativeWriteToHostCache(context.getUrlRequestContextAdapter(), realHost);
+        ExperimentalOptionsTestJni.get().writeToHostCache(
+                context.getUrlRequestContextAdapter(), realHost);
 
         // Do a request for the test URL to make sure it's cached.
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -414,8 +437,6 @@ public class ExperimentalOptionsTest {
     @OnlyRunNativeCronet
     public void testEnablePathDegradingConnectionMigration_justPort() {
         MockCronetBuilderImpl mockBuilderImpl = MockCronetBuilderImpl.withoutNativeSetterSupport();
-        mBuilder = new ExperimentalHttpEngine.Builder(mockBuilderImpl);
-
         mBuilder.setConnectionMigrationOptions(
                 ConnectionMigrationOptions.builder()
                         .setPathDegradationMigration(
@@ -483,7 +504,7 @@ public class ExperimentalOptionsTest {
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains(
                     "Unable to turn on non-default network usage without path degradation"
-                            + " migration"));
+                    + " migration"));
         }
     }
 
@@ -674,7 +695,7 @@ public class ExperimentalOptionsTest {
             result *= 10;
             for (Map.Entry<String, Integer> mapping : charMap.entrySet()) {
                 if (mapping.getKey().contains(
-                        string.substring(i, i + 1).toLowerCase(Locale.ROOT))) {
+                            string.substring(i, i + 1).toLowerCase(Locale.ROOT))) {
                     result += mapping.getValue();
                     break;
                 }

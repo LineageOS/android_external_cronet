@@ -7,9 +7,9 @@
 #include <memory>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/files/file_util.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
 #include "base/run_loop.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/task/sequenced_task_runner.h"
@@ -237,12 +237,12 @@ class SQLitePersistentReportingAndNelStoreTest
   // Use origins distinct from those used in origin fields of keys, to avoid any
   // risk of tests passing due to comparing origins that are the same but come
   // from different sources.
-  const NetworkAnonymizationKey kNak1_ = NetworkAnonymizationKey(
-      SchemefulSite(GURL("https://top-frame-origin-nik1.test")),
-      SchemefulSite(GURL("https://frame-origin-nik1.test")));
-  const NetworkAnonymizationKey kNak2_ = NetworkAnonymizationKey(
-      SchemefulSite(GURL("https://top-frame-origin-nik2.test")),
-      SchemefulSite(GURL("https://frame-origin-nik2.test")));
+  const NetworkAnonymizationKey kNak1_ =
+      NetworkAnonymizationKey::CreateCrossSite(
+          SchemefulSite(GURL("https://top-frame-origin-nik1.test")));
+  const NetworkAnonymizationKey kNak2_ =
+      NetworkAnonymizationKey::CreateCrossSite(
+          SchemefulSite(GURL("https://top-frame-origin-nik2.test")));
 
   base::ScopedTempDir temp_dir_;
   std::unique_ptr<SQLitePersistentReportingAndNelStore> store_;
@@ -296,7 +296,7 @@ TEST_F(SQLitePersistentReportingAndNelStoreTest, TestInvalidMetaTableRecovery) {
     ASSERT_TRUE(
         db.Open(temp_dir_.GetPath().Append(kReportingAndNELStoreFilename)));
     sql::MetaTable meta_table;
-    meta_table.Init(&db, 1, 1);
+    ASSERT_TRUE(meta_table.Init(&db, 1, 1));
     ASSERT_TRUE(db.Execute("DELETE FROM meta"));
     db.Close();
   }

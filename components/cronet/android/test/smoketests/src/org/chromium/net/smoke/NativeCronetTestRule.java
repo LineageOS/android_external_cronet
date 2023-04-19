@@ -42,8 +42,7 @@ public class NativeCronetTestRule extends CronetSmokeTestRule {
     }
 
     private void ruleSetUp() throws Exception {
-        ContextUtils.initApplicationContext(
-                 ApplicationProvider.getApplicationContext());
+        ContextUtils.initApplicationContext(ApplicationProvider.getApplicationContext());
         PathUtils.setPrivateDataDirectorySuffix(PRIVATE_DATA_DIRECTORY_SUFFIX);
         mTestSupport.loadTestNativeLibrary();
     }

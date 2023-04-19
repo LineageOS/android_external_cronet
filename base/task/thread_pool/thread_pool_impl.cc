@@ -9,12 +9,13 @@
 #include <utility>
 
 #include "base/base_switches.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/debug/alias.h"
+#include "base/debug/leak_annotations.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/metrics/field_trial_params.h"
 #include "base/strings/string_util.h"
@@ -64,19 +65,14 @@ bool HasDisableBestEffortTasksSwitch() {
 // internal edge case.
 bool g_synchronous_thread_start_for_testing = false;
 
-// Verifies that |traits| do not have properties that are banned in ThreadPool.
-void AssertNoExtensionInTraits(const base::TaskTraits& traits) {
-  DCHECK_EQ(traits.extension_id(),
-            TaskTraitsExtensionStorage::kInvalidExtensionId);
-}
-
 }  // namespace
 
 ThreadPoolImpl::ThreadPoolImpl(StringPiece histogram_label)
     : ThreadPoolImpl(histogram_label, std::make_unique<TaskTrackerImpl>()) {}
 
 ThreadPoolImpl::ThreadPoolImpl(StringPiece histogram_label,
-                               std::unique_ptr<TaskTrackerImpl> task_tracker)
+                               std::unique_ptr<TaskTrackerImpl> task_tracker,
+                               bool use_background_threads)
     : histogram_label_(histogram_label),
       task_tracker_(std::move(task_tracker)),
       single_thread_task_runner_manager_(task_tracker_->GetTrackedRef(),
@@ -101,7 +97,9 @@ ThreadPoolImpl::ThreadPoolImpl(StringPiece histogram_label,
                           kBackgroundPoolEnvironmentParams.name_suffix},
                          "."),
         kBackgroundPoolEnvironmentParams.name_suffix,
-        kBackgroundPoolEnvironmentParams.thread_type_hint,
+        use_background_threads
+            ? kBackgroundPoolEnvironmentParams.thread_type_hint
+            : kForegroundPoolEnvironmentParams.thread_type_hint,
         task_tracker_->GetTrackedRef(), tracked_ref_factory_.GetTrackedRef());
   }
 }
@@ -224,7 +222,6 @@ bool ThreadPoolImpl::PostDelayedTask(const Location& from_here,
                                      const TaskTraits& traits,
                                      OnceClosure task,
                                      TimeDelta delay) {
-  AssertNoExtensionInTraits(traits);
   // Post |task| as part of a one-off single-task Sequence.
   return PostTaskWithSequence(
       Task(from_here, std::move(task), TimeTicks::Now(), delay,
@@ -235,13 +232,11 @@ bool ThreadPoolImpl::PostDelayedTask(const Location& from_here,
 
 scoped_refptr<TaskRunner> ThreadPoolImpl::CreateTaskRunner(
     const TaskTraits& traits) {
-  AssertNoExtensionInTraits(traits);
   return MakeRefCounted<PooledParallelTaskRunner>(traits, this);
 }
 
 scoped_refptr<SequencedTaskRunner> ThreadPoolImpl::CreateSequencedTaskRunner(
     const TaskTraits& traits) {
-  AssertNoExtensionInTraits(traits);
   return MakeRefCounted<PooledSequencedTaskRunner>(traits, this);
 }
 
@@ -249,7 +244,6 @@ scoped_refptr<SingleThreadTaskRunner>
 ThreadPoolImpl::CreateSingleThreadTaskRunner(
     const TaskTraits& traits,
     SingleThreadTaskRunnerThreadMode thread_mode) {
-  AssertNoExtensionInTraits(traits);
   return single_thread_task_runner_manager_.CreateSingleThreadTaskRunner(
       traits, thread_mode);
 }
@@ -258,7 +252,6 @@ ThreadPoolImpl::CreateSingleThreadTaskRunner(
 scoped_refptr<SingleThreadTaskRunner> ThreadPoolImpl::CreateCOMSTATaskRunner(
     const TaskTraits& traits,
     SingleThreadTaskRunnerThreadMode thread_mode) {
-  AssertNoExtensionInTraits(traits);
   return single_thread_task_runner_manager_.CreateCOMSTATaskRunner(traits,
                                                                    thread_mode);
 }
@@ -266,7 +259,6 @@ scoped_refptr<SingleThreadTaskRunner> ThreadPoolImpl::CreateCOMSTATaskRunner(
 
 scoped_refptr<UpdateableSequencedTaskRunner>
 ThreadPoolImpl::CreateUpdateableSequencedTaskRunner(const TaskTraits& traits) {
-  AssertNoExtensionInTraits(traits);
   return MakeRefCounted<PooledSequencedTaskRunner>(traits, this);
 }
 
@@ -386,6 +378,14 @@ void ThreadPoolImpl::EndBestEffortFence() {
   UpdateCanRunPolicy();
 }
 
+void ThreadPoolImpl::BeginFizzlingBlockShutdownTasks() {
+  task_tracker_->BeginFizzlingBlockShutdownTasks();
+}
+
+void ThreadPoolImpl::EndFizzlingBlockShutdownTasks() {
+  task_tracker_->EndFizzlingBlockShutdownTasks();
+}
+
 bool ThreadPoolImpl::PostTaskWithSequenceNow(Task task,
                                              scoped_refptr<Sequence> sequence) {
   auto transaction = sequence->BeginTransaction();
@@ -424,8 +424,14 @@ bool ThreadPoolImpl::PostTaskWithSequence(Task task,
   DEBUG_ALIAS_FOR_CSTR(task_posted_from, task.posted_from.file_name(), 32);
 #endif
 
-  if (!task_tracker_->WillPostTask(&task, sequence->shutdown_behavior()))
+  if (!task_tracker_->WillPostTask(&task, sequence->shutdown_behavior())) {
+    // `task`'s destructor may run sequence-affine code, so it must be leaked
+    // when `WillPostTask` returns false.
+    auto leak = std::make_unique<Task>(std::move(task));
+    ANNOTATE_LEAKING_OBJECT_PTR(leak.get());
+    leak.release();
     return false;
+  }
 
   if (task.delayed_run_time.is_null()) {
     return PostTaskWithSequenceNow(std::move(task), std::move(sequence));

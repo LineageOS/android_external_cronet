@@ -10,9 +10,9 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/notreached.h"
 #include "base/timer/timer.h"
 #include "base/values.h"
@@ -368,7 +368,7 @@ net::HostCache* StaleHostResolver::GetHostCache() {
   return inner_resolver_->GetHostCache();
 }
 
-base::Value StaleHostResolver::GetDnsConfigAsValue() const {
+base::Value::Dict StaleHostResolver::GetDnsConfigAsValue() const {
   return inner_resolver_->GetDnsConfigAsValue();
 }
 

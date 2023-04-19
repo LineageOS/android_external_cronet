@@ -13,6 +13,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.res.Configuration;
 import android.os.Build;
+import android.os.Build.VERSION_CODES;
 import android.text.TextUtils;
 
 import androidx.annotation.OptIn;
@@ -77,6 +78,7 @@ public class BuildInfo {
     @VisibleForTesting
     String[] getAllProperties() {
         String hostPackageName = ContextUtils.getApplicationContext().getPackageName();
+        // This implementation needs to be kept in sync with the native BuildInfo constructor.
         return new String[] {
                 Build.BRAND,
                 Build.DEVICE,
@@ -107,6 +109,9 @@ public class BuildInfo {
                 Build.HARDWARE,
                 isAtLeastT() ? "1" : "0",
                 isAutomotive ? "1" : "0",
+                SdkLevel.isAtLeastU() ? "1" : "0",
+                targetsAtLeastU() ? "1" : "0",
+                Build.VERSION.CODENAME,
         };
     }
 
@@ -226,41 +231,75 @@ public class BuildInfo {
     }
 
     /**
-     * Check if this is a debuggable build of Android. Use this to enable developer-only features.
+     * Check if this is a debuggable build of Android.
      * This is a rough approximation of the hidden API {@code Build.IS_DEBUGGABLE}.
      */
     public static boolean isDebugAndroid() {
         return "eng".equals(Build.TYPE) || "userdebug".equals(Build.TYPE);
     }
 
-    /**
-     * Wrap SdkLevel.isAtLeastT. This enables it to be shadowed in Robolectric tests.
+    /*
+     * Check if the app is declared debuggable in its manifest.
+     * In WebView, this refers to the host app.
      */
+    public static boolean isDebugApp() {
+        int appFlags = ContextUtils.getApplicationContext().getApplicationInfo().flags;
+        return (appFlags & ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
+
+    /**
+     * Check if this is either a debuggable build of Android or of the host app.
+     * Use this to enable developer-only features.
+     */
+    public static boolean isDebugAndroidOrApp() {
+        return isDebugAndroid() || isDebugApp();
+    }
+
+    /**
+     * @deprecated For most callers, just replace with an inline check:
+     * if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU)
+     * For Robolectric just set the SDK level to VERSION_CODES.TIRAMISU
+     */
+    @Deprecated
     public static boolean isAtLeastT() {
         return SdkLevel.isAtLeastT();
     }
 
     /**
-     * Checks if the application targets pre-release SDK T.
-     * This must be manually maintained as the SDK goes through finalization!
-     * Avoid depending on this if possible; this is only intended for WebView.
+     * Checks if the application targets the T SDK or later.
+     * @deprecated Chrome callers should just remove this test - Chrome targets T or later now.
+     * WebView callers should just inline the logic below to check the target level of the embedding
+     * App when necessary.
      */
+    @Deprecated
     public static boolean targetsAtLeastT() {
         int target = ContextUtils.getApplicationContext().getApplicationInfo().targetSdkVersion;
 
+        // Now that the public SDK is upstreamed we can use the defined constant.
+        return target >= VERSION_CODES.TIRAMISU;
+    }
+
+    /**
+     * Checks if the application targets pre-release SDK U.
+     * This must be manually maintained as the SDK goes through finalization!
+     * Avoid depending on this if possible; this is only intended for WebView.
+     */
+    public static boolean targetsAtLeastU() {
+        int target = ContextUtils.getApplicationContext().getApplicationInfo().targetSdkVersion;
+
         // Logic for pre-API-finalization:
-        // return BuildCompat.isAtLeastT() && target == Build.VERSION_CODES.CUR_DEVELOPMENT;
+        return SdkLevel.isAtLeastU() && target == Build.VERSION_CODES.CUR_DEVELOPMENT;
 
         // Logic for after API finalization but before public SDK release has to
         // just hardcode the appropriate SDK integer. This will include Android
         // builds with the finalized SDK, and also pre-API-finalization builds
         // (because CUR_DEVELOPMENT == 10000).
-        // return target >= 33;
+        // return target >= <integer placeholder for U>;
 
         // Once the public SDK is upstreamed we can use the defined constant,
         // deprecate this, then eventually inline this at all callsites and
         // remove it.
-        return target >= Build.VERSION_CODES.TIRAMISU;
+        // return target >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
     }
 
     public static void setFirebaseAppId(String id) {
@@ -272,4 +311,13 @@ public class BuildInfo {
         return sFirebaseAppId;
     }
 
+    /**
+     * This operation is not thread-safe. Construction of the new BuildInfo object will
+     * happen synchronously and result in a consistent BuildInfo, but references to the static
+     * BuildInfo instance may be out of date in some threads.
+     */
+    @VisibleForTesting
+    public static void resetForTesting() {
+        Holder.sInstance = new BuildInfo();
+    }
 }

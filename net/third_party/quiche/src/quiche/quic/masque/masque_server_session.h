@@ -82,6 +82,8 @@ class QUIC_NO_EXPORT MasqueServerSession
     // From QuicSpdyStream::Http3DatagramVisitor.
     void OnHttp3Datagram(QuicStreamId stream_id,
                          absl::string_view payload) override;
+    void OnUnknownCapsule(QuicStreamId /*stream_id*/,
+                          const quiche::UnknownCapsule& /*capsule*/) override {}
 
    private:
     QuicSpdyStream* stream_;
@@ -115,12 +117,16 @@ class QUIC_NO_EXPORT MasqueServerSession
     // From QuicSpdyStream::Http3DatagramVisitor.
     void OnHttp3Datagram(QuicStreamId stream_id,
                          absl::string_view payload) override;
+    void OnUnknownCapsule(QuicStreamId /*stream_id*/,
+                          const quiche::UnknownCapsule& /*capsule*/) override {}
 
     // From QuicSpdyStream::ConnectIpVisitor.
-    bool OnAddressAssignCapsule(const AddressAssignCapsule& capsule) override;
-    bool OnAddressRequestCapsule(const AddressRequestCapsule& capsule) override;
+    bool OnAddressAssignCapsule(
+        const quiche::AddressAssignCapsule& capsule) override;
+    bool OnAddressRequestCapsule(
+        const quiche::AddressRequestCapsule& capsule) override;
     bool OnRouteAdvertisementCapsule(
-        const RouteAdvertisementCapsule& capsule) override;
+        const quiche::RouteAdvertisementCapsule& capsule) override;
     void OnHeadersWritten() override;
 
    private:

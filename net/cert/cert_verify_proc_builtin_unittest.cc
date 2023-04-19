@@ -100,13 +100,12 @@ int VerifyOnWorkerThread(const scoped_refptr<CertVerifyProc>& verify_proc,
                          CertVerifyResult* verify_result,
                          NetLogSource* out_source) {
   base::ScopedAllowBaseSyncPrimitivesForTesting scoped_allow_blocking;
-  scoped_refptr<CRLSet> crl_set = CRLSet::EmptyCRLSetForTesting();
   NetLogWithSource net_log(NetLogWithSource::Make(
       net::NetLog::Get(), net::NetLogSourceType::CERT_VERIFIER_TASK));
   int error =
       verify_proc->Verify(cert.get(), hostname,
                           /*ocsp_response=*/std::string(),
-                          /*sct_list=*/std::string(), flags, crl_set.get(),
+                          /*sct_list=*/std::string(), flags,
                           additional_trust_anchors, verify_result, net_log);
   verify_result->DetachFromSequence();
   *out_source = net_log.source();
@@ -141,7 +140,7 @@ class MockSystemTrustStore : public SystemTrustStore {
 class BlockingTrustStore : public TrustStore {
  public:
   CertificateTrust GetTrust(const ParsedCertificate* cert,
-                            base::SupportsUserData* debug_data) const override {
+                            base::SupportsUserData* debug_data) override {
     return backing_trust_store_.GetTrust(cert, debug_data);
   }
 
@@ -169,7 +168,8 @@ class CertVerifyProcBuiltinTest : public ::testing::Test {
     auto mock_system_trust_store = std::make_unique<MockSystemTrustStore>();
     mock_system_trust_store_ = mock_system_trust_store.get();
     verify_proc_ = CreateCertVerifyProcBuiltin(
-        cert_net_fetcher_, std::move(mock_system_trust_store));
+        cert_net_fetcher_, CRLSet::EmptyCRLSetForTesting(),
+        std::move(mock_system_trust_store));
 
     context_ = CreateTestURLRequestContextBuilder()->Build();
 
@@ -231,8 +231,11 @@ class CertVerifyProcBuiltinTest : public ::testing::Test {
 
   CertVerifier::Config config_;
   std::unique_ptr<net::URLRequestContext> context_;
-  raw_ptr<MockSystemTrustStore> mock_system_trust_store_ = nullptr;
+
+  // Must outlive `mock_system_trust_store_`.
   scoped_refptr<CertVerifyProc> verify_proc_;
+
+  raw_ptr<MockSystemTrustStore> mock_system_trust_store_ = nullptr;
   scoped_refptr<CertNetFetcherURLRequest> cert_net_fetcher_;
 };
 
@@ -514,24 +517,21 @@ TEST_F(CertVerifyProcBuiltinTest, EVNoOCSPRevocationChecks) {
       &NetLogEntry::type);
   ASSERT_NE(event, events.end());
   EXPECT_EQ(net::NetLogEventPhase::BEGIN, event->phase);
-  ASSERT_TRUE(event->params.is_dict());
-  EXPECT_EQ(true, event->params.FindBoolKey("is_ev_attempt"));
+  EXPECT_EQ(true, event->params.FindBool("is_ev_attempt"));
 
   event = base::ranges::find(++event, events.end(),
                              NetLogEventType::CERT_VERIFY_PROC_PATH_BUILT,
                              &NetLogEntry::type);
   ASSERT_NE(event, events.end());
   EXPECT_EQ(net::NetLogEventPhase::NONE, event->phase);
-  ASSERT_TRUE(event->params.is_dict());
-  EXPECT_FALSE(event->params.FindStringKey("errors"));
+  EXPECT_FALSE(event->params.FindString("errors"));
 
   event = base::ranges::find(
       ++event, events.end(),
       NetLogEventType::CERT_VERIFY_PROC_PATH_BUILD_ATTEMPT, &NetLogEntry::type);
   ASSERT_NE(event, events.end());
   EXPECT_EQ(net::NetLogEventPhase::END, event->phase);
-  ASSERT_TRUE(event->params.is_dict());
-  EXPECT_EQ(true, event->params.FindBoolKey("has_valid_path"));
+  EXPECT_EQ(true, event->params.FindBool("has_valid_path"));
 }
 #endif  // defined(PLATFORM_USES_CHROMIUM_EV_METADATA)
 

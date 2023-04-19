@@ -561,10 +561,10 @@ std::unique_ptr<HistogramSamples> Histogram::SnapshotDelta() {
   // vector: this way, the next snapshot will include any concurrent updates
   // missed by the current snapshot.
 
-  // MarkSamplesAsLogged() is final in order to a prevent vtable lookup here,
-  // since SnapshotDelta() might be called often.
-  std::unique_ptr<HistogramSamples> snapshot = SnapshotUnloggedSamplesImpl();
-  MarkSamplesAsLogged(*snapshot);
+  std::unique_ptr<HistogramSamples> snapshot =
+      std::make_unique<SampleVector>(unlogged_samples_->id(), bucket_ranges());
+  snapshot->Extract(*unlogged_samples_);
+  logged_samples_->Add(*snapshot);
 
   return snapshot;
 }
@@ -940,7 +940,7 @@ ScaledLinearHistogram::ScaledLinearHistogram(const std::string& name,
 
 ScaledLinearHistogram::~ScaledLinearHistogram() = default;
 
-void ScaledLinearHistogram::AddScaledCount(Sample value, int count) {
+void ScaledLinearHistogram::AddScaledCount(Sample value, int64_t count) {
   if (histogram_->GetHistogramType() == DUMMY_HISTOGRAM)
     return;
   if (count == 0)
@@ -955,8 +955,8 @@ void ScaledLinearHistogram::AddScaledCount(Sample value, int count) {
   const auto max_value = static_cast<Sample>(histogram->bucket_count() - 1);
   value = base::clamp(value, 0, max_value);
 
-  int scaled_count = count / scale_;
-  subtle::Atomic32 remainder = count - scaled_count * scale_;
+  int64_t scaled_count = count / scale_;
+  subtle::Atomic32 remainder = static_cast<int>(count - scaled_count * scale_);
 
   // ScaledLinearHistogram currently requires 1-to-1 mappings between value
   // and bucket which alleviates the need to do a bucket lookup here (something
@@ -975,8 +975,10 @@ void ScaledLinearHistogram::AddScaledCount(Sample value, int count) {
     }
   }
 
-  if (scaled_count > 0)
-    histogram->AddCount(value, scaled_count);
+  if (scaled_count > 0) {
+    DCHECK(scaled_count <= std::numeric_limits<int>::max());
+    histogram->AddCount(value, static_cast<int>(scaled_count));
+  }
 }
 
 //------------------------------------------------------------------------------

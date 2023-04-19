@@ -5,25 +5,28 @@
 #include "net/base/address_tracker_linux.h"
 
 #include <linux/if.h>
+#include <linux/rtnetlink.h>
 #include <sched.h>
 
 #include <memory>
 #include <unordered_set>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/synchronization/waitable_event.h"
+#include "base/test/bind.h"
 #include "base/test/multiprocess_test.h"
 #include "base/test/spin_wait.h"
 #include "base/test/task_environment.h"
 #include "base/test/test_simple_task_runner.h"
 #include "base/threading/simple_thread.h"
 #include "build/build_config.h"
+#include "net/base/address_map_cache_linux.h"
 #include "net/base/ip_address.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/multiprocess_func_list.h"
@@ -35,6 +38,10 @@
 #ifndef IFA_F_HOMEADDRESS
 #define IFA_F_HOMEADDRESS 0x10
 #endif
+
+bool operator==(const struct ifaddrmsg& lhs, const struct ifaddrmsg& rhs) {
+  return memcmp(&lhs, &rhs, sizeof(struct ifaddrmsg)) == 0;
+}
 
 namespace net::internal {
 namespace {
@@ -84,8 +91,12 @@ class AddressTrackerLinuxTest : public testing::Test {
     bool address_changed = false;
     bool link_changed = false;
     bool tunnel_changed = false;
-    tracker_->HandleMessage(&writable_buf[0], buf.size(),
-                           &address_changed, &link_changed, &tunnel_changed);
+    AddressMapOwnerLinux::AddressMapDiff address_map_diff_;
+    AddressMapOwnerLinux::OnlineLinksDiff online_links_diff_;
+    tracker_->HandleMessage(&writable_buf[0], buf.size(), &address_changed,
+                            &link_changed, &tunnel_changed, &address_map_diff_,
+                            &online_links_diff_);
+    UpdateCache(address_map_diff_, online_links_diff_);
     EXPECT_FALSE(link_changed);
     return address_changed;
   }
@@ -95,8 +106,12 @@ class AddressTrackerLinuxTest : public testing::Test {
     bool address_changed = false;
     bool link_changed = false;
     bool tunnel_changed = false;
-    tracker_->HandleMessage(&writable_buf[0], buf.size(),
-                           &address_changed, &link_changed, &tunnel_changed);
+    AddressMapOwnerLinux::AddressMapDiff address_map_diff_;
+    AddressMapOwnerLinux::OnlineLinksDiff online_links_diff_;
+    tracker_->HandleMessage(&writable_buf[0], buf.size(), &address_changed,
+                            &link_changed, &tunnel_changed, &address_map_diff_,
+                            &online_links_diff_);
+    UpdateCache(address_map_diff_, online_links_diff_);
     EXPECT_FALSE(address_changed);
     return link_changed;
   }
@@ -106,8 +121,12 @@ class AddressTrackerLinuxTest : public testing::Test {
     bool address_changed = false;
     bool link_changed = false;
     bool tunnel_changed = false;
-    tracker_->HandleMessage(&writable_buf[0], buf.size(),
-                           &address_changed, &link_changed, &tunnel_changed);
+    AddressMapOwnerLinux::AddressMapDiff address_map_diff_;
+    AddressMapOwnerLinux::OnlineLinksDiff online_links_diff_;
+    tracker_->HandleMessage(&writable_buf[0], buf.size(), &address_changed,
+                            &link_changed, &tunnel_changed, &address_map_diff_,
+                            &online_links_diff_);
+    UpdateCache(address_map_diff_, online_links_diff_);
     EXPECT_FALSE(address_changed);
     return tunnel_changed;
   }
@@ -131,6 +150,23 @@ class AddressTrackerLinuxTest : public testing::Test {
   std::unordered_set<std::string> ignored_interfaces_;
   std::unique_ptr<AddressTrackerLinux> tracker_;
   AddressTrackerLinux::GetInterfaceNameFunction original_get_interface_name_;
+
+ private:
+  // Checks that applying the generated diff to `address_map_cache_` results in
+  // the same AddressMap and set of online links that `tracker_` maintains.
+  void UpdateCache(
+      const AddressMapOwnerLinux::AddressMapDiff& address_map_diff,
+      const AddressMapOwnerLinux::OnlineLinksDiff& online_links_diff) {
+#if BUILDFLAG(IS_LINUX)
+    address_map_cache_.ApplyDiffs(address_map_diff, online_links_diff);
+    EXPECT_EQ(address_map_cache_.GetAddressMap(), tracker_->GetAddressMap());
+    EXPECT_EQ(address_map_cache_.GetOnlineLinks(), tracker_->GetOnlineLinks());
+#endif  // BUILDFLAG(IS_LINUX)
+  }
+
+#if BUILDFLAG(IS_LINUX)
+  AddressMapCacheLinux address_map_cache_;
+#endif
 };
 
 namespace {

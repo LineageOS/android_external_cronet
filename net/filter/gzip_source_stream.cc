@@ -9,9 +9,9 @@
 #include <utility>
 #include <zlib.h>
 
-#include "base/bind.h"
 #include "base/bit_cast.h"
 #include "base/check_op.h"
+#include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/notreached.h"

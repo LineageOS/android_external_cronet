@@ -66,9 +66,7 @@ import tempfile
 #    e. Complete the review as usual
 
 PATCHES = [
-    'chromium-issue-628581.patch',
     'libxml2-2.9.4-security-xpath-nodetab-uaf.patch',
-    'chromium-issue-708434.patch',
     'undo-sax-deprecation.patch',
 ]
 
@@ -171,6 +169,7 @@ FILES_TO_REMOVE = [
     'src/depcomp',
     'src/doc',
     'src/example',
+    'src/fuzz',
     'src/genChRanges.py',
     'src/global.data',
     'src/include/libxml/Makefile.in',
@@ -216,6 +215,13 @@ FILES_TO_REMOVE = [
     'src/xpointer.c',
     'src/xstc',
     'src/xzlib.c',
+    'linux/.deps',
+    'linux/doc',
+    'linux/example',
+    'linux/fuzz',
+    'linux/include/private',
+    'linux/python',
+    'linux/xstc',
 ]
 
 
