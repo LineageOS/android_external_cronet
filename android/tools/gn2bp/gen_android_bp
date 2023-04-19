@@ -1130,7 +1130,7 @@ class JniGeneratorSanitizer(BaseActionSanitizer):
     self._update_list_arg('--input_file', self._add_location_tag_to_filepath)
     if not self.is_test_target:
       # Only jarjar platform code
-      self._append_arg('--package_prefix', 'android.net.http.internal')
+      self._append_arg('--package_prefix', 'android.net.connectivity')
     super()._sanitize_args()
 
   def _sanitize_outputs(self):
@@ -1170,7 +1170,7 @@ class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
     self._delete_value_arg('--sources-exclusions')
     if not self.is_test_target:
       # Only jarjar platform code
-      self._append_arg('--package_prefix', 'android.net.http.internal')
+      self._append_arg('--package_prefix', 'android.net.connectivity')
     super()._sanitize_args()
 
   def get_cmd(self):
@@ -1765,7 +1765,7 @@ def create_java_module(blueprint, gn, is_test_target):
   # accepted.
   module.javacflags.add("-Aorg.chromium.chrome.skipGenJni")
   if not is_test_target:
-    module.javacflags.add("-Apackage_prefix=android.net.http.internal")
+    module.javacflags.add("-Apackage_prefix=android.net.connectivity")
   for dep in get_non_api_java_actions(gn):
     target = gn.get_target(dep)
     if target.script == '//build/android/gyp/gcc_preprocess.py':
