@@ -33,14 +33,14 @@
 #include <x86intrin.h>
 #define ABSL_CRC_INTERNAL_HAVE_X86_SIMD
 
-#elif defined(_MSC_VER) && defined(__AVX__)
+#elif defined(_MSC_VER) && !defined(__clang__) && defined(__AVX__)
 
 // MSVC AVX (/arch:AVX) implies SSE 4.2 and PCLMULQDQ.
 #include <intrin.h>
 #define ABSL_CRC_INTERNAL_HAVE_X86_SIMD
 
 #elif defined(__aarch64__) && defined(__LITTLE_ENDIAN__) && \
-    defined(__ARM_FEATURE_CRC32) && defined(__ARM_NEON) &&  \
+    defined(__ARM_FEATURE_CRC32) && defined(ABSL_INTERNAL_HAVE_ARM_NEON) &&  \
     defined(__ARM_FEATURE_CRYPTO)
 
 #include <arm_acle.h>

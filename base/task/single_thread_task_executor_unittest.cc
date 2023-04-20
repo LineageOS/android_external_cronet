@@ -10,9 +10,9 @@
 #include <string>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
@@ -64,34 +64,6 @@ namespace base {
 
 // TODO(darin): Platform-specific MessageLoop tests should be grouped together
 // to avoid chopping this file up with so many #ifdefs.
-
-TEST(SingleThreadTaskExecutorTest, GetTaskExecutorForCurrentThread) {
-  EXPECT_THAT(GetTaskExecutorForCurrentThread(), IsNull());
-
-  {
-    SingleThreadTaskExecutor single_thread_task_executor;
-    EXPECT_THAT(GetTaskExecutorForCurrentThread(), NotNull());
-  }
-
-  EXPECT_THAT(GetTaskExecutorForCurrentThread(), IsNull());
-}
-
-TEST(SingleThreadTaskExecutorTest,
-     GetTaskExecutorForCurrentThreadInPostedTask) {
-  SingleThreadTaskExecutor single_thread_task_executor;
-  TaskExecutor* task_executor = GetTaskExecutorForCurrentThread();
-
-  EXPECT_THAT(task_executor, NotNull());
-
-  RunLoop run_loop;
-  single_thread_task_executor.task_runner()->PostTask(
-      FROM_HERE, BindLambdaForTesting([&]() {
-        EXPECT_EQ(GetTaskExecutorForCurrentThread(), task_executor);
-        run_loop.Quit();
-      }));
-
-  run_loop.Run();
-}
 
 namespace {
 

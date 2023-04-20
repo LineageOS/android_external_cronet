@@ -16,7 +16,6 @@
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_base.h"
-#include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/histogram_samples.h"
 #include "base/metrics/histogram_snapshot_manager.h"
@@ -84,6 +83,14 @@ namespace {
 // Convenience function to return the given time at a resolution in seconds.
 static int64_t ToMonotonicSeconds(base::TimeTicks time_ticks) {
   return (time_ticks - base::TimeTicks()).InSeconds();
+}
+
+// Helper function to get, and increment, the next metrics log record id.
+// This value is cached in local state.
+int GetNextRecordId(PrefService* local_state) {
+  const int value = local_state->GetInteger(prefs::kMetricsLogRecordId) + 1;
+  local_state->SetInteger(prefs::kMetricsLogRecordId, value);
+  return value;
 }
 
 // Populates |time| with information about the current time and, if
@@ -238,6 +245,7 @@ MetricsLog::MetricsLog(const std::string& client_id,
   SystemProfileProto* system_profile = uma_proto()->mutable_system_profile();
   // Record the unhashed the client_id to system profile. This is used to
   // simulate field trial assignments for the client.
+  DCHECK_EQ(client_id.size(), 36ull);
   system_profile->set_client_uuid(client_id);
   RecordCoreSystemProfile(client_, system_profile);
 }
@@ -247,6 +255,7 @@ MetricsLog::~MetricsLog() = default;
 // static
 void MetricsLog::RegisterPrefs(PrefRegistrySimple* registry) {
   EnvironmentRecorder::RegisterPrefs(registry);
+  registry->RegisterIntegerPref(prefs::kMetricsLogRecordId, 0);
 }
 
 // static
@@ -277,6 +286,11 @@ int64_t MetricsLog::GetCurrentTime() {
   return ToMonotonicSeconds(base::TimeTicks::Now());
 }
 
+void MetricsLog::AssignRecordId(PrefService* local_state) {
+  DCHECK(!uma_proto_.has_record_id());
+  uma_proto_.set_record_id(GetNextRecordId(local_state));
+}
+
 void MetricsLog::RecordUserAction(const std::string& key,
                                   base::TimeTicks action_time) {
   DCHECK(!closed_);
@@ -284,7 +298,7 @@ void MetricsLog::RecordUserAction(const std::string& key,
   UserActionEventProto* user_action = uma_proto_.add_user_action_event();
   user_action->set_name_hash(Hash(key));
   user_action->set_time_sec(ToMonotonicSeconds(action_time));
-  base::UmaHistogramBoolean("UMA.UserActionsCount", true);
+  UMA_HISTOGRAM_BOOLEAN("UMA.UserActionsCount", true);
 }
 
 // static
@@ -493,9 +507,11 @@ const SystemProfileProto& MetricsLog::RecordEnvironment(
   // call RecordEnvironment() in order to persist the system profile in the
   // persistent histograms .pma file.
   if (has_environment_) {
+    std::string client_uuid = uma_proto_.system_profile().client_uuid();
     uma_proto_.clear_system_profile();
     MetricsLog::RecordCoreSystemProfile(client_,
                                         uma_proto_.mutable_system_profile());
+    uma_proto_.mutable_system_profile()->set_client_uuid(client_uuid);
   }
 
   has_environment_ = true;
@@ -560,7 +576,7 @@ void MetricsLog::TruncateEvents() {
       // enum that is generated from actions.xml in our processing pipelines.
       // Instead, a histogram description will also be produced in our
       // pipelines.
-      base::UmaHistogramSparse(
+      UMA_HISTOGRAM_SPARSE(
           "UMA.TruncatedEvents.UserAction.Type",
           // Truncate the unsigned 64-bit hash to 31 bits, to make it a suitable
           // histogram sample.

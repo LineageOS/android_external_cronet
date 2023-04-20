@@ -7,7 +7,10 @@
 
 #include "net/base/net_export.h"
 
+#include <stdint.h>
+
 #include <string_view>
+#include <vector>
 
 namespace net::string_util {
 
@@ -49,6 +52,11 @@ NET_EXPORT_PRIVATE std::string HexEncode(const uint8_t* data, size_t length);
 
 // Returns a decimal string representation of |i|.
 NET_EXPORT_PRIVATE std::string NumberToDecimalString(int i);
+
+// Splits |str| on |split_char| returning the list of resulting strings.
+NET_EXPORT_PRIVATE std::vector<std::string_view> SplitString(
+    std::string_view str,
+    char split_char);
 
 }  // namespace net::string_util
 

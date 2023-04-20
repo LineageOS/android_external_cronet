@@ -41,6 +41,7 @@
 #include "quiche/quic/test_tools/mock_random.h"
 #include "quiche/quic/test_tools/quic_framer_peer.h"
 #include "quiche/quic/test_tools/simple_quic_framer.h"
+#include "quiche/common/capsule.h"
 #include "quiche/common/simple_buffer_allocator.h"
 #include "quiche/spdy/core/http2_header_block.h"
 
@@ -310,7 +311,9 @@ class MockFramerVisitor : public QuicFramerVisitorInterface {
   MOCK_METHOD(bool, OnAckRange, (QuicPacketNumber, QuicPacketNumber),
               (override));
   MOCK_METHOD(bool, OnAckTimestamp, (QuicPacketNumber, QuicTime), (override));
-  MOCK_METHOD(bool, OnAckFrameEnd, (QuicPacketNumber), (override));
+  MOCK_METHOD(bool, OnAckFrameEnd,
+              (QuicPacketNumber, const absl::optional<QuicEcnCounts>&),
+              (override));
   MOCK_METHOD(bool, OnStopWaitingFrame, (const QuicStopWaitingFrame& frame),
               (override));
   MOCK_METHOD(bool, OnPaddingFrame, (const QuicPaddingFrame& frame),
@@ -393,7 +396,8 @@ class NoOpFramerVisitor : public QuicFramerVisitorInterface {
   bool OnAckRange(QuicPacketNumber start, QuicPacketNumber end) override;
   bool OnAckTimestamp(QuicPacketNumber packet_number,
                       QuicTime timestamp) override;
-  bool OnAckFrameEnd(QuicPacketNumber start) override;
+  bool OnAckFrameEnd(QuicPacketNumber start,
+                     const absl::optional<QuicEcnCounts>& ecn_counts) override;
   bool OnStopWaitingFrame(const QuicStopWaitingFrame& frame) override;
   bool OnPaddingFrame(const QuicPaddingFrame& frame) override;
   bool OnPingFrame(const QuicPingFrame& frame) override;
@@ -502,12 +506,10 @@ class MockQuicConnectionVisitor : public QuicConnectionVisitorInterface {
   MOCK_METHOD(bool, MaybeSendAddressToken, (), (override));
   MOCK_METHOD(std::unique_ptr<QuicPathValidationContext>,
               CreateContextForMultiPortPath, (), (override));
-
-  bool IsKnownServerAddress(
-      const QuicSocketAddress& /*address*/) const override {
-    return false;
-  }
-
+  MOCK_METHOD(void, MigrateToMultiPortPath,
+              (std::unique_ptr<QuicPathValidationContext>), (override));
+  MOCK_METHOD(void, OnServerPreferredAddressAvailable,
+              (const QuicSocketAddress&), (override));
   void OnBandwidthUpdateTimeout() override {}
 };
 
@@ -1113,11 +1115,11 @@ class TestPushPromiseDelegate : public QuicClientPushPromiseIndex::Delegate {
 
 class TestQuicSpdyClientSession : public QuicSpdyClientSessionBase {
  public:
-  TestQuicSpdyClientSession(QuicConnection* connection,
-                            const QuicConfig& config,
-                            const ParsedQuicVersionVector& supported_versions,
-                            const QuicServerId& server_id,
-                            QuicCryptoClientConfig* crypto_config);
+  TestQuicSpdyClientSession(
+      QuicConnection* connection, const QuicConfig& config,
+      const ParsedQuicVersionVector& supported_versions,
+      const QuicServerId& server_id, QuicCryptoClientConfig* crypto_config,
+      absl::optional<QuicSSLConfig> ssl_config = absl::nullopt);
   TestQuicSpdyClientSession(const TestQuicSpdyClientSession&) = delete;
   TestQuicSpdyClientSession& operator=(const TestQuicSpdyClientSession&) =
       delete;
@@ -1150,6 +1152,11 @@ class TestQuicSpdyClientSession : public QuicSpdyClientSessionBase {
   QuicCryptoClientStream* GetMutableCryptoStream() override;
   const QuicCryptoClientStream* GetCryptoStream() const override;
 
+  QuicSSLConfig GetSSLConfig() const override {
+    return ssl_config_.has_value() ? *ssl_config_
+                                   : QuicSpdyClientSessionBase::GetSSLConfig();
+  }
+
   // Override to save sent crypto handshake messages.
   void OnCryptoHandshakeMessageSent(
       const CryptoHandshakeMessage& message) override {
@@ -1169,6 +1176,7 @@ class TestQuicSpdyClientSession : public QuicSpdyClientSessionBase {
   std::unique_ptr<QuicCryptoClientStream> crypto_stream_;
   QuicClientPushPromiseIndex push_promise_index_;
   std::vector<CryptoHandshakeMessage> sent_crypto_handshake_messages_;
+  absl::optional<QuicSSLConfig> ssl_config_;
 };
 
 class MockPacketWriter : public QuicPacketWriter {
@@ -1213,7 +1221,8 @@ class MockSendAlgorithm : public SendAlgorithmInterface {
   MOCK_METHOD(void, OnCongestionEvent,
               (bool rtt_updated, QuicByteCount bytes_in_flight,
                QuicTime event_time, const AckedPacketVector& acked_packets,
-               const LostPacketVector& lost_packets),
+               const LostPacketVector& lost_packets, QuicPacketCount num_ect,
+               QuicPacketCount num_ce),
               (override));
   MOCK_METHOD(void, OnPacketSent,
               (QuicTime, QuicByteCount, QuicPacketNumber, QuicByteCount,
@@ -1239,6 +1248,8 @@ class MockSendAlgorithm : public SendAlgorithmInterface {
   MOCK_METHOD(void, OnApplicationLimited, (QuicByteCount), (override));
   MOCK_METHOD(void, PopulateConnectionStats, (QuicConnectionStats*),
               (const, override));
+  MOCK_METHOD(bool, SupportsECT0, (), (const, override));
+  MOCK_METHOD(bool, SupportsECT1, (), (const, override));
 };
 
 class MockLossAlgorithm : public LossDetectionInterface {
@@ -1386,7 +1397,8 @@ class MockReceivedPacketManager : public QuicReceivedPacketManager {
   ~MockReceivedPacketManager() override;
 
   MOCK_METHOD(void, RecordPacketReceived,
-              (const QuicPacketHeader& header, QuicTime receipt_time),
+              (const QuicPacketHeader& header, QuicTime receipt_time,
+               const QuicEcnCodepoint ecn),
               (override));
   MOCK_METHOD(bool, IsMissing, (QuicPacketNumber packet_number), (override));
   MOCK_METHOD(bool, IsAwaitingPacket, (QuicPacketNumber packet_number),
@@ -1998,6 +2010,8 @@ class TestPacketWriter : public QuicPacketWriter {
     return last_write_peer_address_;
   }
 
+  QuicEcnCodepoint last_ecn_sent() const { return last_ecn_sent_; }
+
  private:
   char* AllocPacketBuffer();
 
@@ -2043,6 +2057,7 @@ class TestPacketWriter : public QuicPacketWriter {
   QuicIpAddress last_write_source_address_;
   QuicSocketAddress last_write_peer_address_;
   int write_error_code_{0};
+  QuicEcnCodepoint last_ecn_sent_ = ECN_NOT_ECT;
 };
 
 // Parses a packet generated by
@@ -2082,8 +2097,19 @@ class SavingHttp3DatagramVisitor : public QuicSpdyStream::Http3DatagramVisitor {
       return stream_id == o.stream_id && payload == o.payload;
     }
   };
+  struct SavedUnknownCapsule {
+    QuicStreamId stream_id;
+    uint64_t type;
+    std::string payload;
+    bool operator==(const SavedUnknownCapsule& o) const {
+      return stream_id == o.stream_id && type == o.type && payload == o.payload;
+    }
+  };
   const std::vector<SavedHttp3Datagram>& received_h3_datagrams() const {
     return received_h3_datagrams_;
+  }
+  const std::vector<SavedUnknownCapsule>& received_unknown_capsules() const {
+    return received_unknown_capsules_;
   }
 
   // Override from QuicSpdyStream::Http3DatagramVisitor.
@@ -2092,48 +2118,57 @@ class SavingHttp3DatagramVisitor : public QuicSpdyStream::Http3DatagramVisitor {
     received_h3_datagrams_.push_back(
         SavedHttp3Datagram{stream_id, std::string(payload)});
   }
+  void OnUnknownCapsule(QuicStreamId stream_id,
+                        const quiche::UnknownCapsule& capsule) override {
+    received_unknown_capsules_.push_back(SavedUnknownCapsule{
+        stream_id, capsule.type, std::string(capsule.payload)});
+  }
 
  private:
   std::vector<SavedHttp3Datagram> received_h3_datagrams_;
+  std::vector<SavedUnknownCapsule> received_unknown_capsules_;
 };
 
 // Implementation of ConnectIpVisitor which saves all received capsules.
 class SavingConnectIpVisitor : public QuicSpdyStream::ConnectIpVisitor {
  public:
-  const std::vector<AddressAssignCapsule>& received_address_assign_capsules()
-      const {
+  const std::vector<quiche::AddressAssignCapsule>&
+  received_address_assign_capsules() const {
     return received_address_assign_capsules_;
   }
-  const std::vector<AddressRequestCapsule>& received_address_request_capsules()
-      const {
+  const std::vector<quiche::AddressRequestCapsule>&
+  received_address_request_capsules() const {
     return received_address_request_capsules_;
   }
-  const std::vector<RouteAdvertisementCapsule>&
+  const std::vector<quiche::RouteAdvertisementCapsule>&
   received_route_advertisement_capsules() const {
     return received_route_advertisement_capsules_;
   }
   bool headers_written() const { return headers_written_; }
 
   // From QuicSpdyStream::ConnectIpVisitor.
-  bool OnAddressAssignCapsule(const AddressAssignCapsule& capsule) override {
+  bool OnAddressAssignCapsule(
+      const quiche::AddressAssignCapsule& capsule) override {
     received_address_assign_capsules_.push_back(capsule);
     return true;
   }
-  bool OnAddressRequestCapsule(const AddressRequestCapsule& capsule) override {
+  bool OnAddressRequestCapsule(
+      const quiche::AddressRequestCapsule& capsule) override {
     received_address_request_capsules_.push_back(capsule);
     return true;
   }
   bool OnRouteAdvertisementCapsule(
-      const RouteAdvertisementCapsule& capsule) override {
+      const quiche::RouteAdvertisementCapsule& capsule) override {
     received_route_advertisement_capsules_.push_back(capsule);
     return true;
   }
   void OnHeadersWritten() override { headers_written_ = true; }
 
  private:
-  std::vector<AddressAssignCapsule> received_address_assign_capsules_;
-  std::vector<AddressRequestCapsule> received_address_request_capsules_;
-  std::vector<RouteAdvertisementCapsule> received_route_advertisement_capsules_;
+  std::vector<quiche::AddressAssignCapsule> received_address_assign_capsules_;
+  std::vector<quiche::AddressRequestCapsule> received_address_request_capsules_;
+  std::vector<quiche::RouteAdvertisementCapsule>
+      received_route_advertisement_capsules_;
   bool headers_written_ = false;
 };
 
@@ -2148,6 +2183,13 @@ inline std::string EscapeTestParamName(absl::string_view name) {
   }
   return result;
 }
+
+struct TestPerPacketOptions : PerPacketOptions {
+ public:
+  std::unique_ptr<quic::PerPacketOptions> Clone() const override {
+    return std::make_unique<TestPerPacketOptions>(*this);
+  }
+};
 
 }  // namespace test
 }  // namespace quic

@@ -52,7 +52,7 @@ class QUIC_EXPORT_PRIVATE PathMigrationContext
 // Subclasses derived from this class are responsible for creating the
 // actual QuicSession instance, as well as defining functions that
 // create and run the underlying network transport.
-class QuicClientBase {
+class QuicClientBase : public QuicSession::Visitor {
  public:
   // An interface to various network events that the QuicClient will need to
   // interact with.
@@ -92,6 +92,26 @@ class QuicClientBase {
   QuicClientBase& operator=(const QuicClientBase&) = delete;
 
   virtual ~QuicClientBase();
+
+  // Implmenets QuicSession::Visitor
+  void OnConnectionClosed(QuicConnectionId /*server_connection_id*/,
+                          QuicErrorCode /*error*/,
+                          const std::string& /*error_details*/,
+                          ConnectionCloseSource /*source*/) override {}
+
+  void OnWriteBlocked(QuicBlockedWriterInterface* /*blocked_writer*/) override {
+  }
+  void OnRstStreamReceived(const QuicRstStreamFrame& /*frame*/) override {}
+  void OnStopSendingReceived(const QuicStopSendingFrame& /*frame*/) override {}
+  bool TryAddNewConnectionId(
+      const QuicConnectionId& /*server_connection_id*/,
+      const QuicConnectionId& /*new_connection_id*/) override {
+    return false;
+  }
+  void OnConnectionIdRetired(
+      const QuicConnectionId& /*server_connection_id*/) override {}
+  void OnServerPreferredAddressAvailable(
+      const QuicSocketAddress& server_preferred_address) override;
 
   // Initializes the client to create a connection. Should be called exactly
   // once before calling StartConnect or Connect. Returns true if the
@@ -277,7 +297,7 @@ class QuicClientBase {
     interface_name_ = interface_name;
   }
 
-  std::string interface_name() { return interface_name_; }
+  std::string interface_name() const { return interface_name_; }
 
   void set_server_connection_id_override(
       const QuicConnectionId& connection_id) {

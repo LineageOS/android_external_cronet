@@ -69,9 +69,6 @@ char kLSanDefaultSuppressions[] =
     // impossible, i.e. when enabling leak detection for the first time for a
     // test target with pre-existing leaks.
 
-    // https://crbug.com/755670
-    "leak:third_party/yasm/\n"
-
     // v8 leaks caused by weak ref not call
     "leak:blink::DOMWrapperWorld::Create\n"
     "leak:blink::ScriptState::Create\n"
@@ -93,7 +90,7 @@ char kLSanDefaultSuppressions[] =
     // Suppress leak in SurfaceDrawContext. crbug.com/1265033
     "leak:skgpu::v1::SurfaceDrawContext::drawGlyphRunList\n"
     // Suppress leak in BluetoothServerSocket. crbug.com/1278970
-    "leak:location::nearby::chrome::BluetoothServerSocket::"
+    "leak:nearby::chrome::BluetoothServerSocket::"
     "BluetoothServerSocket\n"
     // Suppress leak in NearbyConnectionBrokerImpl. crbug.com/1279578
     "leak:ash::secure_channel::NearbyConnectionBrokerImpl\n"

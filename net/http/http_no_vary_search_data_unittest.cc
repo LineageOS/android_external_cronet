@@ -11,6 +11,7 @@
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
+#include "base/types/expected.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -107,10 +108,6 @@ struct TestData {
   const bool expected_vary_by_default;
 };
 
-class HttpNoVarySearchResponseHeadersParseFailureTest
-    : public ::testing::Test,
-      public ::testing::WithParamInterface<base::StringPiece> {};
-
 class HttpNoVarySearchResponseHeadersTest
     : public ::testing::Test,
       public ::testing::WithParamInterface<TestData> {};
@@ -122,10 +119,10 @@ TEST_P(HttpNoVarySearchResponseHeadersTest, ParsingSuccess) {
       net::HttpUtil::AssembleRawHeaders(test.raw_headers);
 
   const auto parsed = base::MakeRefCounted<HttpResponseHeaders>(raw_headers);
-
-  const absl::optional<HttpNoVarySearchData> no_vary_search_data =
+  const auto no_vary_search_data =
       HttpNoVarySearchData::ParseFromHeaders(*parsed);
 
+  ASSERT_TRUE(no_vary_search_data.has_value());
   EXPECT_EQ(no_vary_search_data->vary_on_key_order(),
             test.expected_vary_on_key_order);
   EXPECT_EQ(no_vary_search_data->vary_by_default(),
@@ -136,177 +133,226 @@ TEST_P(HttpNoVarySearchResponseHeadersTest, ParsingSuccess) {
   EXPECT_EQ(no_vary_search_data->vary_params(), test.expected_vary_params);
 }
 
+struct FailureData {
+  const char* raw_headers;
+  const HttpNoVarySearchData::ParseErrorEnum expected_error;
+};
+
+class HttpNoVarySearchResponseHeadersParseFailureTest
+    : public ::testing::Test,
+      public ::testing::WithParamInterface<FailureData> {};
+
 TEST_P(HttpNoVarySearchResponseHeadersParseFailureTest,
        ParsingFailureOrDefaultValue) {
-  const std::string raw_headers = net::HttpUtil::AssembleRawHeaders(GetParam());
+  const std::string raw_headers =
+      net::HttpUtil::AssembleRawHeaders(GetParam().raw_headers);
 
   const auto parsed = base::MakeRefCounted<HttpResponseHeaders>(raw_headers);
-
-  const absl::optional<HttpNoVarySearchData> no_vary_search_data =
+  const auto no_vary_search_data =
       HttpNoVarySearchData::ParseFromHeaders(*parsed);
 
-  EXPECT_FALSE(no_vary_search_data.has_value());
+  ASSERT_FALSE(no_vary_search_data.has_value())
+      << "Headers = " << GetParam().raw_headers;
+  EXPECT_EQ(GetParam().expected_error, no_vary_search_data.error())
+      << "Headers = " << GetParam().raw_headers;
 }
 
-constexpr base::StringPiece response_header_failed[] = {
-    // No No-Vary-Search Header case
-    "HTTP/1.1 200 OK\r\n"
-    "Set-Cookie: a\r\n"
-    "Set-Cookie: b\r\n\r\n",
+FailureData response_header_failed[] = {
+    {// No No-Vary-Search Header case
+     "HTTP/1.1 200 OK\r\n"
+     "Set-Cookie: a\r\n"
+     "Set-Cookie: b\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kOk},
 
-    // No-Vary-Search Header doesn't parse as a dictionary.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: "a")"
-    "\r\n\r\n",
+    {// No-Vary-Search Header doesn't parse as a dictionary.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: "a")"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kNotDictionary},
 
-    // No-Vary-Search Header doesn't parse as a dictionary.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: (a)\r\n\r\n",
+    {// No-Vary-Search Header doesn't parse as a dictionary.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: (a)\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kNotDictionary},
 
-    // When except is specified, params cannot be a list of strings.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params=("b"),except=("a"))"
-    "\r\n\r\n",
+    {// When except is specified, params cannot be a list of strings.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=("b"),except=("a"))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // An unknown dictionary key should behave as if the header was not
-    // specified.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: unknown-key\r\n\r\n",
+    {// An unknown dictionary key should behave as if the header was not
+     // specified.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: unknown-key\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kUnknownDictionaryKey},
 
-    // params not a boolean or a list of strings.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params="a")"
-    "\r\n\r\n",
+    {// params not a boolean or a list of strings.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params="a")"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kParamsNotStringList},
 
-    // params not a boolean or a list of strings.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: params=a\r\n\r\n",
+    {// params not a boolean or a list of strings.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: params=a\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kParamsNotStringList},
 
-    // params as an empty list of strings should behave as if the header was
-    // not specified.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: params=()\r\n\r\n",
+    {// params as an empty list of strings should behave as if the header was
+     // not specified.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: params=()\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kDefaultValue},
 
-    // params not a boolean or a list of strings.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params=("a" b))"
-    "\r\n\r\n",
+    {// params not a boolean or a list of strings.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=("a" b))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kParamsNotStringList},
 
-    // params defaulting to ?0 which is the same as no header.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params=("a"))"
-    "\r\n"
-    "No-Vary-Search: params=?0\r\n\r\n",
+    {// params defaulting to ?0 which is the same as no header.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=("a"))"
+     "\r\n"
+     "No-Vary-Search: params=?0\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kDefaultValue},
 
-    // except without params.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: except=()\r\n\r\n",
+    {// except without params.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: except=()\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except without params.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: except=()\r\n"
-    R"(No-Vary-Search: except=("a"))"
-    "\r\n\r\n",
+    {// except without params.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: except=()\r\n"
+     R"(No-Vary-Search: except=("a"))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except without params.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: except=("a" "b"))"
-    "\r\n\r\n",
+    {// except without params.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: except=("a" "b"))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except with params set to a list of strings is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params=("a"))"
-    "\r\n"
-    "No-Vary-Search: except=()\r\n\r\n",
+    {// except with params set to a list of strings is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=("a"))"
+     "\r\n"
+     "No-Vary-Search: except=()\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except with params set to a list of strings is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: params=(),except=()\r\n\r\n",
+    {// except with params set to a list of strings is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: params=(),except=()\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except with params set to a list of strings is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params,except=(),params=())"
-    "\r\n\r\n",
+    {// except with params set to a list of strings is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params,except=(),params=())"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except with params set to a list of strings is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: except=("a" "b"))"
-    "\r\n"
-    R"(No-Vary-Search: params=("a"))"
-    "\r\n\r\n",
+    {// except with params set to a list of strings is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: except=("a" "b"))"
+     "\r\n"
+     R"(No-Vary-Search: params=("a"))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except with params set to a list of strings is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params=("a"),except=("b"))"
-    "\r\n"
-    "No-Vary-Search: except=()\r\n\r\n",
+    {// except with params set to a list of strings is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=("a"),except=("b"))"
+     "\r\n"
+     "No-Vary-Search: except=()\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except with params set to false is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params=?0,except=("a"))"
-    "\r\n\r\n",
+    {// except with params set to false is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=?0,except=("a"))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except with params set to a list of strings is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: params,except=("a" "b"))"
-    "\r\n"
-    R"(No-Vary-Search: params=("a"))"
-    "\r\n\r\n",
+    {// except with params set to a list of strings is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params,except=("a" "b"))"
+     "\r\n"
+     R"(No-Vary-Search: params=("a"))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // key-order not a boolean
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: key-order="a")"
-    "\r\n\r\n",
+    {// key-order not a boolean
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: key-order="a")"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kNonBooleanKeyOrder},
 
-    // key-order not a boolean
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: key-order=a\r\n\r\n",
+    {// key-order not a boolean
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: key-order=a\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kNonBooleanKeyOrder},
 
-    // key-order not a boolean
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: key-order=()\r\n\r\n",
+    {// key-order not a boolean
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: key-order=()\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kNonBooleanKeyOrder},
 
-    // key-order not a boolean
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: key-order=(a)\r\n\r\n",
+    {// key-order not a boolean
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: key-order=(a)\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kNonBooleanKeyOrder},
 
-    // key-order not a boolean
-    "HTTP/1.1 200 OK\r\n"
-    R"(No-Vary-Search: key-order=("a"))"
-    "\r\n\r\n",
+    {// key-order not a boolean
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: key-order=("a"))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kNonBooleanKeyOrder},
 
-    // key-order not a boolean
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: key-order=(?1)\r\n\r\n",
+    {// key-order not a boolean
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: key-order=(?1)\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kNonBooleanKeyOrder},
 
-    // key-order set to false should behave as if the
-    // header was not specified at all
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: key-order=?0\r\n\r\n",
+    {// key-order set to false should behave as if the
+     // header was not specified at all
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: key-order=?0\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kDefaultValue},
 
-    // params set to false should behave as if the
-    // header was not specified at all
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: params=?0\r\n\r\n",
+    {// params set to false should behave as if the
+     // header was not specified at all
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: params=?0\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kDefaultValue},
 
-    // params set to false should behave as if the
-    // header was not specified at all. except set to
-    // a list of tokens is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: params=?0\r\n"
-    "No-Vary-Search: except=(a)\r\n\r\n",
+    {// params set to false should behave as if the
+     // header was not specified at all. except set to
+     // a list of tokens is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: params=?0\r\n"
+     "No-Vary-Search: except=(a)\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptWithoutTrueParams},
 
-    // except set to a list of tokens is incorrect.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: params=?1\r\n"
-    "No-Vary-Search: except=(a)\r\n\r\n",
+    {// except set to a list of tokens is incorrect.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: params=?1\r\n"
+     "No-Vary-Search: except=(a)\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptNotStringList},
 
-    // Fail parsing if an unknown key is in the dictionary.
-    "HTTP/1.1 200 OK\r\n"
-    "No-Vary-Search: params,except=(a)\r\n"
-    "No-Vary-Search: unknown-key\r\n"
-    R"(No-Vary-Search: except=("a"))"
-    "\r\n\r\n",
+    {// except set to true
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: params=?1\r\n"
+     "No-Vary-Search: except\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kExceptNotStringList},
+
+    {// Fail parsing if an unknown key is in the dictionary.
+     "HTTP/1.1 200 OK\r\n"
+     "No-Vary-Search: params,except=(a)\r\n"
+     "No-Vary-Search: unknown-key\r\n"
+     R"(No-Vary-Search: except=("a"))"
+     "\r\n\r\n",
+     HttpNoVarySearchData::ParseErrorEnum::kUnknownDictionaryKey},
 };
 
 const TestData response_headers_tests[] = {
@@ -316,6 +362,38 @@ const TestData response_headers_tests[] = {
         R"(No-Vary-Search: params=("a"))"
         "\r\n\r\n",  // raw_headers
         {"a"},       // expected_no_vary_params
+        {},          // expected_vary_params
+        true,        // expected_vary_on_key_order
+        true,        // expected_vary_by_default
+    },
+    // params set to a list of strings with one non-ASCII character.
+    {
+        "HTTP/1.1 200 OK\r\n"
+        R"(No-Vary-Search: params=("%C2%A2"))"
+        "\r\n\r\n",  // raw_headers
+        {"¢"},       // expected_no_vary_params
+        {},          // expected_vary_params
+        true,        // expected_vary_on_key_order
+        true,        // expected_vary_by_default
+    },
+    // params set to a list of strings with one ASCII and one non-ASCII
+    // character.
+    {
+        "HTTP/1.1 200 OK\r\n"
+        R"(No-Vary-Search: params=("c%C2%A2"))"
+        "\r\n\r\n",  // raw_headers
+        {"c¢"},      // expected_no_vary_params
+        {},          // expected_vary_params
+        true,        // expected_vary_on_key_order
+        true,        // expected_vary_by_default
+    },
+    // params set to a list of strings with one space and one non-ASCII
+    // character.
+    {
+        "HTTP/1.1 200 OK\r\n"
+        R"(No-Vary-Search: params=("+%C2%A2"))"
+        "\r\n\r\n",  // raw_headers
+        {" ¢"},      // expected_no_vary_params
         {},          // expected_vary_params
         true,        // expected_vary_on_key_order
         true,        // expected_vary_by_default
@@ -368,6 +446,29 @@ const TestData response_headers_tests[] = {
         "\r\n\r\n",  // raw_headers
         {},          // expected_no_vary_params
         {"a"},       // expected_vary_params
+        true,        // expected_vary_on_key_order
+        false,       // expected_vary_by_default
+    },
+    // Vary on all with one excepted non-ASCII search param.
+    {
+        "HTTP/1.1 200 OK\r\n"
+        "No-Vary-Search: params\r\n"
+        R"(No-Vary-Search: except=("%C2%A2"))"
+        "\r\n\r\n",  // raw_headers
+        {},          // expected_no_vary_params
+        {"¢"},       // expected_vary_params
+        true,        // expected_vary_on_key_order
+        false,       // expected_vary_by_default
+    },
+    // Vary on all with one excepted search param that includes non-ASCII
+    // character.
+    {
+        "HTTP/1.1 200 OK\r\n"
+        "No-Vary-Search: params\r\n"
+        R"(No-Vary-Search: except=("c+%C2%A2"))"
+        "\r\n\r\n",  // raw_headers
+        {},          // expected_no_vary_params
+        {"c ¢"},     // expected_vary_params
         true,        // expected_vary_on_key_order
         false,       // expected_vary_by_default
     },
@@ -681,8 +782,7 @@ struct NoVarySearchCompareTestData {
   const bool expected_match;
 };
 
-TEST(HttpNoVarySearchCompare,
-     CheckUrlEqualityByNoVarySearchWithSpecialCharacters) {
+TEST(HttpNoVarySearchCompare, CheckUrlEqualityWithSpecialCharacters) {
   // Use special characters in both `keys` and `values`.
   const base::flat_map<std::string, std::string> percent_encoding = {
       {"!", "%21"},    {"#", "%23"},    {"$", "%24"},    {"%", "%25"},
@@ -693,7 +793,6 @@ TEST(HttpNoVarySearchCompare,
       {"@", "%40"},    {"[", "%5B"},    {"]", R"(%5D)"}, {"^", R"(%5E)"},
       {"_", R"(%5F)"}, {"`", "%60"},    {"{", "%7B"},    {"|", R"(%7C)"},
       {"}", R"(%7D)"}, {"~", R"(%7E)"}, {"", ""}};
-
   const base::StringPiece raw_headers =
       "HTTP/1.1 200 OK\r\n"
       R"(No-Vary-Search: params=("c"))"
@@ -736,6 +835,70 @@ TEST(HttpNoVarySearchCompare,
   }
 }
 
+constexpr std::pair<base::StringPiece, base::StringPiece>
+    kPercentEncodedNonAsciiKeys[] = {
+        {"¢", R"(%C2%A2)"},
+        {"¢ ¢", R"(%C2%A2+%C2%A2)"},
+        {"é 気", R"(%C3%A9+%E6%B0%97)"},
+        {"é", R"(%C3%A9)"},
+        {"気", R"(%E6%B0%97)"},
+        {"ぁ", R"(%E3%81%81)"},
+        {"𐨀", R"(%F0%90%A8%80)"},
+};
+
+TEST(HttpNoVarySearchCompare,
+     CheckUrlEqualityWithPercentEncodedNonASCIICharactersExcept) {
+  for (const auto& [key, value] : kPercentEncodedNonAsciiKeys) {
+    std::string request_url_template = R"(https://a.test/index.html?$key=c)";
+    std::string cached_url_template = R"(https://a.test/index.html?c=3&$key=c)";
+    base::ReplaceSubstringsAfterOffset(&request_url_template, 0, "$key", key);
+    base::ReplaceSubstringsAfterOffset(&cached_url_template, 0, "$key", key);
+    std::string header_template =
+        "HTTP/1.1 200 OK\r\n"
+        R"(No-Vary-Search: params, except=("$key"))"
+        "\r\n\r\n";
+    base::ReplaceSubstringsAfterOffset(&header_template, 0, "$key", value);
+
+    const auto parsed_header = base::MakeRefCounted<HttpResponseHeaders>(
+        net::HttpUtil::AssembleRawHeaders(header_template));
+    const auto no_vary_search_data_special_char =
+        HttpNoVarySearchData::ParseFromHeaders(*parsed_header).value();
+
+    EXPECT_TRUE(no_vary_search_data_special_char.AreEquivalent(
+        GURL(request_url_template), GURL(cached_url_template)))
+        << "request_url = " << request_url_template
+        << " cached_url = " << cached_url_template
+        << " headers = " << header_template;
+  }
+}
+
+TEST(HttpNoVarySearchCompare,
+     CheckUrlEqualityWithPercentEncodedNonASCIICharacters) {
+  for (const auto& [key, value] : kPercentEncodedNonAsciiKeys) {
+    std::string request_url_template =
+        R"(https://a.test/index.html?a=2&$key=c)";
+    std::string cached_url_template = R"(https://a.test/index.html?$key=d&a=2)";
+    base::ReplaceSubstringsAfterOffset(&request_url_template, 0, "$key", key);
+    base::ReplaceSubstringsAfterOffset(&cached_url_template, 0, "$key", key);
+    std::string header_template =
+        "HTTP/1.1 200 OK\r\n"
+        R"(No-Vary-Search: params=("$key"))"
+        "\r\n\r\n";
+    base::ReplaceSubstringsAfterOffset(&header_template, 0, "$key", value);
+
+    const auto parsed_header = base::MakeRefCounted<HttpResponseHeaders>(
+        net::HttpUtil::AssembleRawHeaders(header_template));
+    const auto no_vary_search_data_special_char =
+        HttpNoVarySearchData::ParseFromHeaders(*parsed_header).value();
+
+    EXPECT_TRUE(no_vary_search_data_special_char.AreEquivalent(
+        GURL(request_url_template), GURL(cached_url_template)))
+        << "request_url = " << request_url_template
+        << " cached_url = " << cached_url_template
+        << " headers = " << header_template;
+  }
+}
+
 class HttpNoVarySearchCompare
     : public ::testing::Test,
       public ::testing::WithParamInterface<NoVarySearchCompareTestData> {};
@@ -746,7 +909,6 @@ TEST_P(HttpNoVarySearchCompare, CheckUrlEqualityByNoVarySearch) {
   const std::string headers =
       net::HttpUtil::AssembleRawHeaders(test_data.raw_headers);
   const auto parsed = base::MakeRefCounted<HttpResponseHeaders>(headers);
-
   const auto no_vary_search_data =
       HttpNoVarySearchData::ParseFromHeaders(*parsed).value();
 
@@ -938,6 +1100,46 @@ const NoVarySearchCompareTestData no_vary_search_compare_tests[] = {
      R"(No-Vary-Search: params=("c"))"
      "\r\n\r\n",
      true},
+    // Add test when there is a param with key starting with a percent encoded
+    // space (+).
+    {GURL(R"(https://a.test/index.html?+a=3)"),
+     GURL(R"(https://a.test/index.html?+a=2)"),
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=("+a"))"
+     "\r\n\r\n",
+     true},
+    // Add test when there is a param with key starting with a percent encoded
+    // space (+) and gets compared with same key without the leading space.
+    {GURL(R"(https://a.test/index.html?+a=3)"),
+     GURL(R"(https://a.test/index.html?a=2)"),
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=("+a"))"
+     "\r\n\r\n",
+     false},
+    // Add test for when there are different representations of the character é
+    // and we are ignoring that key.
+    {GURL(R"(https://a.test/index.html?%C3%A9=g&a=2&c=4&é=b)"),
+     GURL(R"(https://a.test/index.html?a=2&é=f&c=4&d=7&é=b)"),
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params=("d" "%C3%A9"))"
+     "\r\n\r\n",
+     true},
+    // Add test for when there are different representations of the character é
+    // and we are not ignoring that key.
+    {GURL(R"(https://a.test/index.html?%C3%A9=f&a=2&c=4&é=b)"),
+     GURL(R"(https://a.test/index.html?a=2&é=f&c=4&d=7&é=b)"),
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params, except=("%C3%A9"))"
+     "\r\n\r\n",
+     true},
+    // Add test for when there are different representations of the character é
+    // and we are not ignoring that key.
+    {GURL(R"(https://a.test/index.html?%C3%A9=g&a=2&c=4&é=b)"),
+     GURL(R"(https://a.test/index.html?a=2&é=f&c=4&d=7&é=b)"),
+     "HTTP/1.1 200 OK\r\n"
+     R"(No-Vary-Search: params, except=("%C3%A9"))"
+     "\r\n\r\n",
+     false},
 };
 
 INSTANTIATE_TEST_SUITE_P(HttpNoVarySearchCompare,

@@ -11,13 +11,13 @@
 #include <utility>
 #include <vector>
 
-#include "base/allocator/buildflags.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "base/allocator/partition_allocator/shim/allocator_shim.h"
 #include "base/allocator/partition_allocator/shim/allocator_shim_default_dispatch_to_partition_alloc.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
@@ -41,10 +41,11 @@
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && \
-    defined(PA_THREAD_CACHE_SUPPORTED)
+    PA_CONFIG(THREAD_CACHE_SUPPORTED)
+#include "base/allocator/partition_allocator/extended_api.h"  // nogncheck
 #include "base/allocator/partition_allocator/thread_cache.h"
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
-        // defined(PA_THREAD_CACHE_SUPPORTED)
+        // PA_CONFIG(THREAD_CACHE_SUPPORTED)
 
 using testing::_;
 using testing::Mock;
@@ -697,13 +698,13 @@ class CallJoinFromDifferentThread : public SimpleThread {
 
   void Run() override {
     run_started_event_.Signal();
-    worker_to_join_->JoinForTesting();
+    worker_to_join_.ExtractAsDangling()->JoinForTesting();
   }
 
   void WaitForRunToStart() { run_started_event_.Wait(); }
 
  private:
-  const raw_ptr<WorkerThread> worker_to_join_;
+  raw_ptr<WorkerThread> worker_to_join_;
   TestWaitableEvent run_started_event_;
 };
 
@@ -881,7 +882,7 @@ TEST(ThreadPoolWorkerTest, WorkerThreadObserver) {
 }
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && \
-    defined(PA_THREAD_CACHE_SUPPORTED)
+    PA_CONFIG(THREAD_CACHE_SUPPORTED)
 namespace {
 NOINLINE void FreeForTest(void* data) {
   free(data);
@@ -926,11 +927,8 @@ class WorkerThreadThreadCacheDelegate : public WorkerThreadDefaultDelegate {
 
 TEST(ThreadPoolWorkerThreadCachePurgeTest, Purge) {
   // Make sure the thread cache is enabled in the main partition.
-  if (!allocator_shim::internal::PartitionAllocMalloc::Allocator()
-           ->thread_cache_for_testing()) {
-    allocator_shim::internal::PartitionAllocMalloc::Allocator()
-        ->EnableThreadCacheIfSupported();
-  }
+  partition_alloc::internal::ThreadCacheProcessScopeForTesting scope(
+      allocator_shim::internal::PartitionAllocMalloc::Allocator());
 
   Thread service_thread = Thread("ServiceThread");
   Thread::Options service_thread_options;
@@ -957,7 +955,7 @@ TEST(ThreadPoolWorkerThreadCachePurgeTest, Purge) {
 }
 
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
-        // defined(PA_THREAD_CACHE_SUPPORTED) &&
+        // PA_CONFIG(THREAD_CACHE_SUPPORTED)
 
 }  // namespace internal
 }  // namespace base

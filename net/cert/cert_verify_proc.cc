@@ -51,7 +51,7 @@
 #include "third_party/boringssl/src/include/openssl/pool.h"
 #include "url/url_canon.h"
 
-#if BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(USE_NSS_CERTS) || BUILDFLAG(IS_MAC) || \
+#if BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(USE_NSS_CERTS) || \
     BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
 #include "net/cert/cert_verify_proc_builtin.h"
 #endif
@@ -64,11 +64,6 @@
 #include "net/cert/cert_verify_proc_android.h"
 #elif BUILDFLAG(IS_IOS)
 #include "net/cert/cert_verify_proc_ios.h"
-#elif BUILDFLAG(IS_MAC)
-#include "net/cert/cert_verify_proc_mac.h"
-#elif BUILDFLAG(IS_WIN)
-#include "base/win/windows_version.h"
-#include "net/cert/cert_verify_proc_win.h"
 #endif
 
 namespace net {
@@ -274,96 +269,6 @@ void RecordTrustAnchorHistogram(const HashValueVector& spki_hashes,
   }
 }
 
-// Parse |cert| and return the classification of the ExtendedKeyUsage, or
-// EKUStatus::kInvalid on error.
-CertVerifyProc::EKUStatus GetEkuStatus(CRYPTO_BUFFER* cert) {
-  ParseCertificateOptions options;
-  options.allow_invalid_serial_numbers = true;
-  der::Input tbs_certificate_tlv;
-  der::Input signature_algorithm_tlv;
-  der::BitString signature_value;
-  ParsedTbsCertificate tbs;
-  if (!ParseCertificate(
-          der::Input(CRYPTO_BUFFER_data(cert), CRYPTO_BUFFER_len(cert)),
-          &tbs_certificate_tlv, &signature_algorithm_tlv, &signature_value,
-          nullptr /* errors*/) ||
-      !ParseTbsCertificate(tbs_certificate_tlv, options, &tbs,
-                           nullptr /*errors*/)) {
-    return CertVerifyProc::EKUStatus::kInvalid;
-  }
-
-  if (!tbs.extensions_tlv)
-    return CertVerifyProc::EKUStatus::kNoEKU;
-
-  std::map<der::Input, ParsedExtension> extensions;
-  if (!ParseExtensions(tbs.extensions_tlv.value(), &extensions))
-    return CertVerifyProc::EKUStatus::kInvalid;
-
-  auto it = extensions.find(der::Input(kExtKeyUsageOid));
-  if (it == extensions.end())
-    return CertVerifyProc::EKUStatus::kNoEKU;
-
-  std::vector<der::Input> extended_key_usage;
-  if (!ParseEKUExtension(it->second.value, &extended_key_usage))
-    return CertVerifyProc::EKUStatus::kInvalid;
-
-  base::flat_set<der::Input> eku_set(extended_key_usage.begin(),
-                                     extended_key_usage.end());
-  if (eku_set.contains(der::Input(kAnyEKU)))
-    return CertVerifyProc::EKUStatus::kAnyEKU;
-
-  if (eku_set.contains(der::Input(kServerAuth))) {
-    if (eku_set.size() == 1)
-      return CertVerifyProc::EKUStatus::kServerAuthOnly;
-
-    if (eku_set.size() == 2 && eku_set.contains(der::Input(kClientAuth))) {
-      return CertVerifyProc::EKUStatus::kServerAuthAndClientAuthOnly;
-    }
-
-    return CertVerifyProc::EKUStatus::kServerAuthAndOthers;
-  }
-
-  return CertVerifyProc::EKUStatus::kOther;
-}
-
-// Logs the LeafExtendedKeyUsage histogram. Should only be called on
-// successfully verified chains.
-void RecordEkuHistogram(const CertVerifyResult& verify_result) {
-  CRYPTO_BUFFER* leaf = verify_result.verified_cert->cert_buffer();
-  CRYPTO_BUFFER* root =
-      verify_result.verified_cert->intermediate_buffers().empty()
-          ? leaf
-          : verify_result.verified_cert->intermediate_buffers().back().get();
-
-  CertVerifyProc::EKUStatus eku_status = GetEkuStatus(leaf);
-  HashValue root_spki_hash;
-  if (!x509_util::CalculateSha256SpkiHash(root, &root_spki_hash))
-    return;
-
-  base::StringPiece histogram_suffix;
-  if (!verify_result.is_issued_by_known_root)
-    histogram_suffix = "PrivateRoot";
-  else if (IsLegacyPubliclyTrustedCA(root_spki_hash))
-    histogram_suffix = "LegacyKnownRoot";
-  else
-    histogram_suffix = "KnownRoot";
-
-  base::UmaHistogramEnumeration(
-      base::StrCat({"Net.Certificate.LeafExtendedKeyUsage.", histogram_suffix}),
-      eku_status);
-}
-
-bool AreSHA1IntermediatesAllowed() {
-#if BUILDFLAG(IS_WIN)
-  // TODO(rsleevi): Remove this once https://crbug.com/588789 is resolved
-  // for Windows 7/2008 users.
-  // Note: This must be kept in sync with cert_verify_proc_unittest.cc
-  return base::win::GetVersion() < base::win::Version::WIN8;
-#else
-  return false;
-#endif
-}
-
 // Inspects the signature algorithms in a single certificate |cert|.
 //
 //   * Sets |verify_result->has_sha1| to true if the certificate uses SHA1.
@@ -454,8 +359,6 @@ bool AreSHA1IntermediatesAllowed() {
     return false;
   }
 
-  verify_result->has_sha1_leaf = verify_result->has_sha1;
-
   // Fill in hash algorithms for the intermediate cerificates, excluding the
   // final one (which is presumably the trust anchor; may be incorrect for
   // partial chains).
@@ -468,13 +371,14 @@ bool AreSHA1IntermediatesAllowed() {
   return true;
 }
 
-base::Value CertVerifyParams(X509Certificate* cert,
-                             const std::string& hostname,
-                             const std::string& ocsp_response,
-                             const std::string& sct_list,
-                             int flags,
-                             CRLSet* crl_set,
-                             const CertificateList& additional_trust_anchors) {
+base::Value::Dict CertVerifyParams(
+    X509Certificate* cert,
+    const std::string& hostname,
+    const std::string& ocsp_response,
+    const std::string& sct_list,
+    int flags,
+    CRLSet* crl_set,
+    const CertificateList& additional_trust_anchors) {
   base::Value::Dict dict;
   dict.Set("certificates", NetLogX509CertificateList(cert));
   if (!ocsp_response.empty()) {
@@ -502,24 +406,22 @@ base::Value CertVerifyParams(X509Certificate* cert,
     dict.Set("additional_trust_anchors", std::move(certs));
   }
 
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 }  // namespace
 
-#if !(BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS))
+#if !(BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_LINUX) || \
+      BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(CHROME_ROOT_STORE_ONLY))
 // static
 scoped_refptr<CertVerifyProc> CertVerifyProc::CreateSystemVerifyProc(
-    scoped_refptr<CertNetFetcher> cert_net_fetcher) {
+    scoped_refptr<CertNetFetcher> cert_net_fetcher,
+    scoped_refptr<CRLSet> crl_set) {
 #if BUILDFLAG(IS_ANDROID)
   return base::MakeRefCounted<CertVerifyProcAndroid>(
-      std::move(cert_net_fetcher));
+      std::move(cert_net_fetcher), std::move(crl_set));
 #elif BUILDFLAG(IS_IOS)
-  return base::MakeRefCounted<CertVerifyProcIOS>();
-#elif BUILDFLAG(IS_MAC)
-  return base::MakeRefCounted<CertVerifyProcMac>();
-#elif BUILDFLAG(IS_WIN)
-  return base::MakeRefCounted<CertVerifyProcWin>();
+  return base::MakeRefCounted<CertVerifyProcIOS>(std::move(crl_set));
 #else
 #error Unsupported platform
 #endif
@@ -529,8 +431,10 @@ scoped_refptr<CertVerifyProc> CertVerifyProc::CreateSystemVerifyProc(
 #if BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(USE_NSS_CERTS)
 // static
 scoped_refptr<CertVerifyProc> CertVerifyProc::CreateBuiltinVerifyProc(
-    scoped_refptr<CertNetFetcher> cert_net_fetcher) {
+    scoped_refptr<CertNetFetcher> cert_net_fetcher,
+    scoped_refptr<CRLSet> crl_set) {
   return CreateCertVerifyProcBuiltin(std::move(cert_net_fetcher),
+                                     std::move(crl_set),
                                      CreateSslSystemTrustStore());
 }
 #endif
@@ -538,15 +442,22 @@ scoped_refptr<CertVerifyProc> CertVerifyProc::CreateBuiltinVerifyProc(
 #if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
 // static
 scoped_refptr<CertVerifyProc> CertVerifyProc::CreateBuiltinWithChromeRootStore(
-    scoped_refptr<CertNetFetcher> cert_net_fetcher) {
+    scoped_refptr<CertNetFetcher> cert_net_fetcher,
+    scoped_refptr<CRLSet> crl_set,
+    const ChromeRootStoreData* root_store_data) {
+  std::unique_ptr<TrustStoreChrome> chrome_root =
+      root_store_data ? std::make_unique<TrustStoreChrome>(*root_store_data)
+                      : std::make_unique<TrustStoreChrome>();
   return CreateCertVerifyProcBuiltin(
-      std::move(cert_net_fetcher),
-      CreateSslSystemTrustStoreChromeRoot(
-          std::make_unique<net::TrustStoreChrome>()));
+      std::move(cert_net_fetcher), std::move(crl_set),
+      CreateSslSystemTrustStoreChromeRoot(std::move(chrome_root)));
 }
 #endif
 
-CertVerifyProc::CertVerifyProc() = default;
+CertVerifyProc::CertVerifyProc(scoped_refptr<CRLSet> crl_set)
+    : crl_set_(std::move(crl_set)) {
+  CHECK(crl_set_);
+}
 
 CertVerifyProc::~CertVerifyProc() = default;
 
@@ -555,13 +466,12 @@ int CertVerifyProc::Verify(X509Certificate* cert,
                            const std::string& ocsp_response,
                            const std::string& sct_list,
                            int flags,
-                           CRLSet* crl_set,
                            const CertificateList& additional_trust_anchors,
                            CertVerifyResult* verify_result,
                            const NetLogWithSource& net_log) {
   net_log.BeginEvent(NetLogEventType::CERT_VERIFY_PROC, [&] {
     return CertVerifyParams(cert, hostname, ocsp_response, sct_list, flags,
-                            crl_set, additional_trust_anchors);
+                            crl_set(), additional_trust_anchors);
   });
   // CertVerifyProc's contract allows ::VerifyInternal() to wait on File I/O
   // (such as the Windows registry or smart cards on all platforms) or may re-
@@ -575,10 +485,8 @@ int CertVerifyProc::Verify(X509Certificate* cert,
   verify_result->Reset();
   verify_result->verified_cert = cert;
 
-  DCHECK(crl_set);
-  int rv =
-      VerifyInternal(cert, hostname, ocsp_response, sct_list, flags, crl_set,
-                     additional_trust_anchors, verify_result, net_log);
+  int rv = VerifyInternal(cert, hostname, ocsp_response, sct_list, flags,
+                          additional_trust_anchors, verify_result, net_log);
 
   // Check for mismatched signature algorithms and unknown signature algorithms
   // in the chain. Also fills in the has_* booleans for the digest algorithms
@@ -602,26 +510,26 @@ int CertVerifyProc::Verify(X509Certificate* cert,
   }
 
   // Check to see if the connection is being intercepted.
-  if (crl_set) {
-    for (const auto& hash : verify_result->public_key_hashes) {
-      if (hash.tag() != HASH_VALUE_SHA256)
-        continue;
-      if (!crl_set->IsKnownInterceptionKey(base::StringPiece(
-              reinterpret_cast<const char*>(hash.data()), hash.size())))
-        continue;
-
-      if (verify_result->cert_status & CERT_STATUS_REVOKED) {
-        // If the chain was revoked, and a known MITM was present, signal that
-        // with a more meaningful error message.
-        verify_result->cert_status |= CERT_STATUS_KNOWN_INTERCEPTION_BLOCKED;
-        rv = MapCertStatusToNetError(verify_result->cert_status);
-      } else {
-        // Otherwise, simply signal informatively. Both statuses are not set
-        // simultaneously.
-        verify_result->cert_status |= CERT_STATUS_KNOWN_INTERCEPTION_DETECTED;
-      }
-      break;
+  for (const auto& hash : verify_result->public_key_hashes) {
+    if (hash.tag() != HASH_VALUE_SHA256) {
+      continue;
     }
+    if (!crl_set()->IsKnownInterceptionKey(base::StringPiece(
+            reinterpret_cast<const char*>(hash.data()), hash.size()))) {
+      continue;
+    }
+
+    if (verify_result->cert_status & CERT_STATUS_REVOKED) {
+      // If the chain was revoked, and a known MITM was present, signal that
+      // with a more meaningful error message.
+      verify_result->cert_status |= CERT_STATUS_KNOWN_INTERCEPTION_BLOCKED;
+      rv = MapCertStatusToNetError(verify_result->cert_status);
+    } else {
+      // Otherwise, simply signal informatively. Both statuses are not set
+      // simultaneously.
+      verify_result->cert_status |= CERT_STATUS_KNOWN_INTERCEPTION_DETECTED;
+    }
+    break;
   }
 
   std::vector<std::string> dns_names, ip_addrs;
@@ -651,19 +559,9 @@ int CertVerifyProc::Verify(X509Certificate* cert,
     verify_result->cert_status |= CERT_STATUS_SHA1_SIGNATURE_PRESENT;
 
   // Flag certificates using weak signature algorithms.
-
-  // Current SHA-1 behaviour:
-  // - Reject all SHA-1
-  // - ... unless it's not publicly trusted and SHA-1 is allowed
-  // - ... or SHA-1 is in the intermediate and SHA-1 intermediates are
-  //   allowed for that platform. See https://crbug.com/588789
-  bool current_sha1_issue =
-      (verify_result->is_issued_by_known_root ||
-       !(flags & VERIFY_ENABLE_SHA1_LOCAL_ANCHORS)) &&
-      (verify_result->has_sha1_leaf ||
-       (verify_result->has_sha1 && !AreSHA1IntermediatesAllowed()));
-
-  if (current_sha1_issue) {
+  bool sha1_allowed = (flags & VERIFY_ENABLE_SHA1_LOCAL_ANCHORS) &&
+                      !verify_result->is_issued_by_known_root;
+  if (!sha1_allowed && verify_result->has_sha1) {
     verify_result->cert_status |= CERT_STATUS_WEAK_SIGNATURE_ALGORITHM;
     // Avoid replacing a more serious error, such as an OS/library failure,
     // by ensuring that if verification failed, it failed with a certificate
@@ -703,7 +601,6 @@ int CertVerifyProc::Verify(X509Certificate* cert,
   if (rv == OK) {
     RecordTrustAnchorHistogram(verify_result->public_key_hashes,
                                verify_result->is_issued_by_known_root);
-    RecordEkuHistogram(*verify_result);
   }
 
   net_log.EndEvent(NetLogEventType::CERT_VERIFY_PROC,
@@ -994,5 +891,22 @@ bool CertVerifyProc::HasTooLongValidity(const X509Certificate& cert) {
 
   return false;
 }
+
+CertVerifyProcFactory::ImplParams::ImplParams() {
+  crl_set = net::CRLSet::BuiltinCRLSet();
+#if BUILDFLAG(CHROME_ROOT_STORE_OPTIONAL)
+  use_chrome_root_store =
+      base::FeatureList::IsEnabled(net::features::kChromeRootStoreUsed);
+#endif
+}
+
+CertVerifyProcFactory::ImplParams::~ImplParams() = default;
+
+CertVerifyProcFactory::ImplParams::ImplParams(const ImplParams&) = default;
+CertVerifyProcFactory::ImplParams& CertVerifyProcFactory::ImplParams::operator=(
+    const ImplParams& other) = default;
+CertVerifyProcFactory::ImplParams::ImplParams(ImplParams&&) = default;
+CertVerifyProcFactory::ImplParams& CertVerifyProcFactory::ImplParams::operator=(
+    ImplParams&& other) = default;
 
 }  // namespace net

@@ -13,8 +13,8 @@
 #include <vector>
 
 #include "base/base64.h"
-#include "base/callback_helpers.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/field_trial.h"
@@ -848,6 +848,8 @@ TEST_F(TransportSecurityStateTest, PreloadedPKPReportUri) {
       cert1.get(), cert2.get(), pkp_state.spki_hashes));
   EXPECT_EQ(network_anonymization_key,
             mock_report_sender.latest_network_anonymization_key());
+
+  state.SetReportSender(nullptr);
 }
 
 // Tests that report URIs are thrown out if they point to the same host,
@@ -905,6 +907,8 @@ TEST_F(TransportSecurityStateTest, HPKPReportUriToSameHost) {
   EXPECT_EQ(http_report_uri, mock_report_sender.latest_report_uri());
   EXPECT_EQ(network_anonymization_key,
             mock_report_sender.latest_network_anonymization_key());
+
+  state.SetReportSender(nullptr);
 }
 
 // Simple test for the HSTS preload process. The trie (generated from
@@ -1123,8 +1127,7 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey());
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS);
 
     MockRequireCTDelegate always_require_delegate;
     EXPECT_CALL(always_require_delegate, IsCTRequiredForHost(_, _, _))
@@ -1135,29 +1138,25 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
     EXPECT_EQ(
         TransportSecurityState::CT_REQUIREMENTS_NOT_MET,
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS));
     EXPECT_EQ(
         TransportSecurityState::CT_REQUIREMENTS_MET,
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS));
     EXPECT_EQ(
         TransportSecurityState::CT_REQUIREMENTS_MET,
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY));
 
     state.SetRequireCTDelegate(nullptr);
     EXPECT_EQ(
@@ -1165,8 +1164,7 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   }
 
   // If CT is not required, then regardless of the CT state for the host,
@@ -1177,8 +1175,7 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey());
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS);
 
     MockRequireCTDelegate never_require_delegate;
     EXPECT_CALL(never_require_delegate, IsCTRequiredForHost(_, _, _))
@@ -1189,15 +1186,13 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
     EXPECT_EQ(
         TransportSecurityState::CT_NOT_REQUIRED,
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS));
 
     state.SetRequireCTDelegate(nullptr);
     EXPECT_EQ(
@@ -1205,8 +1200,7 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   }
 
   // If the Delegate is in the default state, then it should return the same
@@ -1217,8 +1211,7 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey());
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS);
 
     MockRequireCTDelegate default_require_ct_delegate;
     EXPECT_CALL(default_require_ct_delegate, IsCTRequiredForHost(_, _, _))
@@ -1229,8 +1222,7 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
 
     state.SetRequireCTDelegate(nullptr);
     EXPECT_EQ(
@@ -1238,8 +1230,7 @@ TEST_F(TransportSecurityStateTest, RequireCTConsultsDelegate) {
         state.CheckCTRequirements(
             HostPortPair("www.example.com", 443), true, hashes, cert.get(),
             cert.get(), SignedCertificateTimestampAndStatusList(),
-            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-            NetworkAnonymizationKey()));
+            ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   }
 }
 
@@ -1300,39 +1291,29 @@ TEST_P(CTEmergencyDisableTest, CTEmergencyDisable) {
             state_.CheckCTRequirements(
                 HostPortPair("www.example.com", 443), true, hashes, cert.get(),
                 cert.get(), SignedCertificateTimestampAndStatusList(),
-
-                ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-                NetworkAnonymizationKey()));
+                ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   EXPECT_EQ(TransportSecurityState::CT_NOT_REQUIRED,
             state_.CheckCTRequirements(
                 HostPortPair("www.example.com", 443), true, hashes, cert.get(),
                 cert.get(), SignedCertificateTimestampAndStatusList(),
-
-                ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS,
-                NetworkAnonymizationKey()));
+                ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS));
   EXPECT_EQ(TransportSecurityState::CT_NOT_REQUIRED,
             state_.CheckCTRequirements(
                 HostPortPair("www.example.com", 443), true, hashes, cert.get(),
                 cert.get(), SignedCertificateTimestampAndStatusList(),
-
-                ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS,
-                NetworkAnonymizationKey()));
+                ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS));
   EXPECT_EQ(TransportSecurityState::CT_NOT_REQUIRED,
             state_.CheckCTRequirements(
                 HostPortPair("www.example.com", 443), true, hashes, cert.get(),
                 cert.get(), SignedCertificateTimestampAndStatusList(),
-
-                ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY,
-                NetworkAnonymizationKey()));
+                ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY));
 
   state_.SetRequireCTDelegate(nullptr);
   EXPECT_EQ(TransportSecurityState::CT_NOT_REQUIRED,
             state_.CheckCTRequirements(
                 HostPortPair("www.example.com", 443), true, hashes, cert.get(),
                 cert.get(), SignedCertificateTimestampAndStatusList(),
-
-                ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-                NetworkAnonymizationKey()));
+                ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
 }
 
 INSTANTIATE_TEST_SUITE_P(
@@ -1374,9 +1355,7 @@ TEST_F(TransportSecurityStateTest, RequireCTForSymantec) {
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, before_cert.get(),
           before_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
 
   // ... but certificates issued after 1 June 2016 are required to be...
   EXPECT_EQ(
@@ -1384,33 +1363,25 @@ TEST_F(TransportSecurityStateTest, RequireCTForSymantec) {
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_NOT_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS));
 
   // ... unless they were issued by an excluded intermediate.
   hashes.push_back(HashValue(google_hash_value));
@@ -1419,17 +1390,13 @@ TEST_F(TransportSecurityStateTest, RequireCTForSymantec) {
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, before_cert.get(),
           before_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   EXPECT_EQ(
       TransportSecurityState::CT_NOT_REQUIRED,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
 
   // And other certificates should remain unaffected.
   SHA256HashValue unrelated_hash_value = {{0x01, 0x02}};
@@ -1441,17 +1408,13 @@ TEST_F(TransportSecurityStateTest, RequireCTForSymantec) {
                 HostPortPair("www.example.com", 443), true, unrelated_hashes,
                 before_cert.get(), before_cert.get(),
                 SignedCertificateTimestampAndStatusList(),
-
-                ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-                NetworkAnonymizationKey()));
+                ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   EXPECT_EQ(TransportSecurityState::CT_NOT_REQUIRED,
             state.CheckCTRequirements(
                 HostPortPair("www.example.com", 443), true, unrelated_hashes,
                 after_cert.get(), after_cert.get(),
                 SignedCertificateTimestampAndStatusList(),
-
-                ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-                NetworkAnonymizationKey()));
+                ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
 }
 
 // Tests that Certificate Transparency is required for all of the Symantec
@@ -1483,33 +1446,25 @@ TEST_F(TransportSecurityStateTest, RequireCTForSymantecManagedCAs) {
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, before_cert.get(),
           before_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_NOT_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, before_cert.get(),
           before_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, before_cert.get(),
           before_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, before_cert.get(),
           before_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS));
 
   scoped_refptr<X509Certificate> after_cert =
       ImportCertFromFile(GetTestCertsDirectory(), "post_june_2016.pem");
@@ -1520,33 +1475,25 @@ TEST_F(TransportSecurityStateTest, RequireCTForSymantecManagedCAs) {
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_ENOUGH_SCTS));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_NOT_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_NOT_DIVERSE_SCTS));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_BUILD_NOT_TIMELY));
   EXPECT_EQ(
       TransportSecurityState::CT_REQUIREMENTS_MET,
       state.CheckCTRequirements(
           HostPortPair("www.example.com", 443), true, hashes, after_cert.get(),
           after_cert.get(), SignedCertificateTimestampAndStatusList(),
-
-          ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS,
-          NetworkAnonymizationKey()));
+          ct::CTPolicyCompliance::CT_POLICY_COMPLIES_VIA_SCTS));
 }
 
 #if BUILDFLAG(INCLUDE_TRANSPORT_SECURITY_STATE_PRELOAD_LIST)
@@ -2130,6 +2077,8 @@ TEST_F(TransportSecurityStateStaticTest, HPKPReportRateLimiting) {
   EXPECT_EQ(std::string(), mock_report_sender.latest_report());
   EXPECT_EQ(NetworkAnonymizationKey(),
             mock_report_sender.latest_network_anonymization_key());
+
+  state.SetReportSender(nullptr);
 }
 
 TEST_F(TransportSecurityStateStaticTest, HPKPReporting) {
@@ -2244,6 +2193,8 @@ TEST_F(TransportSecurityStateStaticTest, HPKPReporting) {
                                           good_hashes));
   EXPECT_EQ(network_anonymization_key,
             mock_report_sender.latest_network_anonymization_key());
+
+  state.SetReportSender(nullptr);
 }
 
 TEST_F(TransportSecurityStateTest, WriteSizeDecodeSize) {

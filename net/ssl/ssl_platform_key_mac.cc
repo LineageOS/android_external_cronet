@@ -51,8 +51,6 @@ SecKeyAlgorithm GetSecKeyAlgorithm(uint16_t algorithm) {
       return kSecKeyAlgorithmRSASignatureDigestPKCS1v15SHA256;
     case SSL_SIGN_RSA_PKCS1_SHA1:
       return kSecKeyAlgorithmRSASignatureDigestPKCS1v15SHA1;
-    case SSL_SIGN_RSA_PKCS1_MD5_SHA1:
-      return kSecKeyAlgorithmRSASignatureDigestPKCS1v15Raw;
     case SSL_SIGN_ECDSA_SECP521R1_SHA512:
       return kSecKeyAlgorithmECDSASignatureDigestX962SHA512;
     case SSL_SIGN_ECDSA_SECP384R1_SHA384:
@@ -108,8 +106,12 @@ class SSLPlatformKeySecKey : public ThreadedSSLPrivateKey::Delegate {
     SecKeyAlgorithm sec_algorithm =
         GetSecKeyAlgorithmWithFallback(algorithm, &pss_fallback);
     if (!sec_algorithm) {
-      NOTREACHED();
-      return ERR_FAILED;
+      // The caller should not request a signature algorithm we do not support.
+      // However, it's possible `key_` previously reported it supported an
+      // algorithm but no longer does. A compromised network service could also
+      // request invalid algorithms, so cleanly fail.
+      LOG(ERROR) << "Unsupported signature algorithm: " << algorithm;
+      return ERR_SSL_CLIENT_AUTH_SIGNATURE_FAILED;
     }
 
     const EVP_MD* md = SSL_get_signature_algorithm_digest(algorithm);

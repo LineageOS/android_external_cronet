@@ -6,15 +6,15 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
 #include "base/format_macros.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/strings/string_util.h"
 #include "base/sys_byteorder.h"
-#include "base/trace_event/base_tracing.h"
 #include "net/base/io_buffer.h"
 #include "net/base/sys_addrinfo.h"
+#include "net/base/tracing.h"
 #include "net/log/net_log.h"
 #include "net/log/net_log_event_type.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"

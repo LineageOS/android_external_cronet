@@ -112,7 +112,11 @@ class SimpleFramerVisitor : public QuicFramerVisitorInterface {
     return true;
   }
 
-  bool OnAckFrameEnd(QuicPacketNumber /*start*/) override { return true; }
+  bool OnAckFrameEnd(
+      QuicPacketNumber /*start*/,
+      const absl::optional<QuicEcnCounts>& /*ecn_counts*/) override {
+    return true;
+  }
 
   bool OnStopWaitingFrame(const QuicStopWaitingFrame& frame) override {
     stop_waiting_frames_.push_back(frame);

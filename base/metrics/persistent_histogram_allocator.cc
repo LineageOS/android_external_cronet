@@ -101,17 +101,6 @@ size_t CalculateRequiredCountsBytes(size_t bucket_count) {
 
 }  // namespace
 
-BASE_FEATURE(
-    kPersistentHistogramsFeature,
-    "PersistentHistograms",
-#if BUILDFLAG(IS_FUCHSIA)
-    // TODO(crbug.com/1295119): Enable once writable mmap() is supported.
-    FEATURE_DISABLED_BY_DEFAULT
-#else
-    FEATURE_ENABLED_BY_DEFAULT
-#endif  // BUILDFLAG(IS_FUCHSIA)
-);
-
 PersistentSparseHistogramDataManager::PersistentSparseHistogramDataManager(
     PersistentMemoryAllocator* allocator)
     : allocator_(allocator), record_iterator_(allocator) {}
@@ -587,9 +576,9 @@ std::unique_ptr<HistogramBase> PersistentHistogramAllocator::CreateHistogram(
   // it is needed, memory will be allocated from the persistent segment and
   // a reference to it stored at the passed address. Other threads can then
   // notice the valid reference and access the same data.
-  DelayedPersistentAllocation counts_data(
-      memory_allocator_.get(), &histogram_data_ptr->counts_ref,
-      kTypeIdCountsArray, counts_bytes, false);
+  DelayedPersistentAllocation counts_data(memory_allocator_.get(),
+                                          &histogram_data_ptr->counts_ref,
+                                          kTypeIdCountsArray, counts_bytes);
 
   // A second delayed allocations is defined using the same reference storage
   // location as the first so the allocation of one will automatically be found
@@ -597,8 +586,7 @@ std::unique_ptr<HistogramBase> PersistentHistogramAllocator::CreateHistogram(
   // and the second half is for "logged counts".
   DelayedPersistentAllocation logged_data(
       memory_allocator_.get(), &histogram_data_ptr->counts_ref,
-      kTypeIdCountsArray, counts_bytes, counts_bytes / 2,
-      /*make_iterable=*/false);
+      kTypeIdCountsArray, counts_bytes, counts_bytes / 2);
 
   // Create the right type of histogram.
   const char* name = histogram_data_ptr->name;
@@ -670,7 +658,7 @@ PersistentHistogramAllocator::GetOrCreateStatisticsRecorderHistogram(
     return nullptr;
 
   // Make sure there is no "serialization" flag set.
-  DCHECK_EQ(0, existing->flags() & HistogramBase::kIPCSerializationSourceFlag);
+  DCHECK(!existing->HasFlags(HistogramBase::kIPCSerializationSourceFlag));
   // Record the newly created histogram in the SR.
   return StatisticsRecorder::RegisterOrDeleteDuplicate(existing);
 }
@@ -833,6 +821,11 @@ bool GlobalHistogramAllocator::ParseFilePath(const FilePath& path,
 
 bool GlobalHistogramAllocator::CreateSpareFile(const FilePath& spare_path,
                                                size_t size) {
+  // If the spare file already exists, it was created in a previous session and
+  // is still unused, so do nothing.
+  if (base::PathExists(spare_path)) {
+    return false;
+  }
   FilePath temp_spare_path = spare_path.AddExtension(FILE_PATH_LITERAL(".tmp"));
   bool success;
   {
@@ -923,6 +916,25 @@ const FilePath& GlobalHistogramAllocator::GetPersistentLocation() const {
   return persistent_location_;
 }
 
+bool GlobalHistogramAllocator::HasPersistentLocation() const {
+  return !persistent_location_.empty();
+}
+
+bool GlobalHistogramAllocator::MovePersistentFile(const FilePath& dir) {
+  DCHECK(HasPersistentLocation());
+
+  FilePath new_file_path = dir.Append(persistent_location_.BaseName());
+
+  // Change the location of the persistent file. This is fine to do even though
+  // the file is currently "opened" by this process.
+  if (!base::ReplaceFile(persistent_location_, new_file_path, nullptr)) {
+    return false;
+  }
+
+  SetPersistentLocation(new_file_path);
+  return true;
+}
+
 bool GlobalHistogramAllocator::WriteToPersistentLocation() {
 #if BUILDFLAG(IS_NACL)
   // NACL doesn't support file operations, including ImportantFileWriter.
@@ -930,7 +942,7 @@ bool GlobalHistogramAllocator::WriteToPersistentLocation() {
   return false;
 #else
   // Stop if no destination is set.
-  if (persistent_location_.empty()) {
+  if (!HasPersistentLocation()) {
     NOTREACHED() << "Could not write \"" << Name() << "\" persistent histograms"
                  << " to file because no location was set.";
     return false;
@@ -954,8 +966,9 @@ void GlobalHistogramAllocator::DeletePersistentLocation() {
 #if BUILDFLAG(IS_NACL)
   NOTREACHED();
 #else
-  if (persistent_location_.empty())
+  if (!HasPersistentLocation()) {
     return;
+  }
 
   // Open (with delete) and then immediately close the file by going out of
   // scope. This is the only cross-platform safe way to delete a file that may

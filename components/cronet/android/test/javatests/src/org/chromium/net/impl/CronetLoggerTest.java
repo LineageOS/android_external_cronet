@@ -228,7 +228,7 @@ public final class CronetLoggerTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    public void testLoggingKillSwitch() throws JSONException {
+    public void testTelemetryDefaultDisabled() throws JSONException {
         final String url = NativeTestServer.getEchoBodyURL();
         JSONObject jsonExperimentalOptions = new JSONObject().put("skip_logging", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
@@ -238,6 +238,7 @@ public final class CronetLoggerTest {
         HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
+        CronetEngine engine = mTestFramework.startEngine();
         UrlRequest.Builder requestBuilder =
                 engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
         UrlRequest request = requestBuilder.build();
@@ -251,6 +252,7 @@ public final class CronetLoggerTest {
 
     @Test
     @SmallTest
+    @OnlyRunNativeCronet
     public void testEngineCreation() throws JSONException {
         JSONObject staleDns = new JSONObject()
                                       .put("enable", true)
@@ -258,7 +260,8 @@ public final class CronetLoggerTest {
                                       .put("allow_other_network", true)
                                       .put("persist_to_disk", true)
                                       .put("persist_delay_ms", 0);
-        final JSONObject jsonExperimentalOptions = new JSONObject().put("StaleDNS", staleDns);
+        final JSONObject jsonExperimentalOptions =
+                new JSONObject().put("StaleDNS", staleDns).put("enable_telemetry", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
         final boolean isPublicKeyPinningBypassForLocalTrustAnchorsEnabled = false;
         final String userAgent = "myUserAgent";
@@ -383,12 +386,17 @@ public final class CronetLoggerTest {
 
         assertEquals(2, mTestLogger.callsToLogCronetEngineCreation());
         assertEquals(2, mTestLogger.callsToLogCronetTrafficInfo());
+
+        engine1.shutdown();
+        engine2.shutdown();
     }
 
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    public void testSuccessfulRequestNative() {
+    public void testSuccessfulRequestNative() throws Exception {
+        JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
+        final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = NativeTestServer.getEchoBodyURL();
         HttpEngine engine = mTestFramework.startEngine();
 
@@ -421,7 +429,8 @@ public final class CronetLoggerTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    public void testFailedRequestNative() {
+    public void testFailedRequestNative() throws Exception {
+        JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String url = "www.unreachable-url.com";
         HttpEngine engine = mTestFramework.startEngine();
 
@@ -455,7 +464,9 @@ public final class CronetLoggerTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    public void testCanceledRequestNative() {
+    public void testCanceledRequestNative() throws Exception {
+        JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
+        final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = NativeTestServer.getEchoBodyURL();
         HttpEngine engine = mTestFramework.startEngine();
 

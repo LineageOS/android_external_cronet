@@ -9,9 +9,9 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
@@ -288,7 +288,7 @@ class ProxyResolverFactoryForPacResult : public ProxyResolverFactory {
 };
 
 // Returns NetLog parameters describing a proxy configuration change.
-base::Value NetLogProxyConfigChangedParams(
+base::Value::Dict NetLogProxyConfigChangedParams(
     const absl::optional<ProxyConfigWithAnnotation>* old_config,
     const ProxyConfigWithAnnotation* new_config) {
   base::Value::Dict dict;
@@ -297,24 +297,25 @@ base::Value NetLogProxyConfigChangedParams(
   if (old_config->has_value())
     dict.Set("old_config", (*old_config)->value().ToValue());
   dict.Set("new_config", new_config->value().ToValue());
-  return base::Value(std::move(dict));
+  return dict;
 }
 
-base::Value NetLogBadProxyListParams(const ProxyRetryInfoMap* retry_info) {
+base::Value::Dict NetLogBadProxyListParams(
+    const ProxyRetryInfoMap* retry_info) {
   base::Value::Dict dict;
-  base::Value list(base::Value::Type::LIST);
+  base::Value::List list;
 
   for (const auto& retry_info_pair : *retry_info)
     list.Append(retry_info_pair.first);
   dict.Set("bad_proxy_list", std::move(list));
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 // Returns NetLog parameters on a successful proxy resolution.
-base::Value NetLogFinishedResolvingProxyParams(const ProxyInfo* result) {
+base::Value::Dict NetLogFinishedResolvingProxyParams(const ProxyInfo* result) {
   base::Value::Dict dict;
   dict.Set("pac_string", result->ToPacString());
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 // Returns a sanitized copy of |url| which is safe to pass on to a PAC script.
@@ -1320,7 +1321,7 @@ base::Value::Dict ConfiguredProxyResolutionService::GetProxyNetLogValues() {
 
   // Log Bad Proxies.
   {
-    base::Value list(base::Value::Type::LIST);
+    base::Value::List list;
 
     for (const auto& it : proxy_retry_info_) {
       const std::string& proxy_uri = it.first;

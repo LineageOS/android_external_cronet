@@ -11,11 +11,11 @@
 #include <vector>
 
 #include "base/base64.h"
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/json/json_reader.h"
 #include "base/json/json_writer.h"
 #include "base/location.h"
@@ -222,9 +222,12 @@ void TransportSecurityPersister::WriteNow(TransportSecurityState* state,
           &OnWriteFinishedTask, foreground_runner_,
           base::BindOnce(&TransportSecurityPersister::OnWriteFinished,
                          weak_ptr_factory_.GetWeakPtr(), std::move(callback))));
-  auto data = std::make_unique<std::string>();
-  SerializeData(data.get());
-  writer_.WriteNow(std::move(data));
+  absl::optional<std::string> data = SerializeData();
+  if (data) {
+    writer_.WriteNow(std::move(data).value());
+  } else {
+    writer_.WriteNow(std::string());
+  }
 }
 
 void TransportSecurityPersister::OnWriteFinished(base::OnceClosure callback) {
@@ -232,15 +235,18 @@ void TransportSecurityPersister::OnWriteFinished(base::OnceClosure callback) {
   std::move(callback).Run();
 }
 
-bool TransportSecurityPersister::SerializeData(std::string* output) {
+absl::optional<std::string> TransportSecurityPersister::SerializeData() {
   DCHECK(foreground_runner_->RunsTasksInCurrentSequence());
 
   base::Value::Dict toplevel;
   toplevel.Set(kVersionKey, kCurrentVersionValue);
   toplevel.Set(kSTSKey, SerializeSTSData(transport_security_state_));
 
-  base::JSONWriter::Write(toplevel, output);
-  return true;
+  std::string output;
+  if (!base::JSONWriter::Write(toplevel, &output)) {
+    return absl::nullopt;
+  }
+  return output;
 }
 
 void TransportSecurityPersister::LoadEntries(const std::string& serialized) {

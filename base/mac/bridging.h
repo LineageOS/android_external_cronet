@@ -138,7 +138,7 @@ CF_TO_NS_CAST_IMPL(CFURL, NSURL)
 CF_TO_NS_CAST_IMPL(CTFont, UIFont)
 #else
 // The NSFont/CTFont toll-free bridging is broken before 10.15.
-// http://www.openradar.me/15341349 rdar://15341349
+// https://openradar.appspot.com/15341349
 //
 // TODO(https://crbug.com/1076527): This is fixed in 10.15. When 10.15 is the
 // minimum OS for Chromium, remove this specialization and replace it with just:
@@ -146,7 +146,7 @@ CF_TO_NS_CAST_IMPL(CTFont, UIFont)
 // CF_TO_NS_CAST_IMPL(CTFont, NSFont)
 
 extern "C" {
-Boolean _CFIsObjC(CFTypeID typeID, CFTypeRef obj);
+Boolean _CFIsObjC(CFTypeID typeID, _Nonnull CFTypeRef obj);
 }  // extern "C"
 
 namespace base::mac {
@@ -168,7 +168,7 @@ inline BASE_EXPORT CF_RETURNS_RETAINED _Nullable CTFontRef NSToCFOwnershipCast(
   return cf_val;
 }
 
-inline BASE_EXPORT _Nullable NSFont* CFToNSPtrCast(CTFontRef _Nullable cf_val) {
+inline BASE_EXPORT NSFont* _Nullable CFToNSPtrCast(CTFontRef _Nullable cf_val) {
   NSFont* ns_val = (__bridge NSFont*)cf_val;
   DCHECK(!cf_val || CTFontGetTypeID() == CFGetTypeID(cf_val) ||
          (_CFIsObjC(CTFontGetTypeID(), cf_val) &&

@@ -15,20 +15,20 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/check_op.h"
+#include "base/functional/bind.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
 #include "base/time/default_tick_clock.h"
-#include "base/trace_event/base_tracing.h"
 #include "base/types/optional_util.h"
 #include "base/value_iterators.h"
 #include "net/base/address_family.h"
 #include "net/base/ip_endpoint.h"
 #include "net/base/trace_constants.h"
+#include "net/base/tracing.h"
 #include "net/dns/host_resolver.h"
 #include "net/dns/host_resolver_internal_result.h"
 #include "net/dns/https_record_rdata.h"
@@ -389,7 +389,7 @@ HostCache::Entry::Entry(
 
     // Even if otherwise empty, having the metadata result object signifies
     // receiving a compatible HTTPS record.
-    https_record_compatibility_ = {true};
+    https_record_compatibility_ = std::vector<bool>{true};
 
     if (endpoint_metadatas_.value().empty())
       error_ = ERR_NAME_NOT_RESOLVED;

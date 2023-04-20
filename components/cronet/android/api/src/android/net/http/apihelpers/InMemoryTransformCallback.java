@@ -68,7 +68,12 @@ public abstract class InMemoryTransformCallback<T> extends ImplicitFlowControlCa
             throw new IllegalArgumentException(
                     "The body is too large and wouldn't fit in a byte array!");
         }
-        mResponseBodyStream = new ByteArrayOutputStream((int) bodyLength);
+        // bodyLength returns -1 if the header can't be parsed, also ignore obviously bogus values
+        if (bodyLength >= 0) {
+            mResponseBodyStream = new ByteArrayOutputStream((int) bodyLength);
+        } else {
+            mResponseBodyStream = new ByteArrayOutputStream();
+        }
         mResponseBodyChannel = Channels.newChannel(mResponseBodyStream);
     }
 
@@ -101,7 +106,7 @@ public abstract class InMemoryTransformCallback<T> extends ImplicitFlowControlCa
     }
 
     /**
-     * Returns the numerical value of the Content-Header length, or -1 if not set or invalid.
+     * Returns the numerical value of the Content-Length header, or -1 if not set or invalid.
      */
     private static long getBodyLength(UrlResponseInfo info) {
         List<String> contentLengthHeader = info.getAllHeaders().get(CONTENT_LENGTH_HEADER_NAME);

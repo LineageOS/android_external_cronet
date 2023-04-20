@@ -34,6 +34,8 @@ LOGCAT_FILTERS = [
   'StrictMode:D',
 ]
 
+SYSTEM_USER_ID = 0
+
 
 def _DeviceCachePath(device):
   file_name = 'device_cache_%s.json' % device.adb.GetDeviceSerial()
@@ -134,6 +136,7 @@ class LocalDeviceEnvironment(environment.Environment):
     if hasattr(args, 'trace_all'):
       self._trace_all = args.trace_all
     self._use_persistent_shell = args.use_persistent_shell
+    self._disable_test_server = args.disable_test_server
 
     devil_chromium.Initialize(
         output_directory=constants.GetOutDirectory(),
@@ -182,6 +185,12 @@ class LocalDeviceEnvironment(environment.Environment):
     @handle_shard_failures_with(on_failure=self.DenylistDevice)
     def prepare_device(d):
       d.WaitUntilFullyBooted()
+      if d.GetCurrentUser() != SYSTEM_USER_ID:
+        # Use system user to run tasks to avoid "/sdcard "accessing issue
+        # due to multiple-users. For details, see
+        # https://source.android.com/docs/devices/admin/multi-user-testing
+        logging.info('Switching to user with id %s', SYSTEM_USER_ID)
+        d.SwitchUser(SYSTEM_USER_ID)
 
       if self._enable_device_cache:
         cache_path = _DeviceCachePath(d)
@@ -255,6 +264,10 @@ class LocalDeviceEnvironment(environment.Environment):
   @property
   def trace_output(self):
     return self._trace_output
+
+  @property
+  def disable_test_server(self):
+    return self._disable_test_server
 
   #override
   def TearDown(self):

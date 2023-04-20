@@ -5,8 +5,10 @@
 #ifndef BASE_TASK_SINGLE_THREAD_TASK_RUNNER_H_
 #define BASE_TASK_SINGLE_THREAD_TASK_RUNNER_H_
 
+#include "base/auto_reset.h"
 #include "base/base_export.h"
 #include "base/dcheck_is_on.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/task/sequenced_task_runner.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
@@ -76,6 +78,8 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
     friend class SingleThreadTaskRunner;
     friend class CurrentHandleOverride;
 
+    const AutoReset<CurrentDefaultHandle*> resetter_;
+
     scoped_refptr<SingleThreadTaskRunner> task_runner_;
 
     // Registers |task_runner_|'s SequencedTaskRunner interface as the
@@ -107,10 +111,6 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
     FRIEND_TEST_ALL_PREFIXES(SingleThreadTaskRunnerCurrentDefaultHandleTest,
                              NestedRunLoop);
 
-    // This is in order for ThreadTaskRunnerHandleOverride to call this private
-    // constructor during migration.
-    friend class ThreadTaskRunnerHandleOverride;
-
     // We expect SingleThreadTaskRunner::CurrentHandleOverride to be only needed
     // under special circumstances. Require them to be enumerated as friends to
     // require //base/OWNERS review. Use
@@ -136,7 +136,10 @@ class BASE_EXPORT SingleThreadTaskRunner : public SequencedTaskRunner {
     scoped_refptr<SingleThreadTaskRunner> task_runner_to_restore_;
 
 #if DCHECK_IS_ON()
-    SingleThreadTaskRunner* expected_task_runner_before_restore_{nullptr};
+    // This field is not a raw_ptr<> because it was filtered by the rewriter
+    // for: #union
+    RAW_PTR_EXCLUSION SingleThreadTaskRunner*
+        expected_task_runner_before_restore_{nullptr};
 #endif
 
     std::unique_ptr<ScopedDisallowRunningRunLoop> no_running_during_override_;
