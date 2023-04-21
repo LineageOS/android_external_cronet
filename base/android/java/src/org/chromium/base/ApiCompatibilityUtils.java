@@ -36,7 +36,8 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.OptIn;
 import androidx.annotation.RequiresApi;
-import androidx.core.os.BuildCompat;
+
+import com.android.modules.utils.build.SdkLevel;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
@@ -318,10 +319,9 @@ public class ApiCompatibilityUtils {
      * passed to Chrome from a backgrounded app.
      * @param options {@ActivityOptions} to set the required mode to.
      */
-    @OptIn(markerClass = androidx.core.os.BuildCompat.PrereleaseSdkCheck.class)
     public static void setActivityOptionsBackgroundActivityStartMode(
             @NonNull ActivityOptions options) {
-        if (!BuildCompat.isAtLeastU()) return;
+        if (!SdkLevel.isAtLeastU()) return;
 
         // options.setPendingIntentBackgroundActivityStartMode(
         //     ActivityOptions.MODE_BACKGROUND_ACTIVITY_START_ALLOWED);
@@ -344,11 +344,10 @@ public class ApiCompatibilityUtils {
      * See https://crbug.com/1427112
      * @param view The view on which to set the handwriting bounds.
      */
-    @OptIn(markerClass = androidx.core.os.BuildCompat.PrereleaseSdkCheck.class)
     public static void clearHandwritingBoundsOffsetBottom(View view) {
         // TODO(crbug.com/1427112): Replace uses of this method with direct calls once the API is
         // available.
-        if (!BuildCompat.isAtLeastU()) return;
+        if (!SdkLevel.isAtLeastU()) return;
         // Set the bottom handwriting bounds offset to 0 so that the view doesn't intercept
         // stylus events meant for the web contents.
         try {
