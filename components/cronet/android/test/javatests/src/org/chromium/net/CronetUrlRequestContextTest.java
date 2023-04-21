@@ -1480,7 +1480,7 @@ public class CronetUrlRequestContextTest {
         builder.setExperimentalOptions("");
         builder.setStoragePath(getTestStorage(getContext()));
         builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(false);
-        nativeVerifyUrlRequestContextConfig(
+        CronetUrlRequestContextTestJni.get().verifyUrlRequestContextConfig(
                 CronetUrlRequestContext.createNativeUrlRequestContextConfig(
                         (CronetEngineBuilderImpl) builder.getBuilderDelegate()),
                 getTestStorage(getContext()));
@@ -1503,16 +1503,11 @@ public class CronetUrlRequestContextTest {
         builder.setUserAgent("efgh");
         builder.setStoragePath(getTestStorage(getContext()));
         builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(false);
-        nativeVerifyUrlRequestContextQuicOffConfig(
+        CronetUrlRequestContextTestJni.get().verifyUrlRequestContextQuicOffConfig(
                 CronetUrlRequestContext.createNativeUrlRequestContextConfig(
                         (CronetEngineBuilderImpl) builder.getBuilderDelegate()),
                 getTestStorage(getContext()));
     }
-
-    // Verifies that CronetEngine.Builder config from testCronetEngineQuicOffConfig() is properly
-    // translated to a native UrlRequestContextConfig and QUIC is turned off.
-    private static native void nativeVerifyUrlRequestContextQuicOffConfig(
-            long config, String storagePath);
 
     // Creates a CronetEngine on another thread and then one on the main thread.  This shouldn't
     // crash.
