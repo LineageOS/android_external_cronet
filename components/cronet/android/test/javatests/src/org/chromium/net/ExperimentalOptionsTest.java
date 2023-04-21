@@ -90,9 +90,8 @@ public class ExperimentalOptionsTest {
     public void setUp() throws Exception {
         mBuilder = new ExperimentalHttpEngine.Builder(getContext());
         mHangingUrlLatch = new CountDownLatch(1);
-        // TODO(b/267353182 enable cert verifier)
-        // CronetTestUtil.setMockCertVerifierForTesting(
-        //        mBuilder, QuicTestServer.createMockCertVerifier());
+        CronetTestUtil.setMockCertVerifierForTesting(
+               mBuilder, QuicTestServer.createMockCertVerifier());
         assertTrue(Http2TestServer.startHttp2TestServer(
                 getContext(), SERVER_CERT_PEM, SERVER_KEY_PKCS8_PEM, mHangingUrlLatch));
     }

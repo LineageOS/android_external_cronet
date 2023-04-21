@@ -834,7 +834,7 @@ cc_genrule {
          "--javap " +
          "$$(find $${OUT_DIR:-out}/.path -name javap) " +
          "--package_prefix " +
-         "android.net.http.internal",
+         "android.net.connectivity",
     out: [
         "base/android_runtime_jni_headers/Runnable_jni.h",
         "base/android_runtime_jni_headers/Runtime_jni.h",
@@ -2873,7 +2873,7 @@ cc_genrule {
          "--input_file " +
          "$(location base/android/java/src/org/chromium/base/task/TaskRunnerImpl.java) " +
          "--package_prefix " +
-         "android.net.http.internal",
+         "android.net.connectivity",
     out: [
         "base/base_jni_headers/ApkAssets_jni.h",
         "base/base_jni_headers/ApplicationStatus_jni.h",
@@ -3391,7 +3391,7 @@ cc_library_static {
 cc_genrule {
     name: "cronet_aml_base_build_date",
     cmd: "$(location build/write_build_date_header.py) $(out) " +
-         "1677005917",
+         "1681382591",
     out: [
         "base/generated_build_date.h",
     ],
@@ -3407,7 +3407,7 @@ cc_genrule {
 cc_genrule {
     name: "cronet_aml_base_build_date__testing",
     cmd: "$(location build/write_build_date_header.py) $(out) " +
-         "1677005917",
+         "1681382591",
     host_supported: true,
     out: [
         "base/generated_build_date.h",
@@ -7116,7 +7116,7 @@ cc_genrule {
          "--input_file " +
          "$(location components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java) " +
          "--package_prefix " +
-         "android.net.http.internal",
+         "android.net.connectivity",
     out: [
         "components/cronet/android/cronet_jni_headers/CronetBidirectionalStream_jni.h",
         "components/cronet/android/cronet_jni_headers/CronetLibraryLoader_jni.h",
@@ -7421,7 +7421,7 @@ cc_genrule {
          "--header-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h " +
          "--package_prefix " +
-         "android.net.http.internal",
+         "android.net.connectivity",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
         "components/cronet/android/cronet_jni_registration_generated.h",
@@ -7667,7 +7667,7 @@ java_genrule {
          "--header-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration_generated.h " +
          "--package_prefix " +
-         "android.net.http.internal",
+         "android.net.connectivity",
     out: [
         "components/cronet/android/cronet_jni_registration.srcjar",
     ],
@@ -11504,7 +11504,7 @@ cc_genrule {
          "--input_file " +
          "$(location components/prefs/android/java/src/org/chromium/components/prefs/PrefService.java) " +
          "--package_prefix " +
-         "android.net.http.internal",
+         "android.net.connectivity",
     out: [
         "components/prefs/android/jni_headers/PrefService_jni.h",
     ],
@@ -13549,7 +13549,7 @@ java_library {
     sdk_version: "module_current",
     javacflags: [
         "-Aorg.chromium.chrome.skipGenJni",
-        "-Apackage_prefix=android.net.http.internal",
+        "-Apackage_prefix=android.net.connectivity",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
@@ -18557,7 +18557,7 @@ cc_genrule {
          "--input_file " +
          "$(location net/android/java/src/org/chromium/net/X509Util.java) " +
          "--package_prefix " +
-         "android.net.http.internal",
+         "android.net.connectivity",
     out: [
         "net/net_jni_headers/AndroidCertVerifyResult_jni.h",
         "net/net_jni_headers/AndroidKeyStore_jni.h",
@@ -41154,6 +41154,7 @@ cc_library_static {
         "buildtools/third_party/libc++/trunk/include",
         "buildtools/third_party/libc++abi/trunk/include",
         "third_party/libevent/android/",
+        "third_party/libevent/compat/",
     ],
     cpp_std: "c++20",
     ldflags: [
@@ -41238,6 +41239,7 @@ cc_library_static {
         "buildtools/third_party/libc++/",
         "buildtools/third_party/libc++/trunk/include",
         "buildtools/third_party/libc++abi/trunk/include",
+        "third_party/libevent/compat/",
     ],
     cpp_std: "c++20",
     ldflags: [
@@ -43212,7 +43214,7 @@ cc_genrule {
          "--input_file " +
          "$(location url/android/java/src/org/chromium/url/Origin.java) " +
          "--package_prefix " +
-         "android.net.http.internal",
+         "android.net.connectivity",
     out: [
         "url/url_jni_headers/IDNStringUtil_jni.h",
         "url/url_jni_headers/Origin_jni.h",

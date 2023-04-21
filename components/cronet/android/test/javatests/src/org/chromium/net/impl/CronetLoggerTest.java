@@ -286,7 +286,7 @@ public final class CronetLoggerTest {
         builder.setEnableBrotli(isBrotliEnabled);
         builder.setEnableHttpCache(cacheMode, 0);
 
-        // builder.enableNetworkQualityEstimator(isNetworkQualityEstimatorEnabled);
+        builder.enableNetworkQualityEstimator(isNetworkQualityEstimatorEnabled);
         builder.setThreadPriority(threadPriority);
 
         mTestFramework.startEngine();
@@ -303,9 +303,8 @@ public final class CronetLoggerTest {
         assertEquals(isBrotliEnabled, builderInfo.isBrotliEnabled());
         assertEquals(cacheMode, builderInfo.getHttpCacheMode());
         assertEquals(experimentalOptions, builderInfo.getExperimentalOptions());
-        // TODO(b/267353182): re-enable setting and asserting the value of network quality estimator
-        // assertEquals(
-        //        isNetworkQualityEstimatorEnabled, builderInfo.isNetworkQualityEstimatorEnabled());
+        assertEquals(
+               isNetworkQualityEstimatorEnabled, builderInfo.isNetworkQualityEstimatorEnabled());
         assertEquals(threadPriority, builderInfo.getThreadPriority());
         assertEquals(ImplVersion.getCronetVersion(), version.toString());
         if (mTestRule.testingJavaImpl()) {
