@@ -437,6 +437,8 @@ public class ExperimentalOptionsTest {
     @OnlyRunNativeCronet
     public void testEnablePathDegradingConnectionMigration_justPort() {
         MockCronetBuilderImpl mockBuilderImpl = MockCronetBuilderImpl.withoutNativeSetterSupport();
+        mBuilder = new ExperimentalHttpEngine.Builder(mockBuilderImpl);
+
         mBuilder.setConnectionMigrationOptions(
                 ConnectionMigrationOptions.builder()
                         .setPathDegradationMigration(
@@ -852,9 +854,14 @@ public class ExperimentalOptionsTest {
         }
     }
 
-    // Sets a host cache entry with hostname "host-cache-test-host" and an AddressList containing
-    // the provided address.
-    private static native void nativeWriteToHostCache(long adapter, String address);
-    // Whether Cronet engine creation can fail due to failure during experimental options parsing.
-    private static native boolean nativeExperimentalOptionsParsingIsAllowedToFail();
+    @NativeMethods("cronet_tests")
+    interface Natives {
+        // Sets a host cache entry with hostname "host-cache-test-host" and an AddressList
+        // containing the provided address.
+        void writeToHostCache(long adapter, String address);
+
+        // Whether Cronet engine creation can fail due to failure during experimental options
+        // parsing.
+        boolean experimentalOptionsParsingIsAllowedToFail();
+    }
 }
