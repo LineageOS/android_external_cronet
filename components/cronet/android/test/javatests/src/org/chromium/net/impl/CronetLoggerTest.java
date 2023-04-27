@@ -230,15 +230,9 @@ public final class CronetLoggerTest {
     @OnlyRunNativeCronet
     public void testTelemetryDefaultDisabled() throws JSONException {
         final String url = NativeTestServer.getEchoBodyURL();
-        JSONObject jsonExperimentalOptions = new JSONObject().put("skip_logging", true);
-        final String experimentalOptions = jsonExperimentalOptions.toString();
-        ExperimentalHttpEngine.Builder builder =
-                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
-        builder.setExperimentalOptions(experimentalOptions);
-        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
         UrlRequest.Builder requestBuilder =
                 engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
         UrlRequest request = requestBuilder.build();
@@ -319,8 +313,14 @@ public final class CronetLoggerTest {
 
     @Test
     @SmallTest
-    public void testEngineCreationAndTrafficInfoEngineId() {
+    @OnlyRunNativeCronet
+    public void testEngineCreationAndTrafficInfoEngineId() throws Exception {
+        JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
+        final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = "www.example.com";
+        ExperimentalHttpEngine.Builder builder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
+        builder.setExperimentalOptions(experimentalOptions);
         HttpEngine engine = mTestFramework.startEngine();
         final int engineId = mTestLogger.getLastCronetEngineId();
 
@@ -352,9 +352,14 @@ public final class CronetLoggerTest {
 
     @Test
     @SmallTest
-    public void testMultipleEngineCreationAndTrafficInfoEngineId() {
+    @OnlyRunNativeCronet
+    public void testMultipleEngineCreationAndTrafficInfoEngineId() throws Exception {
+        JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
+        final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = "www.example.com";
-        final HttpEngine.Builder engineBuilder = mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder engineBuilder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
+        engineBuilder.setExperimentalOptions(experimentalOptions);
 
         HttpEngine engine1 = engineBuilder.build();
         final int engine1Id = mTestLogger.getLastCronetEngineId();
@@ -397,6 +402,9 @@ public final class CronetLoggerTest {
         JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = NativeTestServer.getEchoBodyURL();
+        ExperimentalHttpEngine.Builder engineBuilder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
+        engineBuilder.setExperimentalOptions(experimentalOptions);
         HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -431,6 +439,10 @@ public final class CronetLoggerTest {
     public void testFailedRequestNative() throws Exception {
         JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String url = "www.unreachable-url.com";
+        final String experimentalOptions = jsonExperimentalOptions.toString();
+        ExperimentalHttpEngine.Builder engineBuilder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
+        engineBuilder.setExperimentalOptions(experimentalOptions);
         HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -467,6 +479,9 @@ public final class CronetLoggerTest {
         JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = NativeTestServer.getEchoBodyURL();
+        ExperimentalHttpEngine.Builder engineBuilder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
+        engineBuilder.setExperimentalOptions(experimentalOptions);
         HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
