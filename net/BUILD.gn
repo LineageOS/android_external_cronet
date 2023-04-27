@@ -2906,13 +2906,12 @@ test("net_unittests") {
     deps += [ "//net/server:tests" ]
   }
 
-  if (is_cronet_build) {
-    deps += [ "//third_party/perfetto/include/perfetto/test:test_support" ]
-  } else {
+  if (!is_cronet_build) {
     deps += [
       ":extras",
       "//components/sqlite_proto",
       "//sql",
+      "//third_party/perfetto/include/perfetto/test:test_support",
     ]
   }
 
