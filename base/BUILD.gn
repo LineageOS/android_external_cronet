@@ -4484,7 +4484,6 @@ if (is_android) {
       "//third_party/androidx:androidx_test_monitor_java",
       "//third_party/androidx:androidx_test_runner_java",
       "//third_party/androidx:androidx_test_uiautomator_uiautomator_java",
-      "//third_party/androidx:androidx_multidex_multidex_java",
       "//third_party/hamcrest:hamcrest_java",
       "//third_party/junit",
     ]
