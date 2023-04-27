@@ -1272,7 +1272,7 @@ class ProtocJavaSanitizer(BaseActionSanitizer):
 def get_action_sanitizer(gn, target, type, arch, is_test_target):
   if target.script == "//build/write_buildflag_header.py":
     return WriteBuildFlagHeaderSanitizer(target, arch)
-  elif target.script == "//build/write_build_date_header.py":
+  elif target.script == "//base/write_build_date_header.py":
     return WriteBuildDateHeaderSanitizer(target, arch)
   elif target.script == '//base/android/jni_generator/jni_generator.py':
     return JniGeneratorSanitizer(target, arch, is_test_target)
