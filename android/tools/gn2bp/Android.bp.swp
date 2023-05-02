@@ -3507,7 +3507,7 @@ cc_library_static {
 // GN: //base:build_date
 cc_genrule {
     name: "cronet_aml_base_build_date",
-    cmd: "$(location base/write_build_date_header.py) gen/base/generated_build_date.h " +
+    cmd: "$(location base/write_build_date_header.py) $(out) " +
          "1681484740",
     out: [
         "base/generated_build_date.h",
@@ -3523,31 +3523,8 @@ cc_genrule {
 // GN: //base:build_date__testing
 cc_genrule {
     name: "cronet_aml_base_build_date__testing",
-    cmd: "if [[ ( $$CC_ARCH == 'x86_64' && $$CC_OS == 'android' ) ]]; " +
-         "then " +
-         "$(location base/write_build_date_header.py) gen/base/generated_build_date.h " +
-         "1681484740; " +
-         "fi; " +
-         "if [[ $$CC_OS != 'android' ]]; " +
-         "then " +
-         "$(location base/write_build_date_header.py) clang_x64/gen/base/generated_build_date.h " +
-         "1681484740; " +
-         "fi; " +
-         "if [[ ( $$CC_ARCH == 'x86' && $$CC_OS == 'android' ) ]]; " +
-         "then " +
-         "$(location base/write_build_date_header.py) gen/base/generated_build_date.h " +
-         "1681484740; " +
-         "fi; " +
-         "if [[ ( $$CC_ARCH == 'arm' && $$CC_OS == 'android' ) ]]; " +
-         "then " +
-         "$(location base/write_build_date_header.py) gen/base/generated_build_date.h " +
-         "1681484740; " +
-         "fi; " +
-         "if [[ ( $$CC_ARCH == 'arm64' && $$CC_OS == 'android' ) ]]; " +
-         "then " +
-         "$(location base/write_build_date_header.py) gen/base/generated_build_date.h " +
-         "1681484740; " +
-         "fi;",
+    cmd: "$(location base/write_build_date_header.py) $(out) " +
+         "1681484740",
     host_supported: true,
     out: [
         "base/generated_build_date.h",

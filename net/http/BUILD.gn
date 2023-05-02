@@ -48,16 +48,22 @@ compiled_action_foreach("transport_security_state_unittest_data") {
     "transport_security_state_static_unittest3.json",
   ]
 
-  # Inputs in order expected by the command line of the tool.
-  inputs = [
+  # extra_args in order expected by the command line of the tool.
+  extra_args = [
     "transport_security_state_static_unittest.pins",
     "transport_security_state_static_unittest.template",
   ]
+
+  inputs = [
+    "transport_security_state_static_unittest1_pins.json",
+    "transport_security_state_static_unittest2_pins.json",
+    "transport_security_state_static_unittest3_pins.json",
+  ] + extra_args
   outputs = [ "$target_gen_dir/{{source_name_part}}.h" ]
   args =
       [ rebase_path("{{source_name_part}}.json", root_build_dir) ] +
       [ rebase_path("{{source_name_part}}_pins.json", root_build_dir) ] +
-      rebase_path(inputs, root_build_dir) + rebase_path(outputs, root_build_dir)
+      rebase_path(extra_args, root_build_dir) + rebase_path(outputs, root_build_dir)
 }
 
 # This has separated source_set not to let other compiles wait for the
