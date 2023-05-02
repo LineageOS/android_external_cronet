@@ -88,6 +88,9 @@ java_defaults {
         "androidx.annotation_annotation",
         "junit",
     ],
+    plugins: [
+        "cronet_aml_java_jni_annotation_preprocessor",
+    ],
     test_suites: [
         "general-tests",
         "mts-tethering",
@@ -125,6 +128,9 @@ java_library {
         "junit",
         "androidx.annotation_annotation",
         "androidx.annotation_annotation-experimental-nodeps",
+    ],
+    plugins: [
+        "cronet_aml_java_jni_annotation_preprocessor",
     ],
 }
 
@@ -243,6 +249,9 @@ android_library {
         "cronet_aml_api_java",
         // android.net.Network dependency
         "framework-connectivity",
+    ],
+    plugins: [
+        "cronet_aml_java_jni_annotation_preprocessor",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
