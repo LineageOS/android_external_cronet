@@ -1741,13 +1741,14 @@ def create_java_module(blueprint, gn, is_test_target):
   module.srcs.update([gn_utils.label_to_path(source) for source in get_non_api_java_sources(gn)])
   module.libs = {
     "androidx.annotation_annotation",
-    "jsr305",
     "androidx.annotation_annotation-experimental-nodeps",
-    "framework-connectivity.stubs.module_lib",
+    "error_prone_annotations",
     "framework-connectivity-t.stubs.module_lib",
+    "framework-connectivity.stubs.module_lib",
+    "framework-mediaprovider.stubs.module_lib",
     "framework-tethering.stubs.module_lib",
     "framework-wifi.stubs.module_lib",
-    "framework-mediaprovider.stubs.module_lib",
+    "jsr305",
   }
   module.static_libs = {
     "libprotobuf-java-lite",
