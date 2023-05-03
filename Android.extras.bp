@@ -250,6 +250,7 @@ android_library {
     static_libs: [
         "cronet_aml_java__testing",
         "androidx.test.ext.junit",
+        "hamcrest-library",
         "junit",
     ],
     libs: [
@@ -257,6 +258,7 @@ android_library {
         "cronet_aml_api_java",
         // android.net.Network dependency
         "framework-connectivity",
+        "guava",
     ],
     plugins: [
         "cronet_aml_java_jni_annotation_preprocessor",
