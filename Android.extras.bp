@@ -205,10 +205,17 @@ filegroup {
 filegroup {
     name: "cronet_base_net_javatest_utils",
     srcs: [
+        "base/test/android/javatests/**/CriteriaNotSatisfiedException.java",
+        "base/test/android/javatests/**/Criteria.java",
+        "base/test/android/javatests/**/CriteriaHelper.java",
         "base/test/android/javatests/**/DisabledTest.java",
         "base/test/android/javatests/**/HistogramWatcher.java",
+        "base/test/android/javatests/**/LooperUtils.java",
         "base/test/android/javatests/**/MetricsUtils.java",
         "base/test/android/javatests/**/PackageManagerWrapper.java",
+        "base/test/android/javatests/**/ScalableTimeout.java",
+        "base/test/android/javatests/**/TestFileUtil.java",
+        "base/test/android/javatests/**/TimeoutTimer.java",
         "base/test/android/javatests/**/UrlUtils.java",
         "net/url_request/FailurePhase.java",
     ]
