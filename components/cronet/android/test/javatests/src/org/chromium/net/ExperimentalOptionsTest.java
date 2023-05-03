@@ -140,7 +140,7 @@ public class ExperimentalOptionsTest {
         JSONObject experimentalOptions = new JSONObject().put("enable_telemetry", true);
         mBuilder.setExperimentalOptions(experimentalOptions.toString());
 
-        CronetEngine cronetEngine = mBuilder.build();
+        HttpEngine cronetEngine = mBuilder.build();
         CronetUrlRequestContext context = (CronetUrlRequestContext) mBuilder.build();
         assertTrue(context.getEnableTelemetryForTesting());
         cronetEngine.shutdown();
@@ -150,7 +150,7 @@ public class ExperimentalOptionsTest {
     @MediumTest
     @OnlyRunNativeCronet
     public void testEnableTelemetryDefault() throws Exception {
-        CronetEngine cronetEngine = mBuilder.build();
+        HttpEngine cronetEngine = mBuilder.build();
         CronetUrlRequestContext context = (CronetUrlRequestContext) mBuilder.build();
         assertFalse(context.getEnableTelemetryForTesting());
         cronetEngine.shutdown();
