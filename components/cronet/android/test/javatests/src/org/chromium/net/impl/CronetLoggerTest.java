@@ -230,15 +230,9 @@ public final class CronetLoggerTest {
     @OnlyRunNativeCronet
     public void testTelemetryDefaultDisabled() throws JSONException {
         final String url = NativeTestServer.getEchoBodyURL();
-        JSONObject jsonExperimentalOptions = new JSONObject().put("skip_logging", true);
-        final String experimentalOptions = jsonExperimentalOptions.toString();
-        ExperimentalHttpEngine.Builder builder =
-                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
-        builder.setExperimentalOptions(experimentalOptions);
-        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
         UrlRequest.Builder requestBuilder =
                 engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
         UrlRequest request = requestBuilder.build();
