@@ -267,3 +267,25 @@ android_library {
         "//packages/modules/Connectivity:__subpackages__",
     ],
 }
+
+java_library {
+    name: "cronet_java_tests",
+    defaults: ["CronetTestJavaDefaults"],
+    srcs: [":cronet_aml_javatests_sources"],
+    sdk_version: "module_current",
+    min_sdk_version: "30",
+    static_libs: [
+        "cronet_testserver_utils",
+        "androidx.test.ext.junit",
+        "androidx.test.rules",
+        "junit",
+    ],
+    libs: [
+        "android.test.base",
+        "framework-connectivity-pre-jarjar",
+        // android.net.TrafficStats apis
+        "framework-connectivity-t",
+    ],
+    lint: { test: true }
+}
+
