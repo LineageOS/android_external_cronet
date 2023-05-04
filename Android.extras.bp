@@ -286,6 +286,12 @@ java_library {
         // android.net.TrafficStats apis
         "framework-connectivity-t",
     ],
-    lint: { test: true }
+    lint: { test: true },
+    plugins: [
+        "cronet_aml_java_jni_annotation_preprocessor",
+    ],
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+    ],
 }
 
