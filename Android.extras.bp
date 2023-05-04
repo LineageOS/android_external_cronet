@@ -205,10 +205,17 @@ filegroup {
 filegroup {
     name: "cronet_base_net_javatest_utils",
     srcs: [
+        "base/test/android/javatests/**/CriteriaNotSatisfiedException.java",
+        "base/test/android/javatests/**/Criteria.java",
+        "base/test/android/javatests/**/CriteriaHelper.java",
         "base/test/android/javatests/**/DisabledTest.java",
         "base/test/android/javatests/**/HistogramWatcher.java",
+        "base/test/android/javatests/**/LooperUtils.java",
         "base/test/android/javatests/**/MetricsUtils.java",
         "base/test/android/javatests/**/PackageManagerWrapper.java",
+        "base/test/android/javatests/**/ScalableTimeout.java",
+        "base/test/android/javatests/**/TestFileUtil.java",
+        "base/test/android/javatests/**/TimeoutTimer.java",
         "base/test/android/javatests/**/UrlUtils.java",
         "net/url_request/FailurePhase.java",
     ]
@@ -243,6 +250,7 @@ android_library {
     static_libs: [
         "cronet_aml_java__testing",
         "androidx.test.ext.junit",
+        "hamcrest-library",
         "junit",
     ],
     libs: [
@@ -250,6 +258,7 @@ android_library {
         "cronet_aml_api_java",
         // android.net.Network dependency
         "framework-connectivity",
+        "guava",
     ],
     plugins: [
         "cronet_aml_java_jni_annotation_preprocessor",
@@ -258,3 +267,25 @@ android_library {
         "//packages/modules/Connectivity:__subpackages__",
     ],
 }
+
+java_library {
+    name: "cronet_java_tests",
+    defaults: ["CronetTestJavaDefaults"],
+    srcs: [":cronet_aml_javatests_sources"],
+    sdk_version: "module_current",
+    min_sdk_version: "30",
+    static_libs: [
+        "cronet_testserver_utils",
+        "androidx.test.ext.junit",
+        "androidx.test.rules",
+        "junit",
+    ],
+    libs: [
+        "android.test.base",
+        "framework-connectivity-pre-jarjar",
+        // android.net.TrafficStats apis
+        "framework-connectivity-t",
+    ],
+    lint: { test: true }
+}
+
