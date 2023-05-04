@@ -78,7 +78,7 @@ public final class NativeTestServer {
     }
 
     public static String getServerErrorURL() {
-        return nativeGetFileURL("/server_error.txt");
+        return NativeTestServerJni.get().getFileURL("/server_error.txt");
     }
 
     public static int getPort() {
