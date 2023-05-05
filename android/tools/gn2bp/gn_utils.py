@@ -22,8 +22,6 @@ import os
 import re
 import collections
 
-BUILDFLAGS_TARGET = '//gn:gen_buildflags'
-GEN_VERSION_TARGET = '//src/base:version_gen_h'
 LINKER_UNIT_TYPES = ('executable', 'shared_library', 'static_library', 'source_set')
 JAVA_BANNED_SCRIPTS = [
     "//build/android/gyp/turbine.py",
@@ -39,12 +37,6 @@ JAVA_BANNED_SCRIPTS = [
     "//build/android/gyp/aar.py",
     "//build/android/gyp/zip.py",
 ]
-# TODO(primiano): investigate these, they require further componentization.
-ODR_VIOLATION_IGNORE_TARGETS = {
-    '//test/cts:perfetto_cts_deps',
-    '//:perfetto_integrationtests',
-}
-ARCH_REGEX = r'(android_x86_64|android_x86|android_arm|android_arm64|host)'
 RESPONSE_FILE = '{{response_file_name}}'
 TESTING_SUFFIX = "__testing"
 AIDL_INCLUDE_DIRS_REGEX = r'--includes=\[(.*)\]'
@@ -58,7 +50,6 @@ def repo_root():
 def _clean_string(str):
   return str.replace('\\', '').replace('../../', '').replace('"', '').strip()
 
-
 def _extract_includes_from_aidl_args(args):
   for arg in args:
     is_match = re.match(AIDL_INCLUDE_DIRS_REGEX, arg)
@@ -67,11 +58,11 @@ def _extract_includes_from_aidl_args(args):
       return [_clean_string(local_include) for local_include in local_includes]
   return []
 
+
 def label_to_path(label):
   """Turn a GN output label (e.g., //some_dir/file.cc) into a path."""
   assert label.startswith('//')
   return label[2:] or "./"
-
 
 def label_without_toolchain(label):
   """Strips the toolchain from a GN label.
@@ -82,22 +73,9 @@ def label_without_toolchain(label):
   return label.split('(')[0]
 
 
-def label_to_target_name_with_path(label):
-  """
-  Turn a GN label into a target name involving the full path.
-  e.g., //src/perfetto:tests -> src_perfetto_tests
-  """
-  name = re.sub(r'^//:?', '', label)
-  name = re.sub(r'[^a-zA-Z0-9_]', '_', name)
-  return name
-
 def _is_java_source(src):
   return os.path.splitext(src)[1] == '.java' and not src.startswith("//out/")
 
-def is_java_action(script, outputs):
-  return (script != "" and script not in JAVA_BANNED_SCRIPTS) and any(
-      [file.endswith(".srcjar") or file.endswith(".java")
-       for file in outputs])
 
 class GnParser(object):
   """A parser with some cleverness for GN json desc files
@@ -275,10 +253,6 @@ class GnParser(object):
   def __init__(self, builtin_deps):
     self.builtin_deps = builtin_deps
     self.all_targets = {}
-    self.linker_units = {}  # Executables, shared or static libraries.
-    self.source_sets = {}
-    self.actions = {}
-    self.proto_libs = {}
     self.java_sources = collections.defaultdict(set)
     self.aidl_local_include_dirs = set()
     self.java_actions = collections.defaultdict(set)
@@ -364,7 +338,6 @@ class GnParser(object):
 
     proto_target_type, proto_desc = self.get_proto_target_type(gn_desc, gn_target_name)
     if proto_target_type is not None:
-      self.proto_libs[target.name] = target
       target.type = 'proto_library'
       target.proto_plugin = proto_target_type
       target.proto_paths.update(self.get_proto_paths(proto_desc))
@@ -376,10 +349,8 @@ class GnParser(object):
       target.arch[arch].sources.update(proto_desc.get('sources', []))
       assert (all(x.endswith('.proto') for x in target.arch[arch].sources))
     elif target.type == 'source_set':
-      self.source_sets[gn_target_name] = target
       target.arch[arch].sources.update(desc.get('sources', []))
     elif target.is_linker_unit_type():
-      self.linker_units[gn_target_name] = target
       target.arch[arch].sources.update(desc.get('sources', []))
     elif (desc.get("script", "") in JAVA_BANNED_SCRIPTS
           or self._is_java_group(target.type, target.name)):
@@ -392,7 +363,6 @@ class GnParser(object):
         target.inputs.update(desc.get('inputs', []))
       target.type = 'java_group'
     elif target.type in ['action', 'action_foreach']:
-      self.actions[gn_target_name] = target
       target.arch[arch].inputs.update(desc.get('inputs', []))
       target.arch[arch].sources.update(desc.get('sources', []))
       outs = [re.sub('^//out/.+?/gen/', '', x) for x in desc['outputs']]
@@ -402,7 +372,7 @@ class GnParser(object):
       target.arch[arch].response_file_contents = self._get_response_file_contents(desc)
     elif target.type == 'copy':
       # TODO: copy rules are not currently implemented.
-      self.actions[gn_target_name] = target
+      pass
 
     # Default for 'public' is //* - all headers in 'sources' are public.
     # TODO(primiano): if a 'public' section is specified (even if empty), then
