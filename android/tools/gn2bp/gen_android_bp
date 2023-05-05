@@ -1155,8 +1155,7 @@ def get_action_sanitizer(gn, target, type, arch, is_test_target):
   elif target.script == '//build/protoc_java.py':
     return ProtocJavaSanitizer(target, arch, gn)
   else:
-    # TODO: throw exception here once all script hacks have been converted.
-    return BaseActionSanitizer(target, arch)
+    raise Exception('Unsupported action %s' % target.script)
 
 def create_action_foreach_modules(blueprint, gn, target, is_test_target):
   """ The following assumes that rebase_path exists in the args.
