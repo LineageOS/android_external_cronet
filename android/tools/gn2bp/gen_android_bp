@@ -56,20 +56,6 @@ DEFAULT_TESTS = [
 EXTRAS_ANDROID_BP_FILE = "Android.extras.bp"
 
 CRONET_API_MODULE_NAME = "cronet_aml_api_java"
-# Defines a custom init_rc argument to be applied to the corresponding output
-# blueprint target.
-target_initrc = {
-    # TODO: this can probably be removed.
-}
-
-target_host_supported = [
-    # TODO: remove if this is not useful for the cronet build.
-]
-
-# Proto target groups which will be made public.
-proto_groups = {
-    # TODO: remove if this is not used for the cronet build.
-}
 
 # All module names are prefixed with this string to avoid collisions.
 module_prefix = 'cronet_aml_'
@@ -77,38 +63,12 @@ module_prefix = 'cronet_aml_'
 # Shared libraries which are directly translated to Android system equivalents.
 shared_library_allowlist = [
     'android',
-    'android.hardware.atrace@1.0',
-    'android.hardware.health@2.0',
-    'android.hardware.health-V1-ndk',
-    'android.hardware.power.stats@1.0',
-    "android.hardware.power.stats-V1-cpp",
-    'base',
-    'binder',
-    'binder_ndk',
-    'cutils',
-    'hidlbase',
-    'hidltransport',
-    'hwbinder',
-    'incident',
     'log',
-    'services',
-    'statssocket',
-    "tracingproxy",
-    'utils',
-]
-
-# Static libraries which are directly translated to Android system equivalents.
-static_library_allowlist = [
-    'statslog_perfetto',
 ]
 
 # Include directories that will be removed from all targets.
 local_include_dirs_denylist = [
     'third_party/zlib/',
-]
-
-experimental_include_dirs_denylist = [
-    'third_party/brotli/include/',
 ]
 
 # Name of the module which settings such as compiler flags for all other
@@ -210,24 +170,6 @@ additional_args = {
 def always_disable(module, arch):
   return None
 
-def enable_brotli(module, arch):
-  # Requires crrev/c/4111690
-  if arch is None:
-    module.static_libs.add('libbrotli')
-  else:
-    module.arch[arch].static_libs.add('libbrotli')
-
-def enable_modp_b64(module, arch):
-  # Requires crrev/c/4112845
-  # Requires aosp/2359455
-  # Requires aosp/2359456
-  if not module.is_compiled():
-    return
-  if arch is None:
-    module.static_libs.add('libmodpb64')
-  else:
-    module.arch[arch].static_libs.add('libmodpb64')
-
 def enable_zlib(module, arch):
   # Requires crrev/c/4109079
   if arch is None:
@@ -274,20 +216,6 @@ builtin_deps = {
         always_disable,
 }
 
-experimental_android_deps = {
-    '//third_party/brotli:common':
-        enable_brotli,
-    '//third_party/brotli:dec':
-        enable_brotli,
-    '//third_party/modp_b64:modp_b64':
-        enable_modp_b64,
-}
-
-# Uncomment the following lines to use Android deps rather than their Chromium
-# equivalent:
-#builtin_deps.update(experimental_android_deps)
-#local_include_dirs_denylist.extend(experimental_include_dirs_denylist)
-
 # Name of tethering apex module
 tethering_apex = "com.android.tethering"
 
@@ -307,16 +235,6 @@ connectivity_visibility = "//packages/modules/Connectivity:__subpackages__"
 
 class Error(Exception):
   pass
-
-
-class ThrowingArgumentParser(argparse.ArgumentParser):
-
-  def __init__(self, context):
-    super(ThrowingArgumentParser, self).__init__()
-    self.context = context
-
-  def error(self, message):
-    raise Error('%s: %s' % (self.context, message))
 
 
 def write_blueprint_key_value(output, name, value, sort=True):
@@ -365,12 +283,9 @@ class Target(object):
     self.whole_static_libs = set()
     self.header_libs = set()
     self.cflags = set()
-    self.dist = dict()
-    self.strip = dict()
     self.stl = None
     self.cppflags = set()
     self.local_include_dirs = set()
-    self.export_system_include_dirs = set()
     self.generated_headers = set()
     self.export_generated_headers = set()
     self.ldflags = set()
@@ -387,11 +302,8 @@ class Target(object):
     self._output_field(nested_out, 'header_libs')
     self._output_field(nested_out, 'cflags')
     self._output_field(nested_out, 'stl')
-    self._output_field(nested_out, 'dist')
-    self._output_field(nested_out, 'strip')
     self._output_field(nested_out, 'cppflags')
     self._output_field(nested_out, 'local_include_dirs')
-    self._output_field(nested_out, 'export_system_include_dirs')
     self._output_field(nested_out, 'generated_headers')
     self._output_field(nested_out, 'export_generated_headers')
     self._output_field(nested_out, 'ldflags')
@@ -422,12 +334,10 @@ class Module(object):
     self.shared_libs = set()
     self.static_libs = set()
     self.whole_static_libs = set()
-    self.runtime_libs = set()
     self.tools = set()
     self.cmd = None
     self.host_supported = False
     self.device_supported = True
-    self.vendor_available = False
     self.init_rc = set()
     self.out = set()
     self.export_include_dirs = set()
@@ -440,7 +350,6 @@ class Module(object):
     self.include_dirs = set()
     self.local_include_dirs = set()
     self.header_libs = set()
-    self.required = set()
     self.tool_files = set()
     # target contains a dict of Targets indexed by os_arch.
     # example: { 'android_x86': Target('android_x86')
@@ -454,7 +363,6 @@ class Module(object):
     self.target['glibc'] = Target('glibc')
     self.stl = None
     self.cpp_std = None
-    self.dist = dict()
     self.strip = dict()
     self.data = set()
     self.apex_available = set()
@@ -471,7 +379,6 @@ class Module(object):
     self.version_script = None
     self.test_suites = set()
     self.test_config = None
-    self.stubs = {}
     self.cppflags = set()
     self.rtti = False
     # Name of the output. Used for setting .so file name for libcronet
@@ -498,15 +405,12 @@ class Module(object):
     self._output_field(output, 'shared_libs')
     self._output_field(output, 'static_libs')
     self._output_field(output, 'whole_static_libs')
-    self._output_field(output, 'runtime_libs')
     self._output_field(output, 'tools')
     self._output_field(output, 'cmd', sort=False)
     if self.host_supported:
       self._output_field(output, 'host_supported')
     if not self.device_supported:
       self._output_field(output, 'device_supported')
-    if self.vendor_available:
-      self._output_field(output, 'vendor_available')
     self._output_field(output, 'init_rc')
     self._output_field(output, 'out')
     self._output_field(output, 'export_include_dirs')
@@ -519,8 +423,6 @@ class Module(object):
     self._output_field(output, 'include_dirs')
     self._output_field(output, 'local_include_dirs')
     self._output_field(output, 'header_libs')
-    self._output_field(output, 'required')
-    self._output_field(output, 'dist')
     self._output_field(output, 'strip')
     self._output_field(output, 'tool_files')
     self._output_field(output, 'data')
@@ -531,7 +433,6 @@ class Module(object):
     self._output_field(output, 'version_script')
     self._output_field(output, 'test_suites')
     self._output_field(output, 'test_config')
-    self._output_field(output, 'stubs')
     self._output_field(output, 'proto')
     self._output_field(output, 'linker_scripts')
     self._output_field(output, 'ldflags')
@@ -565,14 +466,6 @@ class Module(object):
 
     output.append('}')
     output.append('')
-
-  def add_android_static_lib(self, lib):
-    if self.type == 'cc_binary_host':
-      raise Exception('Adding Android static lib for host tool is unsupported')
-    elif self.host_supported:
-      self.target['android'].static_libs.add(lib)
-    else:
-      self.static_libs.add(lib)
 
   def add_android_shared_lib(self, lib):
     if self.type == 'cc_binary_host':
@@ -771,24 +664,6 @@ def create_proto_modules(blueprint, gn, target):
     suffixes = ['pb']
     source_module.genrule_shared_libs.add('libprotobuf-cpp-lite')
     cmd += ['--cpp_out=lite=true:' + cpp_out_dir]
-  elif target.proto_plugin == 'protozero':
-    suffixes = ['pbzero']
-    plugin = create_modules_from_target(blueprint, gn, protozero_plugin)
-    tools.add(plugin.name)
-    cmd += ['--plugin=protoc-gen-plugin=$(location %s)' % plugin.name]
-    cmd += ['--plugin_out=wrapper_namespace=pbzero:' + cpp_out_dir]
-  elif target.proto_plugin == 'cppgen':
-    suffixes = ['gen']
-    plugin = create_modules_from_target(blueprint, gn, cppgen_plugin)
-    tools.add(plugin.name)
-    cmd += ['--plugin=protoc-gen-plugin=$(location %s)' % plugin.name]
-    cmd += ['--plugin_out=wrapper_namespace=gen:' + cpp_out_dir]
-  elif target.proto_plugin == 'ipc':
-    suffixes = ['ipc']
-    plugin = create_modules_from_target(blueprint, gn, ipc_plugin)
-    tools.add(plugin.name)
-    cmd += ['--plugin=protoc-gen-plugin=$(location %s)' % plugin.name]
-    cmd += ['--plugin_out=wrapper_namespace=gen:' + cpp_out_dir]
   else:
     raise Error('Unsupported proto plugin: %s' % target.proto_plugin)
 
@@ -807,24 +682,6 @@ def create_proto_modules(blueprint, gn, target):
                              for src in header_module.srcs)
   return source_module
 
-
-def create_proto_group_modules(blueprint, gn, module_name, target_names):
-  # TODO(lalitm): today, we're only adding a Java lite module because that's
-  # the only one used in practice. In the future, if we need other target types
-  # (e.g. C++, Java full etc.) add them here.
-  bp_module_name = label_to_module_name(module_name) + '_java_protos'
-  module = Module('java_library', bp_module_name, bp_module_name)
-  module.comment = f'''GN: [{', '.join(target_names)}]'''
-  module.proto = {'type': 'lite', 'canonical_path_from_root': False}
-
-  for name in target_names:
-    target = gn.get_target(name)
-    module.srcs.update(gn_utils.label_to_path(src) for src in target.sources)
-    for dep_label in target.transitive_proto_deps:
-      dep = gn.get_target(dep_label)
-      module.srcs.update(gn_utils.label_to_path(src) for src in dep.sources)
-
-  blueprint.add_module(module)
 
 def create_gcc_preprocess_modules(blueprint, target):
   # gcc_preprocess.py internally execute host gcc which is not allowed in genrule.
@@ -1530,7 +1387,6 @@ def create_modules_from_target(blueprint, gn, gn_target_name, is_test_target):
     raise Error('Unknown target %s (%s)' % (target.name, target.type))
 
   blueprint.add_module(module)
-  module.init_rc = target_initrc.get(target.name, [])
   module.srcs.update(gn_utils.label_to_path(src)
                      for src in target.sources if is_supported_source_file(src))
 
@@ -1576,8 +1432,6 @@ def create_modules_from_target(blueprint, gn, gn_target_name, is_test_target):
         else 'lib' + lib
       if lib in shared_library_allowlist:
         module.add_android_shared_lib(android_lib)
-      if lib in static_library_allowlist:
-        module.add_android_static_lib(android_lib)
 
   # If the module is a static library, export all the generated headers.
   if module.type == 'cc_library_static':
@@ -1965,9 +1819,6 @@ def main():
   project_root = os.path.abspath(os.path.dirname(os.path.dirname(__file__)))
   tool_name = os.path.relpath(os.path.abspath(__file__), project_root)
 
-  # Add any proto groups to the blueprint.
-  for l_name, t_names in proto_groups.items():
-    create_proto_group_modules(blueprint, gn, l_name, t_names)
   create_package_module(blueprint)
   output = [
       """// Copyright (C) 2022 The Android Open Source Project
