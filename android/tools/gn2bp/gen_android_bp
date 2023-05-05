@@ -232,11 +232,6 @@ connectivity_visibility = "//packages/modules/Connectivity:__subpackages__"
 # End of configuration.
 # ----------------------------------------------------------------------------
 
-
-class Error(Exception):
-  pass
-
-
 def write_blueprint_key_value(output, name, value, sort=True):
   """Writes a Blueprint key-value pair to the output"""
 
@@ -665,7 +660,7 @@ def create_proto_modules(blueprint, gn, target):
     source_module.genrule_shared_libs.add('libprotobuf-cpp-lite')
     cmd += ['--cpp_out=lite=true:' + cpp_out_dir]
   else:
-    raise Error('Unsupported proto plugin: %s' % target.proto_plugin)
+    raise Exception('Unsupported proto plugin: %s' % target.proto_plugin)
 
   cmd += ['$(in)']
   source_module.cmd = ' '.join(cmd)
@@ -1226,7 +1221,7 @@ def get_cmd_condition(arch):
   elif arch == "host":
     return "$$CC_OS != 'android'"
   else:
-    raise Error(f'Unknown architecture type {arch}')
+    raise Exception(f'Unknown architecture type {arch}')
 
 def merge_cmd(modules, genrule_type):
   '''
@@ -1240,7 +1235,7 @@ def merge_cmd(modules, genrule_type):
     return commands[0]
 
   if genrule_type != 'cc_genrule':
-    raise Error(f'{genrule_type} can not have different cmd between archs')
+    raise Exception(f'{genrule_type} can not have different cmd between archs')
 
   merged_cmd = []
   for arch, module in modules.items():
@@ -1261,7 +1256,7 @@ def merge_modules(modules, genrule_type):
   # Following attributes must be the same between archs
   for key in ('out', 'genrule_headers', 'srcs', 'tool_files'):
     if any([getattr(merged_module, key) != getattr(module, key) for module in modules.values()]):
-      raise Error(f'{merged_module.name} has different values for {key} between archs')
+      raise Exception(f'{merged_module.name} has different values for {key} between archs')
 
   merged_module.cmd = merge_cmd(modules, genrule_type)
   return merged_module
@@ -1383,7 +1378,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name, is_test_target):
     # Java targets are handled outside of create_modules_from_target.
     return None
   else:
-    raise Error('Unknown target %s (%s)' % (target.name, target.type))
+    raise Exception('Unknown target %s (%s)' % (target.name, target.type))
 
   blueprint.add_module(module)
   module.srcs.update(gn_utils.label_to_path(src)
@@ -1438,7 +1433,7 @@ def create_modules_from_target(blueprint, gn, gn_target_name, is_test_target):
 
   if module.name == 'cronet_aml_components_cronet_android_cronet':
     if target.output_name is None:
-      raise Error('Failed to get output_name for libcronet name')
+      raise Exception('Failed to get output_name for libcronet name')
     # .so file name needs to match with CronetLibraryLoader.java (e.g. libcronet.109.0.5386.0.so)
     # So setting the output name based on the output_name from the desc.json
     module.stem = 'lib' + target.output_name
@@ -1506,8 +1501,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name, is_test_target):
     elif dep_module.type == 'cc_binary':
       continue  # Ignore executables deps (used by cmdline integration tests).
     else:
-      raise Error('Unknown dep %s (%s) for target %s' %
-                  (dep_module.name, dep_module.type, module.name))
+      raise Exception('Unknown dep %s (%s) for target %s' %
+                      (dep_module.name, dep_module.type, module.name))
 
   for arch_name, arch in target.arch.items():
     for dep_name in arch.deps:
@@ -1531,8 +1526,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name, is_test_target):
         module.target[arch_name].shared_libs.update(dep_module.genrule_shared_libs)
         module.target[arch_name].header_libs.update(dep_module.genrule_header_libs)
       else:
-        raise Error('Unsupported arch-specific dependency %s of target %s with type %s' %
-                    (dep_module.name, target.name, dep_module.type))
+        raise Exception('Unsupported arch-specific dependency %s of target %s with type %s' %
+                        (dep_module.name, target.name, dep_module.type))
   return module
 
 def create_java_jni_preprocessor(blueprint):
@@ -1757,8 +1752,7 @@ def create_blueprint_for_targets(gn, targets, test_targets):
       elif isinstance(add_val, dict) and isinstance(curr, Target):
         curr.__dict__.update(add_val)
       else:
-        raise Error('Unimplemented type %r of additional_args: %r' %
-                    (type(add_val), key))
+        raise Exception('Unimplemented type %r of additional_args: %r' % (type(add_val), key))
 
   return blueprint
 
