@@ -202,22 +202,24 @@ class GnParser(object):
       for key_in_arch in ('cflags', 'defines', 'include_dirs', 'source_set_deps', 'ldflags'):
         getattr(self.arch[arch], key_in_arch).update(getattr(other.arch[arch], key_in_arch, []))
 
+    def get_archs(self):
+      """ Returns a dict of archs without the common arch """
+      return {arch: val for arch, val in self.arch.items() if arch != 'common'}
+
     def _finalize_set_attribute(self, key):
       # Target contains the intersection of arch-dependent properties
-      getattr(self, key)\
-        .update(set.intersection(*[getattr(arch, key) for arch in self.arch.values()]))
+      getattr(self, key).update(set.intersection(*[getattr(arch, key) for arch in
+                                                   self.get_archs().values()]))
 
       # Deduplicate arch-dependent properties
-      for arch in self.arch.values():
+      for arch in self.get_archs().values():
         getattr(arch, key).difference_update(getattr(self, key))
 
     def _finalize_non_set_attribute(self, key):
       # Only when all the arch has the same non empty value, move the value to the target common
-      val = getattr(list(self.arch.values())[0], key)
-      if val and all([val == getattr(arch, key) for arch in self.arch.values()]):
+      val = getattr(list(self.get_archs().values())[0], key)
+      if val and all([val == getattr(arch, key) for arch in self.get_archs().values()]):
         setattr(self, key, copy.deepcopy(val))
-        for arch in self.arch.values():
-          getattr(arch, key, None)
 
     def _finalize_attribute(self, key):
       val = getattr(self, key)
