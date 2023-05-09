@@ -136,27 +136,16 @@ class GnParser(object):
       self.proto_exports = set()
       self.proto_in_dir = ""
 
-      self.sources = set()
       # TODO(primiano): consider whether the public section should be part of
       # bubbled-up sources.
       self.public_headers = set()  # 'public'
 
       # These are valid only for type == 'action'
-      self.inputs = set()
-      self.outputs = set()
       self.script = ''
-      self.args = []
-      self.response_file_contents = ''
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
-      self.cflags = set()
-      self.defines = set()
-      self.deps = set()
       self.libs = set()
-      self.include_dirs = set()
-      self.ldflags = set()
-      self.source_set_deps = set()  # Transitive set of source_set deps.
       self.proto_deps = set()
       self.transitive_proto_deps = set()
       self.rtti = False
@@ -164,10 +153,78 @@ class GnParser(object):
       # TODO: come up with a better way to only run this once.
       # is_finalized tracks whether finalize() was called on this target.
       self.is_finalized = False
-      self.arch = dict()
+      # 'common' is a pseudo-architecture used to store common architecture dependent properties (to
+      # make handling of common vs architecture-specific arguments more consistent).
+      self.arch = {'common': self.Arch()}
 
       # This is used to get the name/version of libcronet
       self.output_name = None
+
+    # Properties to forward access to common arch.
+    # TODO: delete these after the transition has been completed.
+    @property
+    def sources(self):
+      return self.arch['common'].sources
+
+    @sources.setter
+    def sources(self, val):
+      self.arch['common'].sources = val
+
+    @property
+    def inputs(self):
+      return self.arch['common'].inputs
+
+    @inputs.setter
+    def inputs(self, val):
+      self.arch['common'].inputs = val
+
+    @property
+    def outputs(self):
+      return self.arch['common'].outputs
+
+    @outputs.setter
+    def outputs(self, val):
+      self.arch['common'].outputs = val
+
+    @property
+    def args(self):
+      return self.arch['common'].args
+
+    @args.setter
+    def args(self, val):
+      self.arch['common'].args = val
+
+    @property
+    def response_file_contents(self):
+      return self.arch['common'].response_file_contents
+
+    @response_file_contents.setter
+    def response_file_contents(self, val):
+      self.arch['common'].response_file_contents = val
+
+    @property
+    def cflags(self):
+      return self.arch['common'].cflags
+
+    @property
+    def defines(self):
+      return self.arch['common'].defines
+
+    @property
+    def deps(self):
+      return self.arch['common'].deps
+
+    @property
+    def include_dirs(self):
+      return self.arch['common'].include_dirs
+
+    @property
+    def ldflags(self):
+      return self.arch['common'].ldflags
+
+    @property
+    def source_set_deps(self):
+      return self.arch['common'].source_set_deps
 
     def host_supported(self):
       return 'host' in self.arch
@@ -239,7 +296,7 @@ class GnParser(object):
         return
       self.is_finalized = True
 
-      if len(self.arch) == 0:
+      if len(self.arch) == 1:
         return
 
       for key in ('sources', 'cflags', 'defines', 'include_dirs', 'deps', 'source_set_deps',
