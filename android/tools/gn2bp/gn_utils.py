@@ -117,7 +117,6 @@ class GnParser(object):
         self.inputs = set()
         self.outputs = set()
         self.args = []
-        self.script = ''
         self.response_file_contents = ''
 
     def __init__(self, name, type):
@@ -243,7 +242,7 @@ class GnParser(object):
         return
 
       for key in ('sources', 'cflags', 'defines', 'include_dirs', 'deps', 'source_set_deps',
-                  'inputs', 'outputs', 'args', 'script', 'response_file_contents', 'ldflags'):
+                  'inputs', 'outputs', 'args', 'response_file_contents', 'ldflags'):
         self._finalize_attribute(key)
 
     def get_target_name(self):
@@ -367,7 +366,9 @@ class GnParser(object):
       target.arch[arch].sources.update(desc.get('sources', []))
       outs = [re.sub('^//out/.+?/gen/', '', x) for x in desc['outputs']]
       target.arch[arch].outputs.update(outs)
-      target.arch[arch].script = desc['script']
+      # While the arguments might differ, an action should always use the same script for every
+      # architecture. (gen_android_bp's get_action_sanitizer actually relies on this fact.
+      target.script = desc['script']
       target.arch[arch].args = desc['args']
       target.arch[arch].response_file_contents = self._get_response_file_contents(desc)
     elif target.type == 'copy':
