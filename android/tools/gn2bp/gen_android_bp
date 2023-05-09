@@ -496,28 +496,6 @@ class Module(object):
     # the depending modules
     return len(self.export_generated_headers) > 0
 
-  def merge_attribute(self, key, source_module, allowed_archs, source_key = None):
-    """
-    Merges the value of the attribute `source_key` for the `dep_module` with
-    the value of the attribute `key` for this module. If the value of the
-    `source_key` is equal to None. Then `key` is used for both modules.
-
-    This merges the attribute for both non-arch and archs
-    specified in `allowed_archs`.
-    :param key: The attribute used for merging in the calling module. Also
-    used for `dep_module` if the `source_key` is None.
-    :param source_module: The module where data is propagated from.
-    :param allowed_archs: A list of archs to merge the attribute on.
-    :param source_key: if the attribute merged from the `dep_module`
-    is different from the `key`
-    """
-    if not source_key:
-      source_key = key
-    self.__dict__[key].update(source_module.__dict__[source_key])
-    for arch_name in source_module.target.keys():
-      if arch_name in allowed_archs:
-        self.target[arch_name].__dict__[key].update(
-            source_module.target[arch_name].__dict__[source_key])
 
 class Blueprint(object):
   """In-memory representation of an Android.bp file."""
