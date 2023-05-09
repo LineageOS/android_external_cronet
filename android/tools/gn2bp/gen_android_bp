@@ -175,7 +175,7 @@ def enable_zlib(module, arch):
   if arch is None:
     module.shared_libs.add('libz')
   else:
-    module.arch[arch].shared_libs.add('libz')
+    module.target[arch].shared_libs.add('libz')
 
 def enable_boringssl(module, arch):
   # Do not add boringssl targets to cc_genrules. This happens, because protobuf targets are
@@ -184,7 +184,7 @@ def enable_boringssl(module, arch):
   if arch is None:
     shared_libs = module.shared_libs
   else:
-    shared_libs = module.arch[arch].shared_libs
+    shared_libs = module.target[arch].shared_libs
   shared_libs.add('//external/cronet/third_party/boringssl:libcrypto')
   shared_libs.add('//external/cronet/third_party/boringssl:libssl')
 
