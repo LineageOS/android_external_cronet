@@ -1467,11 +1467,8 @@ def create_modules_from_target(blueprint, gn, gn_target_name, is_test_target):
     if dep_module.type == 'cc_library_shared':
       module_target.shared_libs.add(dep_module.name)
     elif dep_module.type == 'cc_library_static':
-      if module.type in ['cc_library_shared', 'cc_binary']:
-        if dep_module.gn_type == 'source_set':
-          module_target.whole_static_libs.add(dep_module.name)
-        else:
-          module_target.static_libs.add(dep_module.name)
+      if module.type in ['cc_library_shared', 'cc_binary'] and dep_module.gn_type == 'source_set':
+        module_target.whole_static_libs.add(dep_module.name)
       else:
         module_target.static_libs.add(dep_module.name)
     elif dep_module.type == 'cc_genrule':
