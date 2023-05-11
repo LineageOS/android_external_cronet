@@ -17,7 +17,6 @@
 license {
     name: "external_cronet_license",
     license_kinds: [
-        "SPDX-license-identifier-AFL-2.0",
         "SPDX-license-identifier-Apache-2.0",
         "SPDX-license-identifier-BSD",
         "SPDX-license-identifier-BSD-3-Clause",
