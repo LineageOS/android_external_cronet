@@ -117,7 +117,6 @@ class GnParser(object):
         self.inputs = set()
         self.outputs = set()
         self.args = []
-        self.script = ''
         self.response_file_contents = ''
 
     def __init__(self, name, type):
@@ -137,27 +136,16 @@ class GnParser(object):
       self.proto_exports = set()
       self.proto_in_dir = ""
 
-      self.sources = set()
       # TODO(primiano): consider whether the public section should be part of
       # bubbled-up sources.
       self.public_headers = set()  # 'public'
 
       # These are valid only for type == 'action'
-      self.inputs = set()
-      self.outputs = set()
       self.script = ''
-      self.args = []
-      self.response_file_contents = ''
 
       # These variables are propagated up when encountering a dependency
       # on a source_set target.
-      self.cflags = set()
-      self.defines = set()
-      self.deps = set()
       self.libs = set()
-      self.include_dirs = set()
-      self.ldflags = set()
-      self.source_set_deps = set()  # Transitive set of source_set deps.
       self.proto_deps = set()
       self.transitive_proto_deps = set()
       self.rtti = False
@@ -165,10 +153,78 @@ class GnParser(object):
       # TODO: come up with a better way to only run this once.
       # is_finalized tracks whether finalize() was called on this target.
       self.is_finalized = False
-      self.arch = dict()
+      # 'common' is a pseudo-architecture used to store common architecture dependent properties (to
+      # make handling of common vs architecture-specific arguments more consistent).
+      self.arch = {'common': self.Arch()}
 
       # This is used to get the name/version of libcronet
       self.output_name = None
+
+    # Properties to forward access to common arch.
+    # TODO: delete these after the transition has been completed.
+    @property
+    def sources(self):
+      return self.arch['common'].sources
+
+    @sources.setter
+    def sources(self, val):
+      self.arch['common'].sources = val
+
+    @property
+    def inputs(self):
+      return self.arch['common'].inputs
+
+    @inputs.setter
+    def inputs(self, val):
+      self.arch['common'].inputs = val
+
+    @property
+    def outputs(self):
+      return self.arch['common'].outputs
+
+    @outputs.setter
+    def outputs(self, val):
+      self.arch['common'].outputs = val
+
+    @property
+    def args(self):
+      return self.arch['common'].args
+
+    @args.setter
+    def args(self, val):
+      self.arch['common'].args = val
+
+    @property
+    def response_file_contents(self):
+      return self.arch['common'].response_file_contents
+
+    @response_file_contents.setter
+    def response_file_contents(self, val):
+      self.arch['common'].response_file_contents = val
+
+    @property
+    def cflags(self):
+      return self.arch['common'].cflags
+
+    @property
+    def defines(self):
+      return self.arch['common'].defines
+
+    @property
+    def deps(self):
+      return self.arch['common'].deps
+
+    @property
+    def include_dirs(self):
+      return self.arch['common'].include_dirs
+
+    @property
+    def ldflags(self):
+      return self.arch['common'].ldflags
+
+    @property
+    def source_set_deps(self):
+      return self.arch['common'].source_set_deps
 
     def host_supported(self):
       return 'host' in self.arch
@@ -198,28 +254,29 @@ class GnParser(object):
       for key in ('cflags', 'defines', 'deps', 'include_dirs', 'ldflags',
                   'source_set_deps', 'proto_deps', 'transitive_proto_deps',
                   'libs', 'proto_paths'):
-        self.__dict__[key].update(other.__dict__.get(key, []))
+        getattr(self, key).update(getattr(other, key, []))
 
       for key_in_arch in ('cflags', 'defines', 'include_dirs', 'source_set_deps', 'ldflags'):
-        self.arch[arch].__dict__[key_in_arch].update(
-          other.arch[arch].__dict__.get(key_in_arch, []))
+        getattr(self.arch[arch], key_in_arch).update(getattr(other.arch[arch], key_in_arch, []))
+
+    def get_archs(self):
+      """ Returns a dict of archs without the common arch """
+      return {arch: val for arch, val in self.arch.items() if arch != 'common'}
 
     def _finalize_set_attribute(self, key):
       # Target contains the intersection of arch-dependent properties
-      getattr(self, key)\
-        .update(set.intersection(*[getattr(arch, key) for arch in self.arch.values()]))
+      getattr(self, key).update(set.intersection(*[getattr(arch, key) for arch in
+                                                   self.get_archs().values()]))
 
       # Deduplicate arch-dependent properties
-      for arch in self.arch.values():
+      for arch in self.get_archs().values():
         getattr(arch, key).difference_update(getattr(self, key))
 
     def _finalize_non_set_attribute(self, key):
       # Only when all the arch has the same non empty value, move the value to the target common
-      val = getattr(list(self.arch.values())[0], key)
-      if val and all([val == getattr(arch, key) for arch in self.arch.values()]):
+      val = getattr(list(self.get_archs().values())[0], key)
+      if val and all([val == getattr(arch, key) for arch in self.get_archs().values()]):
         setattr(self, key, copy.deepcopy(val))
-        for arch in self.arch.values():
-          getattr(arch, key, None)
 
     def _finalize_attribute(self, key):
       val = getattr(self, key)
@@ -239,11 +296,11 @@ class GnParser(object):
         return
       self.is_finalized = True
 
-      if len(self.arch) == 0:
+      if len(self.arch) == 1:
         return
 
       for key in ('sources', 'cflags', 'defines', 'include_dirs', 'deps', 'source_set_deps',
-                  'inputs', 'outputs', 'args', 'script', 'response_file_contents', 'ldflags'):
+                  'inputs', 'outputs', 'args', 'response_file_contents', 'ldflags'):
         self._finalize_attribute(key)
 
     def get_target_name(self):
@@ -367,7 +424,9 @@ class GnParser(object):
       target.arch[arch].sources.update(desc.get('sources', []))
       outs = [re.sub('^//out/.+?/gen/', '', x) for x in desc['outputs']]
       target.arch[arch].outputs.update(outs)
-      target.arch[arch].script = desc['script']
+      # While the arguments might differ, an action should always use the same script for every
+      # architecture. (gen_android_bp's get_action_sanitizer actually relies on this fact.
+      target.script = desc['script']
       target.arch[arch].args = desc['args']
       target.arch[arch].response_file_contents = self._get_response_file_contents(desc)
     elif target.type == 'copy':
