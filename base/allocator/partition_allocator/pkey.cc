@@ -32,11 +32,7 @@ PkeySettings PkeySettings::settings PA_PKEY_ALIGN;
 
 PA_COMPONENT_EXPORT(PARTITION_ALLOC)
 int PkeyMprotect(void* addr, size_t len, int prot, int pkey) {
-#if BUILDFLAG(ENABLE_PKEYS)
   return syscall(SYS_pkey_mprotect, addr, len, prot, pkey);
-#else
-  return 0;
-#endif
 }
 
 int PkeyMprotectIfEnabled(void* addr, size_t len, int prot, int pkey) {
@@ -80,18 +76,12 @@ void TagGlobalsWithPkey(int pkey) {
 
 PA_COMPONENT_EXPORT(PARTITION_ALLOC)
 int PkeyAlloc(int access_rights) {
-#if BUILDFLAG(ENABLE_PKEYS)
   return syscall(SYS_pkey_alloc, 0, access_rights);
-#else
-  return 0;
-#endif
 }
 
 PA_COMPONENT_EXPORT(PARTITION_ALLOC)
 void PkeyFree(int pkey) {
-#if BUILDFLAG(ENABLE_PKEYS)
   PA_PCHECK(syscall(SYS_pkey_free, pkey) == 0);
-#endif
 }
 
 uint32_t Rdpkru() {
