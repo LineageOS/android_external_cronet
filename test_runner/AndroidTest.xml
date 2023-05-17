@@ -1,5 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
-<!--
+<?xml version="1.0" encoding="utf-8"?><!--
   ~ Copyright (C) 2023 The Android Open Source Project
   ~
   ~ Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,12 +24,6 @@
         <option name="teardown-command" value="setenforce 1" />
         <option name="throw-if-cmd-fail" value="true" />
     </target_preparer>
-    <!-- This creates the file which gtest redirects its JSON output to -->
-    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
-        <option name="run-command" value="touch /data/local/tmp/cronet_test_results_output.json"/>
-        <option name="teardown-command" value="rm /data/local/tmp/cronet_test_results_output.json"/>
-        <option name="throw-if-cmd-fail" value="true"/>
-    </target_preparer>
     <!-- This creates the file which gtest redirects its stdout output to -->
     <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
         <option name="run-command" value="touch /data/local/tmp/cronet_gtest_output.txt"/>
@@ -44,8 +37,9 @@
     </target_preparer>
     <!-- Runs the test -->
     <test class="com.android.tradefed.testtype.HostTest">
-        <option name="jar" value="cronet_unittests_tester.jar"/>
-        <option name="set-option" value="library-to-load:cronet_unittests_android__library"/>
-        <option name="set-option" value="dump-native-coverage:true"/>
+        <option name="jar" value="cronet_unittests_tester.jar" />
+        <option name="set-option" value="library-to-load:cronet_unittests_android__library" />
+        <option name="set-option" value="dump-native-coverage:true" />
+        <option name="enable-pretty-logs" value="false" />
     </test>
 </configuration>
