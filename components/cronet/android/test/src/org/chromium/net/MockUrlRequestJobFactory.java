@@ -94,7 +94,7 @@ public final class MockUrlRequestJobFactory {
     }
 
     @NativeMethods("cronet_tests")
-    interface Natives {
+    public interface Natives {
         long addUrlInterceptors(long requestContextAdapter);
         void removeUrlInterceptorJobFactory(long interceptorHandle);
         String getMockUrlWithFailure(int phase, int netError);
