@@ -39,7 +39,7 @@ public class MockCertVerifier {
     }
 
     @NativeMethods("cronet_tests")
-    interface Natives {
+    public interface Natives {
         long createMockCertVerifier(String[] certs, boolean knownRoot, String testDataDir);
         long createFreeForAllMockCertVerifier();
     }
