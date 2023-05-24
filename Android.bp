@@ -13568,8 +13568,6 @@ java_library {
         "base/android/java/src/org/chromium/base/metrics/TimingMetric.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorder.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorderHolder.java",
-        "base/android/java/src/org/chromium/base/process_launcher/IChildProcessService.aidl",
-        "base/android/java/src/org/chromium/base/process_launcher/IParentProcess.aidl",
         "base/android/java/src/org/chromium/base/supplier/DestroyableObservableSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/ObservableSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/ObservableSupplierImpl.java",
@@ -13593,8 +13591,6 @@ java_library {
         "base/android/java/src/org/chromium/base/task/TaskRunnerImpl.java",
         "base/android/java/src/org/chromium/base/task/ThreadPoolTaskExecutor.java",
         "base/android/java/src/org/chromium/base/task/UiThreadTaskExecutor.java",
-        "base/test/android/java/src/org/chromium/base/ITestCallback.aidl",
-        "base/test/android/java/src/org/chromium/base/ITestController.aidl",
         "build/android/java/src/org/chromium/build/annotations/AlwaysInline.java",
         "build/android/java/src/org/chromium/build/annotations/CheckDiscard.java",
         "build/android/java/src/org/chromium/build/annotations/DoNotClassMerge.java",
@@ -13686,10 +13682,6 @@ java_library {
     aidl: {
         include_dirs: [
             "frameworks/base/core/java/",
-        ],
-        local_include_dirs: [
-            "base/android/java/src",
-            "base/test/android/java/src",
         ],
     },
     plugins: [
@@ -13834,8 +13826,6 @@ java_library {
         "base/android/java/src/org/chromium/base/metrics/TimingMetric.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorder.java",
         "base/android/java/src/org/chromium/base/metrics/UmaRecorderHolder.java",
-        "base/android/java/src/org/chromium/base/process_launcher/IChildProcessService.aidl",
-        "base/android/java/src/org/chromium/base/process_launcher/IParentProcess.aidl",
         "base/android/java/src/org/chromium/base/supplier/DestroyableObservableSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/ObservableSupplier.java",
         "base/android/java/src/org/chromium/base/supplier/ObservableSupplierImpl.java",
@@ -13859,8 +13849,6 @@ java_library {
         "base/android/java/src/org/chromium/base/task/TaskRunnerImpl.java",
         "base/android/java/src/org/chromium/base/task/ThreadPoolTaskExecutor.java",
         "base/android/java/src/org/chromium/base/task/UiThreadTaskExecutor.java",
-        "base/test/android/java/src/org/chromium/base/ITestCallback.aidl",
-        "base/test/android/java/src/org/chromium/base/ITestController.aidl",
         "build/android/java/src/org/chromium/build/annotations/AlwaysInline.java",
         "build/android/java/src/org/chromium/build/annotations/CheckDiscard.java",
         "build/android/java/src/org/chromium/build/annotations/DoNotClassMerge.java",
@@ -13952,10 +13940,6 @@ java_library {
     aidl: {
         include_dirs: [
             "frameworks/base/core/java/",
-        ],
-        local_include_dirs: [
-            "base/android/java/src",
-            "base/test/android/java/src",
         ],
     },
     plugins: [
