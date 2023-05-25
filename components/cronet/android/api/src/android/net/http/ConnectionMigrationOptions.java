@@ -95,7 +95,6 @@ public class ConnectionMigrationOptions {
      * {@hide}
      */
     @Nullable
-    @Experimental
     public Boolean getAllowServerMigration() {
         return mAllowServerMigration;
     }
@@ -106,7 +105,6 @@ public class ConnectionMigrationOptions {
      * {@hide}
      */
     @Nullable
-    @Experimental
     public Boolean getMigrateIdleConnections() {
         return mMigrateIdleConnections;
     }
@@ -116,7 +114,6 @@ public class ConnectionMigrationOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Duration getIdleMigrationPeriod() {
         return mIdleMigrationPeriod;
@@ -125,7 +122,6 @@ public class ConnectionMigrationOptions {
     /**
      * See {@link Builder#setAllowNonDefaultNetworkUsage(int)}
      */
-    @Experimental
     public @MigrationOptionState int getAllowNonDefaultNetworkUsage() {
         return mAllowNonDefaultNetworkUsage;
     }
@@ -135,7 +131,6 @@ public class ConnectionMigrationOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Duration getMaxTimeOnNonDefaultNetwork() {
         return mMaxTimeOnNonDefaultNetwork;
@@ -146,7 +141,6 @@ public class ConnectionMigrationOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Integer getMaxWriteErrorNonDefaultNetworkMigrationsCount() {
         return mMaxWriteErrorNonDefaultNetworkMigrationsCount;
@@ -157,7 +151,6 @@ public class ConnectionMigrationOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Integer getMaxPathDegradingNonDefaultMigrationsCount() {
         return mMaxPathDegradingNonDefaultMigrationsCount;

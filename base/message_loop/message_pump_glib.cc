@@ -162,13 +162,14 @@ GSourceFuncs g_fd_watch_source_funcs = {
 }  // namespace
 
 struct MessagePumpGlib::RunState {
-  raw_ptr<Delegate> delegate;
+  explicit RunState(raw_ptr<Delegate> delegate) : delegate(delegate) {
+    CHECK(delegate);
+  }
+
+  const raw_ptr<Delegate> delegate;
 
   // Used to flag that the current Run() invocation should return ASAP.
-  bool should_quit;
-
-  // Used to count how many Run() invocations are on the stack.
-  int run_depth;
+  bool should_quit = false;
 
   // The information of the next task available at this run-level. Stored in
   // RunState because different set of tasks can be accessible at various
@@ -190,7 +191,7 @@ MessagePumpGlib::MessagePumpGlib()
 
   // Create our wakeup pipe, which is used to flag when work was scheduled.
   int fds[2];
-  [[maybe_unused]] int ret = pipe(fds);
+  [[maybe_unused]] int ret = pipe2(fds, O_CLOEXEC);
   DCHECK_EQ(ret, 0);
 
   wakeup_pipe_read_ = fds[0];
@@ -234,8 +235,7 @@ bool MessagePumpGlib::FdWatchController::StopWatchingFileDescriptor() {
     return false;
 
   g_source_destroy(source_);
-  g_source_unref(source_);
-  source_ = nullptr;
+  g_source_unref(source_.ExtractAsDangling());
   watcher_ = nullptr;
   return true;
 }
@@ -375,10 +375,7 @@ void MessagePumpGlib::HandleDispatch() {
 }
 
 void MessagePumpGlib::Run(Delegate* delegate) {
-  RunState state;
-  state.delegate = delegate;
-  state.should_quit = false;
-  state.run_depth = state_ ? state_->run_depth + 1 : 1;
+  RunState state(delegate);
 
   RunState* previous_state = state_;
   state_ = &state;

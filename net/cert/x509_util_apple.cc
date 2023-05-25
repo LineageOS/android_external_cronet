@@ -10,6 +10,8 @@
 
 #include "base/check_op.h"
 #include "base/logging.h"
+#include "base/notreached.h"
+#include "base/numerics/safe_conversions.h"
 #include "build/build_config.h"
 #include "net/cert/x509_certificate.h"
 #include "third_party/boringssl/src/include/openssl/pool.h"
@@ -29,7 +31,8 @@ bssl::UniquePtr<CRYPTO_BUFFER> CertBufferFromSecCertificate(
     return nullptr;
   }
   return X509Certificate::CreateCertBufferFromBytes(
-      base::make_span(CFDataGetBytePtr(der_data), CFDataGetLength(der_data)));
+      base::make_span(CFDataGetBytePtr(der_data),
+                      base::checked_cast<size_t>(CFDataGetLength(der_data))));
 }
 
 }  // namespace
@@ -144,6 +147,10 @@ base::ScopedCFTypeRef<CFArrayRef> CertificateChainFromSecTrust(
         SecTrustCopyCertificateChain(trust));
   }
 
+// TODO(crbug.com/1426476): Remove code when it is no longer needed.
+#if (BUILDFLAG(IS_MAC) &&                                    \
+     MAC_OS_X_VERSION_MIN_REQUIRED < MAC_OS_VERSION_12_0) || \
+    (BUILDFLAG(IS_IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED < __IPHONE_15_0)
   base::ScopedCFTypeRef<CFMutableArrayRef> chain(
       CFArrayCreateMutable(kCFAllocatorDefault, 0, &kCFTypeArrayCallBacks));
   const CFIndex chain_length = SecTrustGetCertificateCount(trust);
@@ -151,6 +158,16 @@ base::ScopedCFTypeRef<CFArrayRef> CertificateChainFromSecTrust(
     CFArrayAppendValue(chain, SecTrustGetCertificateAtIndex(trust, i));
   }
   return base::ScopedCFTypeRef<CFArrayRef>(chain.release());
+
+#else
+  // The other logic paths should be used, this is just to make the compiler
+  // happy.
+  NOTREACHED();
+  return base::ScopedCFTypeRef<CFArrayRef>(nullptr);
+#endif  // (BUILDFLAG(IS_MAC) && MAC_OS_X_VERSION_MIN_REQUIRED <
+        // MAC_OS_VERSION_12_0)
+        // || (BUILDFLAG(IS_IOS) && __IPHONE_OS_VERSION_MIN_REQUIRED <
+        // __IPHONE_15_0)
 }
 
 }  // namespace x509_util

@@ -357,6 +357,12 @@ class WebSocketStreamCreateHelper
     NOTREACHED();
     return nullptr;
   }
+  std::unique_ptr<WebSocketHandshakeStreamBase> CreateHttp3Stream(
+      std::unique_ptr<QuicChromiumClientSession::Handle> session,
+      std::set<std::string> dns_aliases) override {
+    NOTREACHED();
+    return nullptr;
+  }
 };
 
 struct TestCase {
@@ -674,8 +680,8 @@ TEST_F(HttpStreamFactoryTest, PreconnectNetworkIsolationKey) {
   const GURL kURL("http://foo.test/");
   SchemefulSite kSiteFoo(GURL("http://foo.test"));
   SchemefulSite kSiteBar(GURL("http://bar.test"));
-  const NetworkAnonymizationKey kKey1(kSiteFoo, kSiteFoo);
-  const NetworkAnonymizationKey kKey2(kSiteBar, kSiteBar);
+  const auto kKey1 = NetworkAnonymizationKey::CreateSameSite(kSiteFoo);
+  const auto kKey2 = NetworkAnonymizationKey::CreateSameSite(kSiteBar);
   PreconnectHelperForURL(1, kURL, kKey1, SecureDnsPolicy::kAllow,
                          session.get());
   EXPECT_EQ(1, transport_conn_pool->last_num_streams());
@@ -1297,7 +1303,7 @@ TEST_F(HttpStreamFactoryTest, ReprioritizeAfterStreamReceived) {
   session_deps.host_resolver->set_synchronous_mode(true);
 
   MockRead mock_read(SYNCHRONOUS, ERR_IO_PENDING);
-  StaticSocketDataProvider socket_data(base::make_span(&mock_read, 1),
+  StaticSocketDataProvider socket_data(base::make_span(&mock_read, 1u),
                                        base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(SYNCHRONOUS, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
@@ -1347,7 +1353,7 @@ TEST_F(HttpStreamFactoryTest, RequestHttpStreamOverSSL) {
       ConfiguredProxyResolutionService::CreateDirect());
 
   MockRead mock_read(ASYNC, OK);
-  StaticSocketDataProvider socket_data(base::make_span(&mock_read, 1),
+  StaticSocketDataProvider socket_data(base::make_span(&mock_read, 1u),
                                        base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
@@ -1482,7 +1488,7 @@ TEST_F(HttpStreamFactoryTest, RequestWebSocketBasicHandshakeStreamOverSSL) {
       ConfiguredProxyResolutionService::CreateDirect());
 
   MockRead mock_read(ASYNC, OK);
-  StaticSocketDataProvider socket_data(base::make_span(&mock_read, 1),
+  StaticSocketDataProvider socket_data(base::make_span(&mock_read, 1u),
                                        base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
@@ -1578,7 +1584,7 @@ TEST_F(HttpStreamFactoryTest, RequestSpdyHttpStreamHttpsURL) {
       ConfiguredProxyResolutionService::CreateDirect());
 
   MockRead mock_read(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
@@ -1628,7 +1634,7 @@ TEST_F(HttpStreamFactoryTest, RequestSpdyHttpStreamHttpURL) {
           "HTTPS myproxy.org:443", TRAFFIC_ANNOTATION_FOR_TESTS);
 
   MockRead mock_read(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps->socket_factory->AddSocketDataProvider(&socket_data);
@@ -1681,10 +1687,12 @@ TEST_F(HttpStreamFactoryTest, RequestSpdyHttpStreamHttpURL) {
 TEST_F(HttpStreamFactoryTest,
        RequestSpdyHttpStreamHttpURLWithNetworkAnonymizationKey) {
   const SchemefulSite kSite1(GURL("https://foo.test/"));
-  const NetworkAnonymizationKey kNetworkAnonymizationKey1(kSite1, kSite1);
+  const auto kNetworkAnonymizationKey1 =
+      NetworkAnonymizationKey::CreateSameSite(kSite1);
   const NetworkIsolationKey kNetworkIsolationKey1(kSite1, kSite1);
   const SchemefulSite kSite2(GURL("https://bar.test/"));
-  const NetworkAnonymizationKey kNetworkAnonymizationKey2(kSite2, kSite2);
+  const auto kNetworkAnonymizationKey2 =
+      NetworkAnonymizationKey::CreateSameSite(kSite2);
   const NetworkIsolationKey kNetworkIsolationKey2(kSite1, kSite1);
 
   base::test::ScopedFeatureList feature_list;
@@ -1700,7 +1708,7 @@ TEST_F(HttpStreamFactoryTest,
           "HTTPS myproxy.org:443", TRAFFIC_ANNOTATION_FOR_TESTS);
 
   MockRead mock_read(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps->socket_factory->AddSocketDataProvider(&socket_data);
@@ -1921,7 +1929,7 @@ TEST_F(HttpStreamFactoryTest, RequestBidirectionalStreamImpl) {
       ConfiguredProxyResolutionService::CreateDirect());
 
   MockRead mock_read(ASYNC, OK);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
@@ -1959,46 +1967,19 @@ TEST_F(HttpStreamFactoryTest, RequestBidirectionalStreamImpl) {
   EXPECT_TRUE(waiter.used_proxy_info().is_direct());
 }
 
-struct TestParams {
-  quic::ParsedQuicVersion version;
-  bool client_headers_include_h2_stream_dependency;
-};
-
-// Used by ::testing::PrintToStringParamName().
-std::string PrintToString(const TestParams& p) {
-  return base::StrCat(
-      {ParsedQuicVersionToString(p.version), "_",
-       (p.client_headers_include_h2_stream_dependency ? "" : "No"),
-       "Dependency"});
-}
-
-std::vector<TestParams> GetTestParams() {
-  std::vector<TestParams> params;
-  quic::ParsedQuicVersionVector all_supported_versions =
-      quic::AllSupportedVersions();
-  for (const auto& version : all_supported_versions) {
-    params.push_back(TestParams{version, false});
-    params.push_back(TestParams{version, true});
-  }
-  return params;
-}
-
 class HttpStreamFactoryBidirectionalQuicTest
     : public TestWithTaskEnvironment,
-      public ::testing::WithParamInterface<TestParams> {
+      public ::testing::WithParamInterface<quic::ParsedQuicVersion> {
  protected:
   HttpStreamFactoryBidirectionalQuicTest()
       : default_url_(kDefaultUrl),
-        version_(GetParam().version),
-        client_headers_include_h2_stream_dependency_(
-            GetParam().client_headers_include_h2_stream_dependency),
+        version_(GetParam()),
         client_packet_maker_(version_,
                              quic::QuicUtils::CreateRandomConnectionId(
                                  quic_context_.random_generator()),
                              quic_context_.clock(),
                              "www.example.org",
-                             quic::Perspective::IS_CLIENT,
-                             client_headers_include_h2_stream_dependency_),
+                             quic::Perspective::IS_CLIENT),
         server_packet_maker_(version_,
                              quic::QuicUtils::CreateRandomConnectionId(
                                  quic_context_.random_generator()),
@@ -2020,8 +2001,6 @@ class HttpStreamFactoryBidirectionalQuicTest
     params_.enable_quic = true;
     quic_context_.params()->supported_versions =
         quic::test::SupportedVersions(version_);
-    quic_context_.params()->headers_include_h2_stream_dependency =
-        client_headers_include_h2_stream_dependency_;
 
     HttpNetworkSessionContext session_context;
     session_context.http_server_properties = &http_server_properties_;
@@ -2090,7 +2069,6 @@ class HttpStreamFactoryBidirectionalQuicTest
  private:
   quic::test::QuicFlagSaver saver_;
   const quic::ParsedQuicVersion version_;
-  const bool client_headers_include_h2_stream_dependency_;
   MockQuicContext quic_context_;
   test::QuicTestPacketMaker client_packet_maker_;
   test::QuicTestPacketMaker server_packet_maker_;
@@ -2112,13 +2090,13 @@ class HttpStreamFactoryBidirectionalQuicTest
 
 INSTANTIATE_TEST_SUITE_P(VersionIncludeStreamDependencySequence,
                          HttpStreamFactoryBidirectionalQuicTest,
-                         ::testing::ValuesIn(GetTestParams()),
+                         ::testing::ValuesIn(AllSupportedQuicVersions()),
                          ::testing::PrintToStringParamName());
 
 TEST_P(HttpStreamFactoryBidirectionalQuicTest,
        RequestBidirectionalStreamImplQuicAlternative) {
   MockQuicData mock_quic_data(version());
-  // When using IETF QUIC, set priority to default value so that
+  // Set priority to default value so that
   // QuicTestPacketMaker::MakeRequestHeadersPacket() does not add mock
   // PRIORITY_UPDATE frame, which BidirectionalStreamQuicImpl currently does not
   // send.
@@ -2128,16 +2106,14 @@ TEST_P(HttpStreamFactoryBidirectionalQuicTest,
       ConvertRequestPriorityToQuicPriority(DEFAULT_PRIORITY);
   size_t spdy_headers_frame_length;
   int packet_num = 1;
-  if (VersionUsesHttp3(version().transport_version)) {
-    mock_quic_data.AddWrite(
-        client_packet_maker().MakeInitialSettingsPacket(packet_num++));
-  }
+  mock_quic_data.AddWrite(
+      client_packet_maker().MakeInitialSettingsPacket(packet_num++));
   mock_quic_data.AddWrite(client_packet_maker().MakeRequestHeadersPacket(
       packet_num++, GetNthClientInitiatedBidirectionalStreamId(0),
       /*should_include_version=*/true,
       /*fin=*/true, priority,
       client_packet_maker().GetRequestHeaders("GET", "https", "/"),
-      /*parent_stream_id=*/0, &spdy_headers_frame_length));
+      &spdy_headers_frame_length));
   size_t spdy_response_headers_frame_length;
   mock_quic_data.AddRead(server_packet_maker().MakeResponseHeadersPacket(
       1, GetNthClientInitiatedBidirectionalStreamId(0),
@@ -2210,7 +2186,7 @@ TEST_P(HttpStreamFactoryBidirectionalQuicTest,
        RequestBidirectionalStreamImplHttpJobFailsQuicJobSucceeds) {
   // Set up Quic data.
   MockQuicData mock_quic_data(version());
-  // When using IETF QUIC, set priority to default value so that
+  // Set priority to default value so that
   // QuicTestPacketMaker::MakeRequestHeadersPacket() does not add mock
   // PRIORITY_UPDATE frame, which BidirectionalStreamQuicImpl currently does not
   // send.
@@ -2220,16 +2196,14 @@ TEST_P(HttpStreamFactoryBidirectionalQuicTest,
       ConvertRequestPriorityToQuicPriority(DEFAULT_PRIORITY);
   size_t spdy_headers_frame_length;
   int packet_num = 1;
-  if (VersionUsesHttp3(version().transport_version)) {
-    mock_quic_data.AddWrite(
-        client_packet_maker().MakeInitialSettingsPacket(packet_num++));
-  }
+  mock_quic_data.AddWrite(
+      client_packet_maker().MakeInitialSettingsPacket(packet_num++));
   mock_quic_data.AddWrite(client_packet_maker().MakeRequestHeadersPacket(
       packet_num++, GetNthClientInitiatedBidirectionalStreamId(0),
       /*should_include_version=*/true,
       /*fin=*/true, priority,
       client_packet_maker().GetRequestHeaders("GET", "https", "/"),
-      /*parent_stream_id=*/0, &spdy_headers_frame_length));
+      &spdy_headers_frame_length));
   size_t spdy_response_headers_frame_length;
   mock_quic_data.AddRead(server_packet_maker().MakeResponseHeadersPacket(
       1, GetNthClientInitiatedBidirectionalStreamId(0),
@@ -2303,7 +2277,7 @@ TEST_F(HttpStreamFactoryTest, RequestBidirectionalStreamImplFailure) {
       ConfiguredProxyResolutionService::CreateDirect());
 
   MockRead mock_read(ASYNC, OK);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
@@ -2355,12 +2329,12 @@ TEST_F(HttpStreamFactoryTest, Tag) {
 
   // Prepare for two HTTPS connects.
   MockRead mock_read(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
   MockRead mock_read2(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data2(base::make_span(&mock_read2, 1),
+  SequencedSocketData socket_data2(base::make_span(&mock_read2, 1u),
                                    base::span<MockWrite>());
   socket_data2.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data2);
@@ -2476,16 +2450,14 @@ TEST_P(HttpStreamFactoryBidirectionalQuicTest, Tag) {
       ConvertRequestPriorityToQuicPriority(DEFAULT_PRIORITY);
   size_t spdy_headers_frame_length;
   int packet_num = 1;
-  if (VersionUsesHttp3(version().transport_version)) {
-    mock_quic_data.AddWrite(
-        client_packet_maker().MakeInitialSettingsPacket(packet_num++));
-  }
+  mock_quic_data.AddWrite(
+      client_packet_maker().MakeInitialSettingsPacket(packet_num++));
   mock_quic_data.AddWrite(client_packet_maker().MakeRequestHeadersPacket(
       packet_num++, GetNthClientInitiatedBidirectionalStreamId(0),
       /*should_include_version=*/true,
       /*fin=*/true, priority,
       client_packet_maker().GetRequestHeaders("GET", "https", "/"),
-      /*parent_stream_id=*/0, &spdy_headers_frame_length));
+      &spdy_headers_frame_length));
   size_t spdy_response_headers_frame_length;
   mock_quic_data.AddRead(server_packet_maker().MakeResponseHeadersPacket(
       1, GetNthClientInitiatedBidirectionalStreamId(0),
@@ -2499,16 +2471,14 @@ TEST_P(HttpStreamFactoryBidirectionalQuicTest, Tag) {
   client_packet_maker().Reset();
   MockQuicData mock_quic_data2(version());
   packet_num = 1;
-  if (VersionUsesHttp3(version().transport_version)) {
-    mock_quic_data2.AddWrite(
-        client_packet_maker().MakeInitialSettingsPacket(packet_num++));
-  }
+  mock_quic_data2.AddWrite(
+      client_packet_maker().MakeInitialSettingsPacket(packet_num++));
   mock_quic_data2.AddWrite(client_packet_maker().MakeRequestHeadersPacket(
       packet_num++, GetNthClientInitiatedBidirectionalStreamId(0),
       /*should_include_version=*/true,
       /*fin=*/true, priority,
       client_packet_maker().GetRequestHeaders("GET", "https", "/"),
-      /*parent_stream_id=*/0, &spdy_headers_frame_length));
+      &spdy_headers_frame_length));
   mock_quic_data2.AddRead(server_packet_maker().MakeResponseHeadersPacket(
       1, GetNthClientInitiatedBidirectionalStreamId(0),
       /*should_include_version=*/false,
@@ -2609,12 +2579,12 @@ TEST_F(HttpStreamFactoryTest, ChangeSocketTag) {
 
   // Prepare for two HTTPS connects.
   MockRead mock_read(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
   MockRead mock_read2(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data2(base::make_span(&mock_read2, 1),
+  SequencedSocketData socket_data2(base::make_span(&mock_read2, 1u),
                                    base::span<MockWrite>());
   socket_data2.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data2);
@@ -2792,12 +2762,12 @@ TEST_F(HttpStreamFactoryTest, ChangeSocketTagAvoidOverwrite) {
 
   // Prepare for two HTTPS connects.
   MockRead mock_read(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
   MockRead mock_read2(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data2(base::make_span(&mock_read2, 1),
+  SequencedSocketData socket_data2(base::make_span(&mock_read2, 1u),
                                    base::span<MockWrite>());
   socket_data2.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data2);
@@ -2968,12 +2938,12 @@ TEST_F(HttpStreamFactoryTest, MultiIPAliases) {
 
   // Prepare for two HTTPS connects.
   MockRead mock_read1(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data1(base::make_span(&mock_read1, 1),
+  SequencedSocketData socket_data1(base::make_span(&mock_read1, 1u),
                                    base::span<MockWrite>());
   socket_data1.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data1);
   MockRead mock_read2(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data2(base::make_span(&mock_read2, 1),
+  SequencedSocketData socket_data2(base::make_span(&mock_read2, 1u),
                                    base::span<MockWrite>());
   socket_data2.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data2);
@@ -3121,7 +3091,7 @@ TEST_F(HttpStreamFactoryTest, SpdyIPPoolingWithDnsAliases) {
 
   // Prepare for an HTTPS connect.
   MockRead mock_read(SYNCHRONOUS, ERR_IO_PENDING);
-  SequencedSocketData socket_data(base::make_span(&mock_read, 1),
+  SequencedSocketData socket_data(base::make_span(&mock_read, 1u),
                                   base::span<MockWrite>());
   socket_data.set_connect_data(MockConnect(ASYNC, OK));
   session_deps.socket_factory->AddSocketDataProvider(&socket_data);
@@ -3316,16 +3286,14 @@ TEST_P(HttpStreamFactoryBidirectionalQuicTest, QuicIPPoolingWithDnsAliases) {
       ConvertRequestPriorityToQuicPriority(DEFAULT_PRIORITY);
   size_t spdy_headers_frame_length;
   int packet_num = 1;
-  if (VersionUsesHttp3(version().transport_version)) {
-    mock_quic_data.AddWrite(
-        client_packet_maker().MakeInitialSettingsPacket(packet_num++));
-  }
+  mock_quic_data.AddWrite(
+      client_packet_maker().MakeInitialSettingsPacket(packet_num++));
   mock_quic_data.AddWrite(client_packet_maker().MakeRequestHeadersPacket(
       packet_num++, GetNthClientInitiatedBidirectionalStreamId(0),
       /*should_include_version=*/true,
       /*fin=*/true, priority,
       client_packet_maker().GetRequestHeaders("GET", "https", "/"),
-      /*parent_stream_id=*/0, &spdy_headers_frame_length));
+      &spdy_headers_frame_length));
   size_t spdy_response_headers_frame_length;
   mock_quic_data.AddRead(server_packet_maker().MakeResponseHeadersPacket(
       1, GetNthClientInitiatedBidirectionalStreamId(0),
@@ -3531,8 +3499,7 @@ TEST_F(ProcessAlternativeServicesTest, ProcessAltSvcClear) {
       std::make_unique<HttpNetworkSession>(session_params_, session_context_);
   url::SchemeHostPort origin(url::kHttpsScheme, "example.com", 443);
 
-  NetworkAnonymizationKey network_anonymization_key(
-      SchemefulSite(GURL("https://example.com")),
+  auto network_anonymization_key = NetworkAnonymizationKey::CreateSameSite(
       SchemefulSite(GURL("https://example.com")));
 
   http_server_properties_.SetAlternativeServices(
@@ -3564,8 +3531,7 @@ TEST_F(ProcessAlternativeServicesTest, ProcessAltSvcQuicIetf) {
       std::make_unique<HttpNetworkSession>(session_params_, session_context_);
   url::SchemeHostPort origin(url::kHttpsScheme, "example.com", 443);
 
-  NetworkAnonymizationKey network_anonymization_key(
-      SchemefulSite(GURL("https://example.com")),
+  auto network_anonymization_key = NetworkAnonymizationKey::CreateSameSite(
       SchemefulSite(GURL("https://example.com")));
 
   auto headers = base::MakeRefCounted<HttpResponseHeaders>("");
@@ -3601,8 +3567,7 @@ TEST_F(ProcessAlternativeServicesTest, ProcessAltSvcHttp2) {
       std::make_unique<HttpNetworkSession>(session_params_, session_context_);
   url::SchemeHostPort origin(url::kHttpsScheme, "example.com", 443);
 
-  NetworkAnonymizationKey network_anonymization_key(
-      SchemefulSite(GURL("https://example.com")),
+  auto network_anonymization_key = NetworkAnonymizationKey::CreateSameSite(
       SchemefulSite(GURL("https://example.com")));
 
   auto headers = base::MakeRefCounted<HttpResponseHeaders>("");

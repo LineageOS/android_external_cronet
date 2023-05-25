@@ -24,8 +24,13 @@
 #include <vector>
 
 #include "base/base_export.h"
+#include "base/debug/debugging_buildflags.h"
 #include "base/strings/string_piece.h"
 #include "build/build_config.h"
+
+#if BUILDFLAG(ENABLE_COMMANDLINE_SEQUENCE_CHECKS)
+#include "base/sequence_checker.h"
+#endif  // BUILDFLAG(ENABLE_COMMANDLINE_SEQUENCE_CHECKS)
 
 namespace base {
 
@@ -57,6 +62,10 @@ class BASE_EXPORT CommandLine {
   CommandLine(int argc, const CharType* const* argv);
   explicit CommandLine(const StringVector& argv);
 
+  // Allow the copy constructor. A common pattern is to copy of the current
+  // process's command line and then add some flags to it. For example:
+  //   CommandLine cl(*CommandLine::ForCurrentProcess());
+  //   cl.AppendSwitch(...);
   CommandLine(const CommandLine& other);
   CommandLine& operator=(const CommandLine& other);
 
@@ -119,6 +128,21 @@ class BASE_EXPORT CommandLine {
   StringType GetCommandLineString() const;
 
 #if BUILDFLAG(IS_WIN)
+  // Quotes and escapes `arg` if necessary so that it will be interpreted as a
+  // single command-line parameter according to the following rules in line with
+  // `::CommandLineToArgvW` and C++ `main`:
+  // * Returns `arg` unchanged if `arg` does not include any characters that may
+  // need encoding, which is spaces, tabs, backslashes, and double-quotes.
+  // * Otherwise, double-quotes `arg` and in addition:
+  //   * Escapes any double-quotes in `arg` with backslashes.
+  //   * Escapes backslashes in `arg` if:
+  //     * `arg` ends with backslashes , or
+  //     * the backslashes end in a pre-existing double quote.
+  //
+  // https://learn.microsoft.com/en-us/search/?terms=CommandLineToArgvW and
+  // http://msdn.microsoft.com/en-us/library/17w5ykft.aspx#parsing-c-command-line-arguments.
+  static std::wstring QuoteForCommandLineToArgvW(const std::wstring& arg);
+
   // Returns the command-line string in the proper format for the Windows shell,
   // ending with the argument placeholder "--single-argument %1". The single-
   // argument switch prevents unexpected parsing of arguments from other
@@ -215,17 +239,44 @@ class BASE_EXPORT CommandLine {
   bool HasSingleArgumentSwitch() const { return has_single_argument_switch_; }
 #endif
 
+  // Detaches this object from the current sequence in preparation for a move to
+  // a different sequence.
+  void DetachFromCurrentSequence();
+
   // Sets a delegate that's called when we encounter a duplicate switch
   static void SetDuplicateSwitchHandler(
       std::unique_ptr<DuplicateSwitchHandler>);
 
  private:
+#if BUILDFLAG(ENABLE_COMMANDLINE_SEQUENCE_CHECKS)
+  // A helper class that encapsulates a SEQUENCE_CHECKER but allows copy.
+  // Copying this class will detach the sequence checker from the owning object.
+  class InstanceBoundSequenceChecker {
+   public:
+    InstanceBoundSequenceChecker() = default;
+
+    InstanceBoundSequenceChecker(const InstanceBoundSequenceChecker& other) {}
+
+    InstanceBoundSequenceChecker& operator=(
+        const InstanceBoundSequenceChecker& other) {
+      return *this;
+    }
+
+    // Disallow move.
+    InstanceBoundSequenceChecker(InstanceBoundSequenceChecker&&) = delete;
+    InstanceBoundSequenceChecker& operator=(InstanceBoundSequenceChecker&&) =
+        delete;
+
+    void Detach() { DETACH_FROM_SEQUENCE(sequence_checker_); }
+    void Check() { DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_); }
+
+   private:
+    SEQUENCE_CHECKER(sequence_checker_);
+  };
+#endif  // BUILDFLAG(ENABLE_COMMANDLINE_SEQUENCE_CHECKS)
+
   // Disallow default constructor; a program name must be explicitly specified.
   CommandLine() = delete;
-  // Allow the copy constructor. A common pattern is to copy of the current
-  // process's command line and then add some flags to it. For example:
-  //   CommandLine cl(*CommandLine::ForCurrentProcess());
-  //   cl.AppendSwitch(...);
 
   // Append switches and arguments, keeping switches before arguments.
   void AppendSwitchesAndArguments(const StringVector& argv);
@@ -270,6 +321,10 @@ class BASE_EXPORT CommandLine {
 
   // The index after the program and switches, any arguments start here.
   ptrdiff_t begin_args_;
+
+#if BUILDFLAG(ENABLE_COMMANDLINE_SEQUENCE_CHECKS)
+  InstanceBoundSequenceChecker sequence_checker_;
+#endif
 };
 
 class BASE_EXPORT DuplicateSwitchHandler {

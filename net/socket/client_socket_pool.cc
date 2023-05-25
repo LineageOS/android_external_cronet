@@ -7,9 +7,9 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
 #include "base/check_op.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "net/base/features.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/proxy_server.h"
@@ -163,10 +163,11 @@ void ClientSocketPool::NetLogTcpClientSocketPoolRequestedSocket(
                    [&] { return NetLogGroupIdParams(group_id); });
 }
 
-base::Value ClientSocketPool::NetLogGroupIdParams(const GroupId& group_id) {
+base::Value::Dict ClientSocketPool::NetLogGroupIdParams(
+    const GroupId& group_id) {
   base::Value::Dict event_params;
   event_params.Set("group_id", group_id.ToString());
-  return base::Value(std::move(event_params));
+  return event_params;
 }
 
 std::unique_ptr<ConnectJob> ClientSocketPool::CreateConnectJob(

@@ -15,6 +15,7 @@ import os
 import sys
 
 from util import build_utils
+import action_helpers  # build_utils adds //build to sys.path.
 
 # The java command must be executed in the current directory because there may
 # be user-supplied paths in the args. The script receives the classpath relative
@@ -91,12 +92,12 @@ def main(argv):
                       action='append',
                       default=[],
                       help='Classpath for running the jar.')
-  parser.add_argument('--noverify',
-                      action='store_true',
-                      help='JVM flag: noverify.')
   parser.add_argument('--tiered-stop-at-level-one',
                       action='store_true',
                       help='JVM flag: -XX:TieredStopAtLevel=1.')
+  parser.add_argument('--use-jdk-11',
+                      action='store_true',
+                      help='Use older JDK11 instead of modern JDK.')
   parser.add_argument('extra_program_args',
                       nargs='*',
                       help='This captures all '
@@ -105,21 +106,23 @@ def main(argv):
   args = parser.parse_args(argv)
 
   extra_flags = [f'java_cmd.append("-Xmx{args.max_heap_size}")']
-  if args.noverify:
-    extra_flags.append('java_cmd.append("-noverify")')
   if args.tiered_stop_at_level_one:
     extra_flags.append('java_cmd.append("-XX:TieredStopAtLevel=1")')
 
   classpath = []
   for cp_arg in args.classpath:
-    classpath += build_utils.ParseGnList(cp_arg)
+    classpath += action_helpers.parse_gn_list(cp_arg)
 
   run_dir = os.path.dirname(args.output)
   classpath = [os.path.relpath(p, run_dir) for p in classpath]
-  java_path = os.path.relpath(
-      os.path.join(build_utils.JAVA_HOME, 'bin', 'java'), run_dir)
 
-  with build_utils.AtomicOutput(args.output, mode='w') as script:
+  if args.use_jdk_11:
+    java_home = build_utils.JAVA_11_HOME_DEPRECATED
+  else:
+    java_home = build_utils.JAVA_HOME
+  java_path = os.path.relpath(os.path.join(java_home, 'bin', 'java'), run_dir)
+
+  with action_helpers.atomic_output(args.output, mode='w') as script:
     script.write(
         script_template.format(classpath=('"%s"' % '", "'.join(classpath)),
                                java_path=repr(java_path),

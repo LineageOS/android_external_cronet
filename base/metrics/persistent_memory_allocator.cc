@@ -531,7 +531,10 @@ size_t PersistentMemoryAllocator::GetAllocSize(Reference ref) const {
   uint32_t size = block->size;
   // Header was verified by GetBlock() but a malicious actor could change
   // the value between there and here. Check it again.
-  if (size <= sizeof(BlockHeader) || ref + size > mem_size_) {
+  uint32_t total_size;
+  if (size <= sizeof(BlockHeader) ||
+      !base::CheckAdd(ref, size).AssignIfValid(&total_size) ||
+      total_size > mem_size_) {
     SetCorrupt();
     return 0;
   }
@@ -881,8 +884,13 @@ PersistentMemoryAllocator::GetBlock(Reference ref,
   if (ref % kAllocAlignment != 0)
     return nullptr;
   size += sizeof(BlockHeader);
-  if (ref + size > mem_size_)
+  uint32_t total_size;
+  if (!base::CheckAdd(ref, size).AssignIfValid(&total_size)) {
     return nullptr;
+  }
+  if (total_size > mem_size_) {
+    return nullptr;
+  }
 
   // Validation of referenced block-header.
   if (!free_ok) {
@@ -892,8 +900,13 @@ PersistentMemoryAllocator::GetBlock(Reference ref,
       return nullptr;
     if (block->size < size)
       return nullptr;
-    if (ref + block->size > mem_size_)
+    uint32_t block_size;
+    if (!base::CheckAdd(ref, block->size).AssignIfValid(&block_size)) {
       return nullptr;
+    }
+    if (block_size > mem_size_) {
+      return nullptr;
+    }
     if (type_id != 0 &&
         block->type_id.load(std::memory_order_relaxed) != type_id) {
       return nullptr;
@@ -963,8 +976,6 @@ LocalPersistentMemoryAllocator::AllocateLocalMemory(size_t size) {
       ::VirtualAlloc(nullptr, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   if (address)
     return Memory(address, MEM_VIRTUAL);
-  UmaHistogramSparse("UMA.LocalPersistentMemoryAllocator.Failures.Win",
-                     static_cast<int>(::GetLastError()));
 #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   // MAP_ANON is deprecated on Linux but MAP_ANONYMOUS is not universal on Mac.
   // MAP_SHARED is not available on Linux <2.4 but required on Mac.
@@ -972,8 +983,6 @@ LocalPersistentMemoryAllocator::AllocateLocalMemory(size_t size) {
                    MAP_ANON | MAP_SHARED, -1, 0);
   if (address != MAP_FAILED)
     return Memory(address, MEM_VIRTUAL);
-  UmaHistogramSparse("UMA.LocalPersistentMemoryAllocator.Failures.Posix",
-                     errno);
 #else
 #error This architecture is not (yet) supported.
 #endif
@@ -1150,26 +1159,11 @@ DelayedPersistentAllocation::DelayedPersistentAllocation(
     std::atomic<Reference>* ref,
     uint32_t type,
     size_t size,
-    bool make_iterable)
-    : DelayedPersistentAllocation(allocator,
-                                  ref,
-                                  type,
-                                  size,
-                                  0,
-                                  make_iterable) {}
-
-DelayedPersistentAllocation::DelayedPersistentAllocation(
-    PersistentMemoryAllocator* allocator,
-    std::atomic<Reference>* ref,
-    uint32_t type,
-    size_t size,
-    size_t offset,
-    bool make_iterable)
+    size_t offset)
     : allocator_(allocator),
       type_(type),
       size_(checked_cast<uint32_t>(size)),
       offset_(checked_cast<uint32_t>(offset)),
-      make_iterable_(make_iterable),
       reference_(ref) {
   DCHECK(allocator_);
   DCHECK_NE(0U, type_);
@@ -1192,12 +1186,9 @@ void* DelayedPersistentAllocation::Get() const {
     // Use a "strong" exchange to ensure no false-negatives since the operation
     // cannot be retried.
     Reference existing = 0;  // Must be mutable; receives actual value.
-    if (reference_->compare_exchange_strong(existing, ref,
-                                            std::memory_order_release,
-                                            std::memory_order_relaxed)) {
-      if (make_iterable_)
-        allocator_->MakeIterable(ref);
-    } else {
+    if (!reference_->compare_exchange_strong(existing, ref,
+                                             std::memory_order_release,
+                                             std::memory_order_relaxed)) {
       // Failure indicates that something else has raced ahead, performed the
       // allocation, and stored its reference. Purge the allocation that was
       // just done and use the other one instead.

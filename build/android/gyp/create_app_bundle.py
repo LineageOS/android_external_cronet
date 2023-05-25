@@ -11,20 +11,23 @@ import concurrent.futures
 import json
 import logging
 import os
+import posixpath
 import shutil
 import sys
+from xml.etree import ElementTree
 import zipfile
 
 sys.path.append(
     os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)))
 from pylib.utils import dexdump
 
+import bundletool
 from util import build_utils
 from util import manifest_utils
 from util import resource_utils
-from xml.etree import ElementTree
+import action_helpers  # build_utils adds //build to sys.path.
+import zip_helpers
 
-import bundletool
 
 # Location of language-based assets in bundle modules.
 _LOCALES_SUBDIR = 'assets/locales/'
@@ -122,30 +125,30 @@ def _ParseArgs(args):
       help='Check if services are in base module if isolatedSplits is enabled.')
 
   options = parser.parse_args(args)
-  options.module_zips = build_utils.ParseGnList(options.module_zips)
-  options.rtxt_in_paths = build_utils.ParseGnList(options.rtxt_in_paths)
-  options.pathmap_in_paths = build_utils.ParseGnList(options.pathmap_in_paths)
+  options.module_zips = action_helpers.parse_gn_list(options.module_zips)
+  options.rtxt_in_paths = action_helpers.parse_gn_list(options.rtxt_in_paths)
+  options.pathmap_in_paths = action_helpers.parse_gn_list(
+      options.pathmap_in_paths)
 
   if len(options.module_zips) == 0:
     raise Exception('The module zip list cannot be empty.')
 
   # Merge all uncompressed assets into a set.
   uncompressed_list = []
-  if options.uncompressed_assets:
-    for l in options.uncompressed_assets:
-      for entry in build_utils.ParseGnList(l):
-        # Each entry has the following format: 'zipPath' or 'srcPath:zipPath'
-        pos = entry.find(':')
-        if pos >= 0:
-          uncompressed_list.append(entry[pos + 1:])
-        else:
-          uncompressed_list.append(entry)
+  for entry in action_helpers.parse_gn_list(options.uncompressed_assets):
+    # Each entry has the following format: 'zipPath' or 'srcPath:zipPath'
+    pos = entry.find(':')
+    if pos >= 0:
+      uncompressed_list.append(entry[pos + 1:])
+    else:
+      uncompressed_list.append(entry)
 
   options.uncompressed_assets = set(uncompressed_list)
 
   # Check that all split dimensions are valid
   if options.split_dimensions:
-    options.split_dimensions = build_utils.ParseGnList(options.split_dimensions)
+    options.split_dimensions = action_helpers.parse_gn_list(
+        options.split_dimensions)
     for dim in options.split_dimensions:
       if dim.upper() not in _ALL_SPLIT_DIMENSIONS:
         parser.error('Invalid split dimension "%s" (expected one of: %s)' % (
@@ -203,7 +206,9 @@ def _GenerateBundleConfigJson(uncompressed_assets, compress_dex,
   uncompressed_globs = [
       'assets/locales#lang_*/*.pak', 'assets/fallback-locales/*.pak'
   ]
-  uncompressed_globs.extend('assets/' + x for x in uncompressed_assets)
+  # normpath to allow for ../ prefix.
+  uncompressed_globs.extend(
+      posixpath.normpath('assets/' + x) for x in uncompressed_assets)
   # NOTE: Use '**' instead of '*' to work through directories!
   uncompressed_globs.extend('**.' + ext for ext in _UNCOMPRESSED_FILE_EXTS)
   if not compress_dex:
@@ -316,11 +321,10 @@ def _SplitModuleForAssetTargeting(src_module_zip, tmp_dir, split_dimensions):
         if src_path in language_files:
           dst_path = _RewriteLanguageAssetPath(src_path)
 
-        build_utils.AddToZipHermetic(
-            dst_zip,
-            dst_path,
-            data=src_zip.read(src_path),
-            compress=is_compressed)
+        zip_helpers.add_to_zip_hermetic(dst_zip,
+                                        dst_path,
+                                        data=src_zip.read(src_path),
+                                        compress=is_compressed)
 
     return tmp_zip
 
@@ -531,7 +535,7 @@ def main(args):
       f.write(bundle_config)
 
     logging.info('Running bundletool')
-    cmd_args = build_utils.JavaCmd(options.warnings_as_errors) + [
+    cmd_args = build_utils.JavaCmd() + [
         '-jar',
         bundletool.BUNDLETOOL_JAR_PATH,
         'build-bundle',

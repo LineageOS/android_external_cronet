@@ -260,6 +260,7 @@ class BASE_EXPORT Histogram : public HistogramBase {
  private:
   // Allow tests to corrupt our innards for testing purposes.
   friend class HistogramTest;
+  friend class HistogramThreadsafeTest;
   FRIEND_TEST_ALL_PREFIXES(HistogramTest, BoundsTest);
   FRIEND_TEST_ALL_PREFIXES(HistogramTest, BucketPlacementTest);
   FRIEND_TEST_ALL_PREFIXES(HistogramTest, CorruptSampleCounts);
@@ -435,7 +436,8 @@ class BASE_EXPORT ScaledLinearHistogram {
   // Like AddCount() but actually accumulates |count|/|scale| and increments
   // the accumulated remainder by |count|%|scale|. An additional increment
   // is done when the remainder has grown sufficiently large.
-  void AddScaledCount(Sample value, int count);
+  // The value after scaling must fit into 32-bit signed integer.
+  void AddScaledCount(Sample value, int64_t count);
 
   int32_t scale() const { return scale_; }
   HistogramBase* histogram() { return histogram_; }

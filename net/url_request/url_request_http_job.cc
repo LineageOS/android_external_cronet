@@ -11,13 +11,13 @@
 #include <vector>
 
 #include "base/base_switches.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/containers/adapters.h"
 #include "base/file_version_info.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/field_trial.h"
@@ -29,7 +29,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/time.h"
-#include "base/trace_event/base_tracing.h"
 #include "base/types/optional_util.h"
 #include "base/values.h"
 #include "build/build_config.h"
@@ -44,6 +43,7 @@
 #include "net/base/privacy_mode.h"
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 #include "net/base/trace_constants.h"
+#include "net/base/tracing.h"
 #include "net/base/url_util.h"
 #include "net/cert/cert_status_flags.h"
 #include "net/cert/ct_policy_status.h"
@@ -101,7 +101,7 @@
 
 namespace {
 
-base::Value CookieInclusionStatusNetLogParams(
+base::Value::Dict CookieInclusionStatusNetLogParams(
     const std::string& operation,
     const std::string& cookie_name,
     const std::string& cookie_domain,
@@ -119,7 +119,7 @@ base::Value CookieInclusionStatusNetLogParams(
     if (!cookie_path.empty())
       dict.Set("path", cookie_path);
   }
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 // Records details about the most-specific trust anchor in |spki_hashes|,
@@ -265,6 +265,7 @@ void URLRequestHttpJob::Start() {
       request_->isolation_info().request_type() ==
       net::IsolationInfo::RequestType::kSubFrame;
   request_info_.load_flags = request_->load_flags();
+  request_info_.priority_incremental = request_->priority_incremental();
   request_info_.secure_dns_policy = request_->secure_dns_policy();
   request_info_.traffic_annotation =
       net::MutableNetworkTrafficAnnotationTag(request_->traffic_annotation());
@@ -276,6 +277,15 @@ void URLRequestHttpJob::Start() {
 #if BUILDFLAG(ENABLE_REPORTING)
   request_info_.reporting_upload_depth = request_->reporting_upload_depth();
 #endif
+
+  // Add/remove the Storage Access override enum based on whether the request's
+  // url and initiator are same-site, to prevent cross-site sibling iframes
+  // benefit from each other's storage access API grants.
+  request()->cookie_setting_overrides().PutOrRemove(
+      net::CookieSettingOverride::kStorageAccessGrantEligible,
+      request()->has_storage_access() && request_initiator_site().has_value() &&
+          request_initiator_site().value() ==
+              net::SchemefulSite(request()->url()));
 
   bool should_add_cookie_header = ShouldAddCookieHeader();
   UMA_HISTOGRAM_BOOLEAN("Net.HttpJob.CanIncludeCookies",
@@ -412,10 +422,8 @@ PrivacyMode URLRequestHttpJob::DeterminePrivacyMode() const {
           ? NetworkDelegate::PrivacySetting::kStateAllowed
           : NetworkDelegate::PrivacySetting::kStateDisallowed;
   if (request_->network_delegate()) {
-    privacy_setting = request()->network_delegate()->ForcePrivacyMode(
-        request_->url(), request_->site_for_cookies(),
-        request_->isolation_info().top_frame_origin(),
-        first_party_set_metadata_.context().context_type());
+    privacy_setting =
+        request()->network_delegate()->ForcePrivacyMode(*request());
   }
   switch (privacy_setting) {
     case NetworkDelegate::PrivacySetting::kStateAllowed:
@@ -1647,14 +1655,9 @@ void URLRequestHttpJob::RecordCompletionHistograms(CompletionCause reason) {
         UMA_HISTOGRAM_COUNTS_1M("Net.Prefetch.PrefilterBytesReadFromNetwork",
                                 prefilter_bytes_read());
       }
-      if (is_https_google) {
-        if (used_quic) {
-          UMA_HISTOGRAM_MEDIUM_TIMES(
-              "Net.HttpJob.TotalTimeNotCached.Secure.Quic", total_time);
-        } else {
-          UMA_HISTOGRAM_MEDIUM_TIMES(
-              "Net.HttpJob.TotalTimeNotCached.Secure.NotQuic", total_time);
-        }
+      if (is_https_google && used_quic) {
+        UMA_HISTOGRAM_MEDIUM_TIMES("Net.HttpJob.TotalTimeNotCached.Secure.Quic",
+                                   total_time);
       }
     }
   }

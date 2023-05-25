@@ -10,8 +10,8 @@ import sys
 
 sys.path.append(
     os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir,
-                 'build', 'android', 'gyp'))
-from util import build_utils
+                 'build'))
+import action_helpers
 
 
 def _parse_args(args):
@@ -54,7 +54,11 @@ def _find_test_executables(args):
             if exe_name in exes:
                 raise ValueError("Duplicate entry ('{}') in {}".format(
                     exe_name, input_filepath))
-            exes.add(exe_name)
+            if sys.platform == 'win32':
+                suffix = ".exe"
+            else:
+                suffix = ""
+            exes.add(f'{exe_name}{suffix}')
     if not exes:
         raise ValueError("Unexpectedly empty file: {}".format(input_filepath))
     exes = sorted(exes)  # For stable results in unit tests.
@@ -97,9 +101,9 @@ def _generate_script(args, should_validate_if_exes_exist=True):
 def _main():
     args = _parse_args(sys.argv[1:])
 
-    # AtomicOutput will ensure we only write to the file on disk if what we give
-    # to write() is different than what's currently on disk.
-    with build_utils.AtomicOutput(args.script_path) as f:
+    # atomic_output will ensure we only write to the file on disk if what we
+    # give to write() is different than what's currently on disk.
+    with action_helpers.atomic_output(args.script_path) as f:
         f.write(_generate_script(args).encode())
 
     # chmod a+x

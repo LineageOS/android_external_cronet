@@ -998,7 +998,7 @@ class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
     self._set_value_arg('--sources-files', '$(genDir)/java.sources')
     # update_jni_registration_module removes them from the srcs of the module
     # It might be better to remove sources by '--sources-exclusions'
-    self._delete_value_arg('--sources-exclusions')
+    self._delete_value_arg('--file-exclusions')
     if not self.is_test_target:
       # Only jarjar platform code
       self._append_arg('--package_prefix', 'android.net.connectivity')
@@ -1103,7 +1103,7 @@ class ProtocJavaSanitizer(BaseActionSanitizer):
 def get_action_sanitizer(gn, target, type, arch, is_test_target):
   if target.script == "//build/write_buildflag_header.py":
     return WriteBuildFlagHeaderSanitizer(target, arch)
-  elif target.script == "//build/write_build_date_header.py":
+  elif target.script == "//base/write_build_date_header.py":
     return WriteBuildDateHeaderSanitizer(target, arch)
   elif target.script == '//base/android/jni_generator/jni_generator.py':
     return JniGeneratorSanitizer(target, arch, is_test_target)
@@ -1160,7 +1160,7 @@ def create_action_foreach_modules(blueprint, gn, target, is_test_target):
           if out.endswith(file_name):
             new_args.append('$(location %s)' % out)
 
-        for file in target.sources:
+        for file in (target.sources | target.inputs):
           if file.endswith(file_name):
             new_args.append('$(location %s)' % gn_utils.label_to_path(file))
       else:
@@ -1540,13 +1540,14 @@ def create_java_module(blueprint, gn, is_test_target):
   module.srcs.update([gn_utils.label_to_path(source) for source in get_non_api_java_sources(gn)])
   module.libs = {
     "androidx.annotation_annotation",
-    "jsr305",
     "androidx.annotation_annotation-experimental-nodeps",
-    "framework-connectivity.stubs.module_lib",
+    "error_prone_annotations",
     "framework-connectivity-t.stubs.module_lib",
+    "framework-connectivity.stubs.module_lib",
+    "framework-mediaprovider.stubs.module_lib",
     "framework-tethering.stubs.module_lib",
     "framework-wifi.stubs.module_lib",
-    "framework-mediaprovider.stubs.module_lib",
+    "jsr305",
   }
   module.static_libs = {
     "libprotobuf-java-lite",

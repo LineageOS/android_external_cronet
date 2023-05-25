@@ -15,9 +15,9 @@
 #include <unordered_set>
 #include <vector>
 
-#include "base/bind.h"
 #include "base/containers/flat_set.h"
 #include "base/containers/unique_ptr_adapters.h"
+#include "base/functional/bind.h"
 #include "base/memory/memory_pressure_monitor.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -81,9 +81,6 @@ const uint32_t kSpdyMaxHeaderListSize = 256 * 1024;
 
 // Specifies the maximum concurrent streams server could send (via push).
 const uint32_t kSpdyMaxConcurrentPushedStreams = 1000;
-
-// Specifies the the default value for the push setting, which is disabled.
-const uint32_t kSpdyDisablePush = 0;
 
 // Self-contained structure with all the simple configuration options
 // supported by the HttpNetworkSession.

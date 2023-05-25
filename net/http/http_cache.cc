@@ -6,19 +6,20 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
 #include "base/feature_list.h"
 #include "base/files/file_util.h"
 #include "base/format_macros.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/metrics/histogram_macros_local.h"
 #include "base/pickle.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
@@ -104,7 +105,7 @@ disk_cache::BackendResult HttpCache::DefaultBackend::CreateBackend(
   disk_cache::ResetHandling reset_handling =
       hard_reset_ ? disk_cache::ResetHandling::kReset
                   : disk_cache::ResetHandling::kResetOnError;
-  UMA_HISTOGRAM_BOOLEAN("HttpCache.HardReset", hard_reset_);
+  LOCAL_HISTOGRAM_BOOLEAN("HttpCache.HardReset", hard_reset_);
 #if BUILDFLAG(IS_ANDROID)
   if (app_status_listener_) {
     return disk_cache::CreateCacheBackend(
@@ -156,7 +157,7 @@ struct HttpCache::PendingOp {
   PendingOp() = default;
   ~PendingOp() = default;
 
-  raw_ptr<disk_cache::Entry> entry = nullptr;
+  raw_ptr<disk_cache::Entry, DanglingUntriaged> entry = nullptr;
   bool entry_opened = false;  // rather than created.
 
   std::unique_ptr<disk_cache::Backend> backend;
@@ -994,8 +995,6 @@ void HttpCache::WritersDoneWritingToEntry(ActiveEntry* entry,
   DCHECK(entry->writers);
   DCHECK(entry->writers->IsEmpty());
   DCHECK(success || make_readers.empty());
-
-  entry->writers_done_writing_to_entry_history = absl::make_optional(success);
 
   if (!success && should_keep_entry) {
     // Restart already validated transactions so that they are able to read

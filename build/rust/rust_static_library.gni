@@ -41,6 +41,9 @@ import("//build/rust/rust_target.gni")
 #     Edition of the Rust language to be used.
 #     Options are "2015", "2018" and "2021". Defaults to "2021".
 #
+#   allow_unsafe (optional)
+#     Set to true to allow unsafe code in this target. Defaults to false.
+#
 #   configs (optional)
 #     A list of config labels (in the GN meaning) applying to this target.
 #
@@ -60,6 +63,12 @@ import("//build/rust/rust_target.gni")
 #   test_deps (optional)
 #     List of GN targets on which this crate's tests depend, in addition
 #     to deps.
+#
+#   is_gtest_unittests (optional)
+#     Should only be set to true for rlibs of gtest unit tests. This ensures
+#     all objects in the rlib are linked into the final target, rather than
+#     pruning dead code, so that the tests themselves are not discarded by the
+#     linker.
 #
 #   mutually_dependent_target (optional)
 #   mutually_dependent_public_deps (optional)
@@ -142,7 +151,9 @@ import("//build/rust/rust_target.gni")
 # in Fuchsia.
 template("rust_static_library") {
   exclude_forwards = TESTONLY_AND_VISIBILITY + [ "configs" ]
-  rust_target(target_name) {
+  _target_name = target_name
+
+  rust_target(_target_name) {
     forward_variables_from(invoker, "*", exclude_forwards)
     forward_variables_from(invoker, TESTONLY_AND_VISIBILITY)
     if (defined(invoker.configs)) {

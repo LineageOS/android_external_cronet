@@ -4,6 +4,7 @@
 
 #include "components/metrics/structured/structured_metrics_provider.h"
 
+#include <sstream>
 #include <utility>
 
 #include "base/feature_list.h"
@@ -11,6 +12,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/metrics_hashes.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_split.h"
 #include "base/task/current_thread.h"
 #include "components/metrics/structured/enums.h"
 #include "components/metrics/structured/external_metrics.h"
@@ -33,10 +35,8 @@ constexpr int kSaveDelayMs = 1000;
 // The interval between chrome's collection of metrics logged from cros.
 constexpr int kExternalMetricsIntervalMins = 10;
 
-// The minimum waiting time between successive deliveries of independent metrics
-// to the metrics service via ProvideIndependentMetrics. This is set carefully:
-// metrics logs are stored in a queue of limited size, and are uploaded roughly
-// every 30 minutes.
+// This is set carefully: metrics logs are stored in a queue of limited size,
+// and are uploaded roughly every 30 minutes.
 constexpr base::TimeDelta kMinIndependentMetricsInterval = base::Minutes(45);
 
 // Directory containing serialized event protos to read.
@@ -56,7 +56,20 @@ char StructuredMetricsProvider::kUnsentLogsPath[] = "structured_metrics/events";
 
 StructuredMetricsProvider::StructuredMetricsProvider(
     base::raw_ptr<metrics::MetricsProvider> system_profile_provider)
-    : system_profile_provider_(system_profile_provider) {
+    : StructuredMetricsProvider(base::FilePath(kDeviceKeyDataPath),
+                                base::Milliseconds(kSaveDelayMs),
+                                kMinIndependentMetricsInterval,
+                                system_profile_provider) {}
+
+StructuredMetricsProvider::StructuredMetricsProvider(
+    const base::FilePath& device_key_path,
+    base::TimeDelta min_independent_metrics_interval,
+    base::TimeDelta write_delay,
+    base::raw_ptr<metrics::MetricsProvider> system_profile_provider)
+    : device_key_path_(device_key_path),
+      write_delay_(write_delay),
+      min_independent_metrics_interval_(min_independent_metrics_interval),
+      system_profile_provider_(system_profile_provider) {
   DCHECK(system_profile_provider_);
   Recorder::GetInstance()->AddObserver(this);
 }
@@ -120,6 +133,11 @@ void StructuredMetricsProvider::OnExternalMetricsCollected(
     events_.get()->get()->mutable_uma_events()->MergeFrom(events.uma_events());
     events_.get()->get()->mutable_non_uma_events()->MergeFrom(
         events.non_uma_events());
+
+    // Only increment if new events were add.
+    if (events.uma_events_size() || events.non_uma_events_size()) {
+      external_metrics_scans_ += 1;
+    }
   }
 }
 
@@ -143,25 +161,18 @@ void StructuredMetricsProvider::OnProfileAdded(
   }
   init_state_ = InitState::kProfileAdded;
 
-  const auto save_delay = base::Milliseconds(kSaveDelayMs);
-
   profile_key_data_ = std::make_unique<KeyData>(
-      profile_path.Append(kProfileKeyDataPath), save_delay,
+      profile_path.Append(kProfileKeyDataPath), write_delay_,
       base::BindOnce(&StructuredMetricsProvider::OnKeyDataInitialized,
                      weak_factory_.GetWeakPtr()));
 
-  // TODO(crbug.com/1148168): Change this to receive the key data path in the
-  // constructor and avoid the test-specific logic.
-  const auto device_key_data_path = device_key_data_path_for_test_.has_value()
-                                        ? device_key_data_path_for_test_.value()
-                                        : base::FilePath(kDeviceKeyDataPath);
   device_key_data_ = std::make_unique<KeyData>(
-      base::FilePath(device_key_data_path), save_delay,
+      base::FilePath(device_key_path_), write_delay_,
       base::BindOnce(&StructuredMetricsProvider::OnKeyDataInitialized,
                      weak_factory_.GetWeakPtr()));
 
   events_ = std::make_unique<PersistentProto<EventsProto>>(
-      profile_path.Append(kUnsentLogsPath), save_delay,
+      profile_path.Append(kUnsentLogsPath), write_delay_,
       base::BindOnce(&StructuredMetricsProvider::OnRead,
                      weak_factory_.GetWeakPtr()),
       base::BindRepeating(&StructuredMetricsProvider::OnWrite,
@@ -196,8 +207,6 @@ void StructuredMetricsProvider::OnEventRecord(const Event& event) {
     LogEventRecordingState(EventRecordingState::kProviderUninitialized);
     RecordEventBeforeInitialization(event);
     return;
-  } else {
-    LogEventRecordingState(EventRecordingState::kRecorded);
   }
 
   DCHECK(profile_key_data_->is_initialized());
@@ -232,11 +241,15 @@ void StructuredMetricsProvider::OnRecordingEnabled() {
   DCHECK(base::CurrentUIThread::IsSet());
   // Enable recording only if structured metrics' feature flag is enabled.
   recording_enabled_ = base::FeatureList::IsEnabled(kStructuredMetrics);
+  if (recording_enabled_) {
+    CacheDisallowedProjectsSet();
+  }
 }
 
 void StructuredMetricsProvider::OnRecordingDisabled() {
   DCHECK(base::CurrentUIThread::IsSet());
   recording_enabled_ = false;
+  disallowed_projects_.clear();
 }
 
 void StructuredMetricsProvider::OnReportingStateChanged(bool enabled) {
@@ -293,6 +306,8 @@ void StructuredMetricsProvider::ProvideCurrentSessionData(
       events_.get()->get()->mutable_uma_events());
   events_.get()->get()->clear_uma_events();
   events_->StartWrite();
+
+  LogUploadSizeBytes(structured_data->ByteSizeLong());
 }
 
 bool StructuredMetricsProvider::HasIndependentMetrics() {
@@ -305,7 +320,7 @@ bool StructuredMetricsProvider::HasIndependentMetrics() {
   }
 
   if (base::Time::Now() - last_provided_independent_metrics_ <
-      kMinIndependentMetricsInterval) {
+      min_independent_metrics_interval_) {
     return false;
   }
 
@@ -348,6 +363,10 @@ void StructuredMetricsProvider::ProvideIndependentMetrics(
   events_.get()->get()->clear_non_uma_events();
   events_->StartWrite();
 
+  LogUploadSizeBytes(structured_data->ByteSizeLong());
+  LogExternalMetricsScanInUpload(external_metrics_scans_);
+  external_metrics_scans_ = 0;
+
   // Independent events should not be associated with the client_id, so clear
   // it.
   uma_proto->clear_client_id();
@@ -383,14 +402,6 @@ void StructuredMetricsProvider::SetExternalMetricsDirForTest(
           weak_factory_.GetWeakPtr()));
 }
 
-void StructuredMetricsProvider::SetDeviceKeyDataPathForTest(
-    const base::FilePath& path) {
-  // Updating the path after a profile has been added will have no effect, so
-  // make it an error.
-  DCHECK_EQ(init_state_, InitState::kUninitialized);
-  device_key_data_path_for_test_ = path;
-}
-
 void StructuredMetricsProvider::RecordEventBeforeInitialization(
     const Event& event) {
   DCHECK_NE(init_state_, InitState::kInitialized);
@@ -415,6 +426,13 @@ void StructuredMetricsProvider::RecordEvent(const Event& event) {
     return;
   }
   const auto* event_validator = maybe_event_validator.value();
+
+  if (!CanUploadProject(project_validator->project_hash())) {
+    LogEventRecordingState(EventRecordingState::kProjectDisallowed);
+    return;
+  }
+
+  LogEventRecordingState(EventRecordingState::kRecorded);
 
   // The |events_| persistent proto contains two repeated fields, uma_events
   // and non_uma_events. uma_events is added to the ChromeUserMetricsExtension
@@ -562,6 +580,9 @@ void StructuredMetricsProvider::RecordEvent(const Event& event) {
       case Event::MetricType::kBoolean:
         break;
     }
+
+    // Log size information about the event.
+    LogEventSerializedSizeBytes(event_proto->ByteSizeLong());
   }
 }
 
@@ -572,6 +593,33 @@ void StructuredMetricsProvider::HashUnhashedEventsAndPersist() {
     RecordEvent(unhashed_events_.front());
     unhashed_events_.pop_front();
   }
+}
+
+bool StructuredMetricsProvider::CanUploadProject(
+    uint64_t project_name_hash) const {
+  return !disallowed_projects_.contains(project_name_hash);
+}
+
+void StructuredMetricsProvider::CacheDisallowedProjectsSet() {
+  const std::string& disallowed_list = GetDisabledProjects();
+  if (disallowed_list.empty()) {
+    return;
+  }
+
+  for (const auto& value :
+       base::SplitString(disallowed_list, ",", base::TRIM_WHITESPACE,
+                         base::SPLIT_WANT_NONEMPTY)) {
+    uint64_t project_name_hash;
+    // Parse the string and keep only perfect conversions.
+    if (base::StringToUint64(value, &project_name_hash)) {
+      disallowed_projects_.insert(project_name_hash);
+    }
+  }
+}
+
+void StructuredMetricsProvider::AddDisallowedProjectForTest(
+    uint64_t project_name_hash) {
+  disallowed_projects_.insert(project_name_hash);
 }
 
 }  // namespace metrics::structured

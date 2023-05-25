@@ -5,8 +5,6 @@
 # found in the LICENSE file.
 """Runs Android's lint tool."""
 
-from __future__ import print_function
-
 import argparse
 import logging
 import os
@@ -19,6 +17,7 @@ from xml.etree import ElementTree
 from util import build_utils
 from util import manifest_utils
 from util import server_utils
+import action_helpers  # build_utils adds //build to sys.path.
 
 _LINT_MD_URL = 'https://chromium.googlesource.com/chromium/src/+/main/build/android/docs/lint.md'  # pylint: disable=line-too-long
 
@@ -180,7 +179,7 @@ def _GenerateAndroidManifest(original_manifest_path, extra_manifest_paths,
 def _WriteXmlFile(root, path):
   logging.info('Writing xml file %s', path)
   build_utils.MakeDirectory(os.path.dirname(path))
-  with build_utils.AtomicOutput(path) as f:
+  with action_helpers.atomic_output(path) as f:
     # Although we can write it just with ElementTree.tostring, using minidom
     # makes it a lot easier to read as a human (also on code search).
     f.write(
@@ -379,7 +378,7 @@ def _RunLint(create_cache,
 
 def _ParseArgs(argv):
   parser = argparse.ArgumentParser()
-  build_utils.AddDepfileOption(parser)
+  action_helpers.add_depfile_arg(parser)
   parser.add_argument('--target-name', help='Fully qualified GN target name.')
   parser.add_argument('--skip-build-server',
                       action='store_true',
@@ -424,8 +423,9 @@ def _ParseArgs(argv):
   parser.add_argument('--warnings-as-errors',
                       action='store_true',
                       help='Treat all warnings as errors.')
-  parser.add_argument('--java-sources',
-                      help='File containing a list of java sources files.')
+  parser.add_argument('--sources',
+                      help='A list of files containing java and kotlin source '
+                      'files.')
   parser.add_argument('--aars', help='GN list of included aars.')
   parser.add_argument('--srcjars', help='GN list of included srcjars.')
   parser.add_argument('--manifest-path',
@@ -451,13 +451,14 @@ def _ParseArgs(argv):
                       'on new errors.')
 
   args = parser.parse_args(build_utils.ExpandFileArgs(argv))
-  args.java_sources = build_utils.ParseGnList(args.java_sources)
-  args.aars = build_utils.ParseGnList(args.aars)
-  args.srcjars = build_utils.ParseGnList(args.srcjars)
-  args.resource_sources = build_utils.ParseGnList(args.resource_sources)
-  args.extra_manifest_paths = build_utils.ParseGnList(args.extra_manifest_paths)
-  args.resource_zips = build_utils.ParseGnList(args.resource_zips)
-  args.classpath = build_utils.ParseGnList(args.classpath)
+  args.sources = action_helpers.parse_gn_list(args.sources)
+  args.aars = action_helpers.parse_gn_list(args.aars)
+  args.srcjars = action_helpers.parse_gn_list(args.srcjars)
+  args.resource_sources = action_helpers.parse_gn_list(args.resource_sources)
+  args.extra_manifest_paths = action_helpers.parse_gn_list(
+      args.extra_manifest_paths)
+  args.resource_zips = action_helpers.parse_gn_list(args.resource_zips)
+  args.classpath = action_helpers.parse_gn_list(args.classpath)
 
   if args.baseline:
     assert os.path.basename(args.baseline) == 'lint-baseline.xml', (
@@ -484,8 +485,8 @@ def main():
     return
 
   sources = []
-  for java_sources_file in args.java_sources:
-    sources.extend(build_utils.ReadSourcesList(java_sources_file))
+  for sources_file in args.sources:
+    sources.extend(build_utils.ReadSourcesList(sources_file))
   resource_sources = []
   for resource_sources_file in args.resource_sources:
     resource_sources.extend(build_utils.ReadSourcesList(resource_sources_file))
@@ -522,7 +523,7 @@ def main():
   build_utils.Touch(args.stamp)
 
   if args.depfile:
-    build_utils.WriteDepfile(args.depfile, args.stamp, depfile_deps)
+    action_helpers.write_depfile(args.depfile, args.stamp, depfile_deps)
 
 
 if __name__ == '__main__':

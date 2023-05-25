@@ -502,11 +502,12 @@ class GnParser(object):
         # GN uses an action to compile aidl files. However, this is not needed in soong
         # as soong can directly have .aidl files in srcs. So adding .aidl files to the java_sources.
         # TODO: Find a better way/place to do this.
-        if '_aidl' in dep.name:
-          self.java_sources[java_group_name].update(dep.arch[arch].sources)
-          self.aidl_local_include_dirs.update(_extract_includes_from_aidl_args(dep.arch[arch].args))
-        else:
-          if not is_test_target:
+        if not is_test_target:
+          if '_aidl' in dep.name:
+            self.java_sources[java_group_name].update(dep.arch[arch].sources)
+            self.aidl_local_include_dirs.update(
+                _extract_includes_from_aidl_args(dep.arch[arch].args))
+          else:
             # TODO(aymanm): Fix collecting actions for testing modules for java.
             # Don't collect java actions for test targets.
             self.java_actions[java_group_name].add(dep.name)

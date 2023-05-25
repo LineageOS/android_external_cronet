@@ -8,6 +8,7 @@
 
 #include "base/feature_list.h"
 #include "build/build_config.h"
+#include "net/net_buildflags.h"
 
 namespace net::features {
 
@@ -65,12 +66,20 @@ BASE_FEATURE(kUseDnsHttpsSvcbAlpn,
              "UseDnsHttpsSvcbAlpn",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kSHA1ServerSignature,
+             "SHA1ServerSignature",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
 BASE_FEATURE(kEnableTLS13EarlyData,
              "EnableTLS13EarlyData",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kEncryptedClientHello,
              "EncryptedClientHello",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+BASE_FEATURE(kEncryptedClientHelloQuic,
+             "EncryptedClientHelloQuic",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kNetworkQualityEstimator,
@@ -85,16 +94,16 @@ BASE_FEATURE(kSplitCacheByNetworkIsolationKey,
              "SplitCacheByNetworkIsolationKey",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
+BASE_FEATURE(kSplitCodeCacheByNetworkIsolationKey,
+             "SplitCodeCacheByNetworkIsolationKey",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
 BASE_FEATURE(kSplitHostCacheByNetworkIsolationKey,
              "SplitHostCacheByNetworkIsolationKey",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kPartitionConnectionsByNetworkIsolationKey,
              "PartitionConnectionsByNetworkIsolationKey",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kForceIsolationInfoFrameOriginToTopLevelFrame,
-             "ForceIsolationInfoFrameOriginToTopLevelFrame",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kPartitionHttpServerPropertiesByNetworkIsolationKey,
@@ -109,12 +118,8 @@ BASE_FEATURE(kPartitionNelAndReportingByNetworkIsolationKey,
              "PartitionNelAndReportingByNetworkIsolationKey",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kEnableDoubleKeyNetworkAnonymizationKey,
-             "EnableDoubleKeyNetworkAnonymizationKey",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kEnableCrossSiteFlagNetworkAnonymizationKey,
-             "EnableCrossSiteFlagNetworkAnonymizationKey",
+BASE_FEATURE(kEnableCrossSiteFlagNetworkIsolationKey,
+             "EnableCrossSiteFlagNetworkIsolationKey",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kTLS13KeyUpdate,
@@ -123,25 +128,11 @@ BASE_FEATURE(kTLS13KeyUpdate,
 
 BASE_FEATURE(kPermuteTLSExtensions,
              "PermuteTLSExtensions",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-BASE_FEATURE(kPostQuantumCECPQ2,
-             "PostQuantumCECPQ2",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-BASE_FEATURE(kPostQuantumCECPQ2SomeDomains,
-             "PostQuantumCECPQ2SomeDomains",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-const base::FeatureParam<std::string>
-    kPostQuantumCECPQ2Prefix(&kPostQuantumCECPQ2SomeDomains, "prefix", "a");
-
-// This is feature-gated, but enabled, to act as a kill switch, in case there
-// are unforeseen consequences to fully removing TLS 1.0/1.1.
-//
-// TODO(https://crbug.com/1376584): Remove this feature and all TLS 1.0/1.1
-// support code.
-BASE_FEATURE(kSSLMinVersionAtLeastTLS12,
-             "SSLMinVersionAtLeastTLS12",
              base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kPostQuantumKyber,
+             "PostQuantumKyber",
+             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kNetUnusedIdleSocketTimeout,
              "NetUnusedIdleSocketTimeout",
@@ -161,26 +152,19 @@ BASE_FEATURE(kSameSiteDefaultChecksMethodRigorously,
 BASE_FEATURE(kCertDualVerificationTrialFeature,
              "CertDualVerificationTrial",
              base::FEATURE_DISABLED_BY_DEFAULT);
-#if BUILDFLAG(IS_MAC)
-const base::FeatureParam<int> kCertDualVerificationTrialImpl{
-    &kCertDualVerificationTrialFeature, "impl", 0};
-#endif /* BUILDFLAG(IS_MAC) */
 #endif
 
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
+#if BUILDFLAG(CHROME_ROOT_STORE_OPTIONAL)
 BASE_FEATURE(kChromeRootStoreUsed,
              "ChromeRootStoreUsed",
-#if BUILDFLAG(IS_MAC) || BUILDFLAG(IS_WIN)
-             base::FEATURE_ENABLED_BY_DEFAULT
-#else
-             base::FEATURE_DISABLED_BY_DEFAULT
+             base::FEATURE_DISABLED_BY_DEFAULT);
+#endif  // BUILDFLAG(CHROME_ROOT_STORE_OPTIONAL)
+
+#if BUILDFLAG(IS_MAC) || BUILDFLAG(USE_NSS_CERTS) || BUILDFLAG(IS_WIN)
+BASE_FEATURE(kTrustStoreTrustedLeafSupport,
+             "TrustStoreTrustedLeafSupport",
+             base::FEATURE_ENABLED_BY_DEFAULT);
 #endif
-);
-#if BUILDFLAG(IS_MAC)
-const base::FeatureParam<int> kChromeRootStoreSysImpl{&kChromeRootStoreUsed,
-                                                      "sysimpl", 0};
-#endif /* BUILDFLAG(IS_MAC) */
-#endif /* BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED) */
 
 BASE_FEATURE(kTurnOffStreamingMediaCachingOnBattery,
              "TurnOffStreamingMediaCachingOnBattery",
@@ -238,25 +222,17 @@ BASE_FEATURE(kCookieSameSiteConsidersRedirectChain,
              "CookieSameSiteConsidersRedirectChain",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kSamePartyCookiesConsideredFirstParty,
-             "SamePartyCookiesConsideredFirstParty",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 BASE_FEATURE(kSamePartyAttributeEnabled,
              "SamePartyAttributeEnabled",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kPartitionedCookies,
              "PartitionedCookies",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kNoncedPartitionedCookies,
              "NoncedPartitionedCookies",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kRecordRadioWakeupTrigger,
-             "RecordRadioWakeupTrigger",
-             base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kClampCookieExpiryTo400Days,
              "ClampCookieExpiryTo400Days",
@@ -273,62 +249,6 @@ BASE_FEATURE(kCookieDomainRejectNonASCII,
 BASE_FEATURE(kBlockSetCookieHeader,
              "BlockSetCookieHeader",
              base::FEATURE_ENABLED_BY_DEFAULT);
-
-// Run callbacks optimstically for write calls to the blockfile disk cache
-// implementation.
-BASE_FEATURE(kOptimisticBlockfileWrite,
-             "OptimisticBlockfileWrite",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
-// Read as much of the net::URLRequest as there is space in the Mojo data pipe.
-BASE_FEATURE(kOptimizeNetworkBuffers,
-             "OptimizeNetworkBuffers2",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-const base::FeatureParam<int> kOptimizeNetworkBuffersBytesReadLimit{
-    &kOptimizeNetworkBuffers, "bytes_read_limit", 64 * 1024};
-
-// If InputStream.available() returns less than this,
-// kOptimizeNetworkBuffersMinInputStreamReadSize will be used instead.
-const base::FeatureParam<int>
-    kOptimizeNetworkBuffersMinInputStreamAvailableValueToIgnore{
-        &kOptimizeNetworkBuffers, "min_input_stream_available_value_to_ignore",
-        16};
-
-// The smallest amount we'll try to read at a time if InputStream.available()
-// returned less than
-// kOptimizeNetworkBuffersMinInputStreamAvailableValueToIgnore.
-const base::FeatureParam<int> kOptimizeNetworkBuffersMinInputStreamReadSize{
-    &kOptimizeNetworkBuffers, "min_input_stream_read_size", 1024};
-
-const base::FeatureParam<int>
-    kOptimizeNetworkBuffersMaxInputStreamBytesToReadWhenAvailableUnknown{
-        &kOptimizeNetworkBuffers, "max_input_stream_bytes_available_unknown",
-        2 * 1024};
-
-const base::FeatureParam<int>
-    kOptimizeNetworkBuffersFilterSourceStreamBufferSize{
-        &kOptimizeNetworkBuffers, "filter_source_stream_buffer_size",
-        32 * 1024};
-
-const base::FeatureParam<bool> kOptimizeNetworkBuffersInputStreamCheckAvailable{
-    &kOptimizeNetworkBuffers, "input_stream_check_available", true};
-
-BASE_FEATURE(kStorageAccessAPI,
-             "StorageAccessAPI",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-constexpr int kStorageAccessAPIDefaultImplicitGrantLimit = 5;
-const base::FeatureParam<int> kStorageAccessAPIImplicitGrantLimit{
-    &kStorageAccessAPI, "storage-access-api-implicit-grant-limit",
-    kStorageAccessAPIDefaultImplicitGrantLimit};
-const base::FeatureParam<bool> kStorageAccessAPIGrantsUnpartitionedStorage(
-    &kStorageAccessAPI,
-    "storage-access-api-grants-unpartitioned-storage",
-    false);
-const base::FeatureParam<bool> kStorageAccessAPIAutoGrantInFPS{
-    &kStorageAccessAPI, "storage_access_api_auto_grant_in_fps", true};
-const base::FeatureParam<bool> kStorageAccessAPIAutoDenyOutsideFPS{
-    &kStorageAccessAPI, "storage_access_api_auto_deny_outside_fps", true};
 
 // Enables partitioning of third party storage (IndexedDB, CacheStorage, etc.)
 // by the top level site to reduce fingerprinting.
@@ -375,5 +295,57 @@ BASE_FEATURE(kPlatformKeyProbeSHA256,
              "PlatformKeyProbeSHA256",
              base::FEATURE_ENABLED_BY_DEFAULT);
 #endif
+
+// Enable support for HTTP extensible priorities (RFC 9218)
+BASE_FEATURE(kPriorityIncremental,
+             "PriorityIncremental",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+
+// Prefetch to follow normal semantics instead of 5-minute rule
+// https://crbug.com/1345207
+BASE_FEATURE(kPrefetchFollowsNormalCacheSemantics,
+             "PrefetchFollowsNormalCacheSemantics",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+// A flag for new Kerberos feature, that suggests new UI
+// when Kerberos authentication in browser fails on ChromeOS.
+// b/260522530
+#if BUILDFLAG(IS_CHROMEOS)
+BASE_FEATURE(kKerberosInBrowserRedirect,
+             "KerberosInBrowserRedirect",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+#endif
+
+// A flag to use asynchronous session creation for new QUIC sessions.
+BASE_FEATURE(kAsyncQuicSession,
+             "AsyncQuicSession",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+// IP protection experiment configuration settings
+BASE_FEATURE(kEnableIpProtectionProxy,
+             "EnableIpPrivacyProxy",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+const base::FeatureParam<std::string> kIpPrivacyProxyServer{
+    &kEnableIpProtectionProxy, /*name=*/"IpPrivacyProxyServer",
+    /*default_value=*/""};
+
+const base::FeatureParam<std::string> kIpPrivacyProxyAllowlist{
+    &kEnableIpProtectionProxy, /*name=*/"IpPrivacyProxyAllowlist",
+    /*default_value=*/""};
+
+// Network-change migration requires NetworkHandle support, which are currently
+// only supported on Android (see
+// NetworkChangeNotifier::AreNetworkHandlesSupported).
+#if BUILDFLAG(IS_ANDROID)
+inline constexpr auto kMigrateSessionsOnNetworkChangeV2Default =
+    base::FEATURE_ENABLED_BY_DEFAULT;
+#else   // !BUILDFLAG(IS_ANDROID)
+inline constexpr auto kMigrateSessionsOnNetworkChangeV2Default =
+    base::FEATURE_DISABLED_BY_DEFAULT;
+#endif  // BUILDFLAG(IS_ANDROID)
+BASE_FEATURE(kMigrateSessionsOnNetworkChangeV2,
+             "MigrateSessionsOnNetworkChangeV2",
+             kMigrateSessionsOnNetworkChangeV2Default);
 
 }  // namespace net::features

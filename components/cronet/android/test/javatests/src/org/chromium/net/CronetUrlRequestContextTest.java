@@ -44,6 +44,7 @@ import org.junit.runner.RunWith;
 import org.chromium.base.FileUtils;
 import org.chromium.base.PathUtils;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.NativeMethods;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestRule.RequiresMinAndroidApi;
@@ -360,8 +361,7 @@ public class CronetUrlRequestContextTest {
     public void testNetworkBoundContextLifetime() throws Exception {
         // Multi-network API is available starting from Android Lollipop.
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
-        ConnectivityManagerDelegate delegate =
-                new ConnectivityManagerDelegate(getContext());
+        ConnectivityManagerDelegate delegate = new ConnectivityManagerDelegate(getContext());
         Network defaultNetwork = delegate.getDefaultNetwork();
         if (defaultNetwork == null) {
             testFramework.mCronetEngine.shutdown();
@@ -430,9 +430,8 @@ public class CronetUrlRequestContextTest {
         callback.setAutoAdvance(false);
         UrlRequest.Builder urlRequestBuilder =
                 testFramework.mCronetEngine.newUrlRequestBuilder(
-                        mUrl, callback.getExecutor(), callback);
-        ConnectivityManagerDelegate delegate =
-                new ConnectivityManagerDelegate(getContext());
+                        mUrl, callback, callback.getExecutor());
+        ConnectivityManagerDelegate delegate = new ConnectivityManagerDelegate(getContext());
         Network defaultNetwork = delegate.getDefaultNetwork();
         if (defaultNetwork == null) {
             testFramework.mCronetEngine.shutdown();
@@ -1430,8 +1429,7 @@ public class CronetUrlRequestContextTest {
         // different versions of the same Android Context does not cause crashes
         // like crbug.com/453845
         HttpEngine firstEngine = new HttpEngine.Builder(getContext()).build();
-        HttpEngine secondEngine =
-                new HttpEngine.Builder(getContext()).build();
+        HttpEngine secondEngine = new HttpEngine.Builder(getContext()).build();
         HttpEngine thirdEngine =
                 new HttpEngine.Builder(new ContextWrapper(getContext())).build();
         firstEngine.shutdown();
@@ -1482,15 +1480,11 @@ public class CronetUrlRequestContextTest {
         builder.setExperimentalOptions("");
         builder.setStoragePath(getTestStorage(getContext()));
         builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(false);
-        nativeVerifyUrlRequestContextConfig(
+        CronetUrlRequestContextTestJni.get().verifyUrlRequestContextConfig(
                 CronetUrlRequestContext.createNativeUrlRequestContextConfig(
                         (CronetEngineBuilderImpl) builder.getBuilderDelegate()),
                 getTestStorage(getContext()));
     }
-
-    // Verifies that CronetEngine.Builder config from testCronetEngineBuilderConfig() is properly
-    // translated to a native UrlRequestContextConfig.
-    private static native void nativeVerifyUrlRequestContextConfig(long config, String storagePath);
 
     @Test
     @SmallTest
@@ -1509,16 +1503,11 @@ public class CronetUrlRequestContextTest {
         builder.setUserAgent("efgh");
         builder.setStoragePath(getTestStorage(getContext()));
         builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(false);
-        nativeVerifyUrlRequestContextQuicOffConfig(
+        CronetUrlRequestContextTestJni.get().verifyUrlRequestContextQuicOffConfig(
                 CronetUrlRequestContext.createNativeUrlRequestContextConfig(
                         (CronetEngineBuilderImpl) builder.getBuilderDelegate()),
                 getTestStorage(getContext()));
     }
-
-    // Verifies that CronetEngine.Builder config from testCronetEngineQuicOffConfig() is properly
-    // translated to a native UrlRequestContextConfig and QUIC is turned off.
-    private static native void nativeVerifyUrlRequestContextQuicOffConfig(
-            long config, String storagePath);
 
     // Creates a CronetEngine on another thread and then one on the main thread.  This shouldn't
     // crash.
@@ -1665,5 +1654,16 @@ public class CronetUrlRequestContextTest {
             assertEquals(threadPriority, getThreadPriority(engine));
             engine.shutdown();
         }
+    }
+
+    @NativeMethods("cronet_tests")
+    interface Natives {
+        // Verifies that CronetEngine.Builder config from testCronetEngineBuilderConfig() is
+        // properly translated to a native UrlRequestContextConfig.
+        void verifyUrlRequestContextConfig(long config, String storagePath);
+
+        // Verifies that CronetEngine.Builder config from testCronetEngineQuicOffConfig() is
+        // properly translated to a native UrlRequestContextConfig and QUIC is turned off.
+        void verifyUrlRequestContextQuicOffConfig(long config, String storagePath);
     }
 }

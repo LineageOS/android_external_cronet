@@ -6,8 +6,8 @@
 
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -31,11 +31,12 @@ namespace net {
 
 namespace {
 
-base::Value ControllerParamsToValue(HttpAuth::Target target, const GURL& url) {
+base::Value::Dict ControllerParamsToValue(HttpAuth::Target target,
+                                          const GURL& url) {
   base::Value::Dict params;
   params.Set("target", HttpAuth::GetAuthTargetString(target));
   params.Set("url", url.spec());
-  return base::Value(std::move(params));
+  return params;
 }
 
 }  // namespace

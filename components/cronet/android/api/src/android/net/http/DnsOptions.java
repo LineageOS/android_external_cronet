@@ -104,7 +104,6 @@ public final class DnsOptions {
     /**
      * See {@link Builder#setStaleDns(int)}
      */
-    @Experimental
     public @DnsOptionState int getStaleDns() {
         return mEnableStaleDns;
     }
@@ -120,7 +119,6 @@ public final class DnsOptions {
     /**
      * See {@link Builder#setPreestablishConnectionsToStaleDnsResults(int)}
      */
-    @Experimental
     public @DnsOptionState int getPreestablishConnectionsToStaleDnsResults() {
         return mPreestablishConnectionsToStaleDnsResults;
     }
@@ -128,7 +126,6 @@ public final class DnsOptions {
     /**
      * See {@link Builder#setStaleDnsOptions}
      */
-    @Experimental
     @Nullable
     public StaleDnsOptions getStaleDnsOptions() {
         return mStaleDnsOptions;
@@ -164,7 +161,7 @@ public final class DnsOptions {
      * {@link StaleDnsOptions.Builder} methods.
      */
     // SuppressLint to be consistent with other cronet code
-    @Experimental @SuppressLint("UserHandleName")
+    @SuppressLint("UserHandleName")
     public static class StaleDnsOptions {
         @Nullable
         public Duration getFreshLookupTimeout() {
@@ -321,7 +318,6 @@ public final class DnsOptions {
          * @param state one of the DNS_OPTION_* values
          * @return the builder for chaining
          */
-        @Experimental
         @NonNull
         public Builder setStaleDns(@DnsOptionState int state) {
             this.mEnableStaleDns = state;
@@ -335,7 +331,6 @@ public final class DnsOptions {
          *
          * @return this builder for chaining.
          */
-        @Experimental
         @NonNull
         public Builder setStaleDnsOptions(@NonNull StaleDnsOptions staleDnsOptions) {
             this.mStaleDnsOptions = staleDnsOptions;

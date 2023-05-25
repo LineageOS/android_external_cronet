@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "quiche/quic/core/quic_types.h"
 #if defined(__APPLE__) && !defined(__APPLE_USE_RFC_3542)
 // This must be defined before including any system headers.
 #define __APPLE_USE_RFC_3542
@@ -19,7 +20,7 @@
 #include "quiche/quic/core/io/socket.h"
 #include "quiche/quic/core/quic_udp_socket.h"
 #include "quiche/quic/platform/api/quic_bug_tracker.h"
-#include "quiche/quic/platform/api/quic_ip_address_family.h"
+#include "quiche/quic/platform/api/quic_flag_utils.h"
 #include "quiche/quic/platform/api/quic_udp_socket_platform_api.h"
 
 #if defined(__APPLE__) && !defined(__APPLE_USE_RFC_3542)
@@ -38,6 +39,9 @@
 
 namespace quic {
 namespace {
+
+// Explicit Congestion Notification is the last two bits of the TOS byte.
+constexpr uint8_t kEcnMask = 0x03;
 
 #if defined(__linux__) && (!defined(__ANDROID_API__) || __ANDROID_API__ >= 21)
 #define QUIC_UDP_SOCKET_SUPPORT_LINUX_TIMESTAMPING 1
@@ -159,6 +163,14 @@ void PopulatePacketInfoFromControlMessage(struct cmsghdr* cmsg,
     return;
   }
 
+  if ((cmsg->cmsg_level == IPPROTO_IP && cmsg->cmsg_type == IP_TOS) ||
+      (cmsg->cmsg_level == IPPROTO_IPV6 && cmsg->cmsg_type == IPV6_TCLASS)) {
+    if (packet_info_interested.IsSet(QuicUdpPacketInfoBit::ECN)) {
+      packet_info->SetEcnCodepoint(QuicEcnCodepoint(
+          *(reinterpret_cast<uint8_t*>(CMSG_DATA(cmsg))) & kEcnMask));
+    }
+  }
+
   if (packet_info_interested.IsSet(
           QuicUdpPacketInfoBit::GOOGLE_PACKET_HEADER)) {
     BufferSpan google_packet_headers;
@@ -248,6 +260,23 @@ bool QuicUdpSocketApi::SetupSocket(QuicUdpSocketFd fd, int address_family,
                  sizeof(send_buffer_size)) != 0) {
     QUIC_LOG_FIRST_N(ERROR, 100) << "Failed to set socket send size";
     return false;
+  }
+
+  if (GetQuicRestartFlag(quic_quiche_ecn_sockets)) {
+    QUIC_RESTART_FLAG_COUNT(quic_quiche_ecn_sockets);
+    unsigned int set = 1;
+    if (address_family == AF_INET &&
+        setsockopt(fd, IPPROTO_IP, IP_RECVTOS, &set, sizeof(set)) != 0) {
+      QUIC_LOG_FIRST_N(ERROR, 100) << "Failed to request to receive ECN on "
+                                   << "socket";
+      return false;
+    }
+    if (address_family == AF_INET6 &&
+        setsockopt(fd, IPPROTO_IPV6, IPV6_RECVTCLASS, &set, sizeof(set)) != 0) {
+      QUIC_LOG_FIRST_N(ERROR, 100) << "Failed to request to receive ECN on "
+                                   << "socket";
+      return false;
+    }
   }
 
   if (!(address_family == AF_INET6 && ipv6_only)) {
@@ -634,6 +663,37 @@ WriteResult QuicUdpSocketApi::WritePacket(
     *reinterpret_cast<int*>(CMSG_DATA(cmsg)) = packet_info.ttl();
   }
 #endif
+
+  // TODO(b/270584616): This code block might go away when full support for
+  // marking ECN is implemented.
+  if (packet_info.HasValue(QuicUdpPacketInfoBit::ECN)) {
+    int cmsg_level =
+        packet_info.peer_address().host().IsIPv4() ? IPPROTO_IP : IPPROTO_IPV6;
+    int cmsg_type;
+    unsigned char value_buf[20];
+    socklen_t value_len = sizeof(value_buf);
+    if (GetQuicRestartFlag(quic_platform_tos_sockopt)) {
+      QUIC_RESTART_FLAG_COUNT(quic_platform_tos_sockopt);
+      if (GetEcnCmsgArgsPreserveDscp(
+              fd, packet_info.peer_address().host().address_family(),
+              packet_info.ecn_codepoint(), cmsg_type, value_buf,
+              value_len) != 0) {
+        QUIC_LOG_FIRST_N(ERROR, 100)
+            << "Could not get ECN msg type for this platform.";
+        return WriteResult(WRITE_STATUS_ERROR, EINVAL);
+      }
+    } else {
+      cmsg_type = (cmsg_level == IPPROTO_IP) ? IP_TOS : IPV6_TCLASS;
+      *(int*)value_buf = static_cast<int>(packet_info.ecn_codepoint());
+      value_len = sizeof(int);
+    }
+    if (!NextCmsg(&hdr, control_buffer, sizeof(control_buffer), cmsg_level,
+                  cmsg_type, value_len, &cmsg)) {
+      QUIC_LOG_FIRST_N(ERROR, 100) << "Not enough buffer to set ECN.";
+      return WriteResult(WRITE_STATUS_ERROR, EINVAL);
+    }
+    memcpy(CMSG_DATA(cmsg), value_buf, value_len);
+  }
 
   int rc;
   do {

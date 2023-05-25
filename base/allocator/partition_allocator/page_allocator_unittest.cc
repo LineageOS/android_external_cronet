@@ -34,12 +34,12 @@
 
 #include "base/allocator/partition_allocator/arm_bti_test_functions.h"
 
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
 #include <arm_acle.h>
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_LINUX)
 #define MTE_KILLED_BY_SIGNAL_AVAILABLE
 #endif
-#endif
+#endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
 
 #if !defined(MEMORY_TOOL_REPLACES_ALLOCATOR)
 
@@ -127,8 +127,9 @@ TEST(PartitionAllocPageAllocatorTest, AllocFailure) {
 
   size_t size = HugeMemoryAmount();
   // Skip the test for sanitizers and platforms with ASLR turned off.
-  if (size == 0)
+  if (size == 0) {
     return;
+  }
 
   uintptr_t result =
       AllocPages(size, PageAllocationGranularity(),
@@ -160,8 +161,9 @@ TEST(PartitionAllocPageAllocatorTest, MAYBE_ReserveAddressSpace) {
 
   size_t size = HugeMemoryAmount();
   // Skip the test for sanitizers and platforms with ASLR turned off.
-  if (size == 0)
+  if (size == 0) {
     return;
+  }
 
   bool success = ReserveAddressSpace(size);
   if (!success) {
@@ -517,8 +519,9 @@ TEST(PartitionAllocPageAllocatorTest, PageTagging) {
 #endif  // BUILDFLAG(IS_ANDROID)
 
 TEST(PartitionAllocPageAllocatorTest, DecommitErasesMemory) {
-  if (!DecommittedMemoryIsAlwaysZeroed())
+  if (!DecommittedMemoryIsAlwaysZeroed()) {
     return;
+  }
 
   size_t size = PageAllocationGranularity();
   uintptr_t buffer = AllocPages(size, PageAllocationGranularity(),

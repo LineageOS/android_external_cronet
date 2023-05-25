@@ -1805,12 +1805,13 @@ class PartitionedCookiesURLRequestHttpJobTest
  protected:
   // testing::Test
   void SetUp() override {
-    if (PartitionedCookiesEnabled())
-      scoped_feature_list_.InitAndEnableFeature(features::kPartitionedCookies);
+    if (PartitionedCookiesDisabled()) {
+      scoped_feature_list_.InitAndDisableFeature(features::kPartitionedCookies);
+    }
     URLRequestHttpJobTest::SetUp();
   }
 
-  bool PartitionedCookiesEnabled() { return GetParam(); }
+  bool PartitionedCookiesDisabled() { return GetParam(); }
 
  private:
   base::test::ScopedFeatureList scoped_feature_list_;
@@ -1873,10 +1874,32 @@ TEST_P(PartitionedCookiesURLRequestHttpJobTest, SetPartitionedCookie) {
     req->set_isolation_info(kOtherTestIsolationInfo);
     req->Start();
     delegate.RunUntilComplete();
-    if (PartitionedCookiesEnabled()) {
-      EXPECT_EQ("None", delegate.data_received());
-    } else {
+    if (PartitionedCookiesDisabled()) {
       EXPECT_EQ("__Host-foo=bar", delegate.data_received());
+    } else {
+      EXPECT_EQ("None", delegate.data_received());
+    }
+  }
+
+  {  // Test request from same top-level eTLD+1 but different scheme. Note that
+     // although the top-level site is insecure, the endpoint setting/receiving
+     // the cookie is always secure.
+    const url::Origin kHttpTopFrameOrigin =
+        url::Origin::Create(GURL("http://www.toplevelsite.com"));
+    const IsolationInfo kHttpTestIsolationInfo =
+        IsolationInfo::CreateForInternalRequest(kHttpTopFrameOrigin);
+
+    TestDelegate delegate;
+    std::unique_ptr<URLRequest> req(context->CreateRequest(
+        https_test.GetURL("/echoheader?Cookie"), DEFAULT_PRIORITY, &delegate,
+        TRAFFIC_ANNOTATION_FOR_TESTS));
+    req->set_isolation_info(kHttpTestIsolationInfo);
+    req->Start();
+    delegate.RunUntilComplete();
+    if (PartitionedCookiesDisabled()) {
+      EXPECT_EQ("__Host-foo=bar", delegate.data_received());
+    } else {
+      EXPECT_EQ("None", delegate.data_received());
     }
   }
 }
@@ -1934,13 +1957,15 @@ TEST_P(PartitionedCookiesURLRequestHttpJobTest, PrivacyMode) {
     req->set_isolation_info(kTestIsolationInfo);
     req->Start();
     delegate.RunUntilComplete();
-    EXPECT_EQ(PartitionedCookiesEnabled() ? "__Host-partitioned=0" : "None",
+    EXPECT_EQ(PartitionedCookiesDisabled() ? "None" : "__Host-partitioned=0",
               delegate.data_received());
     auto want_exclusion_reasons =
-        PartitionedCookiesEnabled()
-            ? std::vector<CookieInclusionStatus::ExclusionReason>{}
-            : std::vector<CookieInclusionStatus::ExclusionReason>{
-                  CookieInclusionStatus::EXCLUDE_USER_PREFERENCES};
+        PartitionedCookiesDisabled()
+            ? std::vector<CookieInclusionStatus::
+                              ExclusionReason>{CookieInclusionStatus::
+                                                   EXCLUDE_USER_PREFERENCES}
+            : std::vector<CookieInclusionStatus::ExclusionReason>{};
+
     EXPECT_THAT(
         req->maybe_sent_cookies(),
         UnorderedElementsAre(

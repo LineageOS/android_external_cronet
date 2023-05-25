@@ -8,22 +8,25 @@
 
 #include <memory>
 
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/allocator/partition_allocator/tagging.h"
 #include "base/at_exit.h"
 #include "base/base_paths.h"
 #include "base/base_switches.h"
-#include "base/bind.h"
 #include "base/command_line.h"
+#include "base/debug/asan_service.h"
 #include "base/debug/debugger.h"
 #include "base/debug/profiler.h"
 #include "base/debug/stack_trace.h"
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/i18n/icu_util.h"
 #include "base/i18n/rtl.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
@@ -82,6 +85,10 @@
 
 #include "base/debug/handle_hooks_win.h"
 #endif  // BUILDFLAG(IS_WIN)
+
+#if BUILDFLAG(USE_PARTITION_ALLOC)
+#include "base/allocator/partition_alloc_support.h"
+#endif  // BUILDFLAG(USE_PARTITION_ALLOC)
 
 namespace base {
 
@@ -168,6 +175,14 @@ class FeatureListScopedToEachTest : public testing::EmptyTestEventListener {
       new_command_line.AppendSwitchNative(iter.first, iter.second);
 
     *CommandLine::ForCurrentProcess() = new_command_line;
+
+    // TODO(https://crbug.com/1400059): Enable dangling pointer detector.
+    // TODO(https://crbug.com/1413674): Enable PartitionAlloc in unittests with
+    // ASAN.
+#if BUILDFLAG(USE_PARTITION_ALLOC) && !defined(ADDRESS_SANITIZER)
+    allocator::PartitionAllocSupport::Get()->ReconfigureAfterFeatureListInit(
+        "", /*configure_dangling_pointer_detector=*/false);
+#endif
   }
 
   void OnTestEnd(const testing::TestInfo& test_info) override {
@@ -210,10 +225,18 @@ class CheckForLeakedGlobals : public testing::EmptyTestEventListener {
   }
 
  private:
-  FeatureList* feature_list_set_before_test_ = nullptr;
-  FeatureList* feature_list_set_before_case_ = nullptr;
-  ThreadPoolInstance* thread_pool_set_before_test_ = nullptr;
-  ThreadPoolInstance* thread_pool_set_before_case_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION FeatureList* feature_list_set_before_test_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION FeatureList* feature_list_set_before_case_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION ThreadPoolInstance* thread_pool_set_before_test_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION ThreadPoolInstance* thread_pool_set_before_case_ = nullptr;
 };
 
 // iOS: base::Process is not available.
@@ -308,7 +331,7 @@ void TestSuite::InitializeFromCommandLine(int argc, char** argv) {
   testing::InitGoogleMock(&argc, argv);
 
 #if BUILDFLAG(IS_IOS)
-  InitIOSRunHook(this, argc, argv);
+  InitIOSArgs(argc, argv);
 #endif
 }
 
@@ -397,10 +420,6 @@ void TestSuite::AddTestLauncherResultPrinter() {
 // Don't add additional code to this method.  Instead add it to
 // Initialize().  See bug 6436.
 int TestSuite::Run() {
-#if BUILDFLAG(IS_IOS)
-  RunTestsFromIOSApp();
-#endif
-
 #if BUILDFLAG(IS_APPLE)
   mac::ScopedNSAutoreleasePool scoped_pool;
 #endif
@@ -562,6 +581,21 @@ void TestSuite::SuppressErrorDialogs() {
 
 void TestSuite::Initialize() {
   DCHECK(!is_initialized_);
+
+  // The AsanService causes ASAN errors to emit additional information. It is
+  // helpful on its own. It is also required by ASAN BackupRefPtr when
+  // reconfiguring PartitionAlloc below.
+#if defined(ADDRESS_SANITIZER)
+  base::debug::AsanService::GetInstance()->Initialize();
+#endif
+
+  // TODO(https://crbug.com/1400058): Enable BackupRefPtr in unittests on
+  // Android too. Same for ASAN.
+  // TODO(https://crbug.com/1413674): Enable PartitionAlloc in unittests with
+  // ASAN.
+#if BUILDFLAG(USE_PARTITION_ALLOC) && !defined(ADDRESS_SANITIZER)
+  allocator::PartitionAllocSupport::Get()->ReconfigureForTests();
+#endif  // BUILDFLAG(IS_WIN)
 
   test::ScopedRunLoopTimeout::SetAddGTestFailureOnTimeout();
 

@@ -9,15 +9,16 @@
 #include <memory>
 #include <string>
 
-#include "base/callback.h"
 #include "base/callback_list.h"
 #include "base/containers/linked_list.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/thread_checker.h"
 #include "net/cookies/cookie_change_dispatcher.h"
+#include "net/cookies/cookie_partition_key_collection.h"
 #include "url/gurl.h"
 
 namespace net {
@@ -77,7 +78,7 @@ class CookieMonsterChangeDispatcher : public CookieChangeDispatcher {
                  std::string domain_key,
                  std::string name_key,
                  GURL url,
-                 absl::optional<CookiePartitionKey> cookie_partition_key,
+                 CookiePartitionKeyCollection cookie_partition_key_collection,
                  bool same_party_attribute_enabled,
                  net::CookieChangeCallback callback);
 
@@ -104,8 +105,7 @@ class CookieMonsterChangeDispatcher : public CookieChangeDispatcher {
     const std::string domain_key_;  // kGlobalDomainKey means no filtering.
     const std::string name_key_;    // kGlobalNameKey means no filtering.
     const GURL url_;                // empty() means no URL-based filtering.
-    // nullopt means all Partitioned cookies will be ignored.
-    const absl::optional<CookiePartitionKey> cookie_partition_key_;
+    const CookiePartitionKeyCollection cookie_partition_key_collection_;
     const net::CookieChangeCallback callback_;
     bool same_party_attribute_enabled_;
 
