@@ -7810,8 +7810,13 @@ java_genrule {
 }
 
 // GN: //components/cronet/android:cronet_jni_registration
-java_genrule {
-    name: "cronet_aml_components_cronet_android_cronet_jni_registration__java__testing",
+// HACK! Do not try to replicate this in gn2bp.
+// We eventually want to explore an approach of collecting all test-related sources and placing them
+// inside the cronet_aml_java__testing jar as well (as opposed to manuallyh specifying them in
+// Android.extras.bp). But since this is purely exploratory and not nearly ready yet, this manual
+// hack is required to release Cronet in U.
+genrule_defaults {
+    name: "cronet_aml_components_cronet_android_cronet_jni_registration__java__testing_defaults",
     srcs: [
         "base/android/java/src/org/chromium/base/ActivityState.java",
         "base/android/java/src/org/chromium/base/ApiCompatibilityUtils.java",
@@ -8037,6 +8042,11 @@ java_genrule {
         "build/gn_helpers.py",
         "build/zip_helpers.py",
     ],
+}
+
+genrule {
+    name: "cronet_aml_components_cronet_android_cronet_jni_registration__java__testing",
+    defaults: ["cronet_aml_components_cronet_android_cronet_jni_registration__java__testing_defaults"],
 }
 
 // GN: //components/cronet/android:cronet_jni_registration__testing

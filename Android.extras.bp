@@ -199,7 +199,9 @@ filegroup {
 
 genrule {
     name: "cronet_tester_app_jni",
-    defaults: ["jni_registration_generator_defaults"],
+    defaults: [
+        "cronet_aml_components_cronet_android_cronet_jni_registration__java__testing_defaults",
+    ],
     srcs: [
         ":cronet_native_unittests_defaults_srcs",
     ],
@@ -221,7 +223,9 @@ android_test_helper_app {
 
 genrule {
     name: "cronet_net_tester_app_jni",
-    defaults: ["jni_registration_generator_defaults"],
+    defaults: [
+        "cronet_aml_components_cronet_android_cronet_jni_registration__java__testing_defaults",
+    ],
     srcs: [
         ":cronet_for_testing_net_java_srcs",
         ":cronet_native_unittests_defaults_srcs",
