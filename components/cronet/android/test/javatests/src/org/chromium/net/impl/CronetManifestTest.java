@@ -63,7 +63,7 @@ public class CronetManifestTest {
     @SmallTest
     @OnlyRunNativeCronet
     public void testTelemetryOptIn_whenMetadataIsTrue() throws Exception {
-        mMetadata.putBoolean(CronetManifest.METRICS_OPT_IN_META_DATA_STR, true);
+        mMetadata.putBoolean(CronetManifest.TELEMETRY_OPT_IN_META_DATA_STR, true);
         mAppInfo.metaData = mMetadata;
 
         assertTrue(CronetManifest.isAppOptedInForTelemetry(
@@ -78,7 +78,7 @@ public class CronetManifestTest {
     @SmallTest
     @OnlyRunNativeCronet
     public void testTelemetryOptIn_whenMetadataIsFalse() throws Exception {
-        mMetadata.putBoolean(CronetManifest.METRICS_OPT_IN_META_DATA_STR, false);
+        mMetadata.putBoolean(CronetManifest.TELEMETRY_OPT_IN_META_DATA_STR, false);
         mAppInfo.metaData = mMetadata;
 
         assertFalse(CronetManifest.isAppOptedInForTelemetry(

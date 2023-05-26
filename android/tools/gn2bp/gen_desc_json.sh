@@ -103,7 +103,6 @@ function gn_desc() (
     "enable_websockets = false"
     "disable_file_support = true"
     "is_component_build = false"
-    "use_crash_key_stubs = true"
     "use_partition_alloc = false"
     "include_transport_security_state_preload_list = false"
     "use_platform_icu_alternatives = true"

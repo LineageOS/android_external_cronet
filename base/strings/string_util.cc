@@ -29,6 +29,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/third_party/icu/icu_utf.h"
 #include "build/build_config.h"
+#include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 
@@ -391,13 +392,29 @@ std::u16string ReplaceStringPlaceholders(
     StringPiece16 format_string,
     const std::vector<std::u16string>& subst,
     std::vector<size_t>* offsets) {
-  return internal::DoReplaceStringPlaceholders(format_string, subst, offsets);
+  absl::optional<std::u16string> replacement =
+      internal::DoReplaceStringPlaceholders(
+          format_string, subst,
+          /*placeholder_prefix*/ u'$',
+          /*should_escape_multiple_placeholder_prefixes*/ true,
+          /*is_strict_mode*/ false, offsets);
+
+  DCHECK(replacement);
+  return replacement.value();
 }
 
 std::string ReplaceStringPlaceholders(StringPiece format_string,
                                       const std::vector<std::string>& subst,
                                       std::vector<size_t>* offsets) {
-  return internal::DoReplaceStringPlaceholders(format_string, subst, offsets);
+  absl::optional<std::string> replacement =
+      internal::DoReplaceStringPlaceholders(
+          format_string, subst,
+          /*placeholder_prefix*/ '$',
+          /*should_escape_multiple_placeholder_prefixes*/ true,
+          /*is_strict_mode*/ false, offsets);
+
+  DCHECK(replacement);
+  return replacement.value();
 }
 
 std::u16string ReplaceStringPlaceholders(const std::u16string& format_string,
@@ -416,6 +433,11 @@ std::u16string ReplaceStringPlaceholders(const std::u16string& format_string,
 size_t strlcpy(char* dst, const char* src, size_t dst_size) {
   return internal::lcpyT(dst, src, dst_size);
 }
+
+size_t u16cstrlcpy(char16_t* dst, const char16_t* src, size_t dst_size) {
+  return internal::lcpyT(dst, src, dst_size);
+}
+
 size_t wcslcpy(wchar_t* dst, const wchar_t* src, size_t dst_size) {
   return internal::lcpyT(dst, src, dst_size);
 }

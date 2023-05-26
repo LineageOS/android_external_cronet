@@ -16,9 +16,9 @@
 #include "base/run_loop.h"
 #include "base/strings/string_util.h"
 #include "base/task/current_thread.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/test/scoped_feature_list.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "net/base/features.h"
 #include "net/base/network_anonymization_key.h"
 #include "net/base/schemeful_site.h"
@@ -92,13 +92,13 @@ TEST_F(TransportSecurityPersisterTest, LoadEntriesClearsExistingState) {
 // Tests that serializing -> deserializing -> reserializing results in the same
 // output.
 TEST_F(TransportSecurityPersisterTest, SerializeData1) {
-  std::string output;
+  absl::optional<std::string> output = persister_->SerializeData();
 
-  EXPECT_TRUE(persister_->SerializeData(&output));
-  persister_->LoadEntries(output);
+  ASSERT_TRUE(output);
+  persister_->LoadEntries(*output);
 
-  std::string output2;
-  EXPECT_TRUE(persister_->SerializeData(&output2));
+  absl::optional<std::string> output2 = persister_->SerializeData();
+  ASSERT_TRUE(output2);
   EXPECT_EQ(output, output2);
 }
 
@@ -113,9 +113,9 @@ TEST_F(TransportSecurityPersisterTest, SerializeData2) {
   bool include_subdomains = true;
   state_->AddHSTS(kYahooDomain, expiry, include_subdomains);
 
-  std::string output;
-  EXPECT_TRUE(persister_->SerializeData(&output));
-  persister_->LoadEntries(output);
+  absl::optional<std::string> output = persister_->SerializeData();
+  ASSERT_TRUE(output);
+  persister_->LoadEntries(*output);
 
   EXPECT_TRUE(state_->GetDynamicSTSState(kYahooDomain, &sts_state));
   EXPECT_EQ(sts_state.upgrade_mode,
@@ -150,8 +150,8 @@ TEST_F(TransportSecurityPersisterTest, SerializeData3) {
     sts_iter.Advance();
   }
 
-  std::string serialized;
-  EXPECT_TRUE(persister_->SerializeData(&serialized));
+  absl::optional<std::string> serialized = persister_->SerializeData();
+  ASSERT_TRUE(serialized);
 
   // Persist the data to the file.
   base::RunLoop run_loop;

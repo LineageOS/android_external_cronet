@@ -6,8 +6,8 @@
 
 #include <stdint.h>
 
-#include "base/bind.h"
 #include "base/format_macros.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/logging.h"
 #include "base/numerics/checked_math.h"
@@ -739,7 +739,6 @@ bool SparseControl::DoChildIO() {
   }
 
   int rv = 0;
-  bool optimistic = false;
   switch (operation_) {
     case kReadOperation:
       if (entry_->net_log().IsCapturing()) {
@@ -759,8 +758,7 @@ bool SparseControl::DoChildIO() {
                               child_->net_log().source(), child_len_);
       }
       rv = child_->WriteDataImpl(kSparseData, child_offset_, user_buf_.get(),
-                                 child_len_, std::move(callback), false,
-                                 &optimistic);
+                                 child_len_, std::move(callback), false);
       break;
     case kGetRangeOperation:
       rv = DoGetAvailableRange();
@@ -769,7 +767,7 @@ bool SparseControl::DoChildIO() {
       NOTREACHED();
   }
 
-  if (rv == net::ERR_IO_PENDING || optimistic) {
+  if (rv == net::ERR_IO_PENDING) {
     if (!pending_) {
       pending_ = true;
       // The child will protect himself against closing the entry while IO is in

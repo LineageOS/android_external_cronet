@@ -3,37 +3,133 @@
 # found in the LICENSE file.
 """Common methods and variables used by Cr-Fuchsia testing infrastructure."""
 
+import enum
 import json
 import logging
 import os
 import re
+import signal
+import shutil
 import subprocess
+import sys
 import time
 
 from argparse import ArgumentParser
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Tuple
 
-from compatible_utils import get_ssh_prefix, get_host_arch, running_unattended
+from compatible_utils import get_ssh_prefix, get_host_arch
 
 DIR_SRC_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir, os.pardir, os.pardir))
+IMAGES_ROOT = os.path.join(DIR_SRC_ROOT, 'third_party', 'fuchsia-sdk',
+                           'images')
 REPO_ALIAS = 'fuchsia.com'
 SDK_ROOT = os.path.join(DIR_SRC_ROOT, 'third_party', 'fuchsia-sdk', 'sdk')
-
 SDK_TOOLS_DIR = os.path.join(SDK_ROOT, 'tools', get_host_arch())
+_ENABLE_ZEDBOOT = 'discovery.zedboot.enabled=true'
 _FFX_TOOL = os.path.join(SDK_TOOLS_DIR, 'ffx')
 
 # This global variable is used to set the environment variable
 # |FFX_ISOLATE_DIR| when running ffx commands in E2E testing scripts.
 _FFX_ISOLATE_DIR = None
 
-# TODO(crbug.com/1280705): Remove each entry when they are migrated to v2.
-_V1_PACKAGE_LIST = [
-    'chrome_v1',
-    'web_engine',
-    'web_engine_with_webui',
-    'web_runner',
-]
+
+class TargetState(enum.Enum):
+    """State of a target."""
+    UNKNOWN = enum.auto()
+    DISCONNECTED = enum.auto()
+    PRODUCT = enum.auto()
+    FASTBOOT = enum.auto()
+    ZEDBOOT = enum.auto()
+
+
+class BootMode(enum.Enum):
+    """Specifies boot mode for device."""
+    REGULAR = enum.auto()
+    RECOVERY = enum.auto()
+    BOOTLOADER = enum.auto()
+
+
+_STATE_TO_BOOTMODE = {
+    TargetState.PRODUCT: BootMode.REGULAR,
+    TargetState.FASTBOOT: BootMode.BOOTLOADER,
+    TargetState.ZEDBOOT: BootMode.RECOVERY
+}
+
+_BOOTMODE_TO_STATE = {value: key for key, value in _STATE_TO_BOOTMODE.items()}
+
+
+def _state_string_to_state(state_str: str) -> TargetState:
+    state_str = state_str.strip().lower()
+    if state_str == 'product':
+        return TargetState.PRODUCT
+    if state_str == 'zedboot (r)':
+        return TargetState.ZEDBOOT
+    if state_str == 'fastboot':
+        return TargetState.FASTBOOT
+    if state_str == 'unknown':
+        return TargetState.UNKNOWN
+    if state_str == 'disconnected':
+        return TargetState.DISCONNECTED
+
+    raise NotImplementedError(f'State {state_str} not supported')
+
+
+def _retry(count: int, sleep: Optional[int] = None):
+    def first_func(func):
+        def wrapper(*args, **kwargs):
+            exception = None
+            for _ in range(count):
+                try:
+                    return func(*args, **kwargs)
+                # pylint: disable=broad-except
+                except Exception as generic_exception:
+                    exception = generic_exception
+                    logging.warning('Function %s failed. Retrying...',
+                                    str(func))
+                    if sleep:
+                        time.sleep(sleep)
+                # pylint: enable=broad-except
+            raise exception
+
+        return wrapper
+
+    return first_func
+
+
+@_retry(count=3, sleep=30)
+def get_target_state(target_id: Optional[str]) -> TargetState:
+    """Return state of target or the default target.
+
+    Args:
+        target_id: Optional nodename of the target. If not given, default target
+        is used.
+
+    Returns:
+        TargetState of the given node, if found.
+
+    Raises:
+        RuntimeError: If target cannot be found, or default target is not
+            defined if |target_id| is not given.
+    """
+    targets = json.loads(
+        run_ffx_command(('target', 'list'),
+                        configs=[_ENABLE_ZEDBOOT],
+                        check=True,
+                        capture_output=True,
+                        json_out=True).stdout.strip())
+    for target in targets:
+        if target_id is None and target['is_default']:
+            return _state_string_to_state(target['target_state'])
+        if target_id == target['nodename']:
+            return _state_string_to_state(target['target_state'])
+
+    # Could not find a state for given target.
+    error_target = target_id
+    if target_id is None:
+        error_target = 'default target'
+
+    raise RuntimeError(f'Could not find state for {error_target}')
 
 
 def set_ffx_isolate_dir(isolate_dir: str) -> None:
@@ -41,6 +137,31 @@ def set_ffx_isolate_dir(isolate_dir: str) -> None:
 
     global _FFX_ISOLATE_DIR  # pylint: disable=global-statement
     _FFX_ISOLATE_DIR = isolate_dir
+
+
+def get_host_tool_path(tool):
+    """Get a tool from the SDK."""
+
+    return os.path.join(SDK_TOOLS_DIR, tool)
+
+
+def get_host_os():
+    """Get host operating system."""
+
+    host_platform = sys.platform
+    if host_platform.startswith('linux'):
+        return 'linux'
+    if host_platform.startswith('darwin'):
+        return 'mac'
+    raise Exception('Unsupported host platform: %s' % host_platform)
+
+
+def make_clean_directory(directory_name):
+    """If the directory exists, delete it and remake with no contents."""
+
+    if os.path.exists(directory_name):
+        shutil.rmtree(directory_name)
+    os.mkdir(directory_name)
 
 
 def _get_daemon_status():
@@ -51,9 +172,10 @@ def _get_daemon_status():
       NotRunning to indicate if the daemon is running.
     """
     status = json.loads(
-        run_ffx_command(['--machine', 'json', 'daemon', 'socket'],
+        run_ffx_command(('daemon', 'socket'),
                         check=True,
                         capture_output=True,
+                        json_out=True,
                         suppress_repair=True).stdout.strip())
     return status.get('pid', {}).get('status', {'NotRunning': True})
 
@@ -123,6 +245,7 @@ def run_ffx_command(cmd: Iterable[str],
                     check: bool = True,
                     suppress_repair: bool = False,
                     configs: Optional[List[str]] = None,
+                    json_out: bool = False,
                     **kwargs) -> subprocess.CompletedProcess:
     """Runs `ffx` with the given arguments, waiting for it to exit.
 
@@ -141,6 +264,8 @@ def run_ffx_command(cmd: Iterable[str],
         suppress_repair: If True, do not attempt to find and run a repair
             command.
         configs: A list of configs to be applied to the current command.
+        json_out: Have command output returned as JSON. Must be parsed by
+            caller.
     Returns:
         A CompletedProcess instance
     Raises:
@@ -148,6 +273,8 @@ def run_ffx_command(cmd: Iterable[str],
     """
 
     ffx_cmd = [_FFX_TOOL]
+    if json_out:
+        ffx_cmd.extend(('--machine', 'json'))
     if target_id:
         ffx_cmd.extend(('--target', target_id))
     if configs:
@@ -174,13 +301,19 @@ def run_ffx_command(cmd: Iterable[str],
                               env=env,
                               **kwargs)
     except subprocess.CalledProcessError as cpe:
+        logging.error('%s %s failed with returncode %s.',
+                      os.path.relpath(_FFX_TOOL),
+                      subprocess.list2cmdline(ffx_cmd[1:]), cpe.returncode)
+        if cpe.output:
+            logging.error('stdout of the command: %s', cpe.output)
         if suppress_repair or (cpe.output
                                and not _run_repair_command(cpe.output)):
             raise
 
     # If the original command failed but a repair command was found and
     # succeeded, try one more time with the original command.
-    return run_ffx_command(cmd, target_id, check, True, **kwargs)
+    return run_ffx_command(cmd, target_id, check, True, configs, json_out,
+                           **kwargs)
 
 
 def run_continuous_ffx_command(cmd: Iterable[str],
@@ -251,10 +384,7 @@ def resolve_packages(packages: List[str], target_id: Optional[str]) -> None:
     """Ensure that all |packages| are installed on a device."""
 
     ssh_prefix = get_ssh_prefix(get_ssh_address(target_id))
-
-    # Garbage collection for swarming bots.
-    if running_unattended():
-        subprocess.run(ssh_prefix + ['--', 'pkgctl', 'gc'], check=False)
+    subprocess.run(ssh_prefix + ['--', 'pkgctl', 'gc'], check=False)
 
     for package in packages:
         resolve_cmd = [
@@ -284,3 +414,154 @@ def get_ssh_address(target_id: Optional[str]) -> str:
     return run_ffx_command(('target', 'get-ssh-address'),
                            target_id,
                            capture_output=True).stdout.strip()
+
+
+def find_in_dir(target_name: str, parent_dir: str) -> Optional[str]:
+    """Finds path in SDK.
+
+    Args:
+      target_name: Name of target to find, as a string.
+      parent_dir: Directory to start search in.
+
+    Returns:
+      Full path to the target, None if not found.
+    """
+    # Doesn't make sense to look for a full path. Only extract the basename.
+    target_name = os.path.basename(target_name)
+    for root, dirs, _ in os.walk(parent_dir):
+        if target_name in dirs:
+            return os.path.abspath(os.path.join(root, target_name))
+
+    return None
+
+
+def find_image_in_sdk(product_name: str) -> Optional[str]:
+    """Finds image dir in SDK for product given.
+
+    Args:
+      product_name: Name of product's image directory to find.
+
+    Returns:
+      Full path to the target, None if not found.
+    """
+    top_image_dir = os.path.join(SDK_ROOT, os.pardir, 'images')
+    path = find_in_dir(product_name, parent_dir=top_image_dir)
+    if path:
+        return find_in_dir('images', parent_dir=path)
+    return path
+
+
+def catch_sigterm() -> None:
+    """Catches the kill signal and allows the process to exit cleanly."""
+    def _sigterm_handler(*_):
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, _sigterm_handler)
+
+
+def get_system_info(target: Optional[str] = None) -> Tuple[str, str]:
+    """Retrieves installed OS version frm device.
+
+    Returns:
+        Tuple of strings, containing {product, version number), or a pair of
+        empty strings to indicate an error.
+    """
+    info_cmd = run_ffx_command(('target', 'show', '--json'),
+                               target_id=target,
+                               capture_output=True,
+                               check=False)
+    if info_cmd.returncode == 0:
+        info_json = json.loads(info_cmd.stdout.strip())
+        for info in info_json:
+            if info['title'] == 'Build':
+                return (info['child'][1]['value'], info['child'][0]['value'])
+
+    # If the information was not retrieved, return empty strings to indicate
+    # unknown system info.
+    return ('', '')
+
+
+def boot_device(target_id: Optional[str],
+                mode: BootMode,
+                must_boot: bool = False) -> None:
+    """Boot device into desired mode, with fallback to SSH on failure.
+
+    Args:
+        target_id: Optional target_id of device.
+        mode: Desired boot mode.
+        must_boot: Forces device to boot, regardless of current state.
+    """
+    # Skip boot call if already in the state and not skipping check.
+    if not must_boot:
+        state = get_target_state(target_id)
+        wanted_state = _BOOTMODE_TO_STATE.get(mode)
+        logging.debug('Current state %s. Want state %s', str(state),
+                      str(wanted_state))
+        must_boot = state != wanted_state
+
+    if not must_boot:
+        logging.debug('Skipping boot - already in good state')
+        return
+
+    _boot_device_ffx(target_id, mode)
+
+    exception = None
+    for _ in range(30):
+        try:
+            state = get_target_state(target_id)
+            if state == wanted_state:
+                return
+            raise RuntimeError('Mode is not correct. Expected '
+                               f'{wanted_state}, got {state}')
+        except RuntimeError as runtime_e:
+            exception = runtime_e
+            time.sleep(2)
+    if exception:
+        # Fallback to SSH, with no retry if we tried with ffx.
+        if state != _BOOTMODE_TO_STATE.get(mode):
+            _boot_device_dm(target_id, mode)
+        else:
+            raise exception
+
+
+def _boot_device_ffx(target_id: Optional[str], mode: BootMode):
+    cmd = ['target', 'reboot']
+    if mode == BootMode.REGULAR:
+        logging.info('Triggering regular boot')
+    elif mode == BootMode.RECOVERY:
+        cmd.append('-r')
+    elif mode == BootMode.BOOTLOADER:
+        cmd.append('-b')
+    else:
+        raise NotImplementedError(f'BootMode {mode} not supported')
+
+    run_ffx_command(cmd,
+                    target_id=target_id,
+                    configs=[_ENABLE_ZEDBOOT],
+                    check=False)
+
+
+def _boot_device_dm(target_id: Optional[str], mode: BootMode):
+    # Can only use DM if device is in regular boot.
+    state = get_target_state(target_id)
+    if state != TargetState.PRODUCT:
+        _boot_device_ffx(target_id, mode.REGULAR)
+        if mode == BootMode.REGULAR:
+            return
+
+    ssh_prefix = get_ssh_prefix(get_ssh_address(target_id))
+
+    reboot_cmd = None
+
+    if mode == BootMode.REGULAR:
+        reboot_cmd = 'reboot'
+    elif mode == BootMode.RECOVERY:
+        reboot_cmd = 'reboot-recovery'
+    elif mode == BootMode.BOOTLOADER:
+        reboot_cmd = 'reboot-bootloader'
+    else:
+        raise NotImplementedError(f'BootMode {mode} not supported')
+
+    # Boot commands can fail due to SSH connections timeout.
+    full_cmd = ssh_prefix + ['--', 'dm', reboot_cmd]
+    subprocess.run(full_cmd, check=False)

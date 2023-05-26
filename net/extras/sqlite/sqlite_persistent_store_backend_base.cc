@@ -6,14 +6,15 @@
 
 #include <utility>
 
-#include "base/bind.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros_local.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
+#include "base/timer/elapsed_timer.h"
 #include "sql/database.h"
 #include "sql/error_delegate_util.h"
 
@@ -25,13 +26,15 @@ SQLitePersistentStoreBackendBase::SQLitePersistentStoreBackendBase(
     const int current_version_number,
     const int compatible_version_number,
     scoped_refptr<base::SequencedTaskRunner> background_task_runner,
-    scoped_refptr<base::SequencedTaskRunner> client_task_runner)
+    scoped_refptr<base::SequencedTaskRunner> client_task_runner,
+    bool enable_exclusive_access)
     : path_(path),
       histogram_tag_(std::move(histogram_tag)),
       current_version_number_(current_version_number),
       compatible_version_number_(compatible_version_number),
       background_task_runner_(std::move(background_task_runner)),
-      client_task_runner_(std::move(client_task_runner)) {}
+      client_task_runner_(std::move(client_task_runner)),
+      enable_exclusive_access_(enable_exclusive_access) {}
 
 SQLitePersistentStoreBackendBase::~SQLitePersistentStoreBackendBase() {
   // If `db_` hasn't been reset by the time this destructor is called,
@@ -78,13 +81,19 @@ bool SQLitePersistentStoreBackendBase::InitializeDatabase() {
     return db_ != nullptr;
   }
 
+  base::ElapsedTimer timer;
+
   const base::FilePath dir = path_.DirName();
   if (!base::PathExists(dir) && !base::CreateDirectory(dir)) {
-    RecordPathDoesNotExistProblem();
     return false;
   }
 
-  db_ = std::make_unique<sql::Database>();
+  // TODO(crbug.com/1430231): Remove explicit_locking = false. This currently
+  // needs to be set to false because of several failing MigrationTests.
+  db_ = std::make_unique<sql::Database>(sql::DatabaseOptions{
+      .exclusive_locking = false,
+      .exclusive_database_file_lock = enable_exclusive_access_});
+
   db_->set_histogram_tag(histogram_tag_);
 
   // base::Unretained is safe because |this| owns (and therefore outlives) the
@@ -93,15 +102,18 @@ bool SQLitePersistentStoreBackendBase::InitializeDatabase() {
       &SQLitePersistentStoreBackendBase::DatabaseErrorCallback,
       base::Unretained(this)));
 
-  bool new_db = !base::PathExists(path_);
-
   if (!db_->Open(path_)) {
     DLOG(ERROR) << "Unable to open " << histogram_tag_ << " DB.";
     RecordOpenDBProblem();
     Reset();
     return false;
   }
-  db_->Preload();
+
+  // It is not possible to preload a database opened with exclusive access,
+  // because the file cannot be re-opened by the preloader.
+  if (!enable_exclusive_access_) {
+    db_->Preload();
+  }
 
   if (!MigrateDatabaseSchema() || !CreateDatabaseSchema()) {
     DLOG(ERROR) << "Unable to update or initialize " << histogram_tag_
@@ -111,6 +123,10 @@ bool SQLitePersistentStoreBackendBase::InitializeDatabase() {
     return false;
   }
 
+  base::UmaHistogramCustomTimes(histogram_tag_ + ".TimeInitializeDB",
+                                timer.Elapsed(), base::Milliseconds(1),
+                                base::Minutes(1), 50);
+
   initialized_ = DoInitializeDatabase();
 
   if (!initialized_) {
@@ -118,12 +134,6 @@ bool SQLitePersistentStoreBackendBase::InitializeDatabase() {
     RecordOpenDBProblem();
     Reset();
     return false;
-  }
-
-  if (new_db) {
-    RecordNewDBFile();
-  } else {
-    RecordDBLoaded();
   }
 
   return true;
@@ -242,8 +252,8 @@ void SQLitePersistentStoreBackendBase::DatabaseErrorCallback(
 
   // Don't just do the close/delete here, as we are being called by |db| and
   // that seems dangerous.
-  // TODO(shess): Consider just calling RazeAndClose() immediately.
-  // db_ may not be safe to reset at this point, but RazeAndClose()
+  // TODO(shess): Consider just calling RazeAndPoison() immediately.
+  // db_ may not be safe to reset at this point, but RazeAndPoison()
   // would cause the stack to unwind safely with errors.
   PostBackgroundTask(
       FROM_HERE,
@@ -256,7 +266,7 @@ void SQLitePersistentStoreBackendBase::KillDatabase() {
   if (db_) {
     // This Backend will now be in-memory only. In a future run we will recreate
     // the database. Hopefully things go better then!
-    db_->RazeAndClose();
+    db_->RazeAndPoison();
     meta_table_.Reset();
     db_.reset();
   }

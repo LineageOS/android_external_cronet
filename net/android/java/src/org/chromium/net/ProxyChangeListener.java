@@ -32,6 +32,7 @@ import org.chromium.build.annotations.UsedByReflection;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Locale;
 
 /**
  * This class partners with native ProxyConfigServiceAndroid to listen for
@@ -84,6 +85,14 @@ public class ProxyChangeListener {
             return new ProxyConfig(host == null ? "" : host, proxyInfo.getPort(),
                     Uri.EMPTY.equals(pacFileUrl) ? null : pacFileUrl.toString(),
                     proxyInfo.getExclusionList());
+        }
+
+        @Override
+        public String toString() {
+            String possiblyRedactedHost =
+                    mHost.equals("localhost") || mHost.isEmpty() ? mHost : "<redacted>";
+            return String.format(Locale.US, "ProxyConfig [mHost=\"%s\", mPort=%d, mPacUrl=%s]",
+                    possiblyRedactedHost, mPort, mPacUrl == null ? "null" : "\"<redacted>\"");
         }
 
         public final String mHost;
@@ -232,21 +241,31 @@ public class ProxyChangeListener {
         ConnectivityManager connectivityManager =
                 (ConnectivityManager) ContextUtils.getApplicationContext().getSystemService(
                         Context.CONNECTIVITY_SERVICE);
-        ProxyInfo proxyInfo = connectivityManager.getDefaultProxy();
-        if (proxyInfo == null) {
-            return ProxyConfig.DIRECT;
-        }
+        ProxyConfig configFromConnectivityManager =
+                ProxyConfig.fromProxyInfo(connectivityManager.getDefaultProxy());
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
-                && "localhost".equals(proxyInfo.getHost()) && proxyInfo.getPort() == -1) {
-            // There's a bug in Android Q+ PAC support. If ConnectivityManager
-            // returns localhost:-1 then use the intent from the PROXY_CHANGE_ACTION
-            // broadcast to extract the ProxyConfig. See http://crbug.com/993538.
-            // -1 is never a reasonable port so just keep this workaround for future
-            // versions until we're sure it's fixed on the platform side.
-            return extractNewProxy(intent);
+        if (configFromConnectivityManager == null) {
+            return ProxyConfig.DIRECT;
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+                && configFromConnectivityManager.mHost.equals("localhost")
+                && configFromConnectivityManager.mPort == -1) {
+            ProxyConfig configFromIntent = extractNewProxy(intent);
+            Log.i(TAG, "configFromConnectivityManager = %s, configFromIntent = %s",
+                    configFromConnectivityManager, configFromIntent);
+
+            // There's a bug in Android Q+ PAC support. If ConnectivityManager returns localhost:-1
+            // then use the intent from the PROXY_CHANGE_ACTION broadcast to extract the
+            // ProxyConfig's host and port. See http://crbug.com/993538.
+            //
+            // -1 is never a reasonable port so just keep this workaround for future versions until
+            // we're sure it's fixed on the platform side.
+            if (configFromIntent == null) return null;
+            String correctHost = configFromIntent.mHost;
+            int correctPort = configFromIntent.mPort;
+            return new ProxyConfig(correctHost, correctPort, configFromConnectivityManager.mPacUrl,
+                    configFromConnectivityManager.mExclusionList);
         }
-        return ProxyConfig.fromProxyInfo(proxyInfo);
+        return configFromConnectivityManager;
     }
 
     /* package */ void updateProxyConfigFromConnectivityManager(Intent intent) {
@@ -268,10 +287,16 @@ public class ProxyChangeListener {
             ContextUtils.registerProtectedBroadcastReceiver(
                     ContextUtils.getApplicationContext(), mProxyReceiver, filter);
         } else {
-            // Register the instance of ProxyReceiver with an empty intent filter, so that it is
-            // still found via reflection, but is not called by the system. See: crbug.com/851995
-            ContextUtils.registerNonExportedBroadcastReceiver(
-                    ContextUtils.getApplicationContext(), mProxyReceiver, new IntentFilter());
+            if (!ContextUtils.isSdkSandboxProcess()) {
+                // Register the instance of ProxyReceiver with an empty intent filter, so that it is
+                // still found via reflection, but is not called by the system. See:
+                // crbug.com/851995
+                //
+                // Don't do this within an SDK Sandbox, because neither reflection nor registering a
+                // broadcast receiver with a blank IntentFilter is allowed.
+                ContextUtils.registerNonExportedBroadcastReceiver(
+                        ContextUtils.getApplicationContext(), mProxyReceiver, new IntentFilter());
+            }
 
             // Create a BroadcastReceiver that uses M+ APIs to fetch the proxy confuguration from
             // ConnectionManager.
