@@ -7,10 +7,10 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
@@ -680,9 +680,7 @@ class ClientSocketPoolBaseTest : public TestWithTaskEnvironment {
         NetLogEventPhase::NONE);
     ASSERT_EQ(1u, entries.size());
     ASSERT_TRUE(entries[0].HasParams());
-    ASSERT_TRUE(entries[0].params.is_dict());
-    const std::string* reason =
-        entries[0].params.GetDict().FindString("reason");
+    const std::string* reason = entries[0].params.FindString("reason");
     ASSERT_TRUE(reason);
     EXPECT_EQ(expected_reason, *reason);
   }
@@ -713,11 +711,15 @@ class ClientSocketPoolBaseTest : public TestWithTaskEnvironment {
       nullptr /* websocket_endpoint_lock_manager */};
   bool connect_backup_jobs_enabled_;
   MockClientSocketFactory client_socket_factory_;
-  raw_ptr<TestConnectJobFactory> connect_job_factory_;
   RecordingNetLogObserver net_log_observer_;
+
   // These parameters are never actually used to create a TransportConnectJob.
   scoped_refptr<ClientSocketPool::SocketParams> params_;
+
+  // Must outlive `connect_job_factory_`
   std::unique_ptr<TransportClientSocketPool> pool_;
+
+  raw_ptr<TestConnectJobFactory> connect_job_factory_;
   ClientSocketPoolTest test_base_;
 };
 
@@ -857,8 +859,8 @@ TEST_F(ClientSocketPoolBaseTest, GroupSeparation) {
   const SchemefulSite kSiteA(GURL("http://a.test/"));
   const SchemefulSite kSiteB(GURL("http://b.test/"));
   const NetworkAnonymizationKey kNetworkAnonymizationKeys[] = {
-      NetworkAnonymizationKey(kSiteA, kSiteA, /*is_cross_site=*/false),
-      NetworkAnonymizationKey(kSiteB, kSiteB, /*is_cross_site=*/false),
+      NetworkAnonymizationKey::CreateSameSite(kSiteA),
+      NetworkAnonymizationKey::CreateSameSite(kSiteB),
   };
 
   const SecureDnsPolicy kSecureDnsPolicys[] = {SecureDnsPolicy::kAllow,
@@ -5741,8 +5743,8 @@ class ClientSocketPoolBaseRefreshTest
     // Note this GroupId will match GetGroupId() unless
     // kPartitionConnectionsByNetworkAnonymizationKey is enabled.
     const SchemefulSite kSite(GURL("https://b/"));
-    const NetworkAnonymizationKey kNetworkAnonymizationKey(
-        kSite, kSite, /*is_cross_site=*/false);
+    const auto kNetworkAnonymizationKey =
+        NetworkAnonymizationKey::CreateSameSite(kSite);
     return TestGroupId("a", 443, url::kHttpsScheme,
                        PrivacyMode::PRIVACY_MODE_DISABLED,
                        kNetworkAnonymizationKey);

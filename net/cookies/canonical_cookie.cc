@@ -540,6 +540,13 @@ std::unique_ptr<CanonicalCookie> CanonicalCookie::Create(
   }
   *status = CookieInclusionStatus();
 
+  // Check the URL; it may be nonsense since some platform APIs may permit
+  // it to be specified directly.
+  if (!url.is_valid()) {
+    status->AddExclusionReason(CookieInclusionStatus::EXCLUDE_FAILURE_TO_STORE);
+    return nullptr;
+  }
+
   ParsedCookie parsed_cookie(cookie_line, status);
 
   // We record this metric before checking validity because the presence of an
@@ -662,6 +669,13 @@ std::unique_ptr<CanonicalCookie> CanonicalCookie::Create(
 
   RecordCookieSameSiteAttributeValueHistogram(samesite_string);
 
+  // These metrics capture whether or not a cookie has a Non-ASCII character in
+  // it.
+  UMA_HISTOGRAM_BOOLEAN("Cookie.HasNonASCII.Name",
+                        !base::IsStringASCII(cc->Name()));
+  UMA_HISTOGRAM_BOOLEAN("Cookie.HasNonASCII.Value",
+                        !base::IsStringASCII(cc->Value()));
+
   // Check for "__" prefixed names, excluding the cookie prefixes.
   bool name_prefixed_with_underscores =
       (prefix_case_insensitive == CanonicalCookie::COOKIE_PREFIX_NONE) &&
@@ -669,9 +683,6 @@ std::unique_ptr<CanonicalCookie> CanonicalCookie::Create(
 
   UMA_HISTOGRAM_BOOLEAN("Cookie.DoubleUnderscorePrefixedName",
                         name_prefixed_with_underscores);
-
-  UMA_HISTOGRAM_BOOLEAN("Cookie.ControlCharacterTruncation",
-                        parsed_cookie.HasTruncatedNameOrValue());
 
   UMA_HISTOGRAM_ENUMERATION(
       "Cookie.TruncatingCharacterInCookieString",

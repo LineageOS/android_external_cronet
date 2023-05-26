@@ -8,7 +8,7 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/message_loop/message_pump_type.h"
 #include "base/run_loop.h"
@@ -527,7 +527,8 @@ TEST_F(CertNetFetcherURLRequestTest, CancelAfterRunningMessageLoop) {
 
 // Fetch the same URLs in parallel and verify that only 1 request is made per
 // URL.
-TEST_F(CertNetFetcherURLRequestTest, ParallelFetchDuplicates) {
+// b/283075390
+TEST_F(CertNetFetcherURLRequestTest, DISABLED_ParallelFetchDuplicates) {
   ASSERT_TRUE(test_server_.Start());
 
   CreateFetcher();

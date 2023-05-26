@@ -91,6 +91,7 @@ cc_test(
         "//absl/base:config",
         "//absl/base:core_headers",
         "//absl/numeric:int128",
+        "//absl/strings:str_format",
         "//absl/time/internal/cctz:time_zone",
         "@com_google_googletest//:gtest_main",
     ],
@@ -108,8 +109,8 @@ cc_test(
         "no_test_android_arm64",
         "no_test_android_x86",
         "no_test_ios_x86_64",
+        "no_test_lexan",
         "no_test_loonix",
-        "no_test_msvc_x64",
         "no_test_wasm",
     ],
     deps = [

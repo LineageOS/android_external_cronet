@@ -8,8 +8,8 @@
 #include <memory>
 #include <string>
 
-#include "base/guid.h"
 #include "base/system/sys_info.h"
+#include "base/uuid.h"
 #include "base/values.h"
 #include "components/metrics/structured/structured_metrics_client.h"
 
@@ -29,7 +29,7 @@ bool Event::MetricValue::operator==(const Event::MetricValue& rhs) const {
 Event::MetricValue::~MetricValue() = default;
 
 Event::EventSequenceMetadata::EventSequenceMetadata(int reset_counter)
-    : reset_counter(reset_counter), event_unique_id(base::GenerateGUID()) {}
+    : reset_counter(reset_counter), event_unique_id(base::GenerateUuid()) {}
 
 Event::EventSequenceMetadata::EventSequenceMetadata(
     const Event::EventSequenceMetadata& other) = default;
@@ -73,7 +73,7 @@ bool Event::IsEventSequenceType() const {
 }
 
 Event Event::Clone() const {
-  auto clone = Event(project_name_, event_name_);
+  auto clone = Event(project_name_, event_name_, is_event_sequence_);
   for (const auto& metric : metric_values()) {
     const Event::MetricValue& metric_value = metric.second;
     clone.AddMetric(metric.first, metric_value.type,
@@ -104,6 +104,10 @@ const std::string& Event::project_name() const {
 
 const std::string& Event::event_name() const {
   return event_name_;
+}
+
+bool Event::is_event_sequence() const {
+  return is_event_sequence_;
 }
 
 const std::map<std::string, Event::MetricValue>& Event::metric_values() const {
