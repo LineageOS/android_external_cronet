@@ -92,12 +92,12 @@ of time to wait before considering a test hung (i.e., its timeout duration).
 Several of the annotations are Android APIs from
 [android.test.suitebuilder.annotation](https://developer.android.com/reference/android/test/suitebuilder/annotation/package-summary.html)
 (prior to [Android N](https://en.wikipedia.org/wiki/Android_Nougat)) or
-[android.support.test.filters](https://developer.android.com/reference/android/support/test/filters/package-summary.html)
+[androidx.test.filters](https://developer.android.com/reference/androidx/test/filters/package-summary.html)
 (starting in Android N). These are all fairly self-explanatory:
 
- - [`@SmallTest`](https://developer.android.com/reference/android/support/test/filters/SmallTest.html) (timeout: **10 seconds**)
- - [`@MediumTest`](https://developer.android.com/reference/android/support/test/filters/MediumTest.html) (timeout: **30 seconds**)
- - [`@LargeTest`](https://developer.android.com/reference/android/support/test/filters/LargeTest.html) (timeout: **2 minutes**)
+ - [`@SmallTest`](https://developer.android.com/reference/androidx/test/filters/SmallTest.html) (timeout: **10 seconds**)
+ - [`@MediumTest`](https://developer.android.com/reference/androidx/test/filters/MediumTest.html) (timeout: **30 seconds**)
+ - [`@LargeTest`](https://developer.android.com/reference/androidx/test/filters/LargeTest.html) (timeout: **2 minutes**)
 
 A few additional size annotations are provided in
 [//base](https://chromium.googlesource.com/chromium/src/+/main/base):
@@ -127,29 +127,6 @@ unconditionally disables a test.
     // Describes why the test is disabled. Typically includes a crbug link.
     message = ""
 )
-```
-
-[**@FlakyTest**](https://chromium.googlesource.com/chromium/src/+/main/base/test/android/javatests/src/org/chromium/base/test/util/FlakyTest.java)
-marks a test as flaky. This also unconditionally disables the test, though
-tests marked with **@FlakyTest** are explicitly run on some bots.
-```java
-@FlakyTest(
-    // Describes why the test is marked flaky. Typically includes a crbug link.
-    message = ""
-)
-```
-
-Note that there are Android versions of **@DisabledTest** and **@FlakyTest**
-that do not allow message specification. These are no longer used in Chromium.
-
-As alluded to above, tests marked with either **@DisabledTest** or
-**@FlakyTest** can be explicitly run via the test runner's
-[-A/--annotation](/testing/android/docs/todo.md)
-flag. For example, this would run only the tests marked as flaky in
-`chrome_public_test_apk`:
-
-```bash
-./out/Debug/bin/run_chrome_public_test_apk -A FlakyTest
 ```
 
 ##### Conditional disabling

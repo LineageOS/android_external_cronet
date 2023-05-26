@@ -128,8 +128,12 @@ class QuicPacketPrinter : public QuicFramerVisitorInterface {
               << timestamp.ToDebuggingValue() << ")";
     return true;
   }
-  bool OnAckFrameEnd(QuicPacketNumber start) override {
+  bool OnAckFrameEnd(QuicPacketNumber start,
+                     const absl::optional<QuicEcnCounts>& ecn_counts) override {
     std::cerr << "OnAckFrameEnd, start: " << start;
+    if (ecn_counts.has_value()) {
+      std::cerr << "  ECN counts: " << ecn_counts->ToString();
+    }
     return true;
   }
   bool OnStopWaitingFrame(const QuicStopWaitingFrame& frame) override {

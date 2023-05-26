@@ -44,8 +44,8 @@
 #include <cstdint>
 
 #include "absl/base/internal/endian.h"
-#include "absl/base/internal/prefetch.h"
 #include "absl/base/internal/raw_logging.h"
+#include "absl/base/prefetch.h"
 #include "absl/crc/internal/crc_internal.h"
 
 namespace absl {
@@ -261,7 +261,7 @@ void CRC32::Extend(uint32_t* crc, const void* bytes, size_t length) const {
   const uint8_t* e = p + length;
   uint32_t l = *crc;
 
-  auto step_one_byte = [this, &p, &l] () {
+  auto step_one_byte = [this, &p, &l]() {
     int c = (l & 0xff) ^ *p++;
     l = this->table0_[c] ^ (l >> 8);
   };
@@ -309,7 +309,7 @@ void CRC32::Extend(uint32_t* crc, const void* bytes, size_t length) const {
 
     // Process kStride interleaved swaths through the data in parallel.
     while ((e - p) > kPrefetchHorizon) {
-      base_internal::PrefetchNta(
+      PrefetchToLocalCacheNta(
           reinterpret_cast<const void*>(p + kPrefetchHorizon));
       // Process 64 bytes at a time
       step_stride();
@@ -359,7 +359,7 @@ void CRC32::Extend(uint32_t* crc, const void* bytes, size_t length) const {
 
 void CRC32::ExtendByZeroesImpl(uint32_t* crc, size_t length,
                                const uint32_t zeroes_table[256],
-                               const uint32_t poly_table[256]) const {
+                               const uint32_t poly_table[256]) {
   if (length != 0) {
     uint32_t l = *crc;
     // For each ZEROES_BASE_LG bits in length

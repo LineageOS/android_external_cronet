@@ -18,7 +18,6 @@
 #include <secport.h>
 #include <string.h>
 
-#include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/strings/stringprintf.h"
 #include "crypto/nss_util.h"
@@ -143,11 +142,17 @@ bool IsSameCertificate(CERTCertificate* a, CERTCertificate* b) {
 }
 
 bool IsSameCertificate(CERTCertificate* a, const X509Certificate* b) {
-  return a->derCert.len == CRYPTO_BUFFER_len(b->cert_buffer()) &&
-         memcmp(a->derCert.data, CRYPTO_BUFFER_data(b->cert_buffer()),
-                a->derCert.len) == 0;
+  return IsSameCertificate(a, b->cert_buffer());
 }
 bool IsSameCertificate(const X509Certificate* a, CERTCertificate* b) {
+  return IsSameCertificate(b, a->cert_buffer());
+}
+
+bool IsSameCertificate(CERTCertificate* a, const CRYPTO_BUFFER* b) {
+  return a->derCert.len == CRYPTO_BUFFER_len(b) &&
+         memcmp(a->derCert.data, CRYPTO_BUFFER_data(b), a->derCert.len) == 0;
+}
+bool IsSameCertificate(const CRYPTO_BUFFER* a, CERTCertificate* b) {
   return IsSameCertificate(b, a);
 }
 
@@ -437,21 +442,6 @@ SHA256HashValue CalculateFingerprint256(CERTCertificate* cert) {
   DCHECK_EQ(SECSuccess, rv);
 
   return sha256;
-}
-
-DISABLE_CFI_DLSYM
-SECStatus GetCertIsPerm(const CERTCertificate* cert, PRBool* isperm) {
-  // TODO(https://crbug.com/1365414): When the minimum NSS version is raised to
-  // 3.31 or higher, replace this with calling CERT_GetCertIsPerm directly.
-  using GetCertIsPermFunction = SECStatus (*)(const CERTCertificate*, PRBool*);
-  static GetCertIsPermFunction get_cert_is_perm =
-      reinterpret_cast<GetCertIsPermFunction>(
-          dlsym(RTLD_DEFAULT, "CERT_GetCertIsPerm"));
-  if (get_cert_is_perm) {
-    return get_cert_is_perm(cert, isperm);
-  }
-  *isperm = cert->isperm;
-  return SECSuccess;
 }
 
 }  // namespace net::x509_util

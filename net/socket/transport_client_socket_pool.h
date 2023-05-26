@@ -68,6 +68,7 @@ class NET_EXPORT_PRIVATE TransportClientSocketPool
  public:
   // Reasons for closing sockets. Exposed here for testing.
   static const char kCertDatabaseChanged[];
+  static const char kCertVerifierChanged[];
   static const char kClosedConnectionReturnedToPool[];
   static const char kDataReceivedUnexpectedly[];
   static const char kIdleTimeLimitExpired[];
@@ -262,7 +263,8 @@ class NET_EXPORT_PRIVATE TransportClientSocketPool
   void OnIPAddressChanged() override;
 
   // SSLClientContext::Observer methods.
-  void OnSSLConfigChanged(bool is_cert_database_change) override;
+  void OnSSLConfigChanged(
+      SSLClientContext::SSLConfigChangeType change_type) override;
   void OnSSLConfigForServerChanged(const HostPortPair& server) override;
 
  private:
@@ -736,7 +738,7 @@ class NET_EXPORT_PRIVATE TransportClientSocketPool
   // it's possible that the request has been cancelled, so |handle| may not
   // exist in |pending_callback_map_|.  We look up the callback and result code
   // in |pending_callback_map_|.
-  void InvokeUserCallback(ClientSocketHandle* handle);
+  void InvokeUserCallback(MayBeDangling<ClientSocketHandle> handle);
 
   // Tries to close idle sockets in a higher level socket pool as long as this
   // this pool is stalled.
