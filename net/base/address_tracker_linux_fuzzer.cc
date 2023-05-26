@@ -5,7 +5,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "base/callback_helpers.h"
+#include "base/functional/callback_helpers.h"
 #include "net/base/address_tracker_linux.h"
 
 namespace net {
@@ -18,7 +18,7 @@ class AddressTrackerLinuxTest {
                                 base::DoNothing(), ignored_interfaces);
     bool address_changed, link_changed, tunnel_changed;
     tracker.HandleMessage(buffer, length, &address_changed, &link_changed,
-                          &tunnel_changed);
+                          &tunnel_changed, nullptr, nullptr);
   }
 };
 

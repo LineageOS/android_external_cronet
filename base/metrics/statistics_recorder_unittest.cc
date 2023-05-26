@@ -10,7 +10,7 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/logging.h"
 #include "base/memory/weak_ptr.h"
@@ -232,10 +232,27 @@ TEST_P(StatisticsRecorderTest, WithName) {
 
   const auto histograms = StatisticsRecorder::GetHistograms();
   EXPECT_THAT(histograms, SizeIs(3));
-  EXPECT_THAT(StatisticsRecorder::WithName(histograms, ""), SizeIs(3));
-  EXPECT_THAT(StatisticsRecorder::WithName(histograms, "Test"), SizeIs(3));
-  EXPECT_THAT(StatisticsRecorder::WithName(histograms, "1"), SizeIs(1));
-  EXPECT_THAT(StatisticsRecorder::WithName(histograms, "hello"), IsEmpty());
+  EXPECT_THAT(
+      StatisticsRecorder::WithName(histograms, "", /*case_sensitive=*/true),
+      SizeIs(3));
+  EXPECT_THAT(
+      StatisticsRecorder::WithName(histograms, "Test", /*case_sensitive=*/true),
+      SizeIs(3));
+  EXPECT_THAT(
+      StatisticsRecorder::WithName(histograms, "1", /*case_sensitive=*/true),
+      SizeIs(1));
+  EXPECT_THAT(StatisticsRecorder::WithName(histograms, "hello",
+                                           /*case_sensitive=*/true),
+              IsEmpty());
+  EXPECT_THAT(StatisticsRecorder::WithName(histograms, "hello",
+                                           /*case_sensitive=*/false),
+              IsEmpty());
+  EXPECT_THAT(
+      StatisticsRecorder::WithName(histograms, "test", /*case_sensitive=*/true),
+      IsEmpty());
+  EXPECT_THAT(StatisticsRecorder::WithName(histograms, "test",
+                                           /*case_sensitive=*/false),
+              SizeIs(3));
 }
 
 TEST_P(StatisticsRecorderTest, RegisterHistogramWithFactoryGet) {
@@ -444,8 +461,7 @@ TEST_P(StatisticsRecorderTest,
   EXPECT_EQ(StatisticsRecorder::RegisterOrDeleteDuplicate(histogram),
             histogram);
 
-  EXPECT_EQ(histogram->flags() & base::HistogramBase::kCallbackExists,
-            base::HistogramBase::kCallbackExists);
+  EXPECT_TRUE(histogram->HasFlags(base::HistogramBase::kCallbackExists));
   EXPECT_TRUE(base::StatisticsRecorder::have_active_callbacks());
 }
 
@@ -480,7 +496,7 @@ TEST_P(StatisticsRecorderTest,
   EXPECT_EQ(StatisticsRecorder::RegisterOrDeleteDuplicate(histogram),
             histogram);
 
-  EXPECT_EQ(histogram->flags() & base::HistogramBase::kCallbackExists, 0);
+  EXPECT_FALSE(histogram->HasFlags(base::HistogramBase::kCallbackExists));
   EXPECT_FALSE(base::StatisticsRecorder::have_active_callbacks());
 }
 
@@ -500,8 +516,7 @@ TEST_P(StatisticsRecorderTest, AddHistogramCallbackWithMultipleClients) {
           base::BindRepeating(&CallbackCheckWrapper::OnHistogramChanged,
                               base::Unretained(&callback_wrapper1)));
 
-  EXPECT_EQ(histogram->flags() & base::HistogramBase::kCallbackExists,
-            base::HistogramBase::kCallbackExists);
+  EXPECT_TRUE(histogram->HasFlags(base::HistogramBase::kCallbackExists));
   EXPECT_TRUE(base::StatisticsRecorder::have_active_callbacks());
 
   auto callback2 =
@@ -510,8 +525,7 @@ TEST_P(StatisticsRecorderTest, AddHistogramCallbackWithMultipleClients) {
           base::BindRepeating(&CallbackCheckWrapper::OnHistogramChanged,
                               base::Unretained(&callback_wrapper2)));
 
-  EXPECT_EQ(histogram->flags() & base::HistogramBase::kCallbackExists,
-            base::HistogramBase::kCallbackExists);
+  EXPECT_TRUE(histogram->HasFlags(base::HistogramBase::kCallbackExists));
   EXPECT_TRUE(base::StatisticsRecorder::have_active_callbacks());
 
   histogram->Add(1);
@@ -543,12 +557,11 @@ TEST_P(StatisticsRecorderTest, RemoveHistogramCallbackWithMultipleClients) {
                               base::Unretained(&callback_wrapper2)));
 
   callback1.reset();
-  EXPECT_EQ(histogram->flags() & base::HistogramBase::kCallbackExists,
-            base::HistogramBase::kCallbackExists);
+  EXPECT_TRUE(histogram->HasFlags(base::HistogramBase::kCallbackExists));
   EXPECT_TRUE(base::StatisticsRecorder::have_active_callbacks());
 
   callback2.reset();
-  EXPECT_EQ(histogram->flags() & base::HistogramBase::kCallbackExists, 0);
+  EXPECT_FALSE(histogram->HasFlags(base::HistogramBase::kCallbackExists));
   EXPECT_FALSE(base::StatisticsRecorder::have_active_callbacks());
 
   histogram->Add(1);

@@ -12,13 +12,14 @@
 #include <set>
 #include <string>
 
-#include "base/callback.h"
 #include "base/feature_list.h"
+#include "base/functional/callback.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/strings/string_piece.h"
 #include "base/threading/thread_checker.h"
 #include "base/time/time.h"
+#include "base/values.h"
 #include "crypto/sha2.h"
 #include "net/base/expiring_cache.h"
 #include "net/base/hash_value.h"
@@ -358,8 +359,7 @@ class NET_EXPORT TransportSecurityState {
       const X509Certificate* served_certificate_chain,
       const SignedCertificateTimestampAndStatusList&
           signed_certificate_timestamps,
-      ct::CTPolicyCompliance policy_compliance,
-      const NetworkAnonymizationKey& network_anonymization_key);
+      ct::CTPolicyCompliance policy_compliance);
 
   // Assign a |Delegate| for persisting the transport security state. If
   // |NULL|, state will not be persisted. The caller retains
@@ -517,7 +517,7 @@ class NET_EXPORT TransportSecurityState {
   typedef ExpiringCache<std::string, bool, base::TimeTicks, std::less<>>
       ReportCache;
 
-  base::Value NetLogUpgradeToSSLParam(const std::string& host);
+  base::Value::Dict NetLogUpgradeToSSLParam(const std::string& host);
 
   // IsBuildTimely returns true if the current build is new enough ensure that
   // built in security information (i.e. HSTS preloading and pinning

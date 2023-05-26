@@ -9,6 +9,9 @@
 
 #include "base/check_op.h"
 #include "base/containers/stack_container.h"
+#include "base/debug/alias.h"
+#include "base/debug/crash_logging.h"
+#include "base/logging.h"
 #include "base/notreached.h"
 #include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
@@ -178,14 +181,21 @@ size_t IPAddressBytes::EstimateMemoryUsage() const {
 
 // static
 absl::optional<IPAddress> IPAddress::FromValue(const base::Value& value) {
-  if (!value.is_string())
+  if (!value.is_string()) {
     return absl::nullopt;
+  }
 
+  return IPAddress::FromIPLiteral(value.GetString());
+}
+
+// static
+absl::optional<IPAddress> IPAddress::FromIPLiteral(
+    base::StringPiece ip_literal) {
   IPAddress address;
-  bool success = address.AssignFromIPLiteral(value.GetString());
-  if (!success || !address.IsValid())
+  if (!address.AssignFromIPLiteral(ip_literal)) {
     return absl::nullopt;
-
+  }
+  DCHECK(address.IsValid());
   return address;
 }
 
@@ -409,7 +419,7 @@ std::string IPAddressToPackedString(const IPAddress& address) {
 }
 
 IPAddress ConvertIPv4ToIPv4MappedIPv6(const IPAddress& address) {
-  DCHECK(address.IsIPv4());
+  CHECK(address.IsIPv4());
   // IPv4-mapped addresses are formed by:
   // <80 bits of zeros>  + <16 bits of ones> + <32-bit IPv4 address>.
   base::StackVector<uint8_t, 16> bytes;
@@ -434,10 +444,10 @@ bool IPAddressMatchesPrefix(const IPAddress& ip_address,
                             size_t prefix_length_in_bits) {
   // Both the input IP address and the prefix IP address should be either IPv4
   // or IPv6.
-  DCHECK(ip_address.IsValid());
-  DCHECK(ip_prefix.IsValid());
+  CHECK(ip_address.IsValid());
+  CHECK(ip_prefix.IsValid());
 
-  DCHECK_LE(prefix_length_in_bits, ip_prefix.size() * 8);
+  CHECK_LE(prefix_length_in_bits, ip_prefix.size() * 8);
 
   // In case we have an IPv6 / IPv4 mismatch, convert the IPv4 addresses to
   // IPv6 addresses in order to do the comparison.
@@ -473,8 +483,9 @@ bool ParseCIDRBlock(base::StringPiece cidr_literal,
 
   // Parse the prefix length.
   uint32_t number_of_bits;
-  if (!ParseUint32(parts[1], &number_of_bits))
+  if (!ParseUint32(parts[1], ParseIntFormat::NON_NEGATIVE, &number_of_bits)) {
     return false;
+  }
 
   // Make sure the prefix length is in a valid range.
   if (number_of_bits > ip_address->size() * 8)

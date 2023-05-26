@@ -64,6 +64,13 @@ if (is_android) {
 template("mixed_test") {
   assert(defined(invoker.target_type) && invoker.target_type != "")
 
+  # The crate_root variable would transform the target into a Rust binary
+  # which is incorrect. To not use a generated crate root set:
+  # ```
+  # test_crate_root = "path/to/root.rs"
+  # ```
+  assert(!defined(invoker.crate_root))
+
   _rs_vars = [
     "sources",  # We split this list into two.
     "crate_name",  # Android test template overrides the crate name.
@@ -78,7 +85,11 @@ template("mixed_test") {
   }
 
   if (_rs_sources != []) {
-    _rust_target_name = "${target_name}_rust_objects"
+    if (defined(invoker.crate_name)) {
+      _rust_target_name = "${invoker.crate_name}_rust_objects"
+    } else {
+      _rust_target_name = "${target_name}_rust_objects"
+    }
 
     # We could automatically add `deps += [ "//testing/rust_gtest_interop" ]`
     # if `rs_sources` is non-empty. But we don't automatically provide
@@ -104,13 +115,19 @@ template("mixed_test") {
     rust_static_library(_rust_target_name) {
       forward_variables_from(invoker,
                              TESTONLY_AND_VISIBILITY + [
-                                   "crate_name",
+                                   "allow_unsafe",
                                    "deps",
+                                   "generate_crate_root",
                                    "public_deps",
                                  ])
       configs += [ "//build/rust:test" ]
-      generate_crate_root = true
+      if (defined(invoker.test_crate_root)) {
+        crate_root = invoker.test_crate_root
+      } else {
+        generate_crate_root = true
+      }
       sources = _rs_sources
+
       if (_gtest_is_in_deps) {
         deps += [ "//testing/rust_gtest_interop" ]
       }
@@ -126,8 +143,35 @@ template("mixed_test") {
     if (!defined(deps)) {
       deps = []
     }
+    if (!defined(ldflags)) {
+      ldflags = []
+    }
+
     if (_rs_sources != []) {
       deps += [ ":${_rust_target_name}" ]
+    }
+
+    if (current_os != "aix" && !is_win) {
+      # Inform the build system that this binary contains Rust unit tests. The
+      # test-containing rlibs linked into it must not be discarded by the linker
+      # even if there will be no edges going into them.
+      #
+      # For C++ this is done by not putting them in a library at all, but Rust
+      # must be compiled into an rlib.
+      #
+      # On AIX there's no flag to avoid pruning unit tests in this library from
+      # the linking step. On Windows, there's no need for it.
+      if (_rs_sources != []) {
+        ldflags +=
+            [ "-LinkWrapper,add-whole-archive=${_rust_target_name}.rlib" ]
+      }
+
+      # Do the same for any Rust dependencies with unit tests in them. This will
+      # only match rust targets by looking for rlib extensions.
+      foreach(d, deps) {
+        _dep_target_name = get_label_info(d, "name")
+        ldflags += [ "-LinkWrapper,add-whole-archive=${_dep_target_name}.rlib" ]
+      }
     }
   }
 }
@@ -146,8 +190,6 @@ template("mixed_test") {
 #   fuchsia_package_deps: (Fuchsia, optional) List of fuchsia_component()
 #      targets that this test package contains.
 #   # TODO(crbug/1280705): remove when all tests are migrated to CFv2.
-#   fuchsia_legacy_script_required: (Fuchsia, optional) Whether the old test
-#      scripts are required to run the test target.
 #   is_xctest: (iOS, optional) whether to build the executable as XCTest.
 #      Similar to the GN arg 'enable_run_ios_unittests_with_xctest' but
 #      for build targets.
@@ -493,12 +535,6 @@ template("test") {
       output_conversion = "json"
     }
 
-    use_v2_script = use_v2_script_default
-    if (defined(invoker.fuchsia_legacy_script_required) &&
-        invoker.fuchsia_legacy_script_required) {
-      use_v2_script = false
-    }
-
     _test_runner_shard =
         "//build/config/fuchsia/test/elf_test_runner.shard.test-cml"
     if (defined(invoker.test_runner_shard)) {
@@ -507,12 +543,25 @@ template("test") {
 
     # Collate the complete set of elements to include in the test component's
     # manifest.
+
     _manifest_fragments = [
-      "//build/config/fuchsia/test/chromium_test_facet.shard.test-cml",
-      "//build/config/fuchsia/test/minimum.shard.test-cml",
       _test_program_fragment,
       _test_runner_shard,
     ]
+
+    # Select the Fuchsia test realm in which to run the test.
+    if (defined(invoker.run_as_chromium_system_test) &&
+        invoker.run_as_chromium_system_test) {
+      _manifest_fragments += [
+        "//build/config/fuchsia/test/chromium_system_test_facet.shard.test-cml",
+        "//build/config/fuchsia/test/system_test_minimum.shard.test-cml",
+      ]
+    } else {
+      _manifest_fragments += [
+        "//build/config/fuchsia/test/chromium_test_facet.shard.test-cml",
+        "//build/config/fuchsia/test/minimum.shard.test-cml",
+      ]
+    }
 
     _test_component_manifest = "${target_out_dir}/${target_name}.cml"
     _merged_manifest_name = "${_output_name}.cml"
@@ -571,6 +620,7 @@ template("test") {
                              [
                                "excluded_files",
                                "excluded_dirs",
+                               "excluded_paths",
                              ])
       package_name = _output_name
       deps = _test_component_targets
@@ -578,11 +628,17 @@ template("test") {
       if (defined(invoker.fuchsia_package_deps)) {
         deps += invoker.fuchsia_package_deps
       }
-      if (!defined(excluded_dirs)) {
-        excluded_dirs = []
+      if (!defined(excluded_paths)) {
+        excluded_paths = []
       }
+      excluded_paths += [
+        "${devtools_root_location}/*",
+        "*.git/*",
+        "*.svn/*",
+        "*.hg/*",
+      ]
       if (devtools_root_location != "") {
-        excluded_dirs += [ devtools_root_location ]
+        excluded_paths += [ "${devtools_root_location}/*" ]
       }
     }
 
@@ -596,7 +652,6 @@ template("test") {
                                "data_deps",
                                "package_deps",
                                "use_test_server",
-                               "use_v2_script",
                              ])
 
       is_test_exe = true
@@ -795,7 +850,6 @@ template("test") {
       # We use a special trigger script for CrOS hardware tests.
       data += [ "//testing/trigger_scripts/chromeos_device_trigger.py" ]
 
-      output_name = target_name
       write_runtime_deps = _runtime_deps_file
       data += [ _runtime_deps_file ]
       deps += [ ":$_gen_runner_target" ]
@@ -1016,14 +1070,13 @@ template("test") {
 # The script must implement the
 # [test executable API](//docs/testing/test_executable_api.md).
 #
-# The template must be passed the `script` parameter, which specifies
-# the path to the script to run. It may optionally be passed a
-# `script_args` parameter, which can be used to include a list of
-# args to be specified by default. The template will produce
-# a `$root_build_dir/run_$target_name` wrapper and write the runtime_deps
-# for the target to $root_build_dir/${target_name}.runtime_deps, as per
-# the conventions listed in the
-# [test wrapper API](//docs/testing/test_wrapper_api.md).
+# The template must be passed the `script` parameter, which specifies the path
+# to the script to run. It may optionally be passed a `args` parameter, which
+# can be used to include a list of args to be specified by default. The
+# template will produce a `$root_build_dir/run_$target_name` wrapper and write
+# the runtime_deps for the target to
+# $root_build_dir/${target_name}.runtime_deps, as per the conventions listed in
+# the [test wrapper API](//docs/testing/test_wrapper_api.md).
 template("script_test") {
   if (use_rts) {
     action("${target_name}__rts_filters") {
@@ -1069,12 +1122,12 @@ template("script_test") {
     }
 
     forward_variables_from(invoker,
-                           [ "*" ],
+                           "*",
                            TESTONLY_AND_VISIBILITY + [
+                                 "args",
                                  "data",
                                  "data_deps",
                                  "script",
-                                 "script_args",
                                ])
     forward_variables_from(invoker, [ "visibility" ])
 
@@ -1082,6 +1135,33 @@ template("script_test") {
 
     if (use_rts) {
       data_deps += [ ":${invoker.target_name}__rts_filters" ]
+    }
+  }
+}
+
+# Defines a test target that uses exit code for pass/fail.
+template("isolated_script_test") {
+  script_test(target_name) {
+    forward_variables_from(invoker,
+                           "*",
+                           TESTONLY_AND_VISIBILITY + [
+                                 "args",
+                                 "deps",
+                                 "script",
+                               ])
+    forward_variables_from(invoker, [ "visibility" ])
+    deps = [ "//testing:run_isolated_script_test" ]
+    if (defined(invoker.deps)) {
+      deps += invoker.deps
+    }
+    script = "//testing/scripts/run_isolated_script_test.py"
+    data = [ invoker.script ]
+    args = [
+      rebase_path(invoker.script, root_build_dir),
+      "--script-type=bare",
+    ]
+    if (defined(invoker.args)) {
+      args += invoker.args
     }
   }
 }
