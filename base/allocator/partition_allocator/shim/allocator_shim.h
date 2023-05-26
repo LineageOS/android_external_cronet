@@ -8,14 +8,13 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_alloc_features.h"
-#include "base/allocator/partition_allocator/partition_alloc_config.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/base_export.h"
 #include "base/types/strong_alias.h"
 #include "build/build_config.h"
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && defined(PA_ALLOW_PCSCAN)
+#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && BUILDFLAG(USE_STARSCAN)
 #include "base/allocator/partition_allocator/starscan/pcscan.h"
 #endif
 
@@ -168,14 +167,6 @@ BASE_EXPORT void RemoveAllocatorDispatchForTesting(AllocatorDispatch* dispatch);
 BASE_EXPORT void TryFreeDefaultFallbackToFindZoneAndFree(void* ptr);
 #endif  // BUILDFLAG(IS_APPLE)
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) && BUILDFLAG(IS_WIN)
-// Configures the allocator for the caller's allocation domain. Allocations that
-// take place prior to this configuration step will succeed, but will not
-// benefit from its one-time mitigations. As such, this function must be called
-// as early as possible during startup.
-BASE_EXPORT void ConfigurePartitionAlloc();
-#endif  // BUILDFLAG(IS_WIN)
-
 #if BUILDFLAG(IS_APPLE)
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 BASE_EXPORT void InitializeDefaultAllocatorPartitionRoot();
@@ -190,6 +181,8 @@ BASE_EXPORT void EnablePartitionAllocMemoryReclaimer();
 
 using EnableBrp = base::StrongAlias<class EnableBrpTag, bool>;
 using EnableBrpZapping = base::StrongAlias<class EnableBrpZappingTag, bool>;
+using EnableBrpPartitionMemoryReclaimer =
+    base::StrongAlias<class EnableBrpPartitionMemoryReclaimerTag, bool>;
 using SplitMainPartition = base::StrongAlias<class SplitMainPartitionTag, bool>;
 using UseDedicatedAlignedPartition =
     base::StrongAlias<class UseDedicatedAlignedPartitionTag, bool>;
@@ -203,12 +196,13 @@ using AlternateBucketDistribution =
 BASE_EXPORT void ConfigurePartitions(
     EnableBrp enable_brp,
     EnableBrpZapping enable_brp_zapping,
+    EnableBrpPartitionMemoryReclaimer enable_brp_memory_reclaimer,
     SplitMainPartition split_main_partition,
     UseDedicatedAlignedPartition use_dedicated_aligned_partition,
     AddDummyRefCount add_dummy_ref_count,
     AlternateBucketDistribution use_alternate_bucket_distribution);
 
-#if defined(PA_ALLOW_PCSCAN)
+#if BUILDFLAG(USE_STARSCAN)
 BASE_EXPORT void EnablePCScan(partition_alloc::internal::PCScan::InitConfig);
 #endif
 #endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)

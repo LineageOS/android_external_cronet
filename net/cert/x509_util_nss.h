@@ -26,6 +26,8 @@ namespace net::x509_util {
 NET_EXPORT bool IsSameCertificate(CERTCertificate* a, CERTCertificate* b);
 NET_EXPORT bool IsSameCertificate(CERTCertificate* a, const X509Certificate* b);
 NET_EXPORT bool IsSameCertificate(const X509Certificate* a, CERTCertificate* b);
+NET_EXPORT bool IsSameCertificate(CERTCertificate* a, const CRYPTO_BUFFER* b);
+NET_EXPORT bool IsSameCertificate(const CRYPTO_BUFFER* a, CERTCertificate* b);
 
 // Returns a CERTCertificate handle from the DER-encoded representation. The
 // returned value may reference an already existing CERTCertificate object.
@@ -156,11 +158,6 @@ NET_EXPORT bool GetValidityTimes(CERTCertificate* cert,
 // Calculates the SHA-256 fingerprint of the certificate.  Returns an empty
 // (all zero) fingerprint on failure.
 NET_EXPORT SHA256HashValue CalculateFingerprint256(CERTCertificate* cert);
-
-// Behaves like `CERT_GetCertIsPerm` in NSS. This function's type signature
-// mirrors the NSS function so call sites can be easily replaced when
-// https://crbug.com/1365414 is resolved.
-NET_EXPORT SECStatus GetCertIsPerm(const CERTCertificate* cert, PRBool* isperm);
 
 }  // namespace net::x509_util
 

@@ -12,10 +12,12 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
+#include "base/functional/bind.h"
 #include "base/location.h"
 #include "base/memory/platform_shared_memory_region.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
+#include "base/task/single_thread_task_runner.h"
 #include "base/tuple.h"
 #include "build/build_config.h"
 #include "ipc/ipc_channel.h"
@@ -114,7 +116,9 @@ struct QuotaInterface {
   // object, so the "vtable" and other base class fields must be first.
   struct NaClDescQuotaInterface base NACL_IS_REFCOUNT_SUBCLASS;
 
-  NaClMessageScanner::FileIO* file_io;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #reinterpret-cast-trivial-type
+  RAW_PTR_EXCLUSION NaClMessageScanner::FileIO* file_io;
 };
 
 static void QuotaInterfaceDtor(NaClRefCount* nrcp) {

@@ -17,11 +17,11 @@
 #include <string>
 
 #include "base/base_export.h"
-#include "base/callback.h"
 #include "base/containers/span.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/scoped_file.h"
+#include "base/functional/callback.h"
 #include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
@@ -42,9 +42,27 @@ class Time;
 // Functions that involve filesystem access or modification:
 
 // Returns an absolute version of a relative path. Returns an empty path on
-// error. On POSIX, this function fails if the path does not exist. This
-// function can result in I/O so it can be slow.
+// error. This function can result in I/O so it can be slow.
+//
+// On POSIX, this function calls realpath(), so:
+// 1) it fails if the path does not exist.
+// 2) it expands all symlink components of the path.
+// 3) it removes "." and ".." directory components.
 BASE_EXPORT FilePath MakeAbsoluteFilePath(const FilePath& input);
+
+#if BUILDFLAG(IS_POSIX)
+// Prepends the current working directory if `input` is not already absolute,
+// and removes "/./" and "/../" This is similar to MakeAbsoluteFilePath(), but
+// MakeAbsoluteFilePath() expands all symlinks in the path and this does not.
+//
+// This may block if `input` is a relative path, when calling
+// GetCurrentDirectory().
+//
+// This doesn't return absl::nullopt unless (1) `input` is empty, or (2)
+// `input` is a relative path and GetCurrentDirectory() fails.
+[[nodiscard]] BASE_EXPORT absl::optional<FilePath>
+MakeAbsoluteFilePathNoResolveSymbolicLinks(const FilePath& input);
+#endif
 
 // Returns the total number of bytes used by all the files under |root_path|.
 // If the path does not exist the function returns 0.
@@ -104,7 +122,18 @@ GetDeletePathRecursivelyCallback(const FilePath& path,
 // 1) The file/directory to be deleted should exist in a temp folder.
 // 2) The directory to be deleted must be empty.
 BASE_EXPORT bool DeleteFileAfterReboot(const FilePath& path);
-#endif
+
+// Prevents opening the file at `path` with EXECUTE access by adding a deny ACE
+// on the filesystem. This allows the file handle to be safely passed to an
+// untrusted process. See also `File::FLAG_WIN_NO_EXECUTE`.
+BASE_EXPORT bool PreventExecuteMapping(const FilePath& path);
+
+// Set `path_key` to the second of two valid paths that support safely marking a
+// file as non-execute. The first allowed path is always PATH_TEMP. This is
+// needed to avoid layering violations, as the user data dir is an embedder
+// concept and only known later at runtime.
+BASE_EXPORT void SetExtraNoExecuteAllowedPath(int path_key);
+#endif  // BUILDFLAG(IS_WIN)
 
 // Moves the given path, whether it's a file or a directory.
 // If a simple rename is not possible, such as in the case where the paths are
@@ -264,9 +293,20 @@ BASE_EXPORT bool ReadFileToStringNonBlocking(const base::FilePath& file,
 BASE_EXPORT bool CreateSymbolicLink(const FilePath& target,
                                     const FilePath& symlink);
 
-// Reads the given |symlink| and returns where it points to in |target|.
+// Reads the given |symlink| and returns the raw string in |target|.
 // Returns false upon failure.
+// IMPORTANT NOTE: if the string stored in the symlink is a relative file path,
+// it should be interpreted relative to the symlink's directory, NOT the current
+// working directory. ReadSymbolicLinkAbsolute() may be the better choice.
 BASE_EXPORT bool ReadSymbolicLink(const FilePath& symlink, FilePath* target);
+
+// Same as ReadSymbolicLink(), but properly converts it into an absolute path if
+// the link is relative.
+// Can fail if readlink() fails, or if
+// MakeAbsoluteFilePathNoResolveSymbolicLinks() fails on the resulting absolute
+// path.
+BASE_EXPORT absl::optional<FilePath> ReadSymbolicLinkAbsolute(
+    const FilePath& symlink);
 
 // Bits and masks of the file permission.
 enum FilePermissionBits {
@@ -359,6 +399,17 @@ BASE_EXPORT ScopedFILE CreateAndOpenTemporaryStream(FilePath* path);
 BASE_EXPORT ScopedFILE CreateAndOpenTemporaryStreamInDir(const FilePath& dir,
                                                          FilePath* path);
 
+#if BUILDFLAG(IS_WIN)
+// Retrieves the path `%systemroot%\SystemTemp`, if available, else retrieves
+// `%programfiles%`.
+// Returns the path in `temp` and `true` if the path is writable by the caller,
+// which is usually only when the caller is running as admin or system.
+// Returns `false` otherwise.
+// Both paths are only accessible to admin and system processes, and are
+// therefore secure.
+BASE_EXPORT bool GetSecureSystemTemp(FilePath* temp);
+#endif  // BUILDFLAG(IS_WIN)
+
 // Do NOT USE in new code. Use ScopedTempDir instead.
 // TODO(crbug.com/561597) Remove existing usage and make this an implementation
 // detail inside ScopedTempDir.
@@ -368,11 +419,11 @@ BASE_EXPORT ScopedFILE CreateAndOpenTemporaryStreamInDir(const FilePath& dir,
 // NOTE: prefix is ignored in the POSIX implementation.
 // If success, return true and output the full path of the directory created.
 //
-// For Windows, this directory is usually created in a secure location under
-// %ProgramFiles% if the caller is admin. This is because the default %TEMP%
-// folder for Windows is insecure, since low privilege users can get the path of
-// folders under %TEMP% after creation and are able to create subfolders and
-// files within these folders which can lead to privilege escalation.
+// For Windows, this directory is usually created in a secure location if the
+// caller is admin. This is because the default %TEMP% folder for Windows is
+// insecure, since low privilege users can get the path of folders under %TEMP%
+// after creation and are able to create subfolders and files within these
+// folders which can lead to privilege escalation.
 BASE_EXPORT bool CreateNewTempDirectory(const FilePath::StringType& prefix,
                                         FilePath* new_temp_path);
 

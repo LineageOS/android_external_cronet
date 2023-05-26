@@ -22,7 +22,6 @@
 #include "base/no_destructor.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/threading/platform_thread.h"
-#include "base/threading/thread_local.h"
 #include "base/time/time_override.h"
 #include "base/trace_event/category_registry.h"
 #include "base/trace_event/memory_dump_provider.h"
@@ -31,11 +30,16 @@
 #include "build/build_config.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
+#if BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
+#include "third_party/perfetto/include/perfetto/tracing/core/trace_config.h"
+
 namespace perfetto {
 namespace trace_processor {
 class TraceProcessorStorage;
 }  // namespace trace_processor
 }  // namespace perfetto
+
+#endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
 
 namespace base {
 class RefCountedString;
@@ -66,6 +70,8 @@ class BASE_EXPORT TraceLog :
 #endif  // BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
     public MemoryDumpProvider {
  public:
+  class ThreadLocalEventBuffer;
+
   // Argument passed to TraceLog::SetEnabled.
   enum Mode : uint8_t {
     // Enables normal tracing (recording trace events in the trace buffer).
@@ -110,9 +116,9 @@ class BASE_EXPORT TraceLog :
     // In SDK build we return true as soon as the datasource has been set up and
     // we know the config. This doesn't necessarily mean that the tracing has
     // already started.
-    // Note that perfetto::TrackEvent::IsEnabled() can be true even earlier,
-    // before the OnSetup call, so we can't guarantee that we know the config
-    // by the time perfetto::TrackEvent::IsEnabled() is true.
+    // Note that TrackEvent::IsEnabled() can be true even earlier, before the
+    // OnSetup call, so we can't guarantee that we know the config by the time
+    // TrackEvent::IsEnabled() is true.
     AutoLock lock(track_event_lock_);
     return track_event_enabled_;
 #else   // !BUILDFLAG(USE_PERFETTO_CLIENT_LIBRARY)
@@ -127,14 +133,6 @@ class BASE_EXPORT TraceLog :
   // passively discover when a new trace has begun. This is then used to
   // implement the TRACE_EVENT_IS_NEW_TRACE() primitive.
   int GetNumTracesRecorded();
-
-#if BUILDFLAG(IS_ANDROID)
-  void StartATrace(const std::string& category_filter);
-  void StopATrace();
-  void AddClockSyncMetadataEvent();
-  void SetupATraceStartupTrace(const std::string& category_filter);
-  absl::optional<TraceConfig> TakeATraceStartupConfig();
-#endif  // BUILDFLAG(IS_ANDROID)
 
   // Enabled state listeners give a callback when tracing is enabled or
   // disabled. This can be used to tie into other library's tracing systems
@@ -470,7 +468,6 @@ class BASE_EXPORT TraceLog :
   InternalTraceOptions GetInternalOptionsFromTraceConfig(
       const TraceConfig& config);
 
-  class ThreadLocalEventBuffer;
   class OptionalAutoLock;
   struct RegisteredAsyncObserver;
 
@@ -596,10 +593,6 @@ class BASE_EXPORT TraceLog :
   std::atomic<InternalTraceOptions> trace_options_;
 
   TraceConfig trace_config_;
-
-  ThreadLocalPointer<ThreadLocalEventBuffer> thread_local_event_buffer_;
-  ThreadLocalBoolean thread_blocks_message_loop_;
-  ThreadLocalBoolean thread_is_in_trace_event_;
 
   // Contains task runners for the threads that have had at least one event
   // added into the local event buffer.

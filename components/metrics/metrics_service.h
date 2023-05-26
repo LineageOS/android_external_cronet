@@ -14,9 +14,9 @@
 #include <memory>
 #include <string>
 
-#include "base/bind.h"
-#include "base/callback_forward.h"
 #include "base/callback_list.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_forward.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -237,6 +237,14 @@ class MetricsService {
 
   variations::SyntheticTrialRegistry* GetSyntheticTrialRegistry();
 
+  // Returns the delay before the init tasks (to asynchronously initialize
+  // metrics providers) run.
+  base::TimeDelta GetInitializationDelay();
+
+  // Returns the delay before the task to update the "last alive timestamp" is
+  // run.
+  base::TimeDelta GetUpdateLastAliveTimestampDelay();
+
   MetricsLogStore* LogStoreForTest() {
     return reporting_service_.metrics_log_store();
   }
@@ -271,6 +279,12 @@ class MetricsService {
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
   bool IsInForegroundForTesting() const { return is_in_foreground_; }
 #endif
+
+  // Creates a new MetricsLog instance with the given |log_type|.
+  std::unique_ptr<MetricsLog> CreateLogForTesting(
+      MetricsLog::LogType log_type) {
+    return CreateLog(log_type);
+  }
 
  protected:
   // Sets the persistent system profile. Virtual for tests.
@@ -326,6 +340,12 @@ class MetricsService {
 
   // Writes snapshots of histograms owned by the StatisticsRecorder to a log.
   // Does not take ownership of the log.
+  // TODO(crbug/1423653): Although this class takes in |required_flags| in its
+  // constructor to filter the StatisticsRecorder histograms being put into
+  // the log, the |histogram_snapshot_manager_| is not aware of this. So if
+  // the |histogram_snapshot_manager_| is passed to some other caller, this
+  // caller will need to manually filter the histograms. Re-factor the code so
+  // that this is not needed.
   class MetricsLogHistogramWriter {
    public:
     explicit MetricsLogHistogramWriter(MetricsLog* log);
@@ -361,7 +381,8 @@ class MetricsService {
 
    private:
     // Used to select which histograms to record when calling
-    // SnapshotStatisticsRecorderHistograms().
+    // SnapshotStatisticsRecorderHistograms() or
+    // SnapshotStatisticsRecorderUnloggedSamples().
     const base::HistogramBase::Flags required_flags_;
 
     // Used to write histograms to the log passed in the constructor.
@@ -460,10 +481,12 @@ class MetricsService {
   // by the caller).
   void CloseCurrentLog(
       bool async,
+      MetricsLogsEventManager::CreateReason reason,
       base::OnceClosure log_stored_callback = base::DoNothing());
 
   // Stores the |finalized_log| in |log_store()|.
   void StoreFinalizedLog(MetricsLog::LogType log_type,
+                         MetricsLogsEventManager::CreateReason reason,
                          base::OnceClosure done_callback,
                          FinalizedLog finalized_log);
 
@@ -475,11 +498,13 @@ class MetricsService {
   void MaybeCleanUpAndStoreFinalizedLog(
       std::unique_ptr<MetricsLogHistogramWriter> log_histogram_writer,
       MetricsLog::LogType log_type,
+      MetricsLogsEventManager::CreateReason reason,
       base::OnceClosure done_callback,
       FinalizedLog finalized_log);
 
   // Pushes the text of the current and staged logs into persistent storage.
-  void PushPendingLogsToPersistentStorage();
+  void PushPendingLogsToPersistentStorage(
+      MetricsLogsEventManager::CreateReason reason);
 
   // Ensures that scheduler is running, assuming the current settings are such
   // that metrics should be reported. If not, this is a no-op.
@@ -528,6 +553,12 @@ class MetricsService {
 
   // Updates the "last live" browser timestamp and schedules the next update.
   void UpdateLastLiveTimestampTask();
+
+  // Returns whether it is too early to close a log.
+  bool IsTooEarlyToCloseLog();
+
+  // Called if this install is detected as cloned.
+  void OnClonedInstallDetected();
 
   // Snapshots histogram deltas using the passed |log_histogram_writer| and then
   // finalizes |log| by calling FinalizeLog(). |log|, |current_app_version| and
@@ -634,6 +665,10 @@ class MetricsService {
 
   // A set of observers that keeps track of the metrics reporting state.
   base::RepeatingCallbackList<void(bool)> enablement_observers_;
+
+  // Subscription for a callback that runs if this install is detected as
+  // cloned.
+  base::CallbackListSubscription cloned_install_subscription_;
 
 #if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
   // Indicates whether OnAppEnterForeground() (true) or OnAppEnterBackground

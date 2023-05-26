@@ -10,7 +10,7 @@
 #include "base/allocator/partition_allocator/partition_alloc_config.h"
 #include "build/build_config.h"
 
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
 #include <arm_acle.h>
 #include <sys/auxv.h>
 #include <sys/prctl.h>
@@ -45,7 +45,7 @@
 
 namespace partition_alloc {
 
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
 namespace {
 void ChangeMemoryTaggingModeInternal(unsigned prctl_mask) {
   if (internal::base::CPU::GetInstanceNoAllocation().has_mte()) {
@@ -54,10 +54,10 @@ void ChangeMemoryTaggingModeInternal(unsigned prctl_mask) {
   }
 }
 }  // namespace
-#endif  // defined(PA_HAS_MEMORY_TAGGING)
+#endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
 
 void ChangeMemoryTaggingModeForCurrentThread(TagViolationReportingMode m) {
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
   if (m == TagViolationReportingMode::kSynchronous) {
     ChangeMemoryTaggingModeInternal(PR_TAGGED_ADDR_ENABLE | PR_MTE_TCF_SYNC |
                                     (0xfffe << PR_MTE_TAG_SHIFT));
@@ -67,7 +67,7 @@ void ChangeMemoryTaggingModeForCurrentThread(TagViolationReportingMode m) {
   } else {
     ChangeMemoryTaggingModeInternal(PR_TAGGED_ADDR_ENABLE | PR_MTE_TCF_NONE);
   }
-#endif  // defined(PA_HAS_MEMORY_TAGGING)
+#endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
 }
 
 namespace internal {
@@ -75,7 +75,7 @@ namespace internal {
 #if BUILDFLAG(IS_ANDROID)
 void ChangeMemoryTaggingModeForAllThreadsPerProcess(
     TagViolationReportingMode m) {
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
   // In order to support Android NDK API level below 26, we need to call
   // mallopt via dynamic linker.
   // int mallopt(int param, int value);
@@ -106,7 +106,7 @@ void ChangeMemoryTaggingModeForAllThreadsPerProcess(
                            M_HEAP_TAGGING_LEVEL_NONE);
   }
   PA_CHECK(status);
-#endif  // defined(PA_HAS_MEMORY_TAGGING)
+#endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
 }
 #endif  // BUILDFLAG(IS_ANDROID)
 
@@ -119,19 +119,20 @@ namespace {
   return ret;
 }
 
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
 static bool HasCPUMemoryTaggingExtension() {
   return base::CPU::GetInstanceNoAllocation().has_mte();
 }
-#endif  // defined(PA_HAS_MEMORY_TAGGING)
+#endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
 
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
 void* TagRegionRandomlyForMTE(void* ptr, size_t sz, uint64_t mask) {
   // Randomly tag a region (MTE-enabled systems only). The first 16-byte
   // granule is randomly tagged, all other granules in the region are
   // then assigned that initial tag via __arm_mte_set_tag.
-  if (!CheckTagRegionParameters(ptr, sz))
+  if (!CheckTagRegionParameters(ptr, sz)) {
     return nullptr;
+  }
   // __arm_mte_create_random_tag generates a randomly tagged pointer via the
   // hardware's random number generator, but does not apply it to the memory.
   char* nptr = reinterpret_cast<char*>(__arm_mte_create_random_tag(ptr, mask));
@@ -146,8 +147,9 @@ void* TagRegionRandomlyForMTE(void* ptr, size_t sz, uint64_t mask) {
 void* TagRegionIncrementForMTE(void* ptr, size_t sz) {
   // Increment a region's tag (MTE-enabled systems only), using the tag of the
   // first granule.
-  if (!CheckTagRegionParameters(ptr, sz))
+  if (!CheckTagRegionParameters(ptr, sz)) {
     return nullptr;
+  }
   // Increment ptr's tag.
   char* nptr = reinterpret_cast<char*>(__arm_mte_increment_tag(ptr, 1u));
   for (size_t i = 0; i < sz; i += kMemTagGranuleSize) {
@@ -185,7 +187,7 @@ void* RemaskVoidPtrNoOp(void* ptr) {
 }  // namespace
 
 void InitializeMTESupportIfNeeded() {
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
   if (HasCPUMemoryTaggingExtension()) {
     global_remask_void_ptr_fn = RemaskVoidPtrForMTE;
     global_tag_memory_range_increment_fn = TagRegionIncrementForMTE;
@@ -201,7 +203,7 @@ TagMemoryRangeRandomlyInternalFn* global_tag_memory_range_randomly_fn =
     TagRegionRandomlyNoOp;
 
 TagViolationReportingMode GetMemoryTaggingModeForCurrentThread() {
-#if defined(PA_HAS_MEMORY_TAGGING)
+#if PA_CONFIG(HAS_MEMORY_TAGGING)
   base::CPU cpu;
   if (!cpu.has_mte()) {
     return TagViolationReportingMode::kUndefined;
@@ -214,7 +216,7 @@ TagViolationReportingMode GetMemoryTaggingModeForCurrentThread() {
   if ((status & PR_TAGGED_ADDR_ENABLE) && (status & PR_MTE_TCF_ASYNC)) {
     return TagViolationReportingMode::kAsynchronous;
   }
-#endif  // defined(PA_HAS_MEMORY_TAGGING)
+#endif  // PA_CONFIG(HAS_MEMORY_TAGGING)
   return TagViolationReportingMode::kUndefined;
 }
 
