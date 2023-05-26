@@ -11,10 +11,10 @@
 #include <memory>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "net/base/address_list.h"
@@ -262,6 +262,17 @@ TCPSocketWin::TCPSocketWin(
       accept_event_(WSA_INVALID_EVENT),
       net_log_(NetLogWithSource::Make(net_log, NetLogSourceType::SOCKET)) {
   net_log_.BeginEventReferencingSource(NetLogEventType::SOCKET_ALIVE, source);
+  EnsureWinsockInit();
+}
+
+TCPSocketWin::TCPSocketWin(
+    std::unique_ptr<SocketPerformanceWatcher> socket_performance_watcher,
+    NetLogWithSource net_log_source)
+    : socket_(INVALID_SOCKET),
+      socket_performance_watcher_(std::move(socket_performance_watcher)),
+      accept_event_(WSA_INVALID_EVENT),
+      net_log_(net_log_source) {
+  net_log_.BeginEvent(NetLogEventType::SOCKET_ALIVE);
   EnsureWinsockInit();
 }
 
@@ -670,6 +681,10 @@ bool TCPSocketWin::SetNoDelay(bool no_delay) {
     return false;
 
   return SetTCPNoDelay(socket_, no_delay) == OK;
+}
+
+int TCPSocketWin::SetIPv6Only(bool ipv6_only) {
+  return ::net::SetIPv6Only(socket_, ipv6_only);
 }
 
 void TCPSocketWin::Close() {

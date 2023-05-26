@@ -8,10 +8,10 @@
 #include <string>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/check.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/json/json_writer.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
@@ -96,9 +96,11 @@ class HttpServerPropertiesTest : public TestWithTaskEnvironment {
     test_clock_.Advance(base::Seconds(12345));
 
     SchemefulSite site1(GURL("https://foo.test/"));
-    network_anonymization_key1_ = NetworkAnonymizationKey(site1, site1);
+    network_anonymization_key1_ =
+        NetworkAnonymizationKey::CreateSameSite(site1);
     SchemefulSite site2(GURL("https://bar.test/"));
-    network_anonymization_key2_ = NetworkAnonymizationKey(site2, site2);
+    network_anonymization_key2_ =
+        NetworkAnonymizationKey::CreateSameSite(site2);
   }
 
   // This is a little awkward, but need to create and configure the
@@ -2452,7 +2454,7 @@ TEST_F(AlternateProtocolServerPropertiesTest,
       "{"
       "\"alternative_service\":"
       "[\"h2 foo2:443, expires 2018-01-25 15:12:53\"],"
-      "\"network_anonymization_key\":\"null null\","
+      "\"network_anonymization_key\":\"null\","
       "\"server\":\"http://test.com\""
       "},"
       "{"
@@ -2462,7 +2464,7 @@ TEST_F(AlternateProtocolServerPropertiesTest,
       " (broken until 2018-01-24 15:17:53)\","
       "\"quic baz:443, expires 2018-01-24 16:12:53"
       " (broken until 2018-01-24 15:17:53)\"],"
-      "\"network_anonymization_key\":\"null null\","
+      "\"network_anonymization_key\":\"null\","
       "\"server\":\"https://youtube.com\""
       "}"
       "]";

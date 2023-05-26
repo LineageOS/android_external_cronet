@@ -4,16 +4,12 @@
 
 #include <string>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "build/build_config.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "testing/gtest_mac.h"
-
-#if BUILDFLAG(IS_IOS)
-#include "base/ios/weak_nsobject.h"
-#endif
 
 namespace {
 
@@ -132,22 +128,5 @@ TEST(BindObjcBlockTest, TestBlockDeallocation) {
   closure.Run();
   EXPECT_TRUE(invoked_block);
 }
-
-#if BUILDFLAG(IS_IOS)
-
-TEST(BindObjcBlockTest, TestBlockReleased) {
-  base::WeakNSObject<NSObject> weak_nsobject;
-  @autoreleasepool {
-    NSObject* nsobject = [[[NSObject alloc] init] autorelease];
-    weak_nsobject.reset(nsobject);
-
-    auto callback = base::BindOnce(base::RetainBlock(^{
-      [nsobject description];
-    }));
-  }
-  EXPECT_NSEQ(nil, weak_nsobject);
-}
-
-#endif
 
 }  // namespace

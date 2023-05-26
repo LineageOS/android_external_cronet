@@ -12,11 +12,11 @@
 #include <vector>
 
 #include "base/base64.h"
-#include "base/bind.h"
 #include "base/build_time.h"
 #include "base/containers/contains.h"
 #include "base/containers/span.h"
 #include "base/feature_list.h"
+#include "base/functional/bind.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/metrics/field_trial.h"
@@ -399,7 +399,7 @@ bool TransportSecurityState::ShouldSSLErrorsBeFatal(const std::string& host) {
   return GetSTSState(host, &unused_sts) || GetPKPState(host, &unused_pkp);
 }
 
-base::Value TransportSecurityState::NetLogUpgradeToSSLParam(
+base::Value::Dict TransportSecurityState::NetLogUpgradeToSSLParam(
     const std::string& host) {
   STSState sts_state;
   base::Value::Dict dict;
@@ -408,7 +408,7 @@ base::Value TransportSecurityState::NetLogUpgradeToSSLParam(
   dict.Set("should_upgrade_to_ssl", sts_state.ShouldUpgradeToSSL());
   dict.Set("host_found_in_hsts_bypass_list",
            hsts_host_bypass_list_.find(host) != hsts_host_bypass_list_.end());
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 bool TransportSecurityState::ShouldUpgradeToSSL(
@@ -464,8 +464,7 @@ TransportSecurityState::CheckCTRequirements(
     const X509Certificate* served_certificate_chain,
     const SignedCertificateTimestampAndStatusList&
         signed_certificate_timestamps,
-    ct::CTPolicyCompliance policy_compliance,
-    const NetworkAnonymizationKey& network_anonymization_key) {
+    ct::CTPolicyCompliance policy_compliance) {
   using CTRequirementLevel = RequireCTDelegate::CTRequirementLevel;
   std::string hostname = host_port_pair.host();
 

@@ -53,6 +53,12 @@ group("deps") {
       public_deps = [ ":asan_runtime_bundle_data" ]
     }
   }
+  if (use_centipede) {
+    # For executables which aren't actual fuzzers, we need stubs for
+    # the sanitizer coverage symbols, because we'll still be generating
+    # .o files which depend on them.
+    deps += [ "//third_party/centipede:centipede_weak_sancov_stubs" ]
+  }
 }
 
 assert(!(is_win && is_asan && current_cpu == "x86"),
@@ -113,7 +119,7 @@ static_library("options_sources") {
   # unconditionally linked into targets.
   visibility = [
     ":deps",
-    "//:gn_visibility",
+    "//:gn_all",
   ]
   sources = [ "//build/sanitizers/sanitizer_options.cc" ]
 
@@ -156,27 +162,36 @@ config("default_sanitizer_ldflags") {
   ]
 
   if (is_posix || is_fuchsia) {
+    sanitizers = []  # sanitizers applicable to both clang and rustc
     ldflags = []
+    rustflags = []
     if (is_asan) {
-      ldflags += [ "-fsanitize=address" ]
+      sanitizers += [ "address" ]
     }
     if (is_hwasan) {
-      ldflags += [ "-fsanitize=hwaddress" ]
+      sanitizers += [ "hwaddress" ]
     }
     if (is_lsan) {
+      # In Chromium, is_lsan always implies is_asan. ASAN includes LSAN.
+      # It seems harmless to pass both options to clang, but it doesn't
+      # work on rustc, so apply this option to clang only.
       ldflags += [ "-fsanitize=leak" ]
     }
     if (is_tsan) {
-      ldflags += [ "-fsanitize=thread" ]
+      sanitizers += [ "thread" ]
     }
     if (is_msan) {
-      ldflags += [ "-fsanitize=memory" ]
+      sanitizers += [ "memory" ]
     }
     if (is_ubsan || is_ubsan_security) {
       ldflags += [ "-fsanitize=undefined" ]
     }
     if (is_ubsan_vptr) {
       ldflags += [ "-fsanitize=vptr" ]
+    }
+    foreach(sanitizer, sanitizers) {
+      ldflags += [ "-fsanitize=$sanitizer" ]
+      rustflags += [ "-Zsanitizer=$sanitizer" ]
     }
 
     if (use_sanitizer_coverage) {

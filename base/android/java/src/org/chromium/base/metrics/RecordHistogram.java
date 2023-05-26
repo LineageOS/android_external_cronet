@@ -10,6 +10,8 @@ import androidx.annotation.VisibleForTesting;
 
 import org.chromium.build.annotations.MainDex;
 
+import java.util.List;
+
 /**
  * Java API for recording UMA histograms.
  * */
@@ -259,15 +261,13 @@ public class RecordHistogram {
     /**
      * Returns the number of samples recorded in the given bucket of the given histogram.
      *
-     * WARNING:
-     * Does not reset between batched tests. Use
-     * {@link org.chromium.base.test.metrics.HistogramTestRule} instead. Or use
-     * {@link org.chromium.base.test.util.MetricsUtils.HistogramDelta} to account for cases where
-     * the initial histogram value is not 0 at the start of the testing logic.
+     * @deprecated Raw counts are easy to misuse. Does not reset between batched tests. Use
+     * {@link org.chromium.base.test.util.HistogramWatcher} instead.
      *
      * @param name name of the histogram to look up
      * @param sample the bucket containing this sample value will be looked up
      */
+    @Deprecated
     @VisibleForTesting
     public static int getHistogramValueCountForTesting(String name, int sample) {
         return UmaRecorderHolder.get().getHistogramValueCountForTesting(name, sample);
@@ -276,14 +276,26 @@ public class RecordHistogram {
     /**
      * Returns the number of samples recorded for the given histogram.
      *
-     * WARNING:
-     * Does not reset between batched tests. Use
-     * {@link org.chromium.base.test.metrics.HistogramTestRule} instead.
+     * @deprecated Raw counts are easy to misuse. Does not reset between batched tests. Use
+     * {@link org.chromium.base.test.util.HistogramWatcher} instead.
+     *
+     * @param name name of the histogram to look up
+     */
+    @Deprecated
+    @VisibleForTesting
+    public static int getHistogramTotalCountForTesting(String name) {
+        return UmaRecorderHolder.get().getHistogramTotalCountForTesting(name);
+    }
+
+    /**
+     * Returns the buckets of samples recorded for the given histogram.
+     *
+     * Use {@link org.chromium.base.test.util.HistogramWatcher} instead of using this directly.
      *
      * @param name name of the histogram to look up
      */
     @VisibleForTesting
-    public static int getHistogramTotalCountForTesting(String name) {
-        return UmaRecorderHolder.get().getHistogramTotalCountForTesting(name);
+    public static List<HistogramBucket> getHistogramSamplesForTesting(String name) {
+        return UmaRecorderHolder.get().getHistogramSamplesForTesting(name);
     }
 }

@@ -7,10 +7,10 @@
 #include <string>
 #include <utility>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/files/file.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/path_service.h"
 #include "base/run_loop.h"
@@ -62,7 +62,7 @@ class FileStreamTest : public PlatformTest, public WithTaskEnvironment {
     PlatformTest::SetUp();
 
     base::CreateTemporaryFile(&temp_file_path_);
-    base::WriteFile(temp_file_path_, kTestData, kTestDataSize);
+    base::WriteFile(temp_file_path_, kTestData);
   }
   void TearDown() override {
     // FileStreamContexts must be asynchronously closed on the file task runner
@@ -120,8 +120,7 @@ TEST_F(FileStreamTest, UseFileHandle) {
   TestCompletionCallback callback;
   TestInt64CompletionCallback callback64;
   // 1. Test reading with a file handle.
-  ASSERT_EQ(kTestDataSize,
-            base::WriteFile(temp_file_path(), kTestData, kTestDataSize));
+  ASSERT_TRUE(base::WriteFile(temp_file_path(), kTestData));
   int flags = base::File::FLAG_OPEN_ALWAYS | base::File::FLAG_READ |
               base::File::FLAG_ASYNC;
   base::File file1(temp_file_path(), flags);
@@ -616,18 +615,21 @@ TEST_F(FileStreamTest, WriteRead) {
   int total_bytes_written = 0;
   int total_bytes_read = 0;
   std::string data_read;
-  TestWriteReadCompletionCallback callback(stream.get(), &total_bytes_written,
-                                           &total_bytes_read, &data_read);
+  {
+    // `callback` can't outlive `stream`.
+    TestWriteReadCompletionCallback callback(stream.get(), &total_bytes_written,
+                                             &total_bytes_read, &data_read);
 
-  scoped_refptr<IOBufferWithSize> buf = CreateTestDataBuffer();
-  rv = stream->Write(buf.get(), buf->size(), callback.callback());
-  if (rv == ERR_IO_PENDING)
-    rv = callback.WaitForResult();
-  EXPECT_LT(0, rv);
-  EXPECT_EQ(kTestDataSize, total_bytes_written);
+    scoped_refptr<IOBufferWithSize> buf = CreateTestDataBuffer();
+    rv = stream->Write(buf.get(), buf->size(), callback.callback());
+    if (rv == ERR_IO_PENDING) {
+      rv = callback.WaitForResult();
+    }
+    EXPECT_LT(0, rv);
+    EXPECT_EQ(kTestDataSize, total_bytes_written);
 
-  callback.ValidateWrittenData();
-
+    callback.ValidateWrittenData();
+  }
   stream.reset();
 
   EXPECT_TRUE(base::GetFileSize(temp_file_path(), &file_size));
@@ -720,15 +722,18 @@ TEST_F(FileStreamTest, WriteClose) {
   EXPECT_EQ(file_size, callback64.WaitForResult());
 
   int total_bytes_written = 0;
-  TestWriteCloseCompletionCallback callback(stream.get(), &total_bytes_written);
-
-  scoped_refptr<IOBufferWithSize> buf = CreateTestDataBuffer();
-  rv = stream->Write(buf.get(), buf->size(), callback.callback());
-  if (rv == ERR_IO_PENDING)
-    total_bytes_written = callback.WaitForResult();
-  EXPECT_LT(0, total_bytes_written);
-  EXPECT_EQ(kTestDataSize, total_bytes_written);
-
+  {
+    // `callback` can't outlive `stream`.
+    TestWriteCloseCompletionCallback callback(stream.get(),
+                                              &total_bytes_written);
+    scoped_refptr<IOBufferWithSize> buf = CreateTestDataBuffer();
+    rv = stream->Write(buf.get(), buf->size(), callback.callback());
+    if (rv == ERR_IO_PENDING) {
+      total_bytes_written = callback.WaitForResult();
+    }
+    EXPECT_LT(0, total_bytes_written);
+    EXPECT_EQ(kTestDataSize, total_bytes_written);
+  }
   stream.reset();
 
   EXPECT_TRUE(base::GetFileSize(temp_file_path(), &file_size));

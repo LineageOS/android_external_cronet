@@ -78,13 +78,11 @@ source_set("common") {
     "histogram_util.h",
     "recorder.cc",
     "recorder.h",
-    "structured_metrics_features.cc",
-    "structured_metrics_features.h",
   ]
 
   public_deps = [
     ":events",
-    "//base",
+    ":structured_metrics_features",
   ]
 
   deps = [
@@ -93,6 +91,15 @@ source_set("common") {
     "//components/prefs",
     "//third_party/metrics_proto",
   ]
+}
+
+static_library("structured_metrics_features") {
+  sources = [
+    "structured_metrics_features.cc",
+    "structured_metrics_features.h",
+  ]
+
+  public_deps = [ "//base" ]
 }
 
 action("gen_structured_events") {
@@ -201,6 +208,20 @@ static_library("neutrino_logging_util") {
     "//base",
     "//components/metrics",
     "//components/prefs",
+  ]
+}
+
+static_library("test_support") {
+  testonly = true
+  sources = [
+    "test/test_structured_metrics_provider.cc",
+    "test/test_structured_metrics_provider.h",
+  ]
+  deps = [
+    ":structured",
+    "//base",
+    "//base/test:test_support",
+    "//components/metrics:metrics",
   ]
 }
 
