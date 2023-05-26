@@ -61,6 +61,10 @@ if (is_android || is_chromeos) {
     } else {
       android_static_analysis = "on"
     }
+
+    # Build incremental targets whenever possible.
+    # See //build/android/incremental_install/README.md for more details.
+    incremental_install = false
   }
 
   # Avoid typos when setting android_static_analysis in args.gn.
@@ -70,18 +74,6 @@ if (is_android || is_chromeos) {
   # This configuration has not bot coverage and has broken multiple times.
   # Warn against it.
   assert(!(enable_chrome_android_internal && skip_secondary_abi_for_cq))
-
-  declare_args() {
-    # Android API level for 32 bits platforms
-    android32_ndk_api_level = default_min_sdk_version
-
-    # Android API level for 64 bits platforms
-    if (default_min_sdk_version < 21) {
-      android64_ndk_api_level = 21
-    } else {
-      android64_ndk_api_level = default_min_sdk_version
-    }
-  }
 
   if (enable_chrome_android_internal) {
     import("//clank/config.gni")
@@ -109,6 +101,13 @@ if (is_android || is_chromeos) {
   if (android_sdk_release == "t") {
     default_android_sdk_root = public_android_sdk_root
     default_android_sdk_version = public_android_sdk_version
+    default_android_sdk_build_tools_version = "33.0.0"
+    public_android_sdk = true
+  }
+
+  if (android_sdk_release == "tprivacysandbox") {
+    default_android_sdk_root = public_android_sdk_root
+    default_android_sdk_version = "TiramisuPrivacySandbox"
     default_android_sdk_build_tools_version = "33.0.0"
     public_android_sdk = true
   }
@@ -144,26 +143,6 @@ if (is_android || is_chromeos) {
     google_play_services_package = "//third_party/android_deps"
   }
 
-  if (!defined(dagger_java_target)) {
-    dagger_java_target =
-        "//third_party/android_deps:com_google_dagger_dagger_java"
-  }
-
-  if (!defined(dagger_annotation_processor_target)) {
-    dagger_annotation_processor_target =
-        "//third_party/android_deps:com_google_dagger_dagger_compiler_java"
-  }
-
-  if (!defined(guava_android_target)) {
-    guava_android_target =
-        "//third_party/android_deps:com_google_guava_guava_android_java"
-  }
-
-  if (!defined(material_design_target)) {
-    material_design_target =
-        "//third_party/android_deps:com_google_android_material_material_java"
-  }
-
   if (!defined(android_protoc_bin)) {
     android_protoc_bin = "//third_party/android_protoc/protoc"
     android_proto_runtime =
@@ -183,6 +162,17 @@ if (is_android || is_chromeos) {
     android_ndk_root = default_android_ndk_root
     android_ndk_version = default_android_ndk_version
     android_ndk_major_version = default_android_ndk_major_version
+
+    # Android API level for 32 bits platforms
+    android32_ndk_api_level = default_min_sdk_version
+
+    # Android API level for 64 bits platforms
+    android64_ndk_api_level = default_min_sdk_version
+
+    if (default_min_sdk_version < 21) {
+      # Android did not support 64 bit before API 21.
+      android64_ndk_api_level = 21
+    }
 
     android_sdk_root = default_android_sdk_root
     android_sdk_version = default_android_sdk_version
@@ -217,17 +207,13 @@ if (is_android || is_chromeos) {
 
     # Java debug on Android. Having this on enables multidexing, and turning it
     # off will enable proguard.
-    is_java_debug = is_debug
+    is_java_debug = is_debug || incremental_install
 
     # Mark APKs as android:debuggable="true".
     debuggable_apks = !is_official_build
 
     # Set to false to disable the Errorprone compiler.
     use_errorprone_java_compiler = android_static_analysis != "off"
-
-    # Build incremental targets whenever possible.
-    # See //build/android/incremental_install/README.md for more details.
-    incremental_install = false
 
     # When true, updates all android_aar_prebuilt() .info files during gn gen.
     # Refer to android_aar_prebuilt() for more details.
@@ -253,6 +239,11 @@ if (is_android || is_chromeos) {
     # respected. Useful when trying to analyze APKs using tools that do not
     # support mapping these names.
     enable_arsc_obfuscation = true
+
+    # Controls whether |strip_unused_resources| is respected. Useful when trying
+    # to analyze APKs using tools that do not support missing resources from
+    # resources.arsc.
+    enable_unused_resource_stripping = true
 
     # The target to use as the system WebView implementation.
     if (android_64bit_target_cpu && skip_secondary_abi_for_cq) {
@@ -284,7 +275,7 @@ if (is_android || is_chromeos) {
     use_hashed_jni_names = !is_java_debug
 
     # Enables JNI multiplexing to reduce JNI native methods overhead.
-    enable_jni_multiplexing = false
+    allow_jni_multiplexing = false
 
     # Enables trace event injection on Android views with bytecode rewriting.
     # This adds an additional step on android_app_bundle_module targets that
@@ -293,9 +284,8 @@ if (is_android || is_chromeos) {
         !is_java_debug && android_channel != "stable"
   }
 
-  if (enable_jni_multiplexing) {
-    use_hashed_jni_names = false
-  }
+  assert(!incremental_install || is_java_debug,
+         "incremental_install=true && is_java_debug=false is not supported.")
 
   # Host stuff -----------------------------------------------------------------
 

@@ -9,6 +9,7 @@
 #include "base/process/process_handle.h"
 #include "base/strings/string_piece.h"
 #include "base/time/time.h"
+#include "build/blink_buildflags.h"
 #include "build/build_config.h"
 #include "build/chromeos_buildflags.h"
 
@@ -20,9 +21,9 @@
 #include <lib/zx/process.h>
 #endif
 
-#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS)
+#if BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
 #include "base/feature_list.h"
-#endif  // BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS)
+#endif  // BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_WIN)
 
 #if BUILDFLAG(IS_APPLE)
 #include "base/process/port_provider_mac.h"
@@ -40,6 +41,10 @@ BASE_DECLARE_FEATURE(kMacAllowBackgroundingProcesses);
 // of all threads in the process when deciding on the next thread to schedule.
 // It will help guarantee fairness between renderers.
 BASE_EXPORT BASE_DECLARE_FEATURE(kOneGroupPerRenderer);
+#endif
+
+#if BUILDFLAG(IS_WIN)
+BASE_EXPORT BASE_DECLARE_FEATURE(kUseEcoQoSForBackgroundProcess);
 #endif
 
 // Provides a move-only encapsulation of a process.
@@ -185,7 +190,7 @@ class BASE_EXPORT Process {
   // process though that should be avoided.
   void Exited(int exit_code) const;
 
-#if BUILDFLAG(IS_MAC)
+#if BUILDFLAG(IS_MAC) || (BUILDFLAG(IS_IOS) && BUILDFLAG(USE_BLINK))
   // The Mac needs a Mach port in order to manipulate a process's priority,
   // and there's no good way to get that from base given the pid. These Mac
   // variants of the IsProcessBackgrounded() and SetProcessBackgrounded() API
@@ -216,7 +221,8 @@ class BASE_EXPORT Process {
   // will be made "normal" - equivalent to default process priority.
   // Returns true if the priority was changed, false otherwise.
   bool SetProcessBackgrounded(bool value);
-#endif  // BUILDFLAG(IS_APPLE)
+#endif  // BUILDFLAG(IS_MAC) || (BUILDFLAG(IS_IOS) && BUILDFLAG(USE_BLINK))
+
   // Returns an integer representing the priority of a process. The meaning
   // of this value is OS dependent.
   int GetPriority() const;
@@ -243,6 +249,13 @@ class BASE_EXPORT Process {
   // or if it has already been called.
   void InitializePriority();
 #endif  // BUILDFLAG(IS_CHROMEOS)
+
+#if BUILDFLAG(IS_APPLE)
+  // Sets the `task_role_t` of the current task (the calling process) to
+  // TASK_DEFAULT_APPLICATION, if the MacSetDefaultTaskRole feature is
+  // enabled.
+  static void SetCurrentTaskDefaultRole();
+#endif  // BUILDFLAG(IS_MAC)
 
  private:
 #if BUILDFLAG(IS_CHROMEOS)

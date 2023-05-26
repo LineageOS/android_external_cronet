@@ -14,12 +14,13 @@ import unittest.mock as mock
 import compatible_utils
 
 
+@unittest.skipIf(os.name == 'nt', 'Fuchsia tests not supported on Windows')
 class CompatibleUtilsTest(unittest.TestCase):
     """Test compatible_utils.py methods."""
 
     def test_running_unattended_returns_true_if_headless_set(self) -> None:
         """Test |running_unattended| returns True if CHROME_HEADLESS is set."""
-        with mock.patch('os.environ', {'CHROME_HEADLESS': 0}):
+        with mock.patch('os.environ', {'SWARMING_SERVER': 0}):
             self.assertTrue(compatible_utils.running_unattended())
 
         with mock.patch('os.environ', {'FOO_HEADLESS': 0}):
@@ -190,80 +191,20 @@ universe_package_labels += []
                 self.assertRaises(compatible_utils.VersionNotFoundError):
             compatible_utils.get_sdk_hash('some/dir')
 
-    def test_find_in_dir_returns_file_or_dir_if_searching(self) -> None:
-        """Test |find_in_dir| returns files if searching for file, or None."""
-        # Make the directory structure.
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            with tempfile.NamedTemporaryFile(dir=tmp_dir) as tmp_file, \
-                tempfile.TemporaryDirectory(dir=tmp_dir) as inner_tmp_dir:
-
-                # Structure is now:
-                # temp_dir/
-                # temp_dir/inner_dir1
-                # temp_dir/tempfile1
-                self.assertEqual(
-                    compatible_utils.find_in_dir(
-                        os.path.basename(tmp_file.name),
-                        parent_dir=tmp_dir,
-                        search_for_dir=False), tmp_file.name)
-                # File is not a dir, so returns None.
-                self.assertIsNone(
-                    compatible_utils.find_in_dir(os.path.basename(
-                        tmp_file.name),
-                                                 parent_dir=tmp_dir,
-                                                 search_for_dir=True))
-
-                # Repeat for directory.
-                self.assertEqual(
-                    compatible_utils.find_in_dir(inner_tmp_dir,
-                                                 parent_dir=tmp_dir,
-                                                 search_for_dir=True),
-                    inner_tmp_dir)
-                self.assertIsNone(
-                    compatible_utils.find_in_dir(inner_tmp_dir,
-                                                 parent_dir=tmp_dir,
-                                                 search_for_dir=False))
-                with tempfile.NamedTemporaryFile(
-                        dir=inner_tmp_dir) as inner_tmp_file:
-                    self.assertEqual(
-                        compatible_utils.find_in_dir(
-                            os.path.basename(inner_tmp_file.name),
-                            parent_dir=tmp_dir,
-                            search_for_dir=False), inner_tmp_file.name)
-                    self.assertEqual(
-                        compatible_utils.find_in_dir(
-                            os.path.basename(inner_tmp_file.name),
-                            parent_dir=inner_tmp_dir,
-                            search_for_dir=False), inner_tmp_file.name)
-
-    def test_find_image_in_sdk_searches_images_in_product_bundle(self):
-        """Test |find_image_in_sdk| searches for 'images' if product-bundle."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            os.makedirs(os.path.join(tmp_dir, 'images', 'workstation-product',
-                                     'images'),
-                        exist_ok=True)
-            self.assertEqual(
-                compatible_utils.find_image_in_sdk('workstation-product',
-                                                   product_bundle=True,
-                                                   sdk_root=tmp_dir),
-                os.path.join(tmp_dir, 'images', 'workstation-product',
-                             'images'))
-
-    def test_find_image_in_sdk_searches_images_in_prebuilt(self):
-        """Test |find_image_in_sdk| searches dir if not product-bundle."""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            os.makedirs(os.path.join(tmp_dir, 'images-internal',
-                                     'chromebook-x64', 'workstation_eng'),
-                        exist_ok=True)
-            self.assertEqual(
-                compatible_utils.find_image_in_sdk(
-                    'workstation_eng.chromebook-x64',
-                    product_bundle=False,
-                    sdk_root=tmp_dir),
-                os.path.join(tmp_dir, 'images-internal', 'chromebook-x64',
-                             'workstation_eng'))
+    def trim_noop_prefixes(self, path):
+        """Helper function to trim no-op path name prefixes that are
+        introduced by os.path.realpath on some platforms. These break
+        the unit tests, but have no actual effect on behavior."""
+        # These must all end in the path separator character for the
+        # string length computation to be correct on all platforms.
+        noop_prefixes = ['/private/']
+        for prefix in noop_prefixes:
+            if path.startswith(prefix):
+                return path[len(prefix) - 1:]
+        return path
 
     def test_install_symbols(self):
+
         """Test |install_symbols|."""
 
         with tempfile.TemporaryDirectory() as fuchsia_out_dir:
@@ -277,8 +218,9 @@ universe_package_labels += []
                     f.write(f'{build_id} {binary_relpath}')
                 compatible_utils.install_symbols([id_path], fuchsia_out_dir)
                 self.assertTrue(os.path.islink(symbol_file))
-                self.assertEqual(os.path.realpath(symbol_file),
-                                 os.path.join(fuchsia_out_dir, binary_relpath))
+                self.assertEqual(
+                    self.trim_noop_prefixes(os.path.realpath(symbol_file)),
+                    os.path.join(fuchsia_out_dir, binary_relpath))
 
                 new_binary_relpath = 'path/to/new/binary'
                 with open(id_path, 'w') as f:
@@ -286,7 +228,7 @@ universe_package_labels += []
                 compatible_utils.install_symbols([id_path], fuchsia_out_dir)
                 self.assertTrue(os.path.islink(symbol_file))
                 self.assertEqual(
-                    os.path.realpath(symbol_file),
+                    self.trim_noop_prefixes(os.path.realpath(symbol_file)),
                     os.path.join(fuchsia_out_dir, new_binary_relpath))
             finally:
                 os.remove(id_path)
