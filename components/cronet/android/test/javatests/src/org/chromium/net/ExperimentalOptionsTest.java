@@ -44,6 +44,7 @@ import org.junit.runner.RunWith;
 import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import android.net.http.DnsOptions.StaleDnsOptions;
@@ -67,13 +68,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 
-/**
- * Tests for experimental options.
- */
+/** Tests for experimental options. */
 @RunWith(AndroidJUnit4.class)
 @JNINamespace("cronet")
 @OptIn(markerClass = {ConnectionMigrationOptions.Experimental.class, DnsOptions.Experimental.class,
-        QuicOptions.Experimental.class, QuicOptions.QuichePassthroughOption.class})
+               QuicOptions.Experimental.class, QuicOptions.QuichePassthroughOption.class})
 public class ExperimentalOptionsTest {
     private static final String EXPECTED_CONNECTION_MIGRATION_ENABLED_STRING =
             "{\"QUIC\":{\"migrate_sessions_on_network_change_v2\":true}}";
@@ -131,6 +130,29 @@ public class ExperimentalOptionsTest {
         assertFileContainsString(logfile, "HostResolverRules");
         assertTrue(logfile.delete());
         assertFalse(logfile.exists());
+        cronetEngine.shutdown();
+    }
+
+    @Test
+    @MediumTest
+    @OnlyRunNativeCronet
+    public void testEnableTelemetryTrue() throws Exception {
+        JSONObject experimentalOptions = new JSONObject().put("enable_telemetry", true);
+        mBuilder.setExperimentalOptions(experimentalOptions.toString());
+
+        HttpEngine cronetEngine = mBuilder.build();
+        CronetUrlRequestContext context = (CronetUrlRequestContext) mBuilder.build();
+        assertTrue(context.getEnableTelemetryForTesting());
+        cronetEngine.shutdown();
+    }
+
+    @Test
+    @MediumTest
+    @OnlyRunNativeCronet
+    public void testEnableTelemetryDefault() throws Exception {
+        HttpEngine cronetEngine = mBuilder.build();
+        CronetUrlRequestContext context = (CronetUrlRequestContext) mBuilder.build();
+        assertFalse(context.getEnableTelemetryForTesting());
         cronetEngine.shutdown();
     }
 
@@ -232,7 +254,8 @@ public class ExperimentalOptionsTest {
         CronetUrlRequestContext context = (CronetUrlRequestContext) mBuilder.build();
 
         // Create a HostCache entry for "host-cache-test-host".
-        nativeWriteToHostCache(context.getUrlRequestContextAdapter(), realHost);
+        ExperimentalOptionsTestJni.get().writeToHostCache(
+                context.getUrlRequestContextAdapter(), realHost);
 
         // Do a request for the test URL to make sure it's cached.
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
@@ -482,7 +505,7 @@ public class ExperimentalOptionsTest {
         } catch (IllegalArgumentException expected) {
             assertTrue(expected.getMessage().contains(
                     "Unable to turn on non-default network usage without path degradation"
-                            + " migration"));
+                    + " migration"));
         }
     }
 
@@ -673,7 +696,7 @@ public class ExperimentalOptionsTest {
             result *= 10;
             for (Map.Entry<String, Integer> mapping : charMap.entrySet()) {
                 if (mapping.getKey().contains(
-                        string.substring(i, i + 1).toLowerCase(Locale.ROOT))) {
+                            string.substring(i, i + 1).toLowerCase(Locale.ROOT))) {
                     result += mapping.getValue();
                     break;
                 }
@@ -830,9 +853,14 @@ public class ExperimentalOptionsTest {
         }
     }
 
-    // Sets a host cache entry with hostname "host-cache-test-host" and an AddressList containing
-    // the provided address.
-    private static native void nativeWriteToHostCache(long adapter, String address);
-    // Whether Cronet engine creation can fail due to failure during experimental options parsing.
-    private static native boolean nativeExperimentalOptionsParsingIsAllowedToFail();
+    @NativeMethods("cronet_tests")
+    interface Natives {
+        // Sets a host cache entry with hostname "host-cache-test-host" and an AddressList
+        // containing the provided address.
+        void writeToHostCache(long adapter, String address);
+
+        // Whether Cronet engine creation can fail due to failure during experimental options
+        // parsing.
+        boolean experimentalOptionsParsingIsAllowedToFail();
+    }
 }

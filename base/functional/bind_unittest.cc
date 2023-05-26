@@ -12,8 +12,8 @@
 #include "base/allocator/partition_alloc_features.h"
 #include "base/allocator/partition_alloc_support.h"
 #include "base/allocator/partition_allocator/dangling_raw_ptr_checks.h"
-#include "base/allocator/partition_allocator/partition_alloc.h"
 #include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
+#include "base/allocator/partition_allocator/partition_alloc_for_testing.h"  // nogncheck
 #include "base/functional/callback.h"
 #include "base/functional/disallow_unretained.h"
 #include "base/memory/ptr_util.h"
@@ -1778,6 +1778,44 @@ TEST_F(BindTest, BindAndCallbacks) {
   EXPECT_EQ(123, res);
 }
 
+}  // namespace
+
+// This simulates a race weak pointer that, unlike our `base::WeakPtr<>`,
+// may become invalidated between `operator bool()` is tested and `Lock()`
+// is called in the implementation of `Unwrap()`.
+template <typename T>
+struct MockRacyWeakPtr {
+  explicit MockRacyWeakPtr(T*) {}
+  T* Lock() const { return nullptr; }
+
+  explicit operator bool() const { return true; }
+};
+
+template <typename T>
+struct IsWeakReceiver<MockRacyWeakPtr<T>> : std::true_type {};
+
+template <typename T>
+struct BindUnwrapTraits<MockRacyWeakPtr<T>> {
+  static T* Unwrap(const MockRacyWeakPtr<T>& o) { return o.Lock(); }
+};
+
+template <typename T>
+struct MaybeValidTraits<MockRacyWeakPtr<T>> {
+  static bool MaybeValid(const MockRacyWeakPtr<T>& o) { return true; }
+};
+
+namespace {
+
+// Note this only covers a case of racy weak pointer invalidation. Other
+// weak pointer scenarios (such as a valid pointer) are covered
+// in BindTest.WeakPtrFor{Once,Repeating}.
+TEST_F(BindTest, BindRacyWeakPtrTest) {
+  MockRacyWeakPtr<NoRef> weak(&no_ref_);
+
+  RepeatingClosure cb = base::BindRepeating(&NoRef::VoidMethod0, weak);
+  cb.Run();
+}
+
 // Test null callbacks cause a DCHECK.
 TEST(BindDeathTest, NullCallback) {
   base::RepeatingCallback<void(int)> null_cb;
@@ -1819,53 +1857,53 @@ void HandleOOM(size_t unused_size) {
 // Basic set of options to mostly only enable `BackupRefPtr::kEnabled`.
 // This avoids the boilerplate of having too much options enabled for simple
 // testing purpose.
-static constexpr partition_alloc::PartitionOptions kOpts = {
-    partition_alloc::PartitionOptions::AlignedAlloc::kDisallowed,
-    partition_alloc::PartitionOptions::ThreadCache::kDisabled,
-    partition_alloc::PartitionOptions::Quarantine::kDisallowed,
-    partition_alloc::PartitionOptions::Cookie::kAllowed,
-    partition_alloc::PartitionOptions::BackupRefPtr::kEnabled,
-    partition_alloc::PartitionOptions::BackupRefPtrZapping::kEnabled,
-    partition_alloc::PartitionOptions::UseConfigurablePool::kNo,
+static constexpr partition_alloc::PartitionOptions
+    kOnlyEnableBackupRefPtrOptions = {
+        partition_alloc::PartitionOptions::AlignedAlloc::kDisallowed,
+        partition_alloc::PartitionOptions::ThreadCache::kDisabled,
+        partition_alloc::PartitionOptions::Quarantine::kDisallowed,
+        partition_alloc::PartitionOptions::Cookie::kAllowed,
+        partition_alloc::PartitionOptions::BackupRefPtr::kEnabled,
+        partition_alloc::PartitionOptions::BackupRefPtrZapping::kEnabled,
+        partition_alloc::PartitionOptions::UseConfigurablePool::kNo,
 };
 
 class BindUnretainedDanglingInternalFixture : public BindTest {
  public:
   void SetUp() override {
     partition_alloc::PartitionAllocGlobalInit(HandleOOM);
-    allocator_.init(kOpts);
     enabled_feature_list_.InitWithFeaturesAndParameters(
         {{features::kPartitionAllocUnretainedDanglingPtr, {{"mode", "crash"}}}},
         {/* disabled_features */});
     allocator::InstallUnretainedDanglingRawPtrChecks();
   }
+
   void TearDown() override {
     enabled_feature_list_.Reset();
     allocator::InstallUnretainedDanglingRawPtrChecks();
-    allocator_.root()->PurgeMemory(
-        partition_alloc::PurgeFlags::kDecommitEmptySlotSpans |
-        partition_alloc::PurgeFlags::kDiscardUnusedSystemPages);
-    partition_alloc::PartitionAllocGlobalUninitForTesting();
   }
 
   // In unit tests, allocations being tested need to live in a separate PA
   // root so the test code doesn't interfere with various counters. Following
   // methods are helpers for managing allocations inside the separate allocator
   // root.
-  template <typename T, typename... Args>
-  raw_ptr<T> Alloc(Args&&... args) {
+  template <typename T,
+            RawPtrTraits Traits = RawPtrTraits::kEmpty,
+            typename... Args>
+  raw_ptr<T, Traits> Alloc(Args&&... args) {
     void* ptr = allocator_.root()->Alloc(sizeof(T), "");
     T* p = new (reinterpret_cast<T*>(ptr)) T(std::forward<Args>(args)...);
-    return raw_ptr<T>(p);
+    return raw_ptr<T, Traits>(p);
   }
-  template <typename T>
-  void Free(raw_ptr<T>& ptr) {
+  template <typename T, RawPtrTraits Traits>
+  void Free(raw_ptr<T, Traits>& ptr) {
     allocator_.root()->Free(ptr);
   }
 
  private:
   test::ScopedFeatureList enabled_feature_list_;
-  partition_alloc::PartitionAllocator allocator_;
+  partition_alloc::PartitionAllocatorForTesting allocator_{
+      kOnlyEnableBackupRefPtrOptions};
 };
 
 class BindUnretainedDanglingTest
@@ -1879,6 +1917,15 @@ bool PtrCheckFn(int* p) {
 
 bool RefCheckFn(const int& p) {
   return true;
+}
+
+bool MayBeDanglingCheckFn(MayBeDangling<int> p) {
+  return p != nullptr;
+}
+
+bool MayBeDanglingAndDummyTraitCheckFn(
+    MayBeDangling<int, RawPtrTraits::kDummyForTest> p) {
+  return p != nullptr;
 }
 
 class ClassWithWeakPtr {
@@ -1901,9 +1948,38 @@ TEST_F(BindUnretainedDanglingTest, UnretainedNoDanglingPtr) {
 
 TEST_F(BindUnretainedDanglingTest, UnsafeDanglingPtr) {
   raw_ptr<int> p = Alloc<int>(3);
-  auto callback = base::BindOnce(PtrCheckFn, base::UnsafeDangling(p));
+  auto callback = base::BindOnce(MayBeDanglingCheckFn, base::UnsafeDangling(p));
   Free(p);
   EXPECT_EQ(std::move(callback).Run(), true);
+}
+
+TEST_F(BindUnretainedDanglingTest, UnsafeDanglingPtrWithDummyTrait) {
+  raw_ptr<int, RawPtrTraits::kDummyForTest> p =
+      Alloc<int, RawPtrTraits::kDummyForTest>(3);
+  auto callback = base::BindOnce(MayBeDanglingAndDummyTraitCheckFn,
+                                 base::UnsafeDangling(p));
+  Free(p);
+  EXPECT_EQ(std::move(callback).Run(), true);
+}
+
+TEST_F(BindUnretainedDanglingTest,
+       UnsafeDanglingPtrWithDummyAndDanglingTraits) {
+  raw_ptr<int, RawPtrTraits::kDummyForTest | RawPtrTraits::kMayDangle> p =
+      Alloc<int, RawPtrTraits::kDummyForTest | RawPtrTraits::kMayDangle>(3);
+  auto callback = base::BindOnce(MayBeDanglingAndDummyTraitCheckFn,
+                                 base::UnsafeDangling(p));
+  Free(p);
+  EXPECT_EQ(std::move(callback).Run(), true);
+}
+
+TEST_F(BindUnretainedDanglingTest, UnsafeDanglingPtrNoRawPtrReceiver) {
+  std::unique_ptr<ClassWithWeakPtr> r = std::make_unique<ClassWithWeakPtr>();
+  int val = 0;
+  auto callback =
+      base::BindOnce(&ClassWithWeakPtr::RawPtrArg,
+                     base::UnsafeDangling(r.get()), base::Unretained(&val));
+  std::move(callback).Run();
+  EXPECT_EQ(val, 123);
 }
 
 TEST_F(BindUnretainedDanglingTest, UnsafeDanglingUntriagedPtr) {

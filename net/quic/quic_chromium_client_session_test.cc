@@ -5,8 +5,8 @@
 #include "net/quic/quic_chromium_client_session.h"
 
 #include "base/base64.h"
-#include "base/bind.h"
 #include "base/files/file_path.h"
+#include "base/functional/bind.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/run_loop.h"
@@ -20,6 +20,7 @@
 #include "net/base/schemeful_site.h"
 #include "net/base/test_completion_callback.h"
 #include "net/cert/cert_verify_result.h"
+#include "net/dns/public/host_resolver_results.h"
 #include "net/dns/public/secure_dns_policy.h"
 #include "net/http/transport_security_state.h"
 #include "net/http/transport_security_state_test_util.h"
@@ -35,6 +36,7 @@
 #include "net/quic/quic_chromium_packet_reader.h"
 #include "net/quic/quic_chromium_packet_writer.h"
 #include "net/quic/quic_connectivity_monitor.h"
+#include "net/quic/quic_context.h"
 #include "net/quic/quic_crypto_client_config_handle.h"
 #include "net/quic/quic_crypto_client_stream_factory.h"
 #include "net/quic/quic_http_utils.h"
@@ -45,6 +47,7 @@
 #include "net/socket/datagram_client_socket.h"
 #include "net/socket/socket_test_util.h"
 #include "net/spdy/spdy_test_util_common.h"
+#include "net/ssl/ssl_config_service_defaults.h"
 #include "net/test/cert_test_util.h"
 #include "net/test/gtest_util.h"
 #include "net/test/test_data_directory.h"
@@ -89,30 +92,6 @@ const size_t kMaxReadersPerQuicSession = 5;
 const handles::NetworkHandle kDefaultNetworkForTests = 1;
 const handles::NetworkHandle kNewNetworkForTests = 2;
 
-struct TestParams {
-  quic::ParsedQuicVersion version;
-  bool client_headers_include_h2_stream_dependency;
-};
-
-// Used by ::testing::PrintToStringParamName().
-std::string PrintToString(const TestParams& p) {
-  return base::StrCat(
-      {ParsedQuicVersionToString(p.version), "_",
-       (p.client_headers_include_h2_stream_dependency ? "" : "No"),
-       "Dependency"});
-}
-
-std::vector<TestParams> GetTestParams() {
-  std::vector<TestParams> params;
-  quic::ParsedQuicVersionVector all_supported_versions =
-      quic::AllSupportedVersions();
-  for (const auto& version : all_supported_versions) {
-    params.push_back(TestParams{version, false});
-    params.push_back(TestParams{version, true});
-  }
-  return params;
-}
-
 // A subclass of QuicChromiumClientSession that allows OnPathDegrading to be
 // mocked.
 class TestingQuicChromiumClientSession : public QuicChromiumClientSession {
@@ -125,20 +104,18 @@ class TestingQuicChromiumClientSession : public QuicChromiumClientSession {
 };
 
 class QuicChromiumClientSessionTest
-    : public ::testing::TestWithParam<TestParams>,
+    : public ::testing::TestWithParam<quic::ParsedQuicVersion>,
       public WithTaskEnvironment {
  public:
   QuicChromiumClientSessionTest()
-      : version_(GetParam().version),
-        client_headers_include_h2_stream_dependency_(
-            GetParam().client_headers_include_h2_stream_dependency),
+      : version_(GetParam()),
         config_(quic::test::DefaultQuicConfig()),
         crypto_config_(
             quic::test::crypto_test_utils::ProofVerifierForTesting()),
         default_read_(
             std::make_unique<MockRead>(SYNCHRONOUS, ERR_IO_PENDING, 0)),
         socket_data_(std::make_unique<SequencedSocketData>(
-            base::make_span(default_read_.get(), 1),
+            base::make_span(default_read_.get(), 1u),
             base::span<MockWrite>())),
         helper_(&clock_, &random_),
         transport_security_state_(std::make_unique<TransportSecurityState>()),
@@ -155,8 +132,7 @@ class QuicChromiumClientSessionTest
                       quic::QuicUtils::CreateRandomConnectionId(&random_),
                       &clock_,
                       kServerHostname,
-                      quic::Perspective::IS_CLIENT,
-                      client_headers_include_h2_stream_dependency_),
+                      quic::Perspective::IS_CLIENT),
         server_maker_(version_,
                       quic::QuicUtils::CreateRandomConnectionId(&random_),
                       &clock_,
@@ -194,7 +170,7 @@ class QuicChromiumClientSessionTest
     session_ = std::make_unique<TestingQuicChromiumClientSession>(
         connection, std::move(socket),
         /*stream_factory=*/nullptr, &crypto_client_stream_factory_, &clock_,
-        transport_security_state_.get(), /*ssl_config_service=*/nullptr,
+        transport_security_state_.get(), &ssl_config_service_,
         base::WrapUnique(static_cast<QuicServerInfo*>(nullptr)), session_key_,
         /*require_confirmation=*/false, migrate_session_early_v2_,
         /*migrate_session_on_network_change_v2=*/false, default_network_,
@@ -207,14 +183,14 @@ class QuicChromiumClientSessionTest
         kQuicYieldAfterPacketsRead,
         quic::QuicTime::Delta::FromMilliseconds(
             kQuicYieldAfterDurationMilliseconds),
-        client_headers_include_h2_stream_dependency_,
         /*cert_verify_flags=*/0, config_,
         std::make_unique<TestQuicCryptoClientConfigHandle>(&crypto_config_),
         "CONNECTION_UNKNOWN", base::TimeTicks::Now(), base::TimeTicks::Now(),
         std::make_unique<quic::QuicClientPushPromiseIndex>(),
         &test_push_delegate_, base::DefaultTickClock::GetInstance(),
         base::SingleThreadTaskRunner::GetCurrentDefault().get(),
-        /*socket_performance_watcher=*/nullptr, NetLog::Get());
+        /*socket_performance_watcher=*/nullptr, HostResolverEndpointResult(),
+        NetLog::Get());
     if (connectivity_monitor_) {
       connectivity_monitor_->SetInitialDefaultNetwork(default_network_);
       session_->AddConnectivityObserver(connectivity_monitor_.get());
@@ -226,10 +202,8 @@ class QuicChromiumClientSessionTest
     verify_details_.cert_verify_result.is_issued_by_known_root = true;
     session_->Initialize();
     // Blackhole QPACK decoder stream instead of constructing mock writes.
-    if (VersionUsesHttp3(version_.transport_version)) {
-      session_->qpack_decoder()->set_qpack_stream_sender_delegate(
-          &noop_qpack_stream_sender_delegate_);
-    }
+    session_->qpack_decoder()->set_qpack_stream_sender_delegate(
+        &noop_qpack_stream_sender_delegate_);
     session_->StartReading();
     writer->set_delegate(session_.get());
   }
@@ -273,21 +247,11 @@ class QuicChromiumClientSessionTest
   }
 
   size_t GetMaxAllowedOutgoingBidirectionalStreams() {
-    quic::QuicSession* quic_session =
-        static_cast<quic::QuicSession*>(&*session_);
-    if (!version_.HasIetfQuicFrames()) {
-      return quic::test::QuicSessionPeer::GetStreamIdManager(quic_session)
-          ->max_open_outgoing_streams();
-    }
-    // For version99, the count will include both static and dynamic streams.
-    // These tests are only concerned with dynamic streams (that is, the number
-    // of streams that they can create), so back out the static header stream.
-    return quic::test::QuicSessionPeer::ietf_streamid_manager(quic_session)
+    return quic::test::QuicSessionPeer::ietf_streamid_manager(session_.get())
         ->max_outgoing_bidirectional_streams();
   }
 
   const quic::ParsedQuicVersion version_;
-  const bool client_headers_include_h2_stream_dependency_;
   quic::test::QuicFlagSaver flags_;  // Save/restore all QUIC flag values.
   quic::QuicConfig config_;
   quic::QuicCryptoClientConfig crypto_config_;
@@ -302,6 +266,7 @@ class QuicChromiumClientSessionTest
   quic::test::MockAlarmFactory alarm_factory_;
   std::unique_ptr<TransportSecurityState> transport_security_state_;
   MockCryptoClientStreamFactory crypto_client_stream_factory_;
+  SSLConfigServiceDefaults ssl_config_service_;
   QuicSessionKey session_key_;
   url::SchemeHostPort destination_;
   std::unique_ptr<TestingQuicChromiumClientSession> session_;
@@ -321,7 +286,7 @@ class QuicChromiumClientSessionTest
 
 INSTANTIATE_TEST_SUITE_P(VersionIncludeStreamDependencySequence,
                          QuicChromiumClientSessionTest,
-                         ::testing::ValuesIn(GetTestParams()),
+                         ::testing::ValuesIn(AllSupportedQuicVersions()),
                          ::testing::PrintToStringParamName());
 
 // Basic test of ProofVerifyDetailsChromium is converted to SSLInfo retrieved
@@ -329,8 +294,7 @@ INSTANTIATE_TEST_SUITE_P(VersionIncludeStreamDependencySequence,
 // more complicated fields.
 TEST_P(QuicChromiumClientSessionTest, GetSSLInfo1) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -365,8 +329,7 @@ TEST_P(QuicChromiumClientSessionTest, GetSSLInfo1) {
 // Just like GetSSLInfo1, but uses different values.
 TEST_P(QuicChromiumClientSessionTest, GetSSLInfo2) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -400,8 +363,7 @@ TEST_P(QuicChromiumClientSessionTest, GetSSLInfo2) {
 
 TEST_P(QuicChromiumClientSessionTest, IsFatalErrorNotSetForNonFatalError) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -423,8 +385,7 @@ TEST_P(QuicChromiumClientSessionTest, IsFatalErrorNotSetForNonFatalError) {
 
 TEST_P(QuicChromiumClientSessionTest, IsFatalErrorSetForFatalError) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -444,8 +405,7 @@ TEST_P(QuicChromiumClientSessionTest, IsFatalErrorSetForFatalError) {
 
 TEST_P(QuicChromiumClientSessionTest, CryptoConnect) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -455,8 +415,7 @@ TEST_P(QuicChromiumClientSessionTest, CryptoConnect) {
 
 TEST_P(QuicChromiumClientSessionTest, Handle) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -538,8 +497,7 @@ TEST_P(QuicChromiumClientSessionTest, Handle) {
 
 TEST_P(QuicChromiumClientSessionTest, StreamRequest) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -563,8 +521,7 @@ TEST_P(QuicChromiumClientSessionTest, StreamRequest) {
 
 TEST_P(QuicChromiumClientSessionTest, ConfirmationRequiredStreamRequest) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -588,8 +545,7 @@ TEST_P(QuicChromiumClientSessionTest, ConfirmationRequiredStreamRequest) {
 
 TEST_P(QuicChromiumClientSessionTest, StreamRequestBeforeConfirmation) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -619,10 +575,8 @@ TEST_P(QuicChromiumClientSessionTest, StreamRequestBeforeConfirmation) {
 TEST_P(QuicChromiumClientSessionTest, CancelStreamRequestBeforeRelease) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(SYNCHRONOUS,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  }
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(
       SYNCHRONOUS,
       client_maker_.MakeRstPacket(packet_num++, true,
@@ -652,49 +606,36 @@ TEST_P(QuicChromiumClientSessionTest, CancelStreamRequestBeforeRelease) {
 TEST_P(QuicChromiumClientSessionTest, AsyncStreamRequest) {
   MockQuicData quic_data(version_);
   uint64_t packet_num = 1;
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-    // The open stream limit is set to 50 by
-    // MockCryptoClientStream::SetConfigNegotiated() so when the 51st stream is
-    // requested, a STREAMS_BLOCKED will be sent, indicating that it's blocked
-    // at the limit of 50.
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        packet_num++, true, 50,
-                                        /*unidirectional=*/false));
-    // Similarly, requesting the 52nd stream will also send a STREAMS_BLOCKED.
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        packet_num++, true, 50,
-                                        /*unidirectional=*/false));
-    quic_data.AddWrite(
-        SYNCHRONOUS,
-        client_maker_.MakeRstPacket(
-            packet_num++, true, GetNthClientInitiatedBidirectionalStreamId(0),
-            quic::QUIC_STREAM_CANCELLED,
-            /*include_stop_sending_if_v99=*/false));
-    quic_data.AddWrite(
-        SYNCHRONOUS,
-        client_maker_.MakeRstPacket(
-            packet_num++, true, GetNthClientInitiatedBidirectionalStreamId(1),
-            quic::QUIC_STREAM_CANCELLED,
-            /*include_stop_sending_if_v99=*/false));
-    // After the STREAMS_BLOCKED is sent, receive a MAX_STREAMS to increase
-    // the limit to 100.
-    quic_data.AddRead(
-        ASYNC, server_maker_.MakeMaxStreamsPacket(1, true, 100,
-                                                  /*unidirectional=*/false));
-  } else {
-    quic_data.AddWrite(
-        SYNCHRONOUS,
-        client_maker_.MakeRstPacket(
-            packet_num++, true, GetNthClientInitiatedBidirectionalStreamId(0),
-            quic::QUIC_RST_ACKNOWLEDGEMENT));
-    quic_data.AddWrite(
-        SYNCHRONOUS,
-        client_maker_.MakeRstPacket(
-            packet_num++, true, GetNthClientInitiatedBidirectionalStreamId(1),
-            quic::QUIC_RST_ACKNOWLEDGEMENT));
-  }
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
+  // The open stream limit is set to 50 by
+  // MockCryptoClientStream::SetConfigNegotiated() so when the 51st stream is
+  // requested, a STREAMS_BLOCKED will be sent, indicating that it's blocked
+  // at the limit of 50.
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      packet_num++, true, 50,
+                                      /*unidirectional=*/false));
+  // Similarly, requesting the 52nd stream will also send a STREAMS_BLOCKED.
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      packet_num++, true, 50,
+                                      /*unidirectional=*/false));
+  quic_data.AddWrite(
+      SYNCHRONOUS,
+      client_maker_.MakeRstPacket(packet_num++, true,
+                                  GetNthClientInitiatedBidirectionalStreamId(0),
+                                  quic::QUIC_STREAM_CANCELLED,
+                                  /*include_stop_sending_if_v99=*/false));
+  quic_data.AddWrite(
+      SYNCHRONOUS,
+      client_maker_.MakeRstPacket(packet_num++, true,
+                                  GetNthClientInitiatedBidirectionalStreamId(1),
+                                  quic::QUIC_STREAM_CANCELLED,
+                                  /*include_stop_sending_if_v99=*/false));
+  // After the STREAMS_BLOCKED is sent, receive a MAX_STREAMS to increase
+  // the limit to 100.
+  quic_data.AddRead(
+      ASYNC, server_maker_.MakeMaxStreamsPacket(1, true, 100,
+                                                /*unidirectional=*/false));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -735,32 +676,21 @@ TEST_P(QuicChromiumClientSessionTest, AsyncStreamRequest) {
                                 GetNthClientInitiatedBidirectionalStreamId(1),
                                 quic::QUIC_STREAM_CANCELLED, 0);
   session_->OnRstStream(rst2);
-  if (version_.HasIetfQuicFrames()) {
-    // In IETF QUIC, to close the streams completely, we need to also receive
-    // STOP_SENDING frames.
-    quic::QuicStopSendingFrame stop_sending(
-        quic::kInvalidControlFrameId,
-        GetNthClientInitiatedBidirectionalStreamId(0),
-        quic::QUIC_STREAM_CANCELLED);
-    session_->OnStopSendingFrame(stop_sending);
-    quic::QuicStopSendingFrame stop_sending2(
-        quic::kInvalidControlFrameId,
-        GetNthClientInitiatedBidirectionalStreamId(1),
-        quic::QUIC_STREAM_CANCELLED);
-    session_->OnStopSendingFrame(stop_sending2);
-  }
+  // To close the streams completely, we need to also receive STOP_SENDING
+  // frames.
+  quic::QuicStopSendingFrame stop_sending(
+      quic::kInvalidControlFrameId,
+      GetNthClientInitiatedBidirectionalStreamId(0),
+      quic::QUIC_STREAM_CANCELLED);
+  session_->OnStopSendingFrame(stop_sending);
+  quic::QuicStopSendingFrame stop_sending2(
+      quic::kInvalidControlFrameId,
+      GetNthClientInitiatedBidirectionalStreamId(1),
+      quic::QUIC_STREAM_CANCELLED);
+  session_->OnStopSendingFrame(stop_sending2);
 
-  if (!version_.HasIetfQuicFrames()) {
-    // In Google QUIC, closing the streams is enough to unblock opening the next
-    // ones.
-    EXPECT_TRUE(callback.have_result());
-    EXPECT_TRUE(callback2.have_result());
-  } else {
-    // In IETF QUIC, we need to receive a MAX_STREAMS frame to unblock opening
-    // the next streams, and that hasn't been received yet.
-    EXPECT_FALSE(callback.have_result());
-    EXPECT_FALSE(callback2.have_result());
-  }
+  EXPECT_FALSE(callback.have_result());
+  EXPECT_FALSE(callback2.have_result());
 
   // Pump the message loop to read the packet containing the MAX_STREAMS frame.
   base::RunLoop().RunUntilIdle();
@@ -783,19 +713,17 @@ TEST_P(QuicChromiumClientSessionTest, AsyncStreamRequest) {
 // to read the last packet, reading that packet should not crash.
 TEST_P(QuicChromiumClientSessionTest, ReadAfterConnectionClose) {
   MockQuicData quic_data(version_);
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
-    // The open stream limit is set to 50 by
-    // MockCryptoClientStream::SetConfigNegotiated() so when the 51st stream is
-    // requested, a STREAMS_BLOCKED will be sent, indicating that it's blocked
-    // at the limit of 50.
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        2, true, 50,
-                                        /*unidirectional=*/false));
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        3, true, 50,
-                                        /*unidirectional=*/false));
-  }
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  // The open stream limit is set to 50 by
+  // MockCryptoClientStream::SetConfigNegotiated() so when the 51st stream is
+  // requested, a STREAMS_BLOCKED will be sent, indicating that it's blocked
+  // at the limit of 50.
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      2, true, 50,
+                                      /*unidirectional=*/false));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      3, true, 50,
+                                      /*unidirectional=*/false));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   // This packet will be read after connection is closed.
   quic_data.AddRead(
@@ -850,19 +778,17 @@ TEST_P(QuicChromiumClientSessionTest, ReadAfterConnectionClose) {
 
 TEST_P(QuicChromiumClientSessionTest, ClosedWithAsyncStreamRequest) {
   MockQuicData quic_data(version_);
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
-    // The open stream limit is set to 50 by
-    // MockCryptoClientStream::SetConfigNegotiated() so when the 51st stream is
-    // requested, a STREAMS_BLOCKED will be sent, indicating that it's blocked
-    // at the limit of 50.
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        2, true, 50,
-                                        /*unidirectional=*/false));
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        3, true, 50,
-                                        /*unidirectional=*/false));
-  }
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  // The open stream limit is set to 50 by
+  // MockCryptoClientStream::SetConfigNegotiated() so when the 51st stream is
+  // requested, a STREAMS_BLOCKED will be sent, indicating that it's blocked
+  // at the limit of 50.
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      2, true, 50,
+                                      /*unidirectional=*/false));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      3, true, 50,
+                                      /*unidirectional=*/false));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -913,27 +839,20 @@ TEST_P(QuicChromiumClientSessionTest, ClosedWithAsyncStreamRequest) {
 
 TEST_P(QuicChromiumClientSessionTest, CancelPendingStreamRequest) {
   MockQuicData quic_data(version_);
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
-    // The open stream limit is set to 50 by
-    // MockCryptoClientStream::SetConfigNegotiated() so when the 51st stream is
-    // requested, a STREAMS_BLOCKED will be sent.
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        2, true, 50,
-                                        /*unidirectional=*/false));
-    // This node receives the RST_STREAM+STOP_SENDING, it responds
-    // with only a RST_STREAM.
-    quic_data.AddWrite(
-        SYNCHRONOUS, client_maker_.MakeRstPacket(
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  // The open stream limit is set to 50 by
+  // MockCryptoClientStream::SetConfigNegotiated() so when the 51st stream is
+  // requested, a STREAMS_BLOCKED will be sent.
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      2, true, 50,
+                                      /*unidirectional=*/false));
+  // This node receives the RST_STREAM+STOP_SENDING, it responds
+  // with only a RST_STREAM.
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeRstPacket(
                          3, true, GetNthClientInitiatedBidirectionalStreamId(0),
                          quic::QUIC_STREAM_CANCELLED,
                          /*include_stop_sending_if_v99=*/false));
-  } else {
-    quic_data.AddWrite(
-        SYNCHRONOUS, client_maker_.MakeRstPacket(
-                         1, true, GetNthClientInitiatedBidirectionalStreamId(0),
-                         quic::QUIC_RST_ACKNOWLEDGEMENT));
-  }
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -966,15 +885,13 @@ TEST_P(QuicChromiumClientSessionTest, CancelPendingStreamRequest) {
                                GetNthClientInitiatedBidirectionalStreamId(0),
                                quic::QUIC_STREAM_CANCELLED, 0);
   session_->OnRstStream(rst);
-  if (version_.HasIetfQuicFrames()) {
-    // For version99, we require a STOP_SENDING as well as a RESET_STREAM to
-    // fully close the stream.
-    quic::QuicStopSendingFrame stop_sending(
-        quic::kInvalidControlFrameId,
-        GetNthClientInitiatedBidirectionalStreamId(0),
-        quic::QUIC_STREAM_CANCELLED);
-    session_->OnStopSendingFrame(stop_sending);
-  }
+  // We require a STOP_SENDING as well as a RESET_STREAM to fully close the
+  // stream.
+  quic::QuicStopSendingFrame stop_sending(
+      quic::kInvalidControlFrameId,
+      GetNthClientInitiatedBidirectionalStreamId(0),
+      quic::QUIC_STREAM_CANCELLED);
+  session_->OnStopSendingFrame(stop_sending);
   EXPECT_EQ(kMaxOpenStreams - 1, session_->GetNumActiveStreams());
 
   quic_data.Resume();
@@ -985,10 +902,8 @@ TEST_P(QuicChromiumClientSessionTest, CancelPendingStreamRequest) {
 TEST_P(QuicChromiumClientSessionTest, ConnectionCloseBeforeStreamRequest) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(SYNCHRONOUS,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  }
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(SYNCHRONOUS,
                      client_maker_.MakePingPacket(packet_num++, true));
   quic_data.AddRead(
@@ -1063,17 +978,13 @@ TEST_P(QuicChromiumClientSessionTest, ConnectionCloseBeforeHandshakeConfirmed) {
 TEST_P(QuicChromiumClientSessionTest, ConnectionCloseWithPendingStreamRequest) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  }
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(SYNCHRONOUS,
                      client_maker_.MakePingPacket(packet_num++, true));
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        packet_num++, true, 50,
-                                        /*unidirectional=*/false));
-  }
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      packet_num++, true, 50,
+                                      /*unidirectional=*/false));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(
       ASYNC,
@@ -1117,32 +1028,25 @@ TEST_P(QuicChromiumClientSessionTest, ConnectionCloseWithPendingStreamRequest) {
 
 TEST_P(QuicChromiumClientSessionTest, MaxNumStreams) {
   MockQuicData quic_data(version_);
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
-    // Initial configuration is 50 dynamic streams. Taking into account
-    // the static stream (headers), expect to block on when hitting the limit
-    // of 50 streams
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        2, true, 50,
-                                        /*unidirectional=*/false));
-    quic_data.AddWrite(
-        SYNCHRONOUS, client_maker_.MakeRstPacket(
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  // Initial configuration is 50 dynamic streams. Taking into account
+  // the static stream (headers), expect to block on when hitting the limit
+  // of 50 streams
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      2, true, 50,
+                                      /*unidirectional=*/false));
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeRstPacket(
                          3, true, GetNthClientInitiatedBidirectionalStreamId(0),
                          quic::QUIC_RST_ACKNOWLEDGEMENT));
-    // For the second CreateOutgoingStream that fails because of hitting the
-    // stream count limit.
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        4, true, 50,
-                                        /*unidirectional=*/false));
-    quic_data.AddRead(
-        ASYNC, server_maker_.MakeMaxStreamsPacket(1, true, 50 + 2,
-                                                  /*unidirectional=*/false));
-  } else {
-    quic_data.AddWrite(
-        SYNCHRONOUS, client_maker_.MakeRstPacket(
-                         1, true, GetNthClientInitiatedBidirectionalStreamId(0),
-                         quic::QUIC_RST_ACKNOWLEDGEMENT));
-  }
+  // For the second CreateOutgoingStream that fails because of hitting the
+  // stream count limit.
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      4, true, 50,
+                                      /*unidirectional=*/false));
+  quic_data.AddRead(
+      ASYNC, server_maker_.MakeMaxStreamsPacket(1, true, 50 + 2,
+                                                /*unidirectional=*/false));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -1185,13 +1089,8 @@ TEST_P(QuicChromiumClientSessionTest, MaxNumStreams) {
 TEST_P(QuicChromiumClientSessionTest, PushStreamTimedOutNoResponse) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  } else if (GetParam().client_headers_include_h2_stream_dependency) {
-    quic_data.AddWrite(
-        ASYNC, client_maker_.MakePriorityPacket(packet_num++, true, 2, 0, 3));
-  }
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
                                 packet_num++, true,
                                 GetNthServerInitiatedUnidirectionalStreamId(0),
@@ -1241,13 +1140,8 @@ TEST_P(QuicChromiumClientSessionTest, PushStreamTimedOutNoResponse) {
 TEST_P(QuicChromiumClientSessionTest, PushStreamTimedOutWithResponse) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  } else if (GetParam().client_headers_include_h2_stream_dependency) {
-    quic_data.AddWrite(
-        ASYNC, client_maker_.MakePriorityPacket(packet_num++, true, 2, 0, 3));
-  }
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
                                 packet_num++, true,
                                 GetNthServerInitiatedUnidirectionalStreamId(0),
@@ -1301,15 +1195,10 @@ TEST_P(QuicChromiumClientSessionTest, PushStreamTimedOutWithResponse) {
 
 // Regression test for crbug.com/968621.
 TEST_P(QuicChromiumClientSessionTest, PendingStreamOnRst) {
-  if (!quic::VersionUsesHttp3(version_.transport_version))
-    return;
-
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  }
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
                                 packet_num++, true,
                                 GetNthServerInitiatedUnidirectionalStreamId(0),
@@ -1333,15 +1222,10 @@ TEST_P(QuicChromiumClientSessionTest, PendingStreamOnRst) {
 
 // Regression test for crbug.com/971361.
 TEST_P(QuicChromiumClientSessionTest, ClosePendingStream) {
-  if (!quic::VersionUsesHttp3(version_.transport_version))
-    return;
-
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  }
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
                                 packet_num++, true,
                                 GetNthServerInitiatedUnidirectionalStreamId(0),
@@ -1363,13 +1247,8 @@ TEST_P(QuicChromiumClientSessionTest, ClosePendingStream) {
 TEST_P(QuicChromiumClientSessionTest, CancelPushWhenPendingValidation) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  } else if (GetParam().client_headers_include_h2_stream_dependency) {
-    quic_data.AddWrite(
-        ASYNC, client_maker_.MakePriorityPacket(packet_num++, true, 2, 0, 3));
-  }
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
                                 packet_num++, true,
                                 GetNthClientInitiatedBidirectionalStreamId(0),
@@ -1424,13 +1303,8 @@ TEST_P(QuicChromiumClientSessionTest, CancelPushWhenPendingValidation) {
 TEST_P(QuicChromiumClientSessionTest, CancelPushBeforeReceivingResponse) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  } else if (GetParam().client_headers_include_h2_stream_dependency) {
-    quic_data.AddWrite(
-        ASYNC, client_maker_.MakePriorityPacket(packet_num++, true, 2, 0, 3));
-  }
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
                                 packet_num++, true,
                                 GetNthServerInitiatedUnidirectionalStreamId(0),
@@ -1480,13 +1354,8 @@ TEST_P(QuicChromiumClientSessionTest, CancelPushBeforeReceivingResponse) {
 TEST_P(QuicChromiumClientSessionTest, CancelPushAfterReceivingResponse) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  } else if (GetParam().client_headers_include_h2_stream_dependency) {
-    quic_data.AddWrite(
-        ASYNC, client_maker_.MakePriorityPacket(packet_num++, true, 2, 0, 3));
-  }
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
                                 packet_num++, true,
                                 GetNthServerInitiatedUnidirectionalStreamId(0),
@@ -1543,24 +1412,17 @@ TEST_P(QuicChromiumClientSessionTest, CancelPushAfterReceivingResponse) {
 
 TEST_P(QuicChromiumClientSessionTest, MaxNumStreamsViaRequest) {
   MockQuicData quic_data(version_);
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
-                                        2, true, 50,
-                                        /*unidirectional=*/false));
-    quic_data.AddWrite(
-        SYNCHRONOUS, client_maker_.MakeRstPacket(
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeStreamsBlockedPacket(
+                                      2, true, 50,
+                                      /*unidirectional=*/false));
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeRstPacket(
                          3, true, GetNthClientInitiatedBidirectionalStreamId(0),
                          quic::QUIC_RST_ACKNOWLEDGEMENT));
-    quic_data.AddRead(
-        ASYNC, server_maker_.MakeMaxStreamsPacket(1, true, 52,
-                                                  /*unidirectional=*/false));
-  } else {
-    quic_data.AddWrite(
-        SYNCHRONOUS, client_maker_.MakeRstPacket(
-                         1, true, GetNthClientInitiatedBidirectionalStreamId(0),
-                         quic::QUIC_RST_ACKNOWLEDGEMENT));
-  }
+  quic_data.AddRead(
+      ASYNC, server_maker_.MakeMaxStreamsPacket(1, true, 52,
+                                                /*unidirectional=*/false));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -1599,8 +1461,7 @@ TEST_P(QuicChromiumClientSessionTest, MaxNumStreamsViaRequest) {
 
 TEST_P(QuicChromiumClientSessionTest, GoAwayReceived) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -1609,21 +1470,14 @@ TEST_P(QuicChromiumClientSessionTest, GoAwayReceived) {
 
   // After receiving a GoAway, I should no longer be able to create outgoing
   // streams.
-  if (VersionUsesHttp3(version_.transport_version)) {
-    session_->OnHttp3GoAway(0);
-  } else {
-    session_->connection()->OnGoAwayFrame(
-        quic::QuicGoAwayFrame(quic::kInvalidControlFrameId,
-                              quic::QUIC_PEER_GOING_AWAY, 1u, "Going away."));
-  }
+  session_->OnHttp3GoAway(0);
   EXPECT_EQ(nullptr, QuicChromiumClientSessionPeer::CreateOutgoingStream(
                          session_.get()));
 }
 
 TEST_P(QuicChromiumClientSessionTest, CanPool) {
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -1696,7 +1550,7 @@ TEST_P(QuicChromiumClientSessionTest, CanPool) {
     EXPECT_TRUE(session_->CanPool(
         "mail.example.com",
         QuicSessionKey("foo", 1234, PRIVACY_MODE_DISABLED, SocketTag(),
-                       NetworkAnonymizationKey(kSiteFoo, kSiteFoo),
+                       NetworkAnonymizationKey::CreateSameSite(kSiteFoo),
                        SecureDnsPolicy::kAllow,
                        /*require_dns_https_alpn=*/false)));
   }
@@ -1707,7 +1561,7 @@ TEST_P(QuicChromiumClientSessionTest, CanPool) {
     EXPECT_FALSE(session_->CanPool(
         "mail.example.com",
         QuicSessionKey("foo", 1234, PRIVACY_MODE_DISABLED, SocketTag(),
-                       NetworkAnonymizationKey(kSiteFoo, kSiteFoo),
+                       NetworkAnonymizationKey::CreateSameSite(kSiteFoo),
                        SecureDnsPolicy::kAllow,
                        /*require_dns_https_alpn=*/false)));
   }
@@ -1721,8 +1575,10 @@ TEST_P(QuicChromiumClientSessionTest, CanPoolWithNetworkAnonymizationKey) {
 
   const SchemefulSite kSiteFoo(GURL("http://foo.test/"));
   const SchemefulSite kSiteBar(GURL("http://bar.test/"));
-  const NetworkAnonymizationKey kNetworkAnonymizationKey1(kSiteFoo, kSiteFoo);
-  const NetworkAnonymizationKey kNetworkAnonymizationKey2(kSiteBar, kSiteBar);
+  const auto kNetworkAnonymizationKey1 =
+      NetworkAnonymizationKey::CreateSameSite(kSiteFoo);
+  const auto kNetworkAnonymizationKey2 =
+      NetworkAnonymizationKey::CreateSameSite(kSiteBar);
 
   session_key_ =
       QuicSessionKey(kServerHostname, kServerPort, PRIVACY_MODE_DISABLED,
@@ -1730,8 +1586,7 @@ TEST_P(QuicChromiumClientSessionTest, CanPoolWithNetworkAnonymizationKey) {
                      SecureDnsPolicy::kAllow, /*require_dns_https_alpn=*/false);
 
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -1818,8 +1673,7 @@ TEST_P(QuicChromiumClientSessionTest, ConnectionNotPooledWithDifferentPin) {
   const char kNoPinsHost[] = "no-pkp.example.org";
 
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -1853,8 +1707,7 @@ TEST_P(QuicChromiumClientSessionTest, ConnectionPooledWithMatchingPin) {
   ScopedTransportSecurityStateSource scoped_security_state_source;
 
   MockQuicData quic_data(version_);
-  if (VersionUsesHttp3(version_.transport_version))
-    quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
+  quic_data.AddWrite(SYNCHRONOUS, client_maker_.MakeInitialSettingsPacket(1));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -1885,9 +1738,7 @@ TEST_P(QuicChromiumClientSessionTest, ConnectionPooledWithMatchingPin) {
 }
 
 TEST_P(QuicChromiumClientSessionTest, MigrateToSocket) {
-  if (VersionUsesHttp3(version_.transport_version)) {
-    SetIetfConnectionMigrationFlagsAndConnectionOptions();
-  }
+  SetIetfConnectionMigrationFlagsAndConnectionOptions();
 
   quic::QuicConnectionId cid_on_new_path =
       quic::test::TestConnectionId(12345678);
@@ -1895,44 +1746,32 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocket) {
   int packet_num = 1;
   int peer_packet_num = 1;
   socket_data_.reset();
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddRead(ASYNC, ERR_IO_PENDING);
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-    quic_data.AddRead(ASYNC, server_maker_.MakeNewConnectionIdPacket(
-                                 peer_packet_num++, /*include_version=*/false,
-                                 cid_on_new_path,
-                                 /*sequence_number=*/1u,
-                                 /*retire_prior_to=*/0u));
-  }
+  quic_data.AddRead(ASYNC, ERR_IO_PENDING);
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
+  quic_data.AddRead(
+      ASYNC, server_maker_.MakeNewConnectionIdPacket(
+                 peer_packet_num++, /*include_version=*/false, cid_on_new_path,
+                 /*sequence_number=*/1u,
+                 /*retire_prior_to=*/0u));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
   Initialize();
   CompleteCryptoHandshake();
 
-  if (VersionUsesHttp3(version_.transport_version)) {
-    // Make new connection ID available after handshake completion.
-    quic_data.Resume();
-    base::RunLoop().RunUntilIdle();
-  }
+  // Make new connection ID available after handshake completion.
+  quic_data.Resume();
+  base::RunLoop().RunUntilIdle();
 
   char data[] = "ABCD";
   MockQuicData quic_data2(version_);
-  if (VersionUsesHttp3(version_.transport_version)) {
-    client_maker_.set_connection_id(cid_on_new_path);
-  }
+  client_maker_.set_connection_id(cid_on_new_path);
   quic_data2.AddRead(SYNCHRONOUS, ERR_IO_PENDING);
-  if (version_.UsesHttp3()) {
-    quic_data2.AddWrite(SYNCHRONOUS,
-                        client_maker_.MakeAckAndPingPacket(
-                            packet_num++, /*include_version=*/false,
-                            /*largest_received=*/peer_packet_num - 1,
-                            /*smallest_received=*/1));
-  } else {
-    quic_data2.AddWrite(SYNCHRONOUS,
-                        client_maker_.MakePingPacket(packet_num++, true));
-  }
+  quic_data2.AddWrite(SYNCHRONOUS, client_maker_.MakeAckAndPingPacket(
+                                       packet_num++, /*include_version=*/false,
+                                       /*largest_received=*/peer_packet_num - 1,
+                                       /*smallest_received=*/1));
   quic_data2.AddWrite(
       SYNCHRONOUS,
       client_maker_.MakeDataPacket(
@@ -1980,9 +1819,7 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocket) {
 }
 
 TEST_P(QuicChromiumClientSessionTest, MigrateToSocketMaxReaders) {
-  if (VersionUsesHttp3(version_.transport_version)) {
-    SetIetfConnectionMigrationFlagsAndConnectionOptions();
-  }
+  SetIetfConnectionMigrationFlagsAndConnectionOptions();
   MockQuicData quic_data(version_);
   socket_data_.reset();
   int packet_num = 1;
@@ -1990,59 +1827,46 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocketMaxReaders) {
   quic::QuicConnectionId next_cid = quic::QuicUtils::CreateRandomConnectionId(
       quiche::QuicheRandom::GetInstance());
   uint64_t next_cid_sequence_number = 1u;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(SYNCHRONOUS,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  }
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddRead(
-        ASYNC, server_maker_.MakeNewConnectionIdPacket(
-                   peer_packet_num++, /*include_version=*/false, next_cid,
-                   next_cid_sequence_number,
-                   /*retire_prior_to=*/next_cid_sequence_number - 1));
-    quic_data.AddRead(ASYNC, ERR_IO_PENDING);
-  }
+  quic_data.AddRead(ASYNC,
+                    server_maker_.MakeNewConnectionIdPacket(
+                        peer_packet_num++, /*include_version=*/false, next_cid,
+                        next_cid_sequence_number,
+                        /*retire_prior_to=*/next_cid_sequence_number - 1));
+  quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
   Initialize();
   CompleteCryptoHandshake();
 
-  if (VersionUsesHttp3(version_.transport_version)) {
-    // Make connection ID available for the first migration.
-    quic_data.Resume();
-  }
+  // Make connection ID available for the first migration.
+  quic_data.Resume();
 
   /* Migration succeeds when maximum number of readers is not reached.*/
   for (size_t i = 0; i < kMaxReadersPerQuicSession - 1; ++i) {
     MockQuicData quic_data2(version_);
-    if (!VersionUsesHttp3(version_.transport_version)) {
-      quic_data2.AddRead(SYNCHRONOUS, ERR_IO_PENDING);  // Hanging read.
-      quic_data2.AddWrite(
-          SYNCHRONOUS,
-          client_maker_.MakePingPacket(packet_num++, /*include_version=*/true));
-    } else {
-      client_maker_.set_connection_id(next_cid);
-      quic_data2.AddWrite(SYNCHRONOUS,
-                          client_maker_.MakeAckAndPingPacket(
-                              packet_num++, /*include_version=*/true,
-                              /*largest_received=*/peer_packet_num - 1,
-                              /*smallest_received=*/1));
-      quic_data2.AddRead(ASYNC, ERR_IO_PENDING);
-      quic_data2.AddWrite(
-          ASYNC, client_maker_.MakeRetireConnectionIdPacket(
-                     packet_num++, /*include_version=*/false,
-                     /*sequence_number=*/next_cid_sequence_number - 1));
-      next_cid = quic::QuicUtils::CreateRandomConnectionId(
-          quiche::QuicheRandom::GetInstance());
-      ++next_cid_sequence_number;
-      quic_data2.AddRead(
-          ASYNC, server_maker_.MakeNewConnectionIdPacket(
-                     peer_packet_num++, /*include_version=*/false, next_cid,
-                     next_cid_sequence_number,
-                     /*retire_prior_to=*/next_cid_sequence_number - 1));
-      quic_data2.AddRead(SYNCHRONOUS, ERR_IO_PENDING);  // Hanging read.
-    }
+    client_maker_.set_connection_id(next_cid);
+    quic_data2.AddWrite(SYNCHRONOUS,
+                        client_maker_.MakeAckAndPingPacket(
+                            packet_num++, /*include_version=*/true,
+                            /*largest_received=*/peer_packet_num - 1,
+                            /*smallest_received=*/1));
+    quic_data2.AddRead(ASYNC, ERR_IO_PENDING);
+    quic_data2.AddWrite(ASYNC,
+                        client_maker_.MakeRetireConnectionIdPacket(
+                            packet_num++, /*include_version=*/false,
+                            /*sequence_number=*/next_cid_sequence_number - 1));
+    next_cid = quic::QuicUtils::CreateRandomConnectionId(
+        quiche::QuicheRandom::GetInstance());
+    ++next_cid_sequence_number;
+    quic_data2.AddRead(
+        ASYNC, server_maker_.MakeNewConnectionIdPacket(
+                   peer_packet_num++, /*include_version=*/false, next_cid,
+                   next_cid_sequence_number,
+                   /*retire_prior_to=*/next_cid_sequence_number - 1));
+    quic_data2.AddRead(SYNCHRONOUS, ERR_IO_PENDING);  // Hanging read.
     quic_data2.AddSocketDataToFactory(&socket_factory_);
 
     // Create connected socket.
@@ -2071,14 +1895,12 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocketMaxReaders) {
         std::move(new_socket), std::move(new_reader), std::move(new_writer)));
     // Spin message loop to complete migration.
     base::RunLoop().RunUntilIdle();
-    if (VersionUsesHttp3(version_.transport_version)) {
-      alarm_factory_.FireAlarm(
-          quic::test::QuicConnectionPeer::GetRetirePeerIssuedConnectionIdAlarm(
-              session_->connection()));
-      // Make new connection ID available for subsequent migration.
-      quic_data2.Resume();
-      base::RunLoop().RunUntilIdle();
-    }
+    alarm_factory_.FireAlarm(
+        quic::test::QuicConnectionPeer::GetRetirePeerIssuedConnectionIdAlarm(
+            session_->connection()));
+    // Make new connection ID available for subsequent migration.
+    quic_data2.Resume();
+    base::RunLoop().RunUntilIdle();
     EXPECT_TRUE(quic_data2.AllReadDataConsumed());
     EXPECT_TRUE(quic_data2.AllWriteDataConsumed());
   }
@@ -2115,10 +1937,7 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocketMaxReaders) {
 }
 
 TEST_P(QuicChromiumClientSessionTest, MigrateToSocketReadError) {
-  if (VersionUsesHttp3(version_.transport_version)) {
-    SetIetfConnectionMigrationFlagsAndConnectionOptions();
-  }
-
+  SetIetfConnectionMigrationFlagsAndConnectionOptions();
   MockQuicData quic_data(version_);
   socket_data_.reset();
   int packet_num = 1;
@@ -2126,18 +1945,14 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocketReadError) {
 
   quic::QuicConnectionId cid_on_new_path =
       quic::test::TestConnectionId(12345678);
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddRead(ASYNC, ERR_IO_PENDING);
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-    quic_data.AddRead(ASYNC, server_maker_.MakeNewConnectionIdPacket(
-                                 peer_packet_num++, /*include_version=*/false,
-                                 cid_on_new_path,
-                                 /*sequence_number=*/1u,
-                                 /*retire_prior_to=*/0u));
-  } else {
-    quic_data.AddWrite(ASYNC, client_maker_.MakePingPacket(packet_num++, true));
-  }
+  quic_data.AddRead(ASYNC, ERR_IO_PENDING);
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
+  quic_data.AddRead(
+      ASYNC, server_maker_.MakeNewConnectionIdPacket(
+                 peer_packet_num++, /*include_version=*/false, cid_on_new_path,
+                 /*sequence_number=*/1u,
+                 /*retire_prior_to=*/0u));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_NETWORK_CHANGED);
 
@@ -2145,30 +1960,17 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocketReadError) {
   Initialize();
   CompleteCryptoHandshake();
 
-  if (!VersionUsesHttp3(version_.transport_version)) {
-    session_->connection()->SendPing();
-  } else {
-    // Make new connection ID available after handshake completion.
-    quic_data.Resume();
-    base::RunLoop().RunUntilIdle();
-  }
+  // Make new connection ID available after handshake completion.
+  quic_data.Resume();
+  base::RunLoop().RunUntilIdle();
 
   MockQuicData quic_data2(version_);
-  if (VersionUsesHttp3(version_.transport_version)) {
-    client_maker_.set_connection_id(cid_on_new_path);
-  }
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data2.AddWrite(SYNCHRONOUS,
-                        client_maker_.MakeAckAndPingPacket(
-                            packet_num++,
-                            /*include_version=*/false,
-                            /*largest_received=*/peer_packet_num - 1,
-                            /*smallest_received=*/1));
-  } else {
-    quic_data2.AddWrite(
-        SYNCHRONOUS,
-        client_maker_.MakePingPacket(packet_num++, /*include_version=*/true));
-  }
+  client_maker_.set_connection_id(cid_on_new_path);
+  quic_data2.AddWrite(SYNCHRONOUS, client_maker_.MakeAckAndPingPacket(
+                                       packet_num++,
+                                       /*include_version=*/false,
+                                       /*largest_received=*/peer_packet_num - 1,
+                                       /*smallest_received=*/1));
   quic_data2.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data2.AddRead(
       ASYNC, server_maker_.MakePingPacket(1, /*include_version=*/false));
@@ -2202,12 +2004,10 @@ TEST_P(QuicChromiumClientSessionTest, MigrateToSocketReadError) {
       std::move(new_socket), std::move(new_reader), std::move(new_writer)));
   // Spin message loop to complete migration.
   base::RunLoop().RunUntilIdle();
-  if (VersionUsesHttp3(version_.transport_version)) {
-    EXPECT_TRUE(
-        quic::test::QuicConnectionPeer::GetRetirePeerIssuedConnectionIdAlarm(
-            session_->connection())
-            ->IsSet());
-  }
+  EXPECT_TRUE(
+      quic::test::QuicConnectionPeer::GetRetirePeerIssuedConnectionIdAlarm(
+          session_->connection())
+          ->IsSet());
 
   // Read error on old socket does not impact session.
   quic_data.Resume();
@@ -2230,10 +2030,8 @@ TEST_P(QuicChromiumClientSessionTest, RetransmittableOnWireTimeout) {
 
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(SYNCHRONOUS,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  }
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   quic_data.AddWrite(SYNCHRONOUS,
                      client_maker_.MakePingPacket(packet_num++, true));
 
@@ -2281,20 +2079,12 @@ TEST_P(QuicChromiumClientSessionTest, RetransmittableOnWireTimeout) {
 TEST_P(QuicChromiumClientSessionTest, ResetOnEmptyResponseHeaders) {
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (VersionUsesHttp3(version_.transport_version)) {
-    quic_data.AddWrite(ASYNC,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-    quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
-                                  packet_num++, true,
-                                  GetNthClientInitiatedBidirectionalStreamId(0),
-                                  quic::QUIC_STREAM_GENERAL_PROTOCOL_ERROR));
-  } else {
-    // In case of Google QUIC, QuicSpdyStream resets the stream.
-    quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
-                                  packet_num++, true,
-                                  GetNthClientInitiatedBidirectionalStreamId(0),
-                                  quic::QUIC_HEADERS_TOO_LARGE));
-  }
+  quic_data.AddWrite(ASYNC,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
+  quic_data.AddWrite(ASYNC, client_maker_.MakeRstPacket(
+                                packet_num++, true,
+                                GetNthClientInitiatedBidirectionalStreamId(0),
+                                quic::QUIC_STREAM_GENERAL_PROTOCOL_ERROR));
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);
   quic_data.AddRead(ASYNC, ERR_CONNECTION_CLOSED);
   quic_data.AddSocketDataToFactory(&socket_factory_);
@@ -2324,15 +2114,13 @@ TEST_P(QuicChromiumClientSessionTest, ResetOnEmptyResponseHeaders) {
   static_cast<quic::QuicSpdyStream*>(stream)->OnStreamHeaderList(
       /* fin = */ false, /* frame_len = */ 0, empty_response_headers);
 
-  if (VersionUsesHttp3(version_.transport_version)) {
-    // In case of IETF QUIC, QuicSpdyStream::OnStreamHeaderList() calls
-    // QuicChromiumClientStream::OnInitialHeadersComplete() with the empty
-    // header list, and QuicChromiumClientStream signals an error.
-    spdy::Http2HeaderBlock header_block;
-    int rv = stream_handle->ReadInitialHeaders(&header_block,
-                                               CompletionOnceCallback());
-    EXPECT_THAT(rv, IsError(net::ERR_QUIC_PROTOCOL_ERROR));
-  }
+  // QuicSpdyStream::OnStreamHeaderList() calls
+  // QuicChromiumClientStream::OnInitialHeadersComplete() with the empty
+  // header list, and QuicChromiumClientStream signals an error.
+  spdy::Http2HeaderBlock header_block;
+  int rv = stream_handle->ReadInitialHeaders(&header_block,
+                                             CompletionOnceCallback());
+  EXPECT_THAT(rv, IsError(net::ERR_QUIC_PROTOCOL_ERROR));
 
   base::RunLoop().RunUntilIdle();
   quic_data.Resume();
@@ -2378,8 +2166,6 @@ TEST_P(QuicChromiumClientSessionTest,
 // This test verifies that when multi-port and port migration is enabled, path
 // degrading won't trigger port migration.
 TEST_P(QuicChromiumClientSessionTest, DegradingWithMultiPortEnabled) {
-  if (!version_.UsesHttp3())
-    return;
   // Default network is always set to handles::kInvalidNetworkHandle.
   default_network_ = handles::kInvalidNetworkHandle;
   connectivity_monitor_ =
@@ -2575,10 +2361,8 @@ TEST_P(QuicChromiumClientSessionTest, WriteErrorAfterHandshakeConfirmed) {
 
   MockQuicData quic_data(version_);
   int packet_num = 1;
-  if (version_.HasIetfQuicFrames()) {
-    quic_data.AddWrite(SYNCHRONOUS,
-                       client_maker_.MakeInitialSettingsPacket(packet_num++));
-  }
+  quic_data.AddWrite(SYNCHRONOUS,
+                     client_maker_.MakeInitialSettingsPacket(packet_num++));
   // When sending the PING packet, trigger a packet write error.
   quic_data.AddWrite(SYNCHRONOUS, ERR_CONNECTION_RESET);
   quic_data.AddRead(ASYNC, ERR_IO_PENDING);

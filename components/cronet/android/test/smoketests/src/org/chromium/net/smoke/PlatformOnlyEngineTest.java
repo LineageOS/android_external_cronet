@@ -7,7 +7,6 @@ package org.chromium.net.smoke;
 import static org.chromium.net.smoke.CronetSmokeTestRule.assertJavaEngine;
 import static org.chromium.net.smoke.CronetSmokeTestRule.assertSuccessfulNonEmptyResponse;
 
-
 import androidx.test.core.app.ApplicationProvider;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;

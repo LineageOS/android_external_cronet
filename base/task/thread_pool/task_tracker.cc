@@ -9,10 +9,10 @@
 #include <utility>
 
 #include "base/base_switches.h"
-#include "base/callback.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/debug/alias.h"
+#include "base/functional/callback.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
@@ -25,13 +25,13 @@
 #include "base/task/scoped_set_task_priority_for_current_thread.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/task/task_executor.h"
 #include "base/threading/sequence_local_storage_map.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "base/trace_event/base_tracing.h"
 #include "base/values.h"
 #include "build/build_config.h"
+#include "third_party/abseil-cpp/absl/base/attributes.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
@@ -119,6 +119,8 @@ auto EmitThreadPoolTraceEventMetadata(perfetto::EventContext& ctx,
     task->set_sequence_token(token.ToInternalValue());
 #endif  //  BUILDFLAG(ENABLE_BASE_TRACING)
 }
+
+ABSL_CONST_INIT thread_local bool fizzle_block_shutdown_tasks = false;
 
 }  // namespace
 
@@ -311,12 +313,13 @@ bool TaskTracker::WillPostTask(Task* task,
     // A non BLOCK_SHUTDOWN task is allowed to be posted iff shutdown hasn't
     // started and the task is not delayed.
     if (shutdown_behavior != TaskShutdownBehavior::BLOCK_SHUTDOWN ||
-        !task->delayed_run_time.is_null()) {
+        !task->delayed_run_time.is_null() || fizzle_block_shutdown_tasks) {
       return false;
     }
 
-    // A BLOCK_SHUTDOWN task posted after shutdown has completed is an
-    // ordering bug. This aims to catch those early.
+    // A BLOCK_SHUTDOWN task posted after shutdown has completed without setting
+    // `fizzle_block_shutdown_tasks` is an ordering bug. This aims to catch
+    // those early.
     CheckedAutoLock auto_lock(shutdown_lock_);
     DCHECK(shutdown_event_);
     DCHECK(!shutdown_event_->IsSignaled())
@@ -414,6 +417,14 @@ bool TaskTracker::IsShutdownComplete() const {
   return shutdown_event_ && shutdown_event_->IsSignaled();
 }
 
+void TaskTracker::BeginFizzlingBlockShutdownTasks() {
+  fizzle_block_shutdown_tasks = true;
+}
+
+void TaskTracker::EndFizzlingBlockShutdownTasks() {
+  fizzle_block_shutdown_tasks = false;
+}
+
 void TaskTracker::RunTask(Task task,
                           TaskSource* task_source,
                           const TaskTraits& traits) {
@@ -452,21 +463,21 @@ void TaskTracker::RunTask(Task task,
     // Set up TaskRunner CurrentDefaultHandle as expected for the scope of the
     // task.
     absl::optional<SequencedTaskRunner::CurrentDefaultHandle>
-        sequenced_task_runner_handle;
+        sequenced_task_runner_current_default_handle;
     absl::optional<SingleThreadTaskRunner::CurrentDefaultHandle>
-        single_thread_task_runner_handle;
+        single_thread_task_runner_current_default_handle;
     switch (task_source->execution_mode()) {
       case TaskSourceExecutionMode::kJob:
       case TaskSourceExecutionMode::kParallel:
         break;
       case TaskSourceExecutionMode::kSequenced:
         DCHECK(task_source->task_runner());
-        sequenced_task_runner_handle.emplace(
+        sequenced_task_runner_current_default_handle.emplace(
             static_cast<SequencedTaskRunner*>(task_source->task_runner()));
         break;
       case TaskSourceExecutionMode::kSingleThread:
         DCHECK(task_source->task_runner());
-        single_thread_task_runner_handle.emplace(
+        single_thread_task_runner_current_default_handle.emplace(
             static_cast<SingleThreadTaskRunner*>(task_source->task_runner()));
         break;
     }

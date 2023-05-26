@@ -8,12 +8,12 @@
 
 #include "base/auto_reset.h"
 #include "base/barrier_closure.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/check_op.h"
 #include "base/compiler_specific.h"
 #include "base/containers/contains.h"
 #include "base/format_macros.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
@@ -41,19 +41,21 @@ namespace {
 // after a certain timeout has passed without receiving an ACK.
 bool g_connect_backup_jobs_enabled = true;
 
-base::Value NetLogCreateConnectJobParams(
+base::Value::Dict NetLogCreateConnectJobParams(
     bool backup_job,
     const ClientSocketPool::GroupId* group_id) {
   base::Value::Dict dict;
   dict.Set("backup_job", backup_job);
   dict.Set("group_id", group_id->ToString());
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 }  // namespace
 
 const char TransportClientSocketPool::kCertDatabaseChanged[] =
     "Cert database changed";
+const char TransportClientSocketPool::kCertVerifierChanged[] =
+    "Cert verifier changed";
 const char TransportClientSocketPool::kClosedConnectionReturnedToPool[] =
     "Connection was closed when it was returned to the pool";
 const char TransportClientSocketPool::kDataReceivedUnexpectedly[] =
@@ -803,14 +805,20 @@ TransportClientSocketPool::TransportClientSocketPool(
 }
 
 void TransportClientSocketPool::OnSSLConfigChanged(
-    bool is_cert_database_change) {
+    SSLClientContext::SSLConfigChangeType change_type) {
   // When the user changes the SSL config, flush all idle sockets so they won't
   // get re-used.
-  if (is_cert_database_change) {
-    FlushWithError(ERR_CERT_DATABASE_CHANGED, kCertDatabaseChanged);
-  } else {
-    FlushWithError(ERR_NETWORK_CHANGED, kNetworkChanged);
-  }
+  switch (change_type) {
+    case SSLClientContext::SSLConfigChangeType::kSSLConfigChanged:
+      FlushWithError(ERR_NETWORK_CHANGED, kNetworkChanged);
+      break;
+    case SSLClientContext::SSLConfigChangeType::kCertDatabaseChanged:
+      FlushWithError(ERR_CERT_DATABASE_CHANGED, kCertDatabaseChanged);
+      break;
+    case SSLClientContext::SSLConfigChangeType::kCertVerifierChanged:
+      FlushWithError(ERR_CERT_VERIFIER_CHANGED, kCertVerifierChanged);
+      break;
+  };
 }
 
 // TODO(crbug.com/1206799): Get `server` as SchemeHostPort?
@@ -1397,7 +1405,8 @@ void TransportClientSocketPool::InvokeUserCallbackLater(
                                 base::UnsafeDangling(handle)));
 }
 
-void TransportClientSocketPool::InvokeUserCallback(ClientSocketHandle* handle) {
+void TransportClientSocketPool::InvokeUserCallback(
+    MayBeDangling<ClientSocketHandle> handle) {
   auto it = pending_callback_map_.find(handle);
 
   // Exit if the request has already been cancelled.
@@ -1902,8 +1911,6 @@ TransportClientSocketPool::Group::RemoveUnboundRequest(
     const RequestQueue::Pointer& pointer) {
   SanityCheck();
 
-  // TODO(eroman): Temporary for debugging http://crbug.com/467797.
-  CHECK(!pointer.is_null());
   std::unique_ptr<Request> request = unbound_requests_.Erase(pointer);
   if (request->job()) {
     TryToAssignUnassignedJob(request->ReleaseJob());
