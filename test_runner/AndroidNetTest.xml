@@ -26,12 +26,6 @@
         <option name="teardown-command" value="setenforce 1" />
         <option name="throw-if-cmd-fail" value="true" />
     </target_preparer>
-    <!-- This creates the file which gtest redirects its stdout output to -->
-    <target_preparer class="com.android.tradefed.targetprep.RunCommandTargetPreparer">
-        <option name="run-command" value="touch /data/local/tmp/cronet_gtest_output.txt"/>
-        <option name="teardown-command" value="rm /data/local/tmp/cronet_gtest_output.txt"/>
-        <option name="throw-if-cmd-fail" value="true"/>
-    </target_preparer>
     <!-- Uploading the APK to device and installing it -->
     <target_preparer class="com.android.tradefed.targetprep.suite.SuiteApkInstaller">
         <option name="cleanup-apks" value="true"/>
