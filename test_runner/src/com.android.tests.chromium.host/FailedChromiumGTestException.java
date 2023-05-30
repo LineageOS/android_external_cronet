@@ -16,8 +16,12 @@
 
 package com.android.tests.chromium.host;
 
-public class FailedReportingException extends RuntimeException {
-    public FailedReportingException(String message, Throwable cause) {
+public class FailedChromiumGTestException extends RuntimeException {
+    public FailedChromiumGTestException(String message) {
+        super(message);
+    }
+
+    public FailedChromiumGTestException(String message, Throwable cause) {
         super(message, cause);
     }
 }
