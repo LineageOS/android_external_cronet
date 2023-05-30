@@ -94,10 +94,12 @@ public class ChromiumHostDrivenTest extends GTest {
         String cmd = createRunAllTestsCommand();
         printHostLogs(cmd);
         getDevice().executeShellCommand(CLEAR_CLANG_COVERAGE_FILES);
+        ITestInvocationListener listenerWithTime = new TestListenerWithTime(
+                System.currentTimeMillis(), listener);
         getDevice().executeShellCommand(cmd, new CollectingOutputReceiver(),
                 testsTimeout.toMinutes(), TimeUnit.MINUTES, /* retryAttempts */ 1);
         try {
-            parseAndReport(getDevice().pullFile(GTEST_OUTPUT_PATH), listener);
+            parseAndReport(getDevice().pullFile(GTEST_OUTPUT_PATH), listenerWithTime);
         } catch (IOException e) {
             throw new FailedReportingException("Failed to parse and report test results",
                     e.getCause());
