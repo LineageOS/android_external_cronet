@@ -48,7 +48,6 @@ import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.test.util.DisabledTest;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import android.net.http.DnsOptions.StaleDnsOptions;
-import org.chromium.net.MetricsTestUtil.TestRequestFinishedListener;
 import org.chromium.net.impl.CronetUrlRequestContext;
 
 import java.io.File;
