@@ -12,9 +12,9 @@
 #include <string>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/component_export.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/sequence_checker.h"
@@ -434,7 +434,7 @@ class COMPONENT_EXPORT(IPC) ChannelProxy : public Sender {
   bool did_init_;
 
 #if defined(ENABLE_IPC_FUZZER)
-  OutgoingMessageFilter* outgoing_message_filter_;
+  raw_ptr<OutgoingMessageFilter> outgoing_message_filter_;
 #endif
 
   SEQUENCE_CHECKER(sequence_checker_);

@@ -157,7 +157,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Boolean getRetryWithoutAltSvcOnQuicErrors() {
         return mRetryWithoutAltSvcOnQuicErrors;
@@ -168,7 +167,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Boolean getEnableTlsZeroRtt() {
         return mEnableTlsZeroRtt;
@@ -179,7 +177,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Duration getPreCryptoHandshakeIdleTimeout() {
         return mPreCryptoHandshakeIdleTimeout;
@@ -190,7 +187,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Duration getCryptoHandshakeTimeout() {
         return mCryptoHandshakeTimeout;
@@ -199,7 +195,6 @@ public class QuicOptions {
     /**
      * See {@link Builder#setIdleConnectionTimeout}
      */
-    @Experimental
     @Nullable
     public Duration getIdleConnectionTimeout() {
         return mIdleConnectionTimeout;
@@ -210,7 +205,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Duration getRetransmittableOnWireTimeout() {
         return mRetransmittableOnWireTimeout;
@@ -221,7 +215,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Boolean getCloseSessionsOnIpChange() {
         return mCloseSessionsOnIpChange;
@@ -232,7 +225,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Boolean getGoawaySessionsOnIpChange() {
         return mGoawaySessionsOnIpChange;
@@ -243,7 +235,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Duration getInitialBrokenServicePeriod() {
         return mInitialBrokenServicePeriod;
@@ -254,7 +245,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Boolean getIncreaseBrokenServicePeriodExponentially() {
         return mIncreaseBrokenServicePeriodExponentially;
@@ -265,7 +255,6 @@ public class QuicOptions {
      *
      * {@hide}
      */
-    @Experimental
     @Nullable
     public Boolean getDelayJobsWithAvailableSpdySession() {
         return mDelayJobsWithAvailableSpdySession;

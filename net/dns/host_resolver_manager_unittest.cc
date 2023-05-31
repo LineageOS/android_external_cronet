@@ -12,9 +12,9 @@
 #include <vector>
 
 #include "base/auto_reset.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/containers/contains.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/ref_counted.h"
@@ -32,12 +32,12 @@
 #include "base/task/thread_pool/thread_pool_instance.h"
 #include "base/test/bind.h"
 #include "base/test/metrics/histogram_tester.h"
+#include "base/test/mock_callback.h"
 #include "base/test/scoped_feature_list.h"
 #include "base/test/simple_test_clock.h"
 #include "base/test/test_mock_time_task_runner.h"
 #include "base/test/test_timeouts.h"
 #include "base/threading/thread_restrictions.h"
-#include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/timer/mock_timer.h"
 #include "base/values.h"
@@ -79,6 +79,7 @@
 #include "net/log/net_log_with_source.h"
 #include "net/log/test_net_log.h"
 #include "net/log/test_net_log_util.h"
+#include "net/proxy_resolution/configured_proxy_resolution_service.h"
 #include "net/socket/next_proto.h"
 #include "net/socket/socket_test_util.h"
 #include "net/test/gtest_util.h"
@@ -225,8 +226,7 @@ class MockHostResolverProc : public HostResolverProc {
               AddressList* addrlist,
               int* os_error) override {
     base::AutoLock lock(lock_);
-    capture_list_.push_back(
-        ResolveKey(hostname, address_family, host_resolver_flags));
+    capture_list_.emplace_back(hostname, address_family, host_resolver_flags);
     ++num_requests_waiting_;
     requests_waiting_.Broadcast();
     {
@@ -479,24 +479,35 @@ class TestHostResolverManager : public HostResolverManager {
                           SystemDnsConfigChangeNotifier* notifier,
                           NetLog* net_log,
                           bool ipv6_reachable = true,
-                          bool ipv4_reachable = true)
+                          bool ipv4_reachable = true,
+                          bool is_async = false)
       : HostResolverManager(options, notifier, net_log),
         ipv6_reachable_(ipv6_reachable),
-        ipv4_reachable_(ipv4_reachable) {}
+        ipv4_reachable_(ipv4_reachable),
+        is_async_(is_async) {}
 
   ~TestHostResolverManager() override = default;
 
  private:
   const bool ipv6_reachable_;
   const bool ipv4_reachable_;
+  const bool is_async_;
 
-  bool IsGloballyReachable(const IPAddress& dest,
-                           const NetLogWithSource& net_log) override {
+  int StartGloballyReachableCheck(const IPAddress& dest,
+                                  const NetLogWithSource& net_log,
+                                  CompletionOnceCallback callback) override {
+    int rv = OK;
     if (dest.IsIPv6()) {
-      return ipv6_reachable_;
+      rv = ipv6_reachable_ ? OK : ERR_FAILED;
     } else {
-      return ipv4_reachable_;
+      rv = ipv4_reachable_ ? OK : ERR_FAILED;
     }
+    if (is_async_) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+          FROM_HERE, base::BindOnce(std::move(callback), rv));
+      return ERR_IO_PENDING;
+    }
+    return rv;
   }
 };
 
@@ -556,12 +567,28 @@ class HostResolverManagerTest : public TestWithTaskEnvironment {
 
   // This HostResolverManager will only allow 1 outstanding resolve at a time
   // and perform no retries.
-  void CreateSerialResolver(bool check_ipv6_on_wifi = true) {
+  void CreateSerialResolver(bool check_ipv6_on_wifi = true,
+                            bool ipv6_reachable = true,
+                            bool is_async = false) {
     HostResolverSystemTask::Params params = DefaultParams(proc_);
     params.max_retry_attempts = 0u;
-    CreateResolverWithLimitsAndParams(1u, params, true /* ipv6_reachable */,
-                                      check_ipv6_on_wifi);
+    CreateResolverWithLimitsAndParams(1u, params, ipv6_reachable,
+                                      check_ipv6_on_wifi, is_async);
   }
+
+  void StaleAllowedFromIpTest(bool is_async);
+  void LocalOnlyFromIpTest(bool is_async);
+  void ChangePriorityTest(bool is_async);
+  void AbortOnlyExistingRequestsOnIPAddressChangeTest(bool is_async);
+  void FlushCacheOnIPAddressChangeTest(bool is_async);
+  void AbortOnIPAddressChangedTest(bool is_async);
+  void NumericIPv6AddressTest(bool is_async);
+  void NumericIPv6AddressWithSchemeTest(bool is_async);
+  void LocalhostIPV4IPV6LookupTest(bool is_async);
+  void IPv4AddressLiteralInIPv6OnlyNetworkTest(bool is_async);
+  void IPv4AddressLiteralInIPv6OnlyNetworkPort443Test(bool is_async);
+  void IPv4AddressLiteralInIPv6OnlyNetworkNoDns64Test(bool is_async);
+  void IPv4AddressLiteralInIPv6OnlyNetworkBadAddressTest(bool is_async);
 
  protected:
   // testing::Test implementation:
@@ -584,13 +611,14 @@ class HostResolverManagerTest : public TestWithTaskEnvironment {
       size_t max_concurrent_resolves,
       const HostResolverSystemTask::Params& params,
       bool ipv6_reachable,
-      bool check_ipv6_on_wifi) {
+      bool check_ipv6_on_wifi,
+      bool is_async = false) {
     HostResolver::ManagerOptions options = DefaultOptions();
     options.max_concurrent_resolves = max_concurrent_resolves;
     options.check_ipv6_on_wifi = check_ipv6_on_wifi;
 
     CreateResolverWithOptionsAndParams(std::move(options), params,
-                                       ipv6_reachable);
+                                       ipv6_reachable, is_async);
   }
 
   virtual HostResolver::ManagerOptions DefaultOptions() {
@@ -604,6 +632,7 @@ class HostResolverManagerTest : public TestWithTaskEnvironment {
       HostResolver::ManagerOptions options,
       const HostResolverSystemTask::Params& params,
       bool ipv6_reachable,
+      bool is_async = false,
       bool ipv4_reachable = true) {
     // Use HostResolverManagerDnsTest if enabling DNS client.
     DCHECK(!options.insecure_dns_client_enabled);
@@ -612,9 +641,8 @@ class HostResolverManagerTest : public TestWithTaskEnvironment {
 
     resolver_ = std::make_unique<TestHostResolverManager>(
         options, nullptr /* notifier */, nullptr /* net_log */, ipv6_reachable,
-        ipv4_reachable);
+        ipv4_reachable, is_async);
     resolver_->set_host_resolver_system_params_for_test(params);
-
     resolver_->RegisterResolveContext(resolve_context_.get());
   }
 
@@ -633,9 +661,12 @@ class HostResolverManagerTest : public TestWithTaskEnvironment {
     return DnsClient::kMaxInsecureFallbackFailures;
   }
 
-  bool IsIPv6Reachable(const NetLogWithSource& net_log) {
-    return resolver_->IsIPv6Reachable(net_log);
+  int StartIPv6ReachabilityCheck(const NetLogWithSource& net_log,
+                                 CompletionOnceCallback callback) {
+    return resolver_->StartIPv6ReachabilityCheck(net_log, std::move(callback));
   }
+
+  bool GetLastIpv6ProbeResult() { return resolver_->last_ipv6_probe_result_; }
 
   void PopulateCache(const HostCache::Key& key, IPEndPoint endpoint) {
     resolver_->CacheResult(resolve_context_->host_cache(), key,
@@ -845,7 +876,10 @@ TEST_F(HostResolverManagerTest, DnsQueryWithoutAliases) {
               testing::Pointee(testing::IsEmpty()));
 }
 
-TEST_F(HostResolverManagerTest, LocalhostIPV4IPV6Lookup) {
+void HostResolverManagerTest::LocalhostIPV4IPV6LookupTest(bool is_async) {
+  CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
+                                    true /* ipv6_reachable */,
+                                    true /* check_ipv6_on_wifi */, is_async);
   HostResolver::ResolveHostParameters parameters;
 
   parameters.dns_query_type = DnsQueryType::A;
@@ -885,6 +919,14 @@ TEST_F(HostResolverManagerTest, LocalhostIPV4IPV6Lookup) {
       testing::Pointee(testing::ElementsAre(
           ExpectEndpointResult(testing::UnorderedElementsAre(
               CreateExpected("::1", 80), CreateExpected("127.0.0.1", 80))))));
+}
+
+TEST_F(HostResolverManagerTest, LocalhostIPV4IPV6LookupAsync) {
+  LocalhostIPV4IPV6LookupTest(true);
+}
+
+TEST_F(HostResolverManagerTest, LocalhostIPV4IPV6LookupSync) {
+  LocalhostIPV4IPV6LookupTest(false);
 }
 
 TEST_F(HostResolverManagerTest, ResolveIPLiteralWithHostResolverSystemOnly) {
@@ -1014,7 +1056,10 @@ TEST_F(HostResolverManagerTest, NumericIPv4AddressWithScheme) {
           testing::UnorderedElementsAre(CreateExpected("127.1.2.3", 5555))))));
 }
 
-TEST_F(HostResolverManagerTest, NumericIPv6Address) {
+void HostResolverManagerTest::NumericIPv6AddressTest(bool is_async) {
+  CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
+                                    true /* ipv6_reachable */,
+                                    true /* check_ipv6_on_wifi */, is_async);
   // Resolve a plain IPv6 address.  Don't worry about [brackets], because
   // the caller should have removed them.
   ResolveHostResponseHelper response(resolver_->CreateRequest(
@@ -1031,7 +1076,18 @@ TEST_F(HostResolverManagerTest, NumericIPv6Address) {
                       CreateExpected("2001:db8::1", 5555))))));
 }
 
-TEST_F(HostResolverManagerTest, NumericIPv6AddressWithScheme) {
+TEST_F(HostResolverManagerTest, NumericIPv6AddressAsync) {
+  NumericIPv6AddressTest(true);
+}
+
+TEST_F(HostResolverManagerTest, NumericIPv6AddressSync) {
+  NumericIPv6AddressTest(false);
+}
+
+void HostResolverManagerTest::NumericIPv6AddressWithSchemeTest(bool is_async) {
+  CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
+                                    true /* ipv6_reachable */,
+                                    true /* check_ipv6_on_wifi */, is_async);
   ResolveHostResponseHelper response(resolver_->CreateRequest(
       url::SchemeHostPort(url::kFtpScheme, "[2001:db8::1]", 5555),
       NetworkAnonymizationKey(), NetLogWithSource(), absl::nullopt,
@@ -1044,6 +1100,14 @@ TEST_F(HostResolverManagerTest, NumericIPv6AddressWithScheme) {
               testing::Pointee(testing::UnorderedElementsAre(
                   ExpectEndpointResult(testing::UnorderedElementsAre(
                       CreateExpected("2001:db8::1", 5555))))));
+}
+
+TEST_F(HostResolverManagerTest, NumericIPv6AddressWithSchemeAsync) {
+  NumericIPv6AddressWithSchemeTest(true);
+}
+
+TEST_F(HostResolverManagerTest, NumericIPv6AddressWithSchemeSync) {
+  NumericIPv6AddressWithSchemeTest(false);
 }
 
 TEST_F(HostResolverManagerTest, EmptyHost) {
@@ -1601,9 +1665,10 @@ TEST_F(HostResolverManagerTest, BypassCache) {
   EXPECT_EQ(2u, proc_->GetCaptureList().size());
 }
 
-// Test that IP address changes flush the cache but initial DNS config reads
-// do not.
-TEST_F(HostResolverManagerTest, FlushCacheOnIPAddressChange) {
+void HostResolverManagerTest::FlushCacheOnIPAddressChangeTest(bool is_async) {
+  CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
+                                    true /* ipv6_reachable */,
+                                    true /* check_ipv6_on_wifi */, is_async);
   proc_->SignalMultiple(2u);  // One before the flush, one after.
 
   ResolveHostResponseHelper initial_response(resolver_->CreateRequest(
@@ -1631,13 +1696,27 @@ TEST_F(HostResolverManagerTest, FlushCacheOnIPAddressChange) {
   EXPECT_EQ(2u, proc_->GetCaptureList().size());  // Expected increase.
 }
 
-// Test that IP address changes send ERR_NETWORK_CHANGED to pending requests.
-TEST_F(HostResolverManagerTest, AbortOnIPAddressChanged) {
+// Test that IP address changes flush the cache but initial DNS config reads
+// do not.
+TEST_F(HostResolverManagerTest, FlushCacheOnIPAddressChangeAsync) {
+  FlushCacheOnIPAddressChangeTest(true);
+}
+TEST_F(HostResolverManagerTest, FlushCacheOnIPAddressChangeSync) {
+  FlushCacheOnIPAddressChangeTest(false);
+}
+
+void HostResolverManagerTest::AbortOnIPAddressChangedTest(bool is_async) {
+  CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
+                                    true /* ipv6_reachable */,
+                                    true /* check_ipv6_on_wifi */, is_async);
   ResolveHostResponseHelper response(resolver_->CreateRequest(
       HostPortPair("host1", 70), NetworkAnonymizationKey(), NetLogWithSource(),
       absl::nullopt, resolve_context_.get(), resolve_context_->host_cache()));
 
   ASSERT_FALSE(response.complete());
+  if (is_async) {
+    base::RunLoop().RunUntilIdle();
+  }
   ASSERT_TRUE(proc_->WaitFor(1u));
 
   // Triggering an IP address change.
@@ -1649,6 +1728,14 @@ TEST_F(HostResolverManagerTest, AbortOnIPAddressChanged) {
   EXPECT_FALSE(response.request()->GetAddressResults());
   EXPECT_FALSE(response.request()->GetEndpointResults());
   EXPECT_EQ(0u, resolve_context_->host_cache()->size());
+}
+
+// Test that IP address changes send ERR_NETWORK_CHANGED to pending requests.
+TEST_F(HostResolverManagerTest, AbortOnIPAddressChangedAsync) {
+  AbortOnIPAddressChangedTest(true);
+}
+TEST_F(HostResolverManagerTest, AbortOnIPAddressChangedSync) {
+  AbortOnIPAddressChangedTest(false);
 }
 
 // Obey pool constraints after IP address has changed.
@@ -1696,9 +1783,11 @@ TEST_F(HostResolverManagerTest, ObeyPoolConstraintsAfterIPAddressChange) {
   EXPECT_THAT(responses[2]->result_error(), IsOk());
 }
 
-// Tests that a new Request made from the callback of a previously aborted one
-// will not be aborted.
-TEST_F(HostResolverManagerTest, AbortOnlyExistingRequestsOnIPAddressChange) {
+void HostResolverManagerTest::AbortOnlyExistingRequestsOnIPAddressChangeTest(
+    bool is_async) {
+  CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
+                                    true /* ipv6_reachable */,
+                                    true /* check_ipv6_on_wifi */, is_async);
   auto custom_callback_template = base::BindLambdaForTesting(
       [&](const HostPortPair& next_host,
           std::unique_ptr<ResolveHostResponseHelper>* next_response,
@@ -1737,8 +1826,12 @@ TEST_F(HostResolverManagerTest, AbortOnlyExistingRequestsOnIPAddressChange) {
       base::BindOnce(custom_callback_template, HostPortPair("eee", 80),
                      &next_responses[2]));
 
+  if (is_async) {
+    base::RunLoop().RunUntilIdle();
+  }
   // Wait until all are blocked;
   ASSERT_TRUE(proc_->WaitFor(3u));
+
   // Trigger an IP address change.
   NetworkChangeNotifier::NotifyObserversOfIPAddressChangeForTests();
   // This should abort all running jobs.
@@ -1763,6 +1856,16 @@ TEST_F(HostResolverManagerTest, AbortOnlyExistingRequestsOnIPAddressChange) {
   // Verify that results of aborted Jobs were not cached.
   EXPECT_EQ(6u, proc_->GetCaptureList().size());
   EXPECT_EQ(3u, resolve_context_->host_cache()->size());
+}
+// Tests that a new Request made from the callback of a previously aborted one
+// will not be aborted.
+TEST_F(HostResolverManagerTest,
+       AbortOnlyExistingRequestsOnIPAddressChangeAsync) {
+  AbortOnlyExistingRequestsOnIPAddressChangeTest(true);
+}
+TEST_F(HostResolverManagerTest,
+       AbortOnlyExistingRequestsOnIPAddressChangeSync) {
+  AbortOnlyExistingRequestsOnIPAddressChangeTest(false);
 }
 
 // Tests that when the maximum threads is set to 1, requests are dequeued
@@ -1850,9 +1953,9 @@ TEST_F(HostResolverManagerTest, HigherPriorityRequestsStartedFirst) {
   EXPECT_EQ("req6", capture_list[6].hostname);
 }
 
-// Test that changing a job's priority affects the dequeueing order.
-TEST_F(HostResolverManagerTest, ChangePriority) {
-  CreateSerialResolver();
+void HostResolverManagerTest::ChangePriorityTest(bool is_async) {
+  CreateSerialResolver(true /* check_ipv6_on_wifi */, true /* ipv6_reachable */,
+                       is_async);
 
   HostResolver::ResolveHostParameters lowest_priority;
   lowest_priority.initial_priority = LOWEST;
@@ -1901,6 +2004,15 @@ TEST_F(HostResolverManagerTest, ChangePriority) {
   EXPECT_EQ("req0", capture_list[0].hostname);
   EXPECT_EQ("req2", capture_list[1].hostname);
   EXPECT_EQ("req1", capture_list[2].hostname);
+}
+
+// Test that changing a job's priority affects the dequeueing order.
+TEST_F(HostResolverManagerTest, ChangePriorityAsync) {
+  ChangePriorityTest(true);
+}
+
+TEST_F(HostResolverManagerTest, ChangePrioritySync) {
+  ChangePriorityTest(false);
 }
 
 // Try cancelling a job which has not started yet.
@@ -2282,7 +2394,10 @@ TEST_F(HostResolverManagerTest, LocalOnly_StaleEntry) {
   EXPECT_FALSE(stale_request.request()->GetStaleInfo());
 }
 
-TEST_F(HostResolverManagerTest, LocalOnly_FromIp) {
+void HostResolverManagerTest::LocalOnlyFromIpTest(bool is_async) {
+  CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
+                                    true /* ipv6_reachable */,
+                                    true /* check_ipv6_on_wifi */, is_async);
   HostResolver::ResolveHostParameters source_none_parameters;
   source_none_parameters.source = HostResolverSource::LOCAL_ONLY;
 
@@ -2291,15 +2406,49 @@ TEST_F(HostResolverManagerTest, LocalOnly_FromIp) {
       NetLogWithSource(), source_none_parameters, resolve_context_.get(),
       resolve_context_->host_cache()));
 
-  // Expected to resolve synchronously.
-  EXPECT_TRUE(response.complete());
-  EXPECT_THAT(response.result_error(), IsOk());
-  EXPECT_THAT(response.request()->GetAddressResults()->endpoints(),
-              testing::ElementsAre(CreateExpected("1.2.3.4", 56)));
-  EXPECT_THAT(response.request()->GetEndpointResults(),
-              testing::Pointee(testing::ElementsAre(ExpectEndpointResult(
-                  testing::ElementsAre(CreateExpected("1.2.3.4", 56))))));
-  EXPECT_FALSE(response.request()->GetStaleInfo());
+  // If IPv6 reachability is asynchronous, the first request will return
+  // NAME_NOT_RESOLVED. Do a second request to confirm that it returns OK once
+  // reachability check completes.
+  if (is_async) {
+    // Expected to resolve synchronously.
+    EXPECT_TRUE(response.complete());
+    EXPECT_EQ(response.result_error(), ERR_NAME_NOT_RESOLVED);
+    EXPECT_FALSE(response.request()->GetAddressResults());
+    EXPECT_FALSE(response.request()->GetEndpointResults());
+    EXPECT_FALSE(response.request()->GetStaleInfo());
+    base::RunLoop().RunUntilIdle();
+
+    ResolveHostResponseHelper response2(resolver_->CreateRequest(
+        HostPortPair("1.2.3.4", 56), NetworkAnonymizationKey(),
+        NetLogWithSource(), source_none_parameters, resolve_context_.get(),
+        resolve_context_->host_cache()));
+    EXPECT_TRUE(response2.complete());
+    EXPECT_THAT(response2.result_error(), IsOk());
+    EXPECT_THAT(response2.request()->GetAddressResults()->endpoints(),
+                testing::ElementsAre(CreateExpected("1.2.3.4", 56)));
+    EXPECT_THAT(response2.request()->GetEndpointResults(),
+                testing::Pointee(testing::ElementsAre(ExpectEndpointResult(
+                    testing::ElementsAre(CreateExpected("1.2.3.4", 56))))));
+    EXPECT_FALSE(response2.request()->GetStaleInfo());
+  } else {
+    // Expected to resolve synchronously.
+    EXPECT_TRUE(response.complete());
+    EXPECT_THAT(response.result_error(), IsOk());
+    EXPECT_THAT(response.request()->GetAddressResults()->endpoints(),
+                testing::ElementsAre(CreateExpected("1.2.3.4", 56)));
+    EXPECT_THAT(response.request()->GetEndpointResults(),
+                testing::Pointee(testing::ElementsAre(ExpectEndpointResult(
+                    testing::ElementsAre(CreateExpected("1.2.3.4", 56))))));
+    EXPECT_FALSE(response.request()->GetStaleInfo());
+  }
+}
+
+TEST_F(HostResolverManagerTest, LocalOnly_FromIpAsync) {
+  LocalOnlyFromIpTest(true);
+}
+
+TEST_F(HostResolverManagerTest, LocalOnly_FromIpSync) {
+  LocalOnlyFromIpTest(false);
 }
 
 TEST_F(HostResolverManagerTest, LocalOnly_InvalidName) {
@@ -2408,7 +2557,10 @@ TEST_F(HostResolverManagerTest, StaleAllowed_NonLocal) {
   EXPECT_FALSE(response.request()->GetStaleInfo());
 }
 
-TEST_F(HostResolverManagerTest, StaleAllowed_FromIp) {
+void HostResolverManagerTest::StaleAllowedFromIpTest(bool is_async) {
+  CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
+                                    true /* ipv6_reachable */,
+                                    true /* check_ipv6_on_wifi */, is_async);
   HostResolver::ResolveHostParameters stale_allowed_parameters;
   stale_allowed_parameters.cache_usage =
       HostResolver::ResolveHostParameters::CacheUsage::STALE_ALLOWED;
@@ -2418,8 +2570,10 @@ TEST_F(HostResolverManagerTest, StaleAllowed_FromIp) {
       NetLogWithSource(), stale_allowed_parameters, resolve_context_.get(),
       resolve_context_->host_cache()));
 
-  // Expected to resolve synchronously without stale info.
-  EXPECT_TRUE(response.complete());
+  if (!is_async) {
+    // Expected to resolve synchronously without stale info.
+    EXPECT_TRUE(response.complete());
+  }
   EXPECT_THAT(response.result_error(), IsOk());
   EXPECT_THAT(response.request()->GetAddressResults()->endpoints(),
               testing::ElementsAre(CreateExpected("1.2.3.4", 57)));
@@ -2428,6 +2582,14 @@ TEST_F(HostResolverManagerTest, StaleAllowed_FromIp) {
       testing::Pointee(testing::UnorderedElementsAre(ExpectEndpointResult(
           testing::ElementsAre(CreateExpected("1.2.3.4", 57))))));
   EXPECT_FALSE(response.request()->GetStaleInfo());
+}
+
+TEST_F(HostResolverManagerTest, StaleAllowed_FromIpAsync) {
+  StaleAllowedFromIpTest(true);
+}
+
+TEST_F(HostResolverManagerTest, StaleAllowed_FromIpSync) {
+  StaleAllowedFromIpTest(false);
 }
 
 // TODO(mgersh): add a test case for errors with positive TTL after
@@ -2460,8 +2622,8 @@ TEST_F(HostResolverManagerTest, MultipleAttempts) {
   // Override the current thread task runner, so we can simulate the passage of
   // time and avoid any actual sleeps.
   auto test_task_runner = base::MakeRefCounted<base::TestMockTimeTaskRunner>();
-  base::ThreadTaskRunnerHandleOverrideForTesting task_runner_handle_override(
-      test_task_runner);
+  base::SingleThreadTaskRunner::CurrentHandleOverrideForTesting
+      task_runner_current_default_handle_override(test_task_runner);
 
   // Resolve "host1".
   ResolveHostResponseHelper response(resolver_->CreateRequest(
@@ -2501,8 +2663,8 @@ TEST_F(HostResolverManagerTest, MultipleAttempts) {
 // number of retries used is 4 rather than something higher.
 TEST_F(HostResolverManagerTest, DefaultMaxRetryAttempts) {
   auto test_task_runner = base::MakeRefCounted<base::TestMockTimeTaskRunner>();
-  base::ThreadTaskRunnerHandleOverrideForTesting task_runner_handle_override(
-      test_task_runner);
+  base::SingleThreadTaskRunner::CurrentHandleOverrideForTesting
+      task_runner_current_default_handle_override(test_task_runner);
 
   // Instantiate a ResolverProc that will block all incoming requests.
   auto resolver_proc = base::MakeRefCounted<LookupAttemptHostResolverProc>(
@@ -2525,7 +2687,6 @@ TEST_F(HostResolverManagerTest, DefaultMaxRetryAttempts) {
   CreateResolverWithLimitsAndParams(kMaxJobs, params,
                                     false /* ipv6_reachable */,
                                     false /* check_ipv6_on_wifi */);
-
   // Resolve "host1". The resolver proc will hang all requests so this
   // resolution should remain stalled until calling SetResolvedAttemptNumber().
   ResolveHostResponseHelper response(resolver_->CreateRequest(
@@ -2629,22 +2790,27 @@ TEST_F(HostResolverManagerTest, NameCollisionIcann) {
   EXPECT_THAT(similar_response3.result_error(), IsOk());
 }
 
-TEST_F(HostResolverManagerTest, IsIPv6Reachable) {
+TEST_F(HostResolverManagerTest, StartIPv6ReachabilityCheck) {
   // The real HostResolverManager is needed since TestHostResolverManager will
   // bypass the IPv6 reachability tests.
   DestroyResolver();
   resolver_ = std::make_unique<HostResolverManager>(
       DefaultOptions(), nullptr /* system_dns_config_notifier */,
       nullptr /* net_log */);
-
   // Verify that two consecutive calls return the same value.
   RecordingNetLogObserver net_log_observer;
   NetLogWithSource net_log =
       NetLogWithSource::Make(net::NetLog::Get(), NetLogSourceType::NONE);
-  bool result1 = IsIPv6Reachable(net_log);
-  bool result2 = IsIPv6Reachable(net_log);
-  EXPECT_EQ(result1, result2);
 
+  int attempt1 =
+      StartIPv6ReachabilityCheck(net_log, base::DoNothingAs<void(int)>());
+  EXPECT_EQ(attempt1, OK);
+  int result1 = GetLastIpv6ProbeResult();
+  int attempt2 =
+      StartIPv6ReachabilityCheck(net_log, base::DoNothingAs<void(int)>());
+  EXPECT_EQ(attempt2, OK);
+  int result2 = GetLastIpv6ProbeResult();
+  EXPECT_EQ(result1, result2);
   // Filter reachability check events and verify that there are two of them.
   auto probe_event_list = net_log_observer.GetEntriesWithType(
       NetLogEventType::HOST_RESOLVER_MANAGER_IPV6_REACHABILITY_CHECK);
@@ -3360,8 +3526,8 @@ TEST_F(HostResolverManagerTest, Mdns_NoResponse) {
   // Override the current thread task runner, so we can simulate the passage of
   // time to trigger the timeout.
   auto test_task_runner = base::MakeRefCounted<base::TestMockTimeTaskRunner>();
-  base::ThreadTaskRunnerHandleOverrideForTesting task_runner_handle_override(
-      test_task_runner);
+  base::SingleThreadTaskRunner::CurrentHandleOverrideForTesting
+      task_runner_current_default_handle_override(test_task_runner);
 
   HostResolver::ResolveHostParameters parameters;
   parameters.source = HostResolverSource::MULTICAST_DNS;
@@ -3400,8 +3566,8 @@ TEST_F(HostResolverManagerTest, Mdns_WrongType) {
   // Override the current thread task runner, so we can simulate the passage of
   // time to trigger the timeout.
   auto test_task_runner = base::MakeRefCounted<base::TestMockTimeTaskRunner>();
-  base::ThreadTaskRunnerHandleOverrideForTesting task_runner_handle_override(
-      test_task_runner);
+  base::SingleThreadTaskRunner::CurrentHandleOverrideForTesting
+      task_runner_current_default_handle_override(test_task_runner);
 
   HostResolver::ResolveHostParameters parameters;
   parameters.dns_query_type = DnsQueryType::A;
@@ -3447,8 +3613,8 @@ TEST_F(HostResolverManagerTest, Mdns_PartialResults) {
   // Override the current thread task runner, so we can simulate the passage of
   // time to trigger the timeout.
   auto test_task_runner = base::MakeRefCounted<base::TestMockTimeTaskRunner>();
-  base::ThreadTaskRunnerHandleOverrideForTesting task_runner_handle_override(
-      test_task_runner);
+  base::SingleThreadTaskRunner::CurrentHandleOverrideForTesting
+      task_runner_current_default_handle_override(test_task_runner);
 
   HostResolver::ResolveHostParameters parameters;
   parameters.source = HostResolverSource::MULTICAST_DNS;
@@ -3627,11 +3793,11 @@ TEST_F(HostResolverManagerTest, MdnsListener) {
   ASSERT_THAT(mdns_client->StartListening(socket_factory.get()), IsOk());
   resolver_->SetMdnsClientForTesting(std::move(mdns_client));
 
+  TestMdnsListenerDelegate delegate;
   std::unique_ptr<HostResolver::MdnsListener> listener =
       resolver_->CreateMdnsListener(HostPortPair("myhello.local", 80),
                                     DnsQueryType::A);
 
-  TestMdnsListenerDelegate delegate;
   ASSERT_THAT(listener->Start(&delegate), IsOk());
   ASSERT_THAT(delegate.address_results(), testing::IsEmpty());
 
@@ -3671,10 +3837,11 @@ TEST_F(HostResolverManagerTest, MdnsListener_StartListenFailure) {
   EXPECT_CALL(*client, IsListening()).WillRepeatedly(Return(false));
   resolver_->SetMdnsClientForTesting(std::move(client));
 
+  TestMdnsListenerDelegate delegate;
   std::unique_ptr<HostResolver::MdnsListener> listener =
       resolver_->CreateMdnsListener(HostPortPair("myhello.local", 80),
                                     DnsQueryType::A);
-  TestMdnsListenerDelegate delegate;
+
   EXPECT_THAT(listener->Start(&delegate), IsError(ERR_TIMED_OUT));
   EXPECT_THAT(delegate.address_results(), testing::IsEmpty());
 }
@@ -3692,11 +3859,11 @@ TEST_F(HostResolverManagerTest, MdnsListener_Expiration) {
   ASSERT_THAT(mdns_client->StartListening(socket_factory.get()), IsOk());
   resolver_->SetMdnsClientForTesting(std::move(mdns_client));
 
+  TestMdnsListenerDelegate delegate;
   std::unique_ptr<HostResolver::MdnsListener> listener =
       resolver_->CreateMdnsListener(HostPortPair("myhello.local", 100),
                                     DnsQueryType::A);
 
-  TestMdnsListenerDelegate delegate;
   ASSERT_THAT(listener->Start(&delegate), IsOk());
   ASSERT_THAT(delegate.address_results(), testing::IsEmpty());
 
@@ -3730,11 +3897,11 @@ TEST_F(HostResolverManagerTest, MdnsListener_Txt) {
   MockMDnsSocketFactory* socket_factory_ptr = socket_factory.get();
   resolver_->SetMdnsSocketFactoryForTesting(std::move(socket_factory));
 
+  TestMdnsListenerDelegate delegate;
   std::unique_ptr<HostResolver::MdnsListener> listener =
       resolver_->CreateMdnsListener(HostPortPair("myhello.local", 12),
                                     DnsQueryType::TXT);
 
-  TestMdnsListenerDelegate delegate;
   ASSERT_THAT(listener->Start(&delegate), IsOk());
   ASSERT_THAT(delegate.text_results(), testing::IsEmpty());
 
@@ -3759,11 +3926,11 @@ TEST_F(HostResolverManagerTest, MdnsListener_Ptr) {
   MockMDnsSocketFactory* socket_factory_ptr = socket_factory.get();
   resolver_->SetMdnsSocketFactoryForTesting(std::move(socket_factory));
 
+  TestMdnsListenerDelegate delegate;
   std::unique_ptr<HostResolver::MdnsListener> listener =
       resolver_->CreateMdnsListener(HostPortPair("myhello.local", 13),
                                     DnsQueryType::PTR);
 
-  TestMdnsListenerDelegate delegate;
   ASSERT_THAT(listener->Start(&delegate), IsOk());
   ASSERT_THAT(delegate.text_results(), testing::IsEmpty());
 
@@ -3786,11 +3953,11 @@ TEST_F(HostResolverManagerTest, MdnsListener_Srv) {
   MockMDnsSocketFactory* socket_factory_ptr = socket_factory.get();
   resolver_->SetMdnsSocketFactoryForTesting(std::move(socket_factory));
 
+  TestMdnsListenerDelegate delegate;
   std::unique_ptr<HostResolver::MdnsListener> listener =
       resolver_->CreateMdnsListener(HostPortPair("myhello.local", 14),
                                     DnsQueryType::SRV);
 
-  TestMdnsListenerDelegate delegate;
   ASSERT_THAT(listener->Start(&delegate), IsOk());
   ASSERT_THAT(delegate.text_results(), testing::IsEmpty());
 
@@ -3814,11 +3981,11 @@ TEST_F(HostResolverManagerTest, MdnsListener_NonListeningTypes) {
   MockMDnsSocketFactory* socket_factory_ptr = socket_factory.get();
   resolver_->SetMdnsSocketFactoryForTesting(std::move(socket_factory));
 
+  TestMdnsListenerDelegate delegate;
   std::unique_ptr<HostResolver::MdnsListener> listener =
       resolver_->CreateMdnsListener(HostPortPair("myhello.local", 41),
                                     DnsQueryType::A);
 
-  TestMdnsListenerDelegate delegate;
   ASSERT_THAT(listener->Start(&delegate), IsOk());
 
   socket_factory_ptr->SimulateReceive(kMdnsResponseAAAA,
@@ -3835,11 +4002,11 @@ TEST_F(HostResolverManagerTest, MdnsListener_RootDomain) {
   MockMDnsSocketFactory* socket_factory_ptr = socket_factory.get();
   resolver_->SetMdnsSocketFactoryForTesting(std::move(socket_factory));
 
+  TestMdnsListenerDelegate delegate;
   std::unique_ptr<HostResolver::MdnsListener> listener =
       resolver_->CreateMdnsListener(HostPortPair("myhello.local", 5),
                                     DnsQueryType::PTR);
 
-  TestMdnsListenerDelegate delegate;
   ASSERT_THAT(listener->Start(&delegate), IsOk());
 
   socket_factory_ptr->SimulateReceive(kMdnsResponsePtrRoot,
@@ -3907,8 +4074,10 @@ DnsConfig CreateUpgradableDnsConfig() {
 TEST_F(HostResolverManagerTest, NetworkAnonymizationKeyWriteToHostCache) {
   const SchemefulSite kSite1(GURL("https://origin1.test/"));
   const SchemefulSite kSite2(GURL("https://origin2.test/"));
-  const NetworkAnonymizationKey kNetworkAnonymizationKey1(kSite1, kSite1);
-  const NetworkAnonymizationKey kNetworkAnonymizationKey2(kSite2, kSite2);
+  auto kNetworkAnonymizationKey1 =
+      net::NetworkAnonymizationKey::CreateSameSite(kSite1);
+  auto kNetworkAnonymizationKey2 =
+      net::NetworkAnonymizationKey::CreateSameSite(kSite2);
 
   const char kFirstDnsResult[] = "192.168.1.42";
   const char kSecondDnsResult[] = "192.168.1.43";
@@ -4020,8 +4189,10 @@ TEST_F(HostResolverManagerTest, NetworkAnonymizationKeyWriteToHostCache) {
 TEST_F(HostResolverManagerTest, NetworkAnonymizationKeyReadFromHostCache) {
   const SchemefulSite kSite1(GURL("https://origin1.test/"));
   const SchemefulSite kSite2(GURL("https://origin2.test/"));
-  const NetworkAnonymizationKey kNetworkAnonymizationKey1(kSite1, kSite1);
-  const NetworkAnonymizationKey kNetworkAnonymizationKey2(kSite2, kSite2);
+  auto kNetworkAnonymizationKey1 =
+      net::NetworkAnonymizationKey::CreateSameSite(kSite1);
+  auto kNetworkAnonymizationKey2 =
+      net::NetworkAnonymizationKey::CreateSameSite(kSite2);
 
   struct CacheEntry {
     NetworkAnonymizationKey network_anonymization_key;
@@ -4112,8 +4283,10 @@ TEST_F(HostResolverManagerTest, NetworkAnonymizationKeyReadFromHostCache) {
 TEST_F(HostResolverManagerTest, NetworkAnonymizationKeyTwoRequestsAtOnce) {
   const SchemefulSite kSite1(GURL("https://origin1.test/"));
   const SchemefulSite kSite2(GURL("https://origin2.test/"));
-  const NetworkAnonymizationKey kNetworkAnonymizationKey1(kSite1, kSite1);
-  const NetworkAnonymizationKey kNetworkAnonymizationKey2(kSite2, kSite2);
+  auto kNetworkAnonymizationKey1 =
+      net::NetworkAnonymizationKey::CreateSameSite(kSite1);
+  auto kNetworkAnonymizationKey2 =
+      net::NetworkAnonymizationKey::CreateSameSite(kSite2);
 
   const char kDnsResult[] = "192.168.1.42";
 
@@ -4201,7 +4374,6 @@ TEST_F(HostResolverManagerTest, ContextsNotMerged) {
       NetLogWithSource(), absl::nullopt, &resolve_context2,
       resolve_context2.host_cache()));
   EXPECT_FALSE(response2.complete());
-
   EXPECT_EQ(2u, resolver_->num_jobs_for_testing());
 
   // Wait for and complete the 2 over-the-wire DNS resolutions.
@@ -4249,6 +4421,9 @@ class HostResolverManagerDnsTest : public HostResolverManagerTest {
         notifier_task_runner_, std::move(config_service));
   }
 
+  void Ipv6UnreachableTest(bool is_async);
+  void Ipv6UnreachableInvalidConfigTest(bool is_async);
+
  protected:
   void TearDown() override {
     HostResolverManagerTest::TearDown();
@@ -4272,11 +4447,13 @@ class HostResolverManagerDnsTest : public HostResolverManagerTest {
       HostResolver::ManagerOptions options,
       const HostResolverSystemTask::Params& params,
       bool ipv6_reachable,
+      bool is_async = false,
       bool ipv4_reachable = true) override {
     DestroyResolver();
 
     resolver_ = std::make_unique<TestHostResolverManager>(
-        options, notifier_.get(), nullptr /* net_log */, ipv6_reachable);
+        options, notifier_.get(), nullptr /* net_log */, ipv6_reachable,
+        ipv4_reachable, is_async);
     auto dns_client =
         std::make_unique<MockDnsClient>(DnsConfig(), CreateDefaultDnsRules());
     dns_client_ = dns_client.get();
@@ -4285,7 +4462,6 @@ class HostResolverManagerDnsTest : public HostResolverManagerTest {
         options.insecure_dns_client_enabled,
         options.additional_types_via_insecure_dns_enabled);
     resolver_->set_host_resolver_system_params_for_test(params);
-
     resolver_->RegisterResolveContext(resolve_context_.get());
   }
 
@@ -4461,7 +4637,6 @@ class HostResolverManagerDnsTest : public HostResolverManagerTest {
 
   void ChangeDnsConfig(const DnsConfig& config) {
     DCHECK(config.IsValid());
-
     notifier_task_runner_->PostTask(
         FROM_HERE,
         base::BindOnce(&TestDnsConfigService::OnHostsRead,
@@ -5475,10 +5650,10 @@ TEST_F(HostResolverManagerDnsTest, DontDisableDnsClientOnSporadicFailure) {
   EXPECT_THAT(final_response.result_error(), IsOk());
 }
 
-TEST_F(HostResolverManagerDnsTest, Ipv6Unreachable) {
+void HostResolverManagerDnsTest::Ipv6UnreachableTest(bool is_async) {
   CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
                                     false /* ipv6_reachable */,
-                                    true /* check_ipv6_on_wifi */);
+                                    true /* check_ipv6_on_wifi */, is_async);
   ChangeDnsConfig(CreateValidDnsConfig());
 
   ResolveHostResponseHelper response(resolver_->CreateRequest(
@@ -5494,11 +5669,19 @@ TEST_F(HostResolverManagerDnsTest, Ipv6Unreachable) {
                   testing::ElementsAre(CreateExpected("127.0.0.1", 500))))));
 }
 
-// Without a valid DnsConfig, assume IPv6 is needed and ignore prober.
-TEST_F(HostResolverManagerDnsTest, Ipv6Unreachable_InvalidConfig) {
+TEST_F(HostResolverManagerDnsTest, Ipv6UnreachableAsync) {
+  Ipv6UnreachableTest(true);
+}
+
+TEST_F(HostResolverManagerDnsTest, Ipv6UnreachableSync) {
+  Ipv6UnreachableTest(false);
+}
+
+void HostResolverManagerDnsTest::Ipv6UnreachableInvalidConfigTest(
+    bool is_async) {
   CreateResolverWithLimitsAndParams(kMaxJobs, DefaultParams(proc_),
                                     false /* ipv6_reachable */,
-                                    true /* check_ipv6_on_wifi */);
+                                    true /* check_ipv6_on_wifi */, is_async);
 
   proc_->AddRule("example.com", ADDRESS_FAMILY_UNSPECIFIED, "1.2.3.4,::5");
   proc_->SignalMultiple(1u);
@@ -5516,6 +5699,14 @@ TEST_F(HostResolverManagerDnsTest, Ipv6Unreachable_InvalidConfig) {
       testing::Pointee(testing::ElementsAre(
           ExpectEndpointResult(testing::UnorderedElementsAre(
               CreateExpected("::5", 500), CreateExpected("1.2.3.4", 500))))));
+}
+// Without a valid DnsConfig, assume IPv6 is needed and ignore prober.
+TEST_F(HostResolverManagerDnsTest, Ipv6Unreachable_InvalidConfigAsync) {
+  Ipv6UnreachableInvalidConfigTest(true);
+}
+
+TEST_F(HostResolverManagerDnsTest, Ipv6Unreachable_InvalidConfigSync) {
+  Ipv6UnreachableInvalidConfigTest(false);
 }
 
 TEST_F(HostResolverManagerDnsTest, Ipv6Unreachable_UseLocalIpv6) {
@@ -7165,7 +7356,7 @@ TEST_F(HostResolverManagerDnsTest,
     // so they should be unaffected.
     parameters.source = HostResolverSource::DNS;
     ResolveHostResponseHelper response_dns(resolver_->CreateRequest(
-        HostPortPair("4slow_ok", 80), NetworkAnonymizationKey(),
+        HostPortPair("6slow_ok", 80), NetworkAnonymizationKey(),
         NetLogWithSource(), parameters, resolve_context_.get(),
         resolve_context_->host_cache()));
     EXPECT_FALSE(response_dns.complete());
@@ -13369,7 +13560,8 @@ TEST_F(HostResolverManagerBootstrapTest, OnlyBootstrapTwice) {
                   ExpectEndpointResult(AddressesMatch(kRemoteAddrs)))));
 }
 
-TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetwork) {
+void HostResolverManagerTest::IPv4AddressLiteralInIPv6OnlyNetworkTest(
+    bool is_async) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatures(
       /*enabled_features=*/{features::kUseNAT64ForIPv4Literal},
@@ -13377,7 +13569,7 @@ TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetwork) {
 
   HostResolver::ManagerOptions options = DefaultOptions();
   CreateResolverWithOptionsAndParams(std::move(options), DefaultParams(proc_),
-                                     true /* ipv6_reachable */,
+                                     true /* ipv6_reachable */, is_async,
                                      false /* ipv4_reachable */);
   proc_->AddRule("ipv4only.arpa", ADDRESS_FAMILY_IPV6,
                  "64:ff9b::c000:aa,64:ff9b::c000:ab,2001:db8:43::c000:aa,"
@@ -13412,7 +13604,16 @@ TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetwork) {
   EXPECT_TRUE(cache_result);
 }
 
-TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkPort443) {
+TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkAsync) {
+  IPv4AddressLiteralInIPv6OnlyNetworkTest(true);
+}
+
+TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkSync) {
+  IPv4AddressLiteralInIPv6OnlyNetworkTest(false);
+}
+
+void HostResolverManagerTest::IPv4AddressLiteralInIPv6OnlyNetworkPort443Test(
+    bool is_async) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatures(
       /*enabled_features=*/{features::kUseNAT64ForIPv4Literal},
@@ -13420,7 +13621,7 @@ TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkPort443) {
 
   HostResolver::ManagerOptions options = DefaultOptions();
   CreateResolverWithOptionsAndParams(std::move(options), DefaultParams(proc_),
-                                     true /* ipv6_reachable */,
+                                     true /* ipv6_reachable */, is_async,
                                      false /* ipv4_reachable */);
   proc_->AddRule("ipv4only.arpa", ADDRESS_FAMILY_IPV6,
                  "64:ff9b::c000:aa,64:ff9b::c000:ab,2001:db8:43::c000:aa,"
@@ -13455,7 +13656,18 @@ TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkPort443) {
   EXPECT_TRUE(cache_result);
 }
 
-TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkNoDns64) {
+TEST_F(HostResolverManagerTest,
+       IPv4AddressLiteralInIPv6OnlyNetworkPort443Async) {
+  IPv4AddressLiteralInIPv6OnlyNetworkPort443Test(true);
+}
+
+TEST_F(HostResolverManagerTest,
+       IPv4AddressLiteralInIPv6OnlyNetworkPort443Sync) {
+  IPv4AddressLiteralInIPv6OnlyNetworkPort443Test(false);
+}
+
+void HostResolverManagerTest::IPv4AddressLiteralInIPv6OnlyNetworkNoDns64Test(
+    bool is_async) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatures(
       /*enabled_features=*/{features::kUseNAT64ForIPv4Literal},
@@ -13463,7 +13675,7 @@ TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkNoDns64) {
 
   HostResolver::ManagerOptions options = DefaultOptions();
   CreateResolverWithOptionsAndParams(std::move(options), DefaultParams(proc_),
-                                     true /* ipv6_reachable */,
+                                     true /* ipv6_reachable */, is_async,
                                      false /* ipv4_reachable */);
   proc_->AddRule("ipv4only.arpa", ADDRESS_FAMILY_IPV6, std::string());
   proc_->SignalMultiple(1u);
@@ -13483,9 +13695,18 @@ TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkNoDns64) {
   EXPECT_FALSE(response.request()->GetStaleInfo());
 }
 
-// Test when DNS returns bad IPv6 address of ipv4only.arpa., and the
-// IPv4 address of ipv4only.arpa is not contained in the IPv6 address.
-TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkBadAddress) {
+TEST_F(HostResolverManagerTest,
+       IPv4AddressLiteralInIPv6OnlyNetworkNoDns64Async) {
+  IPv4AddressLiteralInIPv6OnlyNetworkNoDns64Test(true);
+}
+
+TEST_F(HostResolverManagerTest,
+       IPv4AddressLiteralInIPv6OnlyNetworkNoDns64Sync) {
+  IPv4AddressLiteralInIPv6OnlyNetworkNoDns64Test(false);
+}
+
+void HostResolverManagerTest::IPv4AddressLiteralInIPv6OnlyNetworkBadAddressTest(
+    bool is_async) {
   base::test::ScopedFeatureList feature_list;
   feature_list.InitWithFeatures(
       /*enabled_features=*/{features::kUseNAT64ForIPv4Literal},
@@ -13493,7 +13714,7 @@ TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkBadAddress) {
 
   HostResolver::ManagerOptions options = DefaultOptions();
   CreateResolverWithOptionsAndParams(std::move(options), DefaultParams(proc_),
-                                     true /* ipv6_reachable */,
+                                     true /* ipv6_reachable */, is_async,
                                      false /* ipv4_reachable */);
   proc_->AddRule("ipv4only.arpa", ADDRESS_FAMILY_IPV6, "2001:db8::1");
   proc_->SignalMultiple(1u);
@@ -13511,6 +13732,17 @@ TEST_F(HostResolverManagerTest, IPv4AddressLiteralInIPv6OnlyNetworkBadAddress) {
               testing::Pointee(testing::ElementsAre(ExpectEndpointResult(
                   testing::ElementsAre(CreateExpected("192.168.1.42", 80))))));
   EXPECT_FALSE(response.request()->GetStaleInfo());
+}
+// Test when DNS returns bad IPv6 address of ipv4only.arpa., and the
+// IPv4 address of ipv4only.arpa is not contained in the IPv6 address.
+TEST_F(HostResolverManagerTest,
+       IPv4AddressLiteralInIPv6OnlyNetworkBadAddressAsync) {
+  IPv4AddressLiteralInIPv6OnlyNetworkBadAddressTest(true);
+}
+
+TEST_F(HostResolverManagerTest,
+       IPv4AddressLiteralInIPv6OnlyNetworkBadAddressSync) {
+  IPv4AddressLiteralInIPv6OnlyNetworkBadAddressTest(false);
 }
 
 }  // namespace net

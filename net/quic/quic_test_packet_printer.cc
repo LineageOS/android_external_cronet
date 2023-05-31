@@ -8,10 +8,10 @@
 #include <ostream>
 
 #include "base/strings/string_number_conversions.h"
-#include "net/third_party/quiche/src/quiche/quic/core/crypto/null_decrypter.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_framer.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_utils.h"
 #include "net/third_party/quiche/src/quiche/quic/platform/api/quic_flags.h"
+#include "net/third_party/quiche/src/quiche/quic/test_tools/quic_test_utils.h"
 
 namespace quic {
 
@@ -97,8 +97,10 @@ class QuicPacketPrinter : public QuicFramerVisitorInterface {
              << timestamp.ToDebuggingValue() << ")\n";
     return true;
   }
-  bool OnAckFrameEnd(QuicPacketNumber start) override {
-    *output_ << "OnAckFrameEnd, start: " << start << "\n";
+  bool OnAckFrameEnd(QuicPacketNumber start,
+                     const absl::optional<QuicEcnCounts>& ecn_counts) override {
+    *output_ << "OnAckFrameEnd, start: " << start << ", "
+             << ecn_counts.value_or(QuicEcnCounts()).ToString() << "\n";
     return true;
   }
   bool OnStopWaitingFrame(const QuicStopWaitingFrame& frame) override {
@@ -231,11 +233,11 @@ std::string QuicPacketPrinter::PrintWrite(const std::string& data) {
   if (version_.KnowsWhichDecrypterToUse()) {
     framer.InstallDecrypter(
         quic::ENCRYPTION_FORWARD_SECURE,
-        std::make_unique<quic::NullDecrypter>(quic::Perspective::IS_SERVER));
+        std::make_unique<quic::test::TaggingDecrypter>());  // IN-TEST
   } else {
     framer.SetDecrypter(
         quic::ENCRYPTION_FORWARD_SECURE,
-        std::make_unique<quic::NullDecrypter>(quic::Perspective::IS_SERVER));
+        std::make_unique<quic::test::TaggingDecrypter>());  // IN-TEST
   }
 
   quic::QuicEncryptedPacket encrypted(data.c_str(), data.length());
