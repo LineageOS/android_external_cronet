@@ -15,6 +15,7 @@
 #include <string>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
@@ -78,16 +79,6 @@ class NET_EXPORT_PRIVATE HttpCache::Transaction : public HttpTransaction {
     WRITE           = 1 << 2,
     READ_WRITE      = READ | WRITE,
     UPDATE          = READ_META | WRITE,  // READ_WRITE & ~READ_DATA
-  };
-
-  // This enum backs a histogram. Please keep enums.xml up to date with any
-  // changes, and new entries should be appended at the end. Never re-arrange /
-  // re-use values.
-  enum class NetworkIsolationKeyPresent {
-    kNotPresentCacheableRequest = 0,
-    kNotPresentNonCacheableRequest = 1,
-    kPresent = 2,
-    kMaxValue = kPresent,
   };
 
   Transaction(RequestPriority priority,
@@ -197,6 +188,9 @@ class NET_EXPORT_PRIVATE HttpCache::Transaction : public HttpTransaction {
   // expected value from the HttpRequestInfo. Consumes `checksum`.
   bool ResponseChecksumMatches(
       std::unique_ptr<crypto::SecureHash> checksum) const;
+
+  // Add time spent writing data in the disk cache. Used for histograms.
+  void AddDiskCacheWriteTime(base::TimeDelta elapsed);
 
  private:
   static const size_t kNumValidationHeaders = 2;
@@ -608,6 +602,13 @@ class NET_EXPORT_PRIVATE HttpCache::Transaction : public HttpTransaction {
   // forwarded might need to set these headers again to avoid being blocked.
   void UpdateSecurityHeadersBeforeForwarding();
 
+  enum class DiskCacheAccessType {
+    kRead,
+    kWrite,
+  };
+  void BeginDiskCacheAccessTimeCount();
+  void EndDiskCacheAccessTimeCount(DiskCacheAccessType type);
+
   State next_state_{STATE_NONE};
 
   // Used for tracing.
@@ -632,7 +633,9 @@ class NET_EXPORT_PRIVATE HttpCache::Transaction : public HttpTransaction {
   ValidationHeaders external_validation_;
   base::WeakPtr<HttpCache> cache_;
   raw_ptr<HttpCache::ActiveEntry, DanglingUntriaged> entry_ = nullptr;
-  HttpCache::ActiveEntry* new_entry_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #addr-of
+  RAW_PTR_EXCLUSION HttpCache::ActiveEntry* new_entry_ = nullptr;
   std::unique_ptr<HttpTransaction> network_trans_;
   CompletionOnceCallback callback_;  // Consumer's callback.
   HttpResponseInfo response_;
@@ -704,6 +707,9 @@ class NET_EXPORT_PRIVATE HttpCache::Transaction : public HttpTransaction {
   base::TimeTicks send_request_since_;
   base::TimeTicks read_headers_since_;
   base::Time open_entry_last_used_;
+  base::TimeTicks last_disk_cache_access_start_time_;
+  base::TimeDelta total_disk_cache_read_time_;
+  base::TimeDelta total_disk_cache_write_time_;
   bool recorded_histograms_ = false;
   bool has_opened_or_created_entry_ = false;
   bool record_entry_open_or_creation_time_ = false;

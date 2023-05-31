@@ -6,8 +6,8 @@
 #include <utility>
 #include <zlib.h>
 
-#include "base/bind.h"
-#include "base/callback.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
 #include "net/base/io_buffer.h"
 #include "net/base/test_completion_callback.h"

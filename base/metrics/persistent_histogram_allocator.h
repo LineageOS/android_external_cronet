@@ -12,7 +12,6 @@
 #include <vector>
 
 #include "base/base_export.h"
-#include "base/feature_list.h"
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_base.h"
 #include "base/metrics/persistent_memory_allocator.h"
@@ -29,9 +28,6 @@ class FilePath;
 class PersistentSampleMapRecords;
 class PersistentSparseHistogramDataManager;
 class WritableSharedMemoryRegion;
-
-// Feature definition for enabling histogram persistence.
-BASE_EXPORT BASE_DECLARE_FEATURE(kPersistentHistogramsFeature);
 
 // A data manager for sparse histograms so each instance of such doesn't have
 // to separately iterate over the entire memory segment. Though this class
@@ -470,6 +466,14 @@ class BASE_EXPORT GlobalHistogramAllocator
   // Retrieves a previously set pathname to which the contents of this allocator
   // are to be saved.
   const FilePath& GetPersistentLocation() const;
+
+  // Returns whether the contents of this allocator are being saved to a
+  // persistent file on disk.
+  bool HasPersistentLocation() const;
+
+  // Moves the file being used to persist this allocator's data to the directory
+  // specified by |dir|. Returns whether the operation was successful.
+  bool MovePersistentFile(const FilePath& dir);
 
   // Writes the internal data to a previously set location. This is generally
   // called when a process is exiting from a section of code that may not know

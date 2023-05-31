@@ -19,20 +19,22 @@
 #include <vector>
 
 #include "base/containers/flat_map.h"
-#include "base/containers/lru_cache.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/observer_list.h"
 #include "base/observer_list_types.h"
 #include "base/strings/string_piece.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
+#include "base/values.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/load_timing_info.h"
 #include "net/base/net_error_details.h"
 #include "net/base/net_export.h"
 #include "net/base/network_handle.h"
-#include "net/base/proxy_server.h"
 #include "net/log/net_log_with_source.h"
+#include "net/net_buildflags.h"
 #include "net/quic/quic_chromium_client_stream.h"
 #include "net/quic/quic_chromium_packet_reader.h"
 #include "net/quic/quic_chromium_packet_writer.h"
@@ -56,10 +58,15 @@
 #include "url/origin.h"
 #include "url/scheme_host_port.h"
 
+#if BUILDFLAG(ENABLE_WEBSOCKETS)
+#include "net/websockets/websocket_basic_stream_adapters.h"
+#endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
+
 namespace net {
 
 class CertVerifyResult;
 class DatagramClientSocket;
+struct HostResolverEndpointResult;
 class NetLog;
 class QuicCryptoClientStreamFactory;
 class QuicServerInfo;
@@ -103,6 +110,7 @@ enum MigrationCause {
   CHANGE_NETWORK_ON_PATH_DEGRADING,           // With probing.
   CHANGE_PORT_ON_PATH_DEGRADING,              // With probing.
   NEW_NETWORK_CONNECTED_POST_PATH_DEGRADING,  // With probing.
+  ON_SERVER_PREFERRED_ADDRESS_AVAILABLE,      // With probing.
   MIGRATION_CAUSE_MAX
 };
 
@@ -292,6 +300,17 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
     const std::set<std::string>& GetDnsAliasesForSessionKey(
         const QuicSessionKey& key) const;
 
+#if BUILDFLAG(ENABLE_WEBSOCKETS)
+    // This method returns nullptr on failure, such as when a new bidirectional
+    // stream could not be made.
+    std::unique_ptr<WebSocketQuicStreamAdapter>
+    CreateWebSocketQuicStreamAdapter(
+        WebSocketQuicStreamAdapter::Delegate* delegate,
+        base::OnceCallback<void(std::unique_ptr<WebSocketQuicStreamAdapter>)>
+            callback,
+        const NetworkTrafficAnnotationTag& traffic_annotation);
+#endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
+
    private:
     friend class QuicChromiumClientSession;
     friend class QuicChromiumClientSession::StreamRequest;
@@ -348,7 +367,10 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
     // is asynchronous, i.e. it returned quic::QUIC_PENDING, and remains valid
     // until |OnRendezvouResult()| fires or |push_handle_->Cancel()| is
     // invoked.
-    quic::QuicClientPushPromiseIndex::TryHandle* push_handle_ = nullptr;
+    // This field is not a raw_ptr<> because it was filtered by the rewriter
+    // for: #addr-of
+    RAW_PTR_EXCLUSION quic::QuicClientPushPromiseIndex::TryHandle*
+        push_handle_ = nullptr;
     CompletionOnceCallback push_callback_;
     std::unique_ptr<QuicChromiumClientStream::Handle> push_stream_;
 
@@ -423,6 +445,14 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
 
     const NetworkTrafficAnnotationTag traffic_annotation_;
 
+#if BUILDFLAG(ENABLE_WEBSOCKETS)
+    // For creation of streams for WebSockets over HTTP/3
+    bool for_websockets_ = false;
+    raw_ptr<WebSocketQuicStreamAdapter::Delegate> websocket_adapter_delegate_;
+    base::OnceCallback<void(std::unique_ptr<WebSocketQuicStreamAdapter>)>
+        start_websocket_callback_;
+#endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
+
     base::WeakPtrFactory<StreamRequest> weak_factory_{this};
   };
 
@@ -481,6 +511,26 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       : public quic::QuicPathValidator::ResultDelegate {
    public:
     explicit PortMigrationValidationResultDelegate(
+        QuicChromiumClientSession* session);
+
+    void OnPathValidationSuccess(
+        std::unique_ptr<quic::QuicPathValidationContext> context,
+        quic::QuicTime start_time) override;
+
+    void OnPathValidationFailure(
+        std::unique_ptr<quic::QuicPathValidationContext> context) override;
+
+   private:
+    // |session_| owns |this| and should out live |this|.
+    raw_ptr<QuicChromiumClientSession> session_;
+  };
+
+  // This class implements Chrome logic for path validation events associated
+  // with migrating to server preferred address.
+  class NET_EXPORT_PRIVATE ServerPreferredAddressValidationResultDelegate
+      : public quic::QuicPathValidator::ResultDelegate {
+   public:
+    explicit ServerPreferredAddressValidationResultDelegate(
         QuicChromiumClientSession* session);
 
     void OnPathValidationSuccess(
@@ -567,7 +617,6 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       int max_migrations_to_non_default_network_on_path_degrading,
       int yield_after_packets,
       quic::QuicTime::Delta yield_after_duration,
-      bool headers_include_h2_stream_dependency,
       int cert_verify_flags,
       const quic::QuicConfig& config,
       std::unique_ptr<QuicCryptoClientConfigHandle> crypto_config,
@@ -579,6 +628,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       const base::TickClock* tick_clock,
       base::SequencedTaskRunner* task_runner,
       std::unique_ptr<SocketPerformanceWatcher> socket_performance_watcher,
+      const HostResolverEndpointResult& endpoint_result,
       NetLog* net_log);
 
   QuicChromiumClientSession(const QuicChromiumClientSession&) = delete;
@@ -644,6 +694,14 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       std::unique_ptr<QuicChromiumPacketWriter> writer,
       std::unique_ptr<QuicChromiumPacketReader> reader);
 
+  void OnServerPreferredAddressProbeSucceeded(
+      handles::NetworkHandle network,
+      const quic::QuicSocketAddress& peer_address,
+      const quic::QuicSocketAddress& self_address,
+      std::unique_ptr<DatagramClientSocket> socket,
+      std::unique_ptr<QuicChromiumPacketWriter> writer,
+      std::unique_ptr<QuicChromiumPacketReader> reader);
+
   void OnProbeFailed(handles::NetworkHandle network,
                      const quic::QuicSocketAddress& peer_address);
 
@@ -655,10 +713,6 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       const spdy::SpdyStreamPrecedence& precedence,
       quiche::QuicheReferenceCountedPointer<quic::QuicAckListenerInterface>
           ack_listener) override;
-  void UnregisterStreamPriority(quic::QuicStreamId id, bool is_static) override;
-  void UpdateStreamPriority(
-      quic::QuicStreamId id,
-      const quic::QuicStreamPriority& new_priority) override;
   void OnHttp3GoAway(uint64_t id) override;
   void OnAcceptChFrameReceivedViaAlps(
       const quic::AcceptChFrame& frame) override;
@@ -679,6 +733,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       const quic::CryptoHandshakeMessage& message) override;
   void OnGoAway(const quic::QuicGoAwayFrame& frame) override;
   void OnCanCreateNewOutgoingStream(bool unidirectional) override;
+  quic::QuicSSLConfig GetSSLConfig() const override;
 
   // QuicSpdyClientSessionBase methods:
   void OnConfigNegotiated() override;
@@ -697,6 +752,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   void OnKeyUpdate(quic::KeyUpdateReason reason) override;
   std::unique_ptr<quic::QuicPathValidationContext>
   CreateContextForMultiPortPath() override;
+  void MigrateToMultiPortPath(
+      std::unique_ptr<quic::QuicPathValidationContext> context) override;
 
   // QuicChromiumPacketReader::Visitor methods:
   bool OnReadError(int result, const DatagramClientSocket* socket) override;
@@ -734,7 +791,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
                                 quic::QuicErrorCode quic_error,
                                 quic::ConnectionCloseBehavior behavior);
 
-  base::Value GetInfoAsValue(const std::set<HostPortPair>& aliases);
+  base::Value::Dict GetInfoAsValue(const std::set<HostPortPair>& aliases);
 
   const NetLogWithSource& net_log() const { return net_log_; }
 
@@ -853,6 +910,11 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   void DeletePromised(quic::QuicClientPromisedInfo* promised) override;
 
   void OnPushStreamTimedOut(quic::QuicStreamId stream_id) override;
+
+  // Override to validate |server_preferred_address| on a different socket.
+  // Migrates to this address on validation succeeds.
+  void OnServerPreferredAddressAvailable(
+      const quic::QuicSocketAddress& server_preferred_address) override;
 
   // Cancels the push if the push stream for |url| has not been claimed and is
   // still active. Otherwise, no-op.
@@ -998,6 +1060,18 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
 
   void LogZeroRttStats();
 
+#if BUILDFLAG(ENABLE_WEBSOCKETS)
+  std::unique_ptr<WebSocketQuicStreamAdapter>
+  CreateWebSocketQuicStreamAdapterImpl(
+      WebSocketQuicStreamAdapter::Delegate* delegate);
+
+  std::unique_ptr<WebSocketQuicStreamAdapter> CreateWebSocketQuicStreamAdapter(
+      WebSocketQuicStreamAdapter::Delegate* delegate,
+      base::OnceCallback<void(std::unique_ptr<WebSocketQuicStreamAdapter>)>
+          callback,
+      StreamRequest* stream_request);
+#endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
+
   QuicSessionKey session_key_;
   bool require_confirmation_;
   bool migrate_session_early_v2_;
@@ -1091,11 +1165,6 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   // posted and unset until the first packet is written after migration.
   bool ignore_read_error_ = false;
 
-  // If true, client headers will include HTTP/2 stream dependency info derived
-  // from spdy::SpdyStreamPrecedence.
-  bool headers_include_h2_stream_dependency_;
-  Http2PriorityDependencies priority_dependency_state_;
-
   bool attempted_zero_rtt_ = false;
 
   size_t num_migrations_ = 0;
@@ -1112,6 +1181,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   // Map of origin to Accept-CH header field values received via ALPS.
   base::flat_map<url::SchemeHostPort, std::string>
       accept_ch_entries_received_via_alps_;
+
+  std::vector<uint8_t> ech_config_list_;
 
   base::WeakPtrFactory<QuicChromiumClientSession> weak_factory_{this};
 };

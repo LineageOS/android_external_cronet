@@ -22,19 +22,18 @@
 
 #include <memory>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/debug/alias.h"
 #include "base/feature_list.h"
 #include "base/files/file_util.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/logging.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/posix/eintr_wrapper.h"
 #include "base/rand_util.h"
 #include "base/task/current_thread.h"
 #include "base/task/thread_pool.h"
-#include "base/trace_event/base_tracing.h"
 #include "build/chromeos_buildflags.h"
 #include "net/base/cronet_buildflags.h"
 #include "net/base/features.h"
@@ -45,6 +44,7 @@
 #include "net/base/network_activity_monitor.h"
 #include "net/base/sockaddr_storage.h"
 #include "net/base/trace_constants.h"
+#include "net/base/tracing.h"
 #include "net/log/net_log.h"
 #include "net/log/net_log_event_type.h"
 #include "net/log/net_log_source.h"
@@ -58,7 +58,6 @@
 #if BUILDFLAG(IS_ANDROID)
 #include "base/native_library.h"
 #include "net/android/network_library.h"
-#include "net/android/radio_activity_tracker.h"
 #endif  // BUILDFLAG(IS_ANDROID)
 
 #if BUILDFLAG(IS_MAC)
@@ -154,10 +153,33 @@ int UDPSocketPosix::Open(AddressFamily address_family) {
   if (owned_socket_count.empty())
     return ERR_INSUFFICIENT_RESOURCES;
 
+  owned_socket_count_ = std::move(owned_socket_count);
   addr_family_ = ConvertAddressFamily(address_family);
   socket_ = CreatePlatformSocket(addr_family_, SOCK_DGRAM, 0);
-  if (socket_ == kInvalidSocket)
+  if (socket_ == kInvalidSocket) {
+    owned_socket_count_.Reset();
     return MapSystemError(errno);
+  }
+
+  return ConfigureOpenedSocket();
+}
+
+int UDPSocketPosix::AdoptOpenedSocket(AddressFamily address_family,
+                                      int socket) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  DCHECK_EQ(socket_, kInvalidSocket);
+  auto owned_socket_count = TryAcquireGlobalUDPSocketCount();
+  if (owned_socket_count.empty()) {
+    return ERR_INSUFFICIENT_RESOURCES;
+  }
+
+  owned_socket_count_ = std::move(owned_socket_count);
+  socket_ = socket;
+  addr_family_ = ConvertAddressFamily(address_family);
+  return ConfigureOpenedSocket();
+}
+
+int UDPSocketPosix::ConfigureOpenedSocket() {
 #if BUILDFLAG(IS_APPLE) && !BUILDFLAG(CRONET_BUILD)
   PCHECK(change_fdguard_np(socket_, nullptr, 0, &kSocketFdGuard,
                            GUARD_CLOSE | GUARD_DUP, nullptr) == 0);
@@ -171,7 +193,6 @@ int UDPSocketPosix::Open(AddressFamily address_family) {
   if (tag_ != SocketTag())
     tag_.Apply(socket_);
 
-  owned_socket_count_ = std::move(owned_socket_count);
   return OK;
 }
 
@@ -222,7 +243,6 @@ void UDPSocketPosix::ReceivedActivityMonitor::OnTimerFired() {
 
 void UDPSocketPosix::Close() {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-  CHECK(!dont_close_);
 
   owned_socket_count_.Reset();
 
@@ -369,9 +389,6 @@ int UDPSocketPosix::Write(
     int buf_len,
     CompletionOnceCallback callback,
     const NetworkTrafficAnnotationTag& traffic_annotation) {
-#if BUILDFLAG(IS_ANDROID)
-  android::MaybeRecordUDPWriteForWakeupTrigger(traffic_annotation);
-#endif  // BUILDFLAG(IS_ANDROID)
   return SendToOrWrite(buf, buf_len, nullptr, std::move(callback));
 }
 
@@ -1046,6 +1063,14 @@ int UDPSocketPosix::SetDiffServCodePoint(DiffServCodePoint dscp) {
   return OK;
 }
 
+int UDPSocketPosix::SetIPv6Only(bool ipv6_only) {
+  DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
+  if (is_connected()) {
+    return ERR_SOCKET_IS_CONNECTED;
+  }
+  return net::SetIPv6Only(socket_, ipv6_only);
+}
+
 void UDPSocketPosix::DetachFromThread() {
   DETACH_FROM_THREAD(thread_checker_);
 }
@@ -1069,10 +1094,6 @@ int UDPSocketPosix::SetIOSNetworkServiceType(int ios_network_service_type) {
   }
 #endif  // BUILDFLAG(IS_IOS)
   return OK;
-}
-
-void UDPSocketPosix::SetDontClose(bool dont_close) {
-  dont_close_ = dont_close;
 }
 
 }  // namespace net
