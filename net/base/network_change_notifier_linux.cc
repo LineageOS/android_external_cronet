@@ -6,9 +6,9 @@
 
 #include <string>
 
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/task/task_traits.h"
 #include "base/task/thread_pool.h"
@@ -126,8 +126,8 @@ NetworkChangeNotifierLinux::GetCurrentConnectionType() const {
   return blocking_thread_objects_->GetCurrentConnectionType();
 }
 
-const internal::AddressTrackerLinux*
-NetworkChangeNotifierLinux::GetAddressTrackerInternal() const {
+const AddressMapOwnerLinux*
+NetworkChangeNotifierLinux::GetAddressMapOwnerInternal() const {
   return blocking_thread_objects_->address_tracker();
 }
 

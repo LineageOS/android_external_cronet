@@ -5,8 +5,7 @@
 #ifndef BASE_ALLOCATOR_PARTITION_ALLOC_FEATURES_H_
 #define BASE_ALLOCATOR_PARTITION_ALLOC_FEATURES_H_
 
-#include "base/allocator/buildflags.h"
-#include "base/allocator/partition_allocator/partition_alloc_config.h"
+#include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/base_export.h"
 #include "base/compiler_specific.h"
 #include "base/feature_list.h"
@@ -25,10 +24,6 @@ extern const BASE_EXPORT base::FeatureParam<UnretainedDanglingPtrMode>
     kUnretainedDanglingPtrModeParam;
 
 // See /docs/dangling_ptr.md
-//
-// Usage:
-// --enable-features=PartitionAllocDanglingPtr:mode/crash
-// --enable-features=PartitionAllocDanglingPtr:mode/log_signature
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocDanglingPtr);
 enum class DanglingPtrMode {
   // Crash immediately after detecting a dangling raw_ptr.
@@ -36,19 +31,33 @@ enum class DanglingPtrMode {
 
   // Log the signature of every occurrences without crashing. It is used by
   // bots.
-  // Format "[DanglingSignature]\t<1>\t<2>"
-  // 1. The function who freed the memory while it was still referenced.
-  // 2. The function who released the raw_ptr reference.
-  kLogSignature,
+  // Format "[DanglingSignature]\t<1>\t<2>\t<3>\t<4>"
+  // 1. The function which freed the memory while it was still referenced.
+  // 2. The task in which the memory was freed.
+  // 3. The function which released the raw_ptr reference.
+  // 4. The task in which the raw_ptr was released.
+  kLogOnly,
 
   // Note: This will be extended with a single shot DumpWithoutCrashing.
 };
 extern const BASE_EXPORT base::FeatureParam<DanglingPtrMode>
     kDanglingPtrModeParam;
+enum class DanglingPtrType {
+  // Act on any dangling raw_ptr released after being freed.
+  kAll,  // (default)
 
-#if defined(PA_ALLOW_PCSCAN)
+  // Detect when freeing memory and releasing the dangling raw_ptr happens in
+  // a different task. Those are more likely to cause use after free.
+  kCrossTask,
+
+  // Note: This will be extended with LongLived
+};
+extern const BASE_EXPORT base::FeatureParam<DanglingPtrType>
+    kDanglingPtrTypeParam;
+
+#if BUILDFLAG(USE_STARSCAN)
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPCScan);
-#endif  // defined(PA_ALLOW_PCSCAN)
+#endif
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPCScanBrowserOnly);
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPCScanRendererOnly);
@@ -81,9 +90,16 @@ enum class BackupRefPtrMode {
   // Same as kEnabled but without zapping quarantined objects.
   kEnabledWithoutZapping,
 
+  // Same as kEnabled but registers the main partition to memory reclaimer.
+  kEnabledWithMemoryReclaimer,
+
   // BRP is disabled, but the main partition is split out, as if BRP was enabled
   // in the "previous slot" mode.
   kDisabledButSplitPartitions2Way,
+
+  // Same as kDisabledButSplitPartitions2Way but registers the main partition to
+  // memory reclaimer.
+  kDisabledButSplitPartitions2WayWithMemoryReclaimer,
 
   // BRP is disabled, but the main partition *and* aligned partition are split
   // out, as if BRP was enabled in the "before allocation" mode.
@@ -97,7 +113,6 @@ enum class BackupRefPtrMode {
 
 enum class AlternateBucketDistributionMode : uint8_t {
   kDefault,
-  kCoarser,
   kDenser,
 };
 
@@ -115,6 +130,7 @@ extern const BASE_EXPORT base::FeatureParam<bool>
 extern const BASE_EXPORT base::FeatureParam<AlternateBucketDistributionMode>
     kPartitionAllocAlternateBucketDistributionParam;
 
+BASE_EXPORT BASE_DECLARE_FEATURE(kLowerPAMemoryLimitForNonMainRenderers);
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPCScanMUAwareScheduler);
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocPCScanStackScanning);
 BASE_EXPORT BASE_DECLARE_FEATURE(kPartitionAllocDCScan);

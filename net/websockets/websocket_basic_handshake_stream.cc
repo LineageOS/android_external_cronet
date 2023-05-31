@@ -11,9 +11,9 @@
 #include <utility>
 
 #include "base/base64.h"
-#include "base/bind.h"
 #include "base/check_op.h"
 #include "base/compiler_specific.h"
+#include "base/functional/bind.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
@@ -161,11 +161,12 @@ bool ValidateConnection(const HttpResponseHeaders* headers,
   return true;
 }
 
-base::Value NetLogFailureParam(int net_error, const std::string& message) {
+base::Value::Dict NetLogFailureParam(int net_error,
+                                     const std::string& message) {
   base::Value::Dict dict;
   dict.Set("net_error", net_error);
   dict.Set("message", message);
-  return base::Value(std::move(dict));
+  return dict;
 }
 
 }  // namespace

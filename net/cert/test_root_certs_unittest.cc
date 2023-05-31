@@ -15,6 +15,7 @@
 #include "net/cert/crl_set.h"
 #include "net/cert/x509_certificate.h"
 #include "net/log/net_log_with_source.h"
+#include "net/net_buildflags.h"
 #include "net/test/cert_test_util.h"
 #include "net/test/gtest_util.h"
 #include "net/test/test_data_directory.h"
@@ -33,16 +34,23 @@ const char kRootCertificateFile[] = "root_ca_cert.pem";
 const char kGoodCertificateFile[] = "ok_cert.pem";
 
 scoped_refptr<CertVerifyProc> CreateCertVerifyProc() {
-#if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
+#if BUILDFLAG(CHROME_ROOT_STORE_OPTIONAL)
   if (base::FeatureList::IsEnabled(features::kChromeRootStoreUsed)) {
     return CertVerifyProc::CreateBuiltinWithChromeRootStore(
-        /*cert_net_fetcher=*/nullptr);
+        /*cert_net_fetcher=*/nullptr, CRLSet::BuiltinCRLSet().get(),
+        /*root_store_data=*/nullptr);
   }
 #endif
-#if BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
-  return CertVerifyProc::CreateBuiltinVerifyProc(/*cert_net_fetcher=*/nullptr);
+#if BUILDFLAG(CHROME_ROOT_STORE_ONLY)
+  return CertVerifyProc::CreateBuiltinWithChromeRootStore(
+      /*cert_net_fetcher=*/nullptr, CRLSet::BuiltinCRLSet().get(),
+      /*root_store_data=*/nullptr);
+#elif BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS)
+  return CertVerifyProc::CreateBuiltinVerifyProc(/*cert_net_fetcher=*/nullptr,
+                                                 CRLSet::BuiltinCRLSet().get());
 #else
-  return CertVerifyProc::CreateSystemVerifyProc(/*cert_net_fetcher=*/nullptr);
+  return CertVerifyProc::CreateSystemVerifyProc(/*cert_net_fetcher=*/nullptr,
+                                                CRLSet::BuiltinCRLSet().get());
 #endif
 }
 
@@ -86,8 +94,8 @@ TEST(TestRootCertsTest, OverrideTrust) {
   scoped_refptr<CertVerifyProc> verify_proc(CreateCertVerifyProc());
   int bad_status = verify_proc->Verify(
       test_cert.get(), "127.0.0.1", /*ocsp_response=*/std::string(),
-      /*sct_list=*/std::string(), flags, net::CRLSet::BuiltinCRLSet().get(),
-      CertificateList(), &bad_verify_result, NetLogWithSource());
+      /*sct_list=*/std::string(), flags, CertificateList(), &bad_verify_result,
+      NetLogWithSource());
   EXPECT_NE(OK, bad_status);
   EXPECT_NE(0u, bad_verify_result.cert_status & CERT_STATUS_AUTHORITY_INVALID);
 
@@ -103,8 +111,8 @@ TEST(TestRootCertsTest, OverrideTrust) {
   CertVerifyResult good_verify_result;
   int good_status = verify_proc->Verify(
       test_cert.get(), "127.0.0.1", /*ocsp_response=*/std::string(),
-      /*sct_list=*/std::string(), flags, CRLSet::BuiltinCRLSet().get(),
-      CertificateList(), &good_verify_result, NetLogWithSource());
+      /*sct_list=*/std::string(), flags, CertificateList(), &good_verify_result,
+      NetLogWithSource());
   EXPECT_THAT(good_status, IsOk());
   EXPECT_EQ(0u, good_verify_result.cert_status);
 
@@ -117,8 +125,8 @@ TEST(TestRootCertsTest, OverrideTrust) {
   CertVerifyResult restored_verify_result;
   int restored_status = verify_proc->Verify(
       test_cert.get(), "127.0.0.1", /*ocsp_response=*/std::string(),
-      /*sct_list=*/std::string(), flags, CRLSet::BuiltinCRLSet().get(),
-      CertificateList(), &restored_verify_result, NetLogWithSource());
+      /*sct_list=*/std::string(), flags, CertificateList(),
+      &restored_verify_result, NetLogWithSource());
   EXPECT_NE(OK, restored_status);
   EXPECT_NE(0u,
             restored_verify_result.cert_status & CERT_STATUS_AUTHORITY_INVALID);
@@ -148,8 +156,8 @@ TEST(TestRootCertsTest, Moveable) {
     // certificate should not yet be trusted.
     bad_status = verify_proc->Verify(
         test_cert.get(), "127.0.0.1", /*ocsp_response=*/std::string(),
-        /*sct_list=*/std::string(), flags, net::CRLSet::BuiltinCRLSet().get(),
-        CertificateList(), &bad_verify_result, NetLogWithSource());
+        /*sct_list=*/std::string(), flags, CertificateList(),
+        &bad_verify_result, NetLogWithSource());
     EXPECT_NE(OK, bad_status);
     EXPECT_NE(0u,
               bad_verify_result.cert_status & CERT_STATUS_AUTHORITY_INVALID);
@@ -167,8 +175,8 @@ TEST(TestRootCertsTest, Moveable) {
       CertVerifyResult good_verify_result;
       int good_status = verify_proc->Verify(
           test_cert.get(), "127.0.0.1", /*ocsp_response=*/std::string(),
-          /*sct_list=*/std::string(), flags, CRLSet::BuiltinCRLSet().get(),
-          CertificateList(), &good_verify_result, NetLogWithSource());
+          /*sct_list=*/std::string(), flags, CertificateList(),
+          &good_verify_result, NetLogWithSource());
       EXPECT_THAT(good_status, IsOk());
       EXPECT_EQ(0u, good_verify_result.cert_status);
 
@@ -189,8 +197,8 @@ TEST(TestRootCertsTest, Moveable) {
     CertVerifyResult good_verify_result;
     int good_status = verify_proc->Verify(
         test_cert.get(), "127.0.0.1", /*ocsp_response=*/std::string(),
-        /*sct_list=*/std::string(), flags, CRLSet::BuiltinCRLSet().get(),
-        CertificateList(), &good_verify_result, NetLogWithSource());
+        /*sct_list=*/std::string(), flags, CertificateList(),
+        &good_verify_result, NetLogWithSource());
     EXPECT_THAT(good_status, IsOk());
     EXPECT_EQ(0u, good_verify_result.cert_status);
   }
@@ -202,8 +210,8 @@ TEST(TestRootCertsTest, Moveable) {
   CertVerifyResult restored_verify_result;
   int restored_status = verify_proc->Verify(
       test_cert.get(), "127.0.0.1", /*ocsp_response=*/std::string(),
-      /*sct_list=*/std::string(), flags, CRLSet::BuiltinCRLSet().get(),
-      CertificateList(), &restored_verify_result, NetLogWithSource());
+      /*sct_list=*/std::string(), flags, CertificateList(),
+      &restored_verify_result, NetLogWithSource());
   EXPECT_NE(OK, restored_status);
   EXPECT_NE(0u,
             restored_verify_result.cert_status & CERT_STATUS_AUTHORITY_INVALID);

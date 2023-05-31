@@ -11,6 +11,7 @@ import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.base.annotations.NativeMethods;
 import org.chromium.base.test.util.UrlUtils;
 
 /**
@@ -38,7 +39,7 @@ public final class QuicTestServer {
         String test_dir = TestFilesInstaller.getInstalledPath(context);
         // TestFilesInstaller implementation changed such that the test files and test data dir
         // are now the same. See aosp/2475670
-        nativeStartQuicTestServer(test_dir, test_dir);
+        QuicTestServerJni.get().startQuicTestServer(test_dir, test_dir);
         sBlock.block();
         sBlock.close();
         sServerRunning = true;
@@ -51,7 +52,7 @@ public final class QuicTestServer {
         if (!sServerRunning) {
             return;
         }
-        nativeShutdownQuicTestServer();
+        QuicTestServerJni.get().shutdownQuicTestServer();
         sServerRunning = false;
     }
 
@@ -64,7 +65,7 @@ public final class QuicTestServer {
     }
 
     public static int getServerPort() {
-        return nativeGetServerPort();
+        return QuicTestServerJni.get().getServerPort();
     }
 
     public static final String getServerCert() {
@@ -86,7 +87,10 @@ public final class QuicTestServer {
         sBlock.open();
     }
 
-    private static native void nativeStartQuicTestServer(String filePath, String testDataDir);
-    private static native void nativeShutdownQuicTestServer();
-    private static native int nativeGetServerPort();
+    @NativeMethods("cronet_tests")
+    interface Natives {
+        void startQuicTestServer(String filePath, String testDataDir);
+        void shutdownQuicTestServer();
+        int getServerPort();
+    }
 }
