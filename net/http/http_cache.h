@@ -21,8 +21,8 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "base/callback.h"
 #include "base/files/file_path.h"
+#include "base/functional/callback.h"
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -316,10 +316,12 @@ class NET_EXPORT HttpCache : public HttpTransactionFactory {
   friend class MockHttpCache;
   friend class HttpCacheIOCallbackTest;
 
-  FRIEND_TEST_ALL_PREFIXES(HttpCacheTest, SplitCacheWithNetworkIsolationKey);
+  FRIEND_TEST_ALL_PREFIXES(HttpCacheTest_SplitCacheFeatureEnabled,
+                           SplitCacheWithNetworkIsolationKey);
   FRIEND_TEST_ALL_PREFIXES(HttpCacheTest, NonSplitCache);
-  FRIEND_TEST_ALL_PREFIXES(HttpCacheTest, SplitCache);
-  FRIEND_TEST_ALL_PREFIXES(HttpCacheTest, SplitCacheUsesRegistrableDomain);
+  FRIEND_TEST_ALL_PREFIXES(HttpCacheTest_SplitCacheFeatureEnabled, SplitCache);
+  FRIEND_TEST_ALL_PREFIXES(HttpCacheTest_SplitCacheFeatureEnabled,
+                           SplitCacheUsesRegistrableDomain);
 
   using TransactionList = std::list<Transaction*>;
   using TransactionSet = std::unordered_set<Transaction*>;
@@ -393,8 +395,6 @@ class NET_EXPORT HttpCache : public HttpTransactionFactory {
 
     // True if entry is doomed.
     bool doomed = false;
-
-    absl::optional<bool> writers_done_writing_to_entry_history;
   };
 
   using ActiveEntriesMap =

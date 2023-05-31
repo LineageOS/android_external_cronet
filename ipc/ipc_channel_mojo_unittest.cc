@@ -11,14 +11,15 @@
 #include <utility>
 
 #include "base/base_paths.h"
-#include "base/bind.h"
-#include "base/callback_helpers.h"
 #include "base/containers/queue.h"
 #include "base/files/file.h"
 #include "base/files/scoped_temp_dir.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/memory/platform_shared_memory_region.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/read_only_shared_memory_region.h"
 #include "base/memory/shared_memory_mapping.h"
 #include "base/memory/unsafe_shared_memory_region.h"
@@ -1154,7 +1155,9 @@ class ListenerWithSyncAssociatedInterface
     receiver_.Bind(std::move(receiver));
   }
 
-  IPC::Sender* sync_sender_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION IPC::Sender* sync_sender_ = nullptr;
   int32_t next_expected_value_ = 0;
   int32_t response_value_ = 0;
   base::OnceClosure quit_closure_;
@@ -1213,9 +1216,9 @@ TEST_F(IPCChannelProxyMojoTest, SyncAssociatedInterface) {
   // Now make a classical sync IPC request to the client. It will send a
   // sync associated interface message to us while we wait.
   received_value = 0;
-  std::unique_ptr<IPC::SyncMessage> request(
-      new IPC::SyncMessage(0, 0, IPC::Message::PRIORITY_NORMAL,
-                           new SyncReplyReader(&received_value)));
+  auto request = std::make_unique<IPC::SyncMessage>(
+      0, 0, IPC::Message::PRIORITY_NORMAL,
+      std::make_unique<SyncReplyReader>(&received_value));
   EXPECT_TRUE(proxy()->Send(request.release()));
   EXPECT_EQ(42, received_value);
 
@@ -1252,8 +1255,9 @@ class SimpleTestClientImpl : public IPC::mojom::SimpleTestClient,
   void RequestValue(RequestValueCallback callback) override {
     int32_t response = 0;
     if (use_sync_sender_) {
-      std::unique_ptr<IPC::SyncMessage> reply(new IPC::SyncMessage(
-          0, 0, IPC::Message::PRIORITY_NORMAL, new SyncReplyReader(&response)));
+      auto reply = std::make_unique<IPC::SyncMessage>(
+          0, 0, IPC::Message::PRIORITY_NORMAL,
+          std::make_unique<SyncReplyReader>(&response));
       EXPECT_TRUE(sync_sender_->Send(reply.release()));
     } else {
       DCHECK(driver_);
@@ -1294,8 +1298,12 @@ class SimpleTestClientImpl : public IPC::mojom::SimpleTestClient,
 
   bool use_sync_sender_ = false;
   mojo::AssociatedReceiver<IPC::mojom::SimpleTestClient> receiver_{this};
-  IPC::Sender* sync_sender_ = nullptr;
-  IPC::mojom::SimpleTestDriver* driver_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION IPC::Sender* sync_sender_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #constexpr-ctor-field-initializer
+  RAW_PTR_EXCLUSION IPC::mojom::SimpleTestDriver* driver_ = nullptr;
   std::unique_ptr<base::RunLoop> run_loop_;
 };
 

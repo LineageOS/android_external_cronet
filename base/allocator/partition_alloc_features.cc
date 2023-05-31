@@ -4,7 +4,6 @@
 
 #include "base/allocator/partition_alloc_features.h"
 
-#include "base/allocator/buildflags.h"
 #include "base/allocator/partition_allocator/partition_alloc_buildflags.h"
 #include "base/base_export.h"
 #include "base/feature_list.h"
@@ -33,10 +32,16 @@ const base::FeatureParam<UnretainedDanglingPtrMode>
 
 BASE_FEATURE(kPartitionAllocDanglingPtr,
              "PartitionAllocDanglingPtr",
-             FEATURE_DISABLED_BY_DEFAULT);
+#if BUILDFLAG(ENABLE_DANGLING_RAW_PTR_FEATURE_FLAG)
+             FEATURE_ENABLED_BY_DEFAULT
+#else
+             FEATURE_DISABLED_BY_DEFAULT
+#endif
+);
+
 constexpr FeatureParam<DanglingPtrMode>::Option kDanglingPtrModeOption[] = {
     {DanglingPtrMode::kCrash, "crash"},
-    {DanglingPtrMode::kLogSignature, "log_signature"},
+    {DanglingPtrMode::kLogOnly, "log_only"},
 };
 const base::FeatureParam<DanglingPtrMode> kDanglingPtrModeParam{
     &kPartitionAllocDanglingPtr,
@@ -44,14 +49,24 @@ const base::FeatureParam<DanglingPtrMode> kDanglingPtrModeParam{
     DanglingPtrMode::kCrash,
     &kDanglingPtrModeOption,
 };
+constexpr FeatureParam<DanglingPtrType>::Option kDanglingPtrTypeOption[] = {
+    {DanglingPtrType::kAll, "all"},
+    {DanglingPtrType::kCrossTask, "cross_task"},
+};
+const base::FeatureParam<DanglingPtrType> kDanglingPtrTypeParam{
+    &kPartitionAllocDanglingPtr,
+    "type",
+    DanglingPtrType::kAll,
+    &kDanglingPtrTypeOption,
+};
 
-#if defined(PA_ALLOW_PCSCAN)
+#if BUILDFLAG(USE_STARSCAN)
 // If enabled, PCScan is turned on by default for all partitions that don't
 // disable it explicitly.
 BASE_FEATURE(kPartitionAllocPCScan,
              "PartitionAllocPCScan",
              FEATURE_DISABLED_BY_DEFAULT);
-#endif  // defined(PA_ALLOW_PCSCAN)
+#endif  // BUILDFLAG(USE_STARSCAN)
 
 #if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 // If enabled, PCScan is turned on only for the browser's malloc partition.
@@ -89,7 +104,8 @@ BASE_FEATURE(kPartitionAllocLargeEmptySlotSpanRing,
 
 BASE_FEATURE(kPartitionAllocBackupRefPtr,
              "PartitionAllocBackupRefPtr",
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN) || \
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN) ||    \
+    BUILDFLAG(ENABLE_BACKUP_REF_PTR_FEATURE_FLAG) || \
     (BUILDFLAG(USE_ASAN_BACKUP_REF_PTR) && BUILDFLAG(IS_LINUX))
              FEATURE_ENABLED_BY_DEFAULT
 #else
@@ -106,9 +122,10 @@ constexpr FeatureParam<BackupRefPtrEnabledProcesses>::Option
         {BackupRefPtrEnabledProcesses::kAllProcesses, "all-processes"}};
 
 const base::FeatureParam<BackupRefPtrEnabledProcesses>
-    kBackupRefPtrEnabledProcessesParam{
+    kBackupRefPtrEnabledProcessesParam {
   &kPartitionAllocBackupRefPtr, "enabled-processes",
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN) || \
+#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_WIN) ||    \
+    BUILDFLAG(ENABLE_BACKUP_REF_PTR_FEATURE_FLAG) || \
     (BUILDFLAG(USE_ASAN_BACKUP_REF_PTR) && BUILDFLAG(IS_LINUX))
       BackupRefPtrEnabledProcesses::kNonRenderer,
 #else
@@ -121,8 +138,12 @@ constexpr FeatureParam<BackupRefPtrMode>::Option kBackupRefPtrModeOptions[] = {
     {BackupRefPtrMode::kDisabled, "disabled"},
     {BackupRefPtrMode::kEnabled, "enabled"},
     {BackupRefPtrMode::kEnabledWithoutZapping, "enabled-without-zapping"},
+    {BackupRefPtrMode::kEnabledWithMemoryReclaimer,
+     "enabled-with-memory-reclaimer"},
     {BackupRefPtrMode::kDisabledButSplitPartitions2Way,
      "disabled-but-2-way-split"},
+    {BackupRefPtrMode::kDisabledButSplitPartitions2WayWithMemoryReclaimer,
+     "disabled-but-2-way-split-with-memory-reclaimer"},
     {BackupRefPtrMode::kDisabledButSplitPartitions3Way,
      "disabled-but-3-way-split"},
     {BackupRefPtrMode::kDisabledButAddDummyRefCount,
@@ -149,7 +170,6 @@ BASE_FEATURE(kPartitionAllocUseAlternateDistribution,
 const base::FeatureParam<AlternateBucketDistributionMode>::Option
     kPartitionAllocAlternateDistributionOption[] = {
         {AlternateBucketDistributionMode::kDefault, "default"},
-        {AlternateBucketDistributionMode::kCoarser, "coarser"},
         {AlternateBucketDistributionMode::kDenser, "denser"},
 };
 const base::FeatureParam<AlternateBucketDistributionMode>
@@ -157,6 +177,12 @@ const base::FeatureParam<AlternateBucketDistributionMode>
         &kPartitionAllocUseAlternateDistribution, "mode",
         AlternateBucketDistributionMode::kDefault,
         &kPartitionAllocAlternateDistributionOption};
+
+// Configures whether we set a lower limit for renderers that do not have a main
+// frame, similar to the limit that is already done for backgrounded renderers.
+BASE_FEATURE(kLowerPAMemoryLimitForNonMainRenderers,
+             "LowerPAMemoryLimitForNonMainRenderers",
+             FEATURE_DISABLED_BY_DEFAULT);
 
 // If enabled, switches PCScan scheduling to a mutator-aware scheduler. Does not
 // affect whether PCScan is enabled itself.
@@ -178,11 +204,11 @@ BASE_FEATURE(kPartitionAllocPCScanEagerClearing,
 // In addition to heap, scan also the stack of the current mutator.
 BASE_FEATURE(kPartitionAllocPCScanStackScanning,
              "PartitionAllocPCScanStackScanning",
-#if defined(PA_PCSCAN_STACK_SUPPORTED)
+#if BUILDFLAG(PCSCAN_STACK_SUPPORTED)
              FEATURE_ENABLED_BY_DEFAULT
 #else
              FEATURE_DISABLED_BY_DEFAULT
-#endif  // defined(PA_PCSCAN_STACK_SUPPORTED)
+#endif  // BUILDFLAG(PCSCAN_STACK_SUPPORTED)
 );
 
 BASE_FEATURE(kPartitionAllocDCScan,

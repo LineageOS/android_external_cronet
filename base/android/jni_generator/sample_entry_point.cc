@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/android/jni_android.h"
-#include "base/android/jni_generator/sample_jni_apk__final_jni_generated.h"
+#include "base/android/jni_generator/jni_registration_generated.h"
 #include "base/android/jni_utils.h"
 
 // This is called by the VM when the shared library is first loaded.
@@ -14,13 +14,7 @@ JNI_EXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved) {
   base::android::InitVM(vm);
   JNIEnv* env = base::android::AttachCurrentThread();
 
-  if (!base::android::IsSelectiveJniRegistrationEnabled(env)) {
-    if (!RegisterNonMainDexNatives(env)) {
-      return -1;
-    }
-  }
-
-  if (!RegisterMainDexNatives(env)) {
+  if (!RegisterNatives(env)) {
     return -1;
   }
   return JNI_VERSION_1_4;

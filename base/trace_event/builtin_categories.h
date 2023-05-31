@@ -60,7 +60,6 @@
   X("cast.mdns")                                                         \
   X("cast.mdns.socket")                                                  \
   X("cast.stream")                                                       \
-  X("catan_investigation")                                               \
   X("cc")                                                                \
   X("cc.debug")                                                          \
   X("cdp.perf")                                                          \
@@ -83,6 +82,7 @@
   X("DXVA_Decoding")                                                     \
   X("evdev")                                                             \
   X("event")                                                             \
+  X("event_latency")                                                     \
   X("exo")                                                               \
   X("extensions")                                                        \
   X("explore_sites")                                                     \
@@ -93,6 +93,7 @@
   X("GAMEPAD")                                                           \
   X("gpu")                                                               \
   X("gpu.angle")                                                         \
+  X("gpu.angle.texture_metrics")                                         \
   X("gpu.capture")                                                       \
   X("headless")                                                          \
   /* Traces for //components/history. */                                 \
@@ -144,6 +145,7 @@
   X("renderer")                                                          \
   X("renderer_host")                                                     \
   X("renderer.scheduler")                                                \
+  X("resources")                                                         \
   X("RLZ")                                                               \
   X("ServiceWorker")                                                     \
   X("SiteEngagement")                                                    \
@@ -180,6 +182,7 @@
   X("wakeup.flow")                                                       \
   X("wayland")                                                           \
   X("webaudio")                                                          \
+  X("webengine.fidl")                                                    \
   X("weblayer")                                                          \
   X("WebCore")                                                           \
   X("webrtc")                                                            \
@@ -188,11 +191,13 @@
   X(TRACE_DISABLED_BY_DEFAULT("android_view_hierarchy"))                 \
   X(TRACE_DISABLED_BY_DEFAULT("animation-worklet"))                      \
   X(TRACE_DISABLED_BY_DEFAULT("audio"))                                  \
+  X(TRACE_DISABLED_BY_DEFAULT("audio.latency"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("audio-worklet"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("base"))                                   \
   X(TRACE_DISABLED_BY_DEFAULT("blink.debug"))                            \
   X(TRACE_DISABLED_BY_DEFAULT("blink.debug.display_lock"))               \
   X(TRACE_DISABLED_BY_DEFAULT("blink.debug.layout"))                     \
+  X(TRACE_DISABLED_BY_DEFAULT("blink.debug.layout.scrollbars"))          \
   X(TRACE_DISABLED_BY_DEFAULT("blink.debug.layout.trees"))               \
   X(TRACE_DISABLED_BY_DEFAULT("blink.feature_usage"))                    \
   X(TRACE_DISABLED_BY_DEFAULT("blink.image_decoding"))                   \
@@ -203,6 +208,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug"))                               \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.cdp-perf"))                      \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.display_items"))                 \
+  X(TRACE_DISABLED_BY_DEFAULT("cc.debug.lcd_text"))                      \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.picture"))                       \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.scheduler"))                     \
   X(TRACE_DISABLED_BY_DEFAULT("cc.debug.scheduler.frames"))              \
@@ -279,6 +285,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("viz.surface_lifetime"))                   \
   X(TRACE_DISABLED_BY_DEFAULT("viz.triangles"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("webaudio.audionode"))                     \
+  X(TRACE_DISABLED_BY_DEFAULT("webgpu"))                                 \
   X(TRACE_DISABLED_BY_DEFAULT("webrtc"))                                 \
   X(TRACE_DISABLED_BY_DEFAULT("worker.scheduler"))                       \
   X(TRACE_DISABLED_BY_DEFAULT("xr.debug"))
@@ -308,7 +315,7 @@
   X("browser,startup")                                                        \
   X("category1,category2")                                                    \
   X("cc,benchmark")                                                           \
-  X("cc,benchmark,input")                                                     \
+  X("cc,benchmark,input,event_latency")                                       \
   X("cc,benchmark," TRACE_DISABLED_BY_DEFAULT("devtools.timeline.frame"))     \
   X("cc,input")                                                               \
   X("cc,raf_investigation")                                                   \
@@ -347,6 +354,7 @@
   X("renderer,webkit")                                                        \
   X("renderer_host,navigation")                                               \
   X("renderer_host," TRACE_DISABLED_BY_DEFAULT("viz.surface_id_flow"))        \
+  X("scheduler,devtools.timeline,loading")                                    \
   X("shutdown,viz")                                                           \
   X("startup,benchmark,rail")                                                 \
   X("startup,rail")                                                           \
@@ -389,9 +397,12 @@ PERFETTO_DEFINE_TEST_CATEGORY_PREFIXES("cat",
 
 // Define a Perfetto TrackEvent data source using the list of categories defined
 // above. See https://perfetto.dev/docs/instrumentation/track-events.
-PERFETTO_DEFINE_CATEGORIES(
+PERFETTO_DEFINE_CATEGORIES_IN_NAMESPACE_WITH_ATTRS(
+    base,
+    BASE_EXPORT,
     INTERNAL_TRACE_LIST_BUILTIN_CATEGORIES(INTERNAL_CATEGORY)
         INTERNAL_TRACE_LIST_BUILTIN_CATEGORY_GROUPS(INTERNAL_CATEGORY_GROUP));
+PERFETTO_USE_CATEGORIES_FROM_NAMESPACE(base);
 
 #undef INTERNAL_CATEGORY
 #undef INTERNAL_CATEGORY_GROUP

@@ -8,9 +8,9 @@
 #include <list>
 #include <memory>
 
-#include "base/bind.h"
 #include "base/compiler_specific.h"
 #include "base/containers/cxx20_erase_list.h"
+#include "base/functional/bind.h"
 #include "base/lazy_instance.h"
 #include "base/location.h"
 #include "base/strings/string_util.h"
@@ -287,7 +287,7 @@ void URLRequestTestJob::ProcessNextOperation() {
       stage_ = DATA_AVAILABLE;
       // OK if ReadRawData wasn't called yet.
       if (async_buf_) {
-        int result = CopyDataForRead(async_buf_, async_buf_size_);
+        int result = CopyDataForRead(async_buf_.get(), async_buf_size_);
         if (result < 0)
           NOTREACHED() << "Reads should not fail in DATA_AVAILABLE.";
         if (NextReadAsync()) {

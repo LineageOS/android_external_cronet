@@ -8,16 +8,15 @@
 #include <queue>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
-#include "base/callback_helpers.h"
 #include "base/compiler_specific.h"
 #include "base/debug/crash_logging.h"
 #include "base/debug/stack_trace.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
+#include "base/functional/callback_helpers.h"
 #include "base/json/json_writer.h"
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
-#include "base/no_destructor.h"
 #include "base/notreached.h"
 #include "base/observer_list.h"
 #include "base/rand_util.h"
@@ -32,23 +31,19 @@
 #include "base/task/sequence_manager/work_queue_sets.h"
 #include "base/task/task_features.h"
 #include "base/threading/thread_id_name_manager.h"
-#include "base/threading/thread_local.h"
 #include "base/time/default_tick_clock.h"
 #include "base/time/tick_clock.h"
 #include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
+#include "third_party/abseil-cpp/absl/base/attributes.h"
 #include "third_party/abseil-cpp/absl/types/optional.h"
 
 namespace base {
 namespace sequence_manager {
 namespace {
 
-base::ThreadLocalPointer<internal::SequenceManagerImpl>*
-GetTLSSequenceManagerImpl() {
-  static NoDestructor<ThreadLocalPointer<internal::SequenceManagerImpl>>
-      lazy_tls_ptr;
-  return lazy_tls_ptr.get();
-}
+ABSL_CONST_INIT thread_local internal::SequenceManagerImpl*
+    thread_local_sequence_manager = nullptr;
 
 class TracedBaseValue : public trace_event::ConvertableToTraceFormat {
  public:
@@ -69,31 +64,6 @@ class TracedBaseValue : public trace_event::ConvertableToTraceFormat {
   base::Value value_;
 };
 
-#if BUILDFLAG(ENABLE_BASE_TRACING)
-perfetto::protos::pbzero::SequenceManagerTask::Priority TaskPriorityToProto(
-    TaskQueue::QueuePriority priority) {
-  using ProtoPriority = perfetto::protos::pbzero::SequenceManagerTask::Priority;
-  switch (priority) {
-    case TaskQueue::QueuePriority::kControlPriority:
-      return ProtoPriority::CONTROL_PRIORITY;
-    case TaskQueue::QueuePriority::kHighestPriority:
-      return ProtoPriority::HIGHEST_PRIORITY;
-    case TaskQueue::QueuePriority::kVeryHighPriority:
-      return ProtoPriority::VERY_HIGH_PRIORITY;
-    case TaskQueue::QueuePriority::kHighPriority:
-      return ProtoPriority::HIGH_PRIORITY;
-    case TaskQueue::QueuePriority::kNormalPriority:
-      return ProtoPriority::NORMAL_PRIORITY;
-    case TaskQueue::QueuePriority::kLowPriority:
-      return ProtoPriority::LOW_PRIORITY;
-    case TaskQueue::QueuePriority::kBestEffortPriority:
-      return ProtoPriority::BEST_EFFORT_PRIORITY;
-    case TaskQueue::QueuePriority::kQueuePriorityCount:
-      return ProtoPriority::UNKNOWN;
-  }
-}
-#endif  //  BUILDFLAG(ENABLE_BASE_TRACING)
-
 }  // namespace
 
 std::unique_ptr<SequenceManager> CreateSequenceManagerOnCurrentThread(
@@ -105,10 +75,10 @@ std::unique_ptr<SequenceManager> CreateSequenceManagerOnCurrentThread(
 std::unique_ptr<SequenceManager> CreateSequenceManagerOnCurrentThreadWithPump(
     std::unique_ptr<MessagePump> message_pump,
     SequenceManager::Settings settings) {
-  std::unique_ptr<SequenceManager> sequence_manager =
+  std::unique_ptr<SequenceManager> manager =
       internal::SequenceManagerImpl::CreateUnbound(std::move(settings));
-  sequence_manager->BindToMessagePump(std::move(message_pump));
-  return sequence_manager;
+  manager->BindToMessagePump(std::move(message_pump));
+  return manager;
 }
 
 std::unique_ptr<SequenceManager> CreateUnboundSequenceManager(
@@ -189,7 +159,12 @@ bool g_explicit_high_resolution_timer_win = false;
 
 // static
 SequenceManagerImpl* SequenceManagerImpl::GetCurrent() {
-  return GetTLSSequenceManagerImpl()->Get();
+  // Workaround false-positive MSAN use-of-uninitialized-value on
+  // thread_local storage for loaded libraries:
+  // https://github.com/google/sanitizers/issues/1265
+  MSAN_UNPOISON(&thread_local_sequence_manager, sizeof(SequenceManagerImpl*));
+
+  return thread_local_sequence_manager;
 }
 
 SequenceManagerImpl::SequenceManagerImpl(
@@ -259,8 +234,8 @@ SequenceManagerImpl::~SequenceManagerImpl() {
 
   // OK, now make it so that no one can find us.
   if (GetMessagePump()) {
-    DCHECK_EQ(this, GetTLSSequenceManagerImpl()->Get());
-    GetTLSSequenceManagerImpl()->Set(nullptr);
+    DCHECK_EQ(this, GetCurrent());
+    thread_local_sequence_manager = nullptr;
   }
 }
 
@@ -287,8 +262,7 @@ SequenceManagerImpl::MainThreadOnly::~MainThreadOnly() = default;
 std::unique_ptr<ThreadControllerImpl>
 SequenceManagerImpl::CreateThreadControllerImplForCurrentThread(
     const TickClock* clock) {
-  auto* sequence_manager = GetTLSSequenceManagerImpl()->Get();
-  return ThreadControllerImpl::Create(sequence_manager, clock);
+  return ThreadControllerImpl::Create(GetCurrent(), clock);
 }
 
 // static
@@ -321,6 +295,7 @@ void SequenceManagerImpl::InitializeFeatures() {
   g_explicit_high_resolution_timer_win =
       FeatureList::IsEnabled(kExplicitHighResolutionTimerWin);
 #endif  // BUILDFLAG(IS_WIN)
+  TaskQueueSelector::InitializeFeatures();
 }
 
 // static
@@ -383,9 +358,9 @@ void SequenceManagerImpl::CompleteInitializationOnBoundThread() {
   controller_->AddNestingObserver(this);
   main_thread_only().nesting_observer_registered_ = true;
   if (GetMessagePump()) {
-    DCHECK(!GetTLSSequenceManagerImpl()->Get())
+    DCHECK(!GetCurrent())
         << "Can't register a second SequenceManagerImpl on the same thread.";
-    GetTLSSequenceManagerImpl()->Set(this);
+    thread_local_sequence_manager = this;
   }
 }
 
@@ -415,7 +390,8 @@ SequenceManagerImpl::CreateTaskQueueImpl(const TaskQueue::Spec& spec) {
                           : main_thread_only().wake_up_queue.get(),
           spec);
   main_thread_only().active_queues.insert(task_queue.get());
-  main_thread_only().selector.AddQueue(task_queue.get());
+  main_thread_only().selector.AddQueue(
+      task_queue.get(), settings().priority_settings.default_priority());
   return task_queue;
 }
 
@@ -539,7 +515,7 @@ void SequenceManagerImpl::SetNextWakeUp(LazyNow* lazy_now,
 
 void SequenceManagerImpl::MaybeEmitTaskDetails(
     perfetto::EventContext& ctx,
-    const SequencedTaskSource::SelectedTask& selected_task) {
+    const SequencedTaskSource::SelectedTask& selected_task) const {
 #if BUILDFLAG(ENABLE_BASE_TRACING)
   // Other parameters are included only when "scheduler" category is enabled.
   const uint8_t* scheduler_category_enabled =
@@ -550,7 +526,7 @@ void SequenceManagerImpl::MaybeEmitTaskDetails(
   auto* event = ctx.event<perfetto::protos::pbzero::ChromeTrackEvent>();
   auto* sequence_manager_task = event->set_sequence_manager_task();
   sequence_manager_task->set_priority(
-      TaskPriorityToProto(selected_task.priority));
+      settings().priority_settings.TaskPriorityToProto(selected_task.priority));
   sequence_manager_task->set_queue_name(selected_task.task_queue_name);
 
 #endif  //  BUILDFLAG(ENABLE_BASE_TRACING)
@@ -679,9 +655,11 @@ SequenceManagerImpl::SelectNextTaskImpl(LazyNow& lazy_now,
         *main_thread_only().task_execution_stack.rbegin();
     NotifyWillProcessTask(&executing_task, &lazy_now);
 
-    // Maybe invalidate the delayed task handle. |pending_task| is guaranteed to
-    // be valid here (not canceled).
-    executing_task.pending_task.WillRunTask();
+    // Maybe invalidate the delayed task handle. If already invalidated, then
+    // don't run this task.
+    if (!executing_task.pending_task.WillRunTask()) {
+      executing_task.pending_task.task = DoNothing();
+    }
 
     return SelectedTask(
         executing_task.pending_task,
@@ -1183,14 +1161,6 @@ void SequenceManagerImpl::PrioritizeYieldingToNative(
   controller_->PrioritizeYieldingToNative(prioritize_until);
 }
 
-void SequenceManagerImpl::EnablePeriodicYieldingToNative(
-    base::TimeDelta interval) {
-  TRACE_EVENT(TRACE_DISABLED_BY_DEFAULT("sequence_manager"),
-              "SequenceManagerImpl::EnablePeriodicYieldingToNative",
-              "yield_interval_ms", interval.InMilliseconds());
-  controller_->EnablePeriodicYieldingToNative(interval);
-}
-
 void SequenceManagerImpl::AddDestructionObserver(
     CurrentThread::DestructionObserver* destruction_observer) {
   main_thread_only().destruction_observers.AddObserver(destruction_observer);
@@ -1279,6 +1249,10 @@ internal::TaskQueueImpl* SequenceManagerImpl::currently_executing_task_queue()
   if (main_thread_only().task_execution_stack.empty())
     return nullptr;
   return main_thread_only().task_execution_stack.rbegin()->task_queue;
+}
+
+TaskQueue::QueuePriority SequenceManagerImpl::GetPriorityCount() const {
+  return settings().priority_settings.priority_count();
 }
 
 constexpr TimeDelta SequenceManagerImpl::kReclaimMemoryInterval;

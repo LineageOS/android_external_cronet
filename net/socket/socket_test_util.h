@@ -14,12 +14,13 @@
 #include <utility>
 #include <vector>
 
-#include "base/bind.h"
-#include "base/callback.h"
 #include "base/check_op.h"
 #include "base/containers/span.h"
+#include "base/functional/bind.h"
+#include "base/functional/callback.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
 #include "build/build_config.h"
@@ -449,7 +450,9 @@ class StaticSocketDataProvider : public SocketDataProvider {
   void Reset() override;
 
   StaticSocketDataHelper helper_;
-  SocketDataPrinter* printer_ = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #union
+  RAW_PTR_EXCLUSION SocketDataPrinter* printer_ = nullptr;
   bool paused_ = false;
 };
 
@@ -492,7 +495,9 @@ struct SSLSocketDataProvider {
   SSLInfo ssl_info;
 
   // Result for GetSSLCertRequestInfo().
-  SSLCertRequestInfo* cert_request_info = nullptr;
+  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
+  // #union
+  RAW_PTR_EXCLUSION SSLCertRequestInfo* cert_request_info = nullptr;
 
   // Result for GetECHRetryConfigs().
   std::vector<uint8_t> ech_retry_configs;
@@ -505,7 +510,7 @@ struct SSLSocketDataProvider {
   scoped_refptr<X509Certificate> expected_client_cert;
   absl::optional<HostPortPair> expected_host_and_port;
   absl::optional<NetworkAnonymizationKey> expected_network_anonymization_key;
-  absl::optional<bool> expected_disable_legacy_crypto;
+  absl::optional<bool> expected_disable_sha1_server_signatures;
   absl::optional<std::vector<uint8_t>> expected_ech_config_list;
 
   bool is_connect_data_consumed = false;
@@ -1350,8 +1355,7 @@ class MockTaggingClientSocketFactory : public MockClientSocketFactory {
   MockUDPClientSocket* GetLastProducedUDPSocket() const { return udp_socket_; }
 
  private:
-  // TODO(crbug.com/1298696): Breaks net_unittests.
-  raw_ptr<MockTaggingStreamSocket, DegradeToNoOpWhenMTE> tcp_socket_ = nullptr;
+  raw_ptr<MockTaggingStreamSocket> tcp_socket_ = nullptr;
   raw_ptr<MockUDPClientSocket> udp_socket_ = nullptr;
 };
 

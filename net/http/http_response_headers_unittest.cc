@@ -14,12 +14,17 @@
 #include "base/pickle.h"
 #include "base/ranges/algorithm.h"
 #include "base/time/time.h"
-#include "base/trace_event/base_tracing.h"
 #include "base/values.h"
+#include "net/base/cronet_buildflags.h"
+#include "net/base/tracing.h"
 #include "net/http/http_byte_range.h"
 #include "net/http/http_util.h"
 #include "net/log/net_log_capture_mode.h"
 #include "testing/gtest/include/gtest/gtest.h"
+
+#if !BUILDFLAG(CRONET_BUILD)
+#include "third_party/perfetto/include/perfetto/test/traced_value_test_support.h"
+#endif
 
 namespace net {
 
@@ -1823,7 +1828,9 @@ TEST(HttpResponseHeadersTest, SetHeader) {
       ToSimpleString(headers));
 }
 
-TEST(HttpResponseHeadersTest, DISABLED_TracingSupport) {
+#if !BUILDFLAG(CRONET_BUILD)
+// Cronet disables tracing so this test would fail.
+TEST(HttpResponseHeadersTest, TracingSupport) {
   scoped_refptr<HttpResponseHeaders> headers = HttpResponseHeaders::TryToCreate(
       "HTTP/1.1 200 OK\n"
       "connection: keep-alive\n");
@@ -1832,6 +1839,7 @@ TEST(HttpResponseHeadersTest, DISABLED_TracingSupport) {
   EXPECT_EQ(perfetto::TracedValueToString(headers),
             "{response_code:200,headers:[{name:connection,value:keep-alive}]}");
 }
+#endif
 
 struct RemoveHeaderTestData {
   const char* orig_headers;
