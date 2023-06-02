@@ -523,11 +523,12 @@ public class ExperimentalOptionsTest {
     public void testExperimentalOptions_allSet_viaNonExperimentalEngine() throws Exception {
         MockCronetBuilderImpl mockBuilderImpl = MockCronetBuilderImpl.withoutNativeSetterSupport();
         testExperimentalOptionsAllSetImpl(
-                new CronetEngine.Builder(mockBuilderImpl), mockBuilderImpl);
+                new HttpEngine.Builder(mockBuilderImpl), mockBuilderImpl);
     }
 
     private static void testExperimentalOptionsAllSetImpl(
-            CronetEngine.Builder builder, MockCronetBuilderImpl mockBuilderImpl) throws Exception {
+            HttpEngine.Builder builder,
+            MockCronetBuilderImpl mockBuilderImpl) throws Exception {
         QuicOptions quicOptions =
                 QuicOptions.builder()
                         .addAllowedQuicHost("quicHost1.com")

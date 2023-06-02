@@ -3,17 +3,22 @@
 // found in the LICENSE file.
 package android.net.http;
 
+import static android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_ENABLED;
+import static android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_UNSPECIFIED;
+import static android.net.http.DnsOptions.DNS_OPTION_ENABLED;
+import static android.net.http.DnsOptions.DNS_OPTION_UNSPECIFIED;
+
+import android.net.http.DnsOptions.StaleDnsOptions;
+
 import androidx.annotation.VisibleForTesting;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import org.chromium.net.DnsOptions.StaleDnsOptions;
-
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -24,7 +29,7 @@ import java.util.Set;
  *
  * <p>{@hide internal class}
  */
-final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineBuilder {
+public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineBuilder {
     private static final Set<Integer> SUPPORTED_OPTIONS = Collections.unmodifiableSet(
             new HashSet(Arrays.asList(IHttpEngineBuilder.CONNECTION_MIGRATION_OPTIONS,
                     IHttpEngineBuilder.DNS_OPTIONS, IHttpEngineBuilder.QUIC_OPTIONS)));
@@ -52,8 +57,8 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
 
             // Note: using the experimental APIs always overwrites what's in the experimental
             // JSON, even though "repeated" fields could in theory be additive.
-            if (!options.getQuicHostAllowlist().isEmpty()) {
-                quicOptions.put("host_whitelist", String.join(",", options.getQuicHostAllowlist()));
+            if (!options.getAllowedQuicHosts().isEmpty()) {
+                quicOptions.put("host_whitelist", String.join(",", options.getAllowedQuicHosts()));
             }
             if (!options.getEnabledQuicVersions().isEmpty()) {
                 quicOptions.put("quic_version", String.join(",", options.getEnabledQuicVersions()));
@@ -70,7 +75,7 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
                 quicOptions.put("set_quic_flags", String.join(",", options.getExtraQuicheFlags()));
             }
 
-            if (options.getInMemoryServerConfigsCacheSize() != null) {
+            if (options.hasInMemoryServerConfigsCacheSize()) {
                 quicOptions.put("max_server_configs_stored_in_properties",
                         options.getInMemoryServerConfigsCacheSize());
             }
@@ -88,24 +93,24 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
                 quicOptions.put("disable_tls_zero_rtt", !options.getEnableTlsZeroRtt());
             }
 
-            if (options.getPreCryptoHandshakeIdleTimeoutSeconds() != null) {
+            if (options.getPreCryptoHandshakeIdleTimeout() != null) {
                 quicOptions.put("max_idle_time_before_crypto_handshake_seconds",
-                        options.getPreCryptoHandshakeIdleTimeoutSeconds());
+                        options.getPreCryptoHandshakeIdleTimeout().toSeconds());
             }
 
-            if (options.getCryptoHandshakeTimeoutSeconds() != null) {
+            if (options.getCryptoHandshakeTimeout() != null) {
                 quicOptions.put("max_time_before_crypto_handshake_seconds",
-                        options.getCryptoHandshakeTimeoutSeconds());
+                        options.getCryptoHandshakeTimeout().toSeconds());
             }
 
-            if (options.getIdleConnectionTimeoutSeconds() != null) {
+            if (options.getIdleConnectionTimeout() != null) {
                 quicOptions.put("idle_connection_timeout_seconds",
-                        options.getIdleConnectionTimeoutSeconds());
+                        options.getIdleConnectionTimeout().toSeconds());
             }
 
-            if (options.getRetransmittableOnWireTimeoutMillis() != null) {
+            if (options.getRetransmittableOnWireTimeout() != null) {
                 quicOptions.put("retransmittable_on_wire_timeout_milliseconds",
-                        options.getRetransmittableOnWireTimeoutMillis());
+                        options.getRetransmittableOnWireTimeout().toMillis());
             }
 
             if (options.getCloseSessionsOnIpChange() != null) {
@@ -118,9 +123,9 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
                         "goaway_sessions_on_ip_change", options.getGoawaySessionsOnIpChange());
             }
 
-            if (options.getInitialBrokenServicePeriodSeconds() != null) {
+            if (options.getInitialBrokenServicePeriod() != null) {
                 quicOptions.put("initial_delay_for_broken_alternative_service_seconds",
-                        options.getInitialBrokenServicePeriodSeconds());
+                        options.getInitialBrokenServicePeriod().toSeconds());
             }
 
             if (options.getIncreaseBrokenServicePeriodExponentially() != null) {
@@ -148,52 +153,58 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
         mExperimentalOptionsPatches.add((experimentalOptions) -> {
             JSONObject asyncDnsOptions = createDefaultIfAbsent(experimentalOptions, "AsyncDNS");
 
-            if (options.getUseBuiltInDnsResolver() != null) {
-                asyncDnsOptions.put("enable", options.getUseBuiltInDnsResolver());
+            if (options.getUseHttpStackDnsResolver() != DNS_OPTION_UNSPECIFIED) {
+                asyncDnsOptions.put("enable",
+                        options.getUseHttpStackDnsResolver() == DNS_OPTION_ENABLED);
             }
 
             JSONObject staleDnsOptions = createDefaultIfAbsent(experimentalOptions, "StaleDNS");
 
-            if (options.getEnableStaleDns() != null) {
-                staleDnsOptions.put("enable", options.getEnableStaleDns());
+            if (options.getStaleDns() != DNS_OPTION_UNSPECIFIED) {
+                staleDnsOptions.put("enable", options.getStaleDns() == DNS_OPTION_ENABLED);
             }
 
-            if (options.getPersistHostCache() != null) {
-                staleDnsOptions.put("persist_to_disk", options.getPersistHostCache());
+            if (options.getPersistHostCache() != DNS_OPTION_UNSPECIFIED) {
+                staleDnsOptions.put("persist_to_disk",
+                        options.getPersistHostCache() == DNS_OPTION_ENABLED);
             }
 
-            if (options.getPersistHostCachePeriodMillis() != null) {
-                staleDnsOptions.put("persist_delay_ms", options.getPersistHostCachePeriodMillis());
+            if (options.getPersistHostCachePeriod() != null) {
+                staleDnsOptions.put("persist_delay_ms",
+                        options.getPersistHostCachePeriod().toMillis());
             }
 
             if (options.getStaleDnsOptions() != null) {
                 StaleDnsOptions staleDnsOptionsJava = options.getStaleDnsOptions();
 
-                if (staleDnsOptionsJava.getAllowCrossNetworkUsage() != null) {
-                    staleDnsOptions.put(
-                            "allow_other_network", staleDnsOptionsJava.getAllowCrossNetworkUsage());
+                if (staleDnsOptionsJava.getAllowCrossNetworkUsage() != DNS_OPTION_UNSPECIFIED) {
+                    staleDnsOptions.put("allow_other_network",
+                            staleDnsOptionsJava.getAllowCrossNetworkUsage()
+                                    == DNS_OPTION_ENABLED);
                 }
 
-                if (staleDnsOptionsJava.getFreshLookupTimeoutMillis() != null) {
+                if (staleDnsOptionsJava.getFreshLookupTimeout() != null) {
                     staleDnsOptions.put(
-                            "delay_ms", staleDnsOptionsJava.getFreshLookupTimeoutMillis());
+                            "delay_ms", staleDnsOptionsJava.getFreshLookupTimeout().toMillis());
                 }
 
-                if (staleDnsOptionsJava.getUseStaleOnNameNotResolved() != null) {
+                if (staleDnsOptionsJava.getUseStaleOnNameNotResolved() != DNS_OPTION_UNSPECIFIED) {
                     staleDnsOptions.put("use_stale_on_name_not_resolved",
-                            staleDnsOptionsJava.getUseStaleOnNameNotResolved());
+                            staleDnsOptionsJava.getUseStaleOnNameNotResolved()
+                                    == DNS_OPTION_ENABLED);
                 }
 
-                if (staleDnsOptionsJava.getMaxExpiredDelayMillis() != null) {
-                    staleDnsOptions.put(
-                            "max_expired_time_ms", staleDnsOptionsJava.getMaxExpiredDelayMillis());
+                if (staleDnsOptionsJava.getMaxExpiredDelay() != null) {
+                    staleDnsOptions.put("max_expired_time_ms",
+                            staleDnsOptionsJava.getMaxExpiredDelay().toMillis());
                 }
             }
 
             JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
-            if (options.getPreestablishConnectionsToStaleDnsResults() != null) {
+            if (options.getPreestablishConnectionsToStaleDnsResults() != DNS_OPTION_UNSPECIFIED) {
                 quicOptions.put("race_stale_dns_on_connection",
-                        options.getPreestablishConnectionsToStaleDnsResults());
+                        options.getPreestablishConnectionsToStaleDnsResults()
+                                == DNS_OPTION_ENABLED);
             }
         });
         return this;
@@ -212,9 +223,10 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
         mExperimentalOptionsPatches.add((experimentalOptions) -> {
             JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
 
-            if (options.getEnableDefaultNetworkMigration() != null) {
+            if (options.getDefaultNetworkMigration() != MIGRATION_OPTION_UNSPECIFIED) {
                 quicOptions.put("migrate_sessions_on_network_change_v2",
-                        options.getEnableDefaultNetworkMigration());
+                        options.getDefaultNetworkMigration()
+                                == MIGRATION_OPTION_ENABLED);
             }
             if (options.getAllowServerMigration() != null) {
                 quicOptions.put("allow_server_migration", options.getAllowServerMigration());
@@ -222,33 +234,32 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
             if (options.getMigrateIdleConnections() != null) {
                 quicOptions.put("migrate_idle_sessions", options.getMigrateIdleConnections());
             }
-            if (options.getIdleMigrationPeriodSeconds() != null) {
+            if (options.getIdleMigrationPeriod() != null) {
                 quicOptions.put("idle_session_migration_period_seconds",
-                        options.getIdleMigrationPeriodSeconds());
+                        options.getIdleMigrationPeriod().toSeconds());
             }
-            if (options.getRetryPreHandshakeErrorsOnAlternateNetwork() != null) {
-                quicOptions.put("retry_on_alternate_network_before_handshake",
-                        options.getRetryPreHandshakeErrorsOnAlternateNetwork());
-            }
-            if (options.getMaxTimeOnNonDefaultNetworkSeconds() != null) {
+            if (options.getMaxTimeOnNonDefaultNetwork() != null) {
                 quicOptions.put("max_time_on_non_default_network_seconds",
-                        options.getMaxTimeOnNonDefaultNetworkSeconds());
+                        options.getMaxTimeOnNonDefaultNetwork().toSeconds());
             }
-            if (options.getMaxPathDegradingEagerMigrationsCount() != null) {
+            if (options.getMaxPathDegradingNonDefaultMigrationsCount() != null) {
                 quicOptions.put("max_migrations_to_non_default_network_on_path_degrading",
-                        options.getMaxPathDegradingEagerMigrationsCount());
+                        options.getMaxPathDegradingNonDefaultMigrationsCount());
             }
-            if (options.getMaxWriteErrorEagerMigrationsCount() != null) {
+            if (options.getMaxWriteErrorNonDefaultNetworkMigrationsCount() != null) {
                 quicOptions.put("max_migrations_to_non_default_network_on_write_error",
-                        options.getMaxWriteErrorEagerMigrationsCount());
+                        options.getMaxWriteErrorNonDefaultNetworkMigrationsCount());
             }
-            if (options.getEnablePathDegradationMigration() != null) {
-                boolean pathDegradationValue = options.getEnablePathDegradationMigration();
+            if (options.getPathDegradationMigration() != MIGRATION_OPTION_UNSPECIFIED) {
+                boolean pathDegradationValue = options.getPathDegradationMigration()
+                        == MIGRATION_OPTION_ENABLED;
 
                 boolean skipPortMigrationFlag = false;
 
-                if (options.getAllowNonDefaultNetworkUsage() != null) {
-                    boolean nonDefaultNetworkValue = options.getAllowNonDefaultNetworkUsage();
+                if (options.getAllowNonDefaultNetworkUsage() != MIGRATION_OPTION_UNSPECIFIED) {
+                    boolean nonDefaultNetworkValue =
+                            (options.getAllowNonDefaultNetworkUsage()
+                                    == MIGRATION_OPTION_ENABLED);
                     if (!pathDegradationValue && nonDefaultNetworkValue) {
                         // Misconfiguration which doesn't translate easily to the JSON flags
                         throw new IllegalArgumentException(
@@ -258,6 +269,7 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
                         // Both values being true results in the non-default network migration
                         // being enabled.
                         quicOptions.put("migrate_sessions_early_v2", true);
+                        quicOptions.put("retry_on_alternate_network_before_handshake", true);
                         skipPortMigrationFlag = true;
                     } else {
                         quicOptions.put("migrate_sessions_early_v2", false);
@@ -334,7 +346,7 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
     }
 
     @VisibleForTesting
-    IHttpEngineBuilder getDelegate() {
+    public IHttpEngineBuilder getDelegate() {
         return mDelegate;
     }
 
@@ -346,7 +358,7 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
     // Delegating-only methods
     @Override
     public IHttpEngineBuilder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
-            boolean includeSubdomains, Date expirationDate) {
+            boolean includeSubdomains, Instant expirationDate) {
         mDelegate.addPublicKeyPins(hostName, pinsSha256, includeSubdomains, expirationDate);
         return this;
     }
@@ -390,12 +402,6 @@ final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineB
     @Override
     public IHttpEngineBuilder enableBrotli(boolean value) {
         mDelegate.enableBrotli(value);
-        return this;
-    }
-
-    @Override
-    public IHttpEngineBuilder setLibraryLoader(HttpEngine.Builder.LibraryLoader loader) {
-        mDelegate.setLibraryLoader(loader);
         return this;
     }
 

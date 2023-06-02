@@ -6,6 +6,7 @@ package org.chromium.net;
 
 import android.net.Network;
 import android.net.http.ExperimentalHttpEngine;
+import android.net.http.ExperimentalOptionsTranslatingHttpEngineBuilder;
 import android.net.http.HttpEngine;
 import android.net.http.UrlRequest;
 
