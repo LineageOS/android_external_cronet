@@ -38,6 +38,7 @@ filegroup {
         "components/cronet/android/api/src/android/net/http/DnsOptions.java",
         "components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java",
         "components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java",
+        "components/cronet/android/api/src/android/net/http/ExperimentalOptionsTranslatingHttpEngineBuilder.java",
         "components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java",
         "components/cronet/android/api/src/android/net/http/HeaderBlock.java",
         "components/cronet/android/api/src/android/net/http/HttpEngine.java",
@@ -3534,7 +3535,7 @@ cc_library_static {
 cc_genrule {
     name: "cronet_aml_base_build_date",
     cmd: "$(location base/write_build_date_header.py) $(out) " +
-         "1684896280",
+         "1684972835",
     out: [
         "base/generated_build_date.h",
     ],
@@ -3550,7 +3551,7 @@ cc_genrule {
 cc_genrule {
     name: "cronet_aml_base_build_date__testing",
     cmd: "$(location base/write_build_date_header.py) $(out) " +
-         "1684896280",
+         "1684972835",
     host_supported: true,
     out: [
         "base/generated_build_date.h",
@@ -6982,7 +6983,7 @@ cc_library_shared {
         "-Wl,-wrap,valloc",
         "-Wl,-wrap,vasprintf",
     ],
-    stem: "libcronet.114.0.5735.53",
+    stem: "libcronet.114.0.5735.84",
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
     ],
