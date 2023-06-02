@@ -51,7 +51,6 @@ import org.chromium.net.CronetTestRule.RequiresMinAndroidApi;
 import org.chromium.net.CronetTestRule.RequiresMinApi;
 import org.chromium.net.NetworkChangeNotifierAutoDetect.ConnectivityManagerDelegate;
 import org.chromium.net.TestUrlRequestCallback.ResponseStep;
-import org.chromium.net.impl.CronetEngineBuilderImpl;
 import org.chromium.net.impl.CronetLibraryLoader;
 import org.chromium.net.impl.CronetUrlRequestContext;
 
@@ -1482,7 +1481,7 @@ public class CronetUrlRequestContextTest {
         builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(false);
         CronetUrlRequestContextTestJni.get().verifyUrlRequestContextConfig(
                 CronetUrlRequestContext.createNativeUrlRequestContextConfig(
-                        (CronetEngineBuilderImpl) builder.getBuilderDelegate()),
+                        CronetTestUtil.getCronetEngineBuilderImpl(builder)),
                 getTestStorage(getContext()));
     }
 
@@ -1505,7 +1504,7 @@ public class CronetUrlRequestContextTest {
         builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(false);
         CronetUrlRequestContextTestJni.get().verifyUrlRequestContextQuicOffConfig(
                 CronetUrlRequestContext.createNativeUrlRequestContextConfig(
-                        (CronetEngineBuilderImpl) builder.getBuilderDelegate()),
+                        CronetTestUtil.getCronetEngineBuilderImpl(builder)),
                 getTestStorage(getContext()));
     }
 

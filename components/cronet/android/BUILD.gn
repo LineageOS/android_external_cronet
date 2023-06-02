@@ -247,6 +247,7 @@ android_library("cronet_api_java") {
     "api/src/android/net/http/DnsOptions.java",
     "api/src/android/net/http/ExperimentalBidirectionalStream.java",
     "api/src/android/net/http/ExperimentalHttpEngine.java",
+    "api/src/android/net/http/ExperimentalOptionsTranslatingHttpEngineBuilder.java",
     "api/src/android/net/http/ExperimentalUrlRequest.java",
     "api/src/android/net/http/HeaderBlock.java",
     "api/src/android/net/http/IHttpEngineBuilder.java",
