@@ -269,7 +269,6 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
                         // Both values being true results in the non-default network migration
                         // being enabled.
                         quicOptions.put("migrate_sessions_early_v2", true);
-                        quicOptions.put("retry_on_alternate_network_before_handshake", true);
                         skipPortMigrationFlag = true;
                     } else {
                         quicOptions.put("migrate_sessions_early_v2", false);
