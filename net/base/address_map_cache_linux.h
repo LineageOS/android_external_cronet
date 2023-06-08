@@ -32,6 +32,13 @@ class NET_EXPORT AddressMapCacheLinux : public AddressMapOwnerLinux {
   AddressMap GetAddressMap() const override;
   std::unordered_set<int> GetOnlineLinks() const override;
 
+  AddressMapCacheLinux* GetAddressMapCacheLinux() override;
+
+  // Sets `cached_address_map_` and `cached_online_links_`. This should normally
+  // only be used to set the initial AddressMap and set of online links.
+  void SetCachedInfo(AddressMap address_map,
+                     std::unordered_set<int> online_links);
+
   // Takes the diffs and applies them (atomically) to `cached_address_map_` and
   // `cached_online_links_`.
   // Once this method returns, calls on other threads to GetAddressMap() and
