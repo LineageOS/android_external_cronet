@@ -1,4 +1,4 @@
-From 3a41a4bb8d8f9f5fe7f7bf57e025dc30aa04b32d Mon Sep 17 00:00:00 2001
+From e811c59a8157e56069620fabf665839ee0df647b Mon Sep 17 00:00:00 2001
 From: Patrick Rohr <prohr@google.com>
 Date: Fri, 24 Mar 2023 10:45:27 -0700
 Subject: [PATCH] Rename Cronet API classes from org.chromium.net to
@@ -13,10 +13,10 @@ Change-Id: I12c0ca0829e005f291eda7c690dfa401d91987b9
  1 file changed, 34 insertions(+), 34 deletions(-)
 
 diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
-index 699ca663ae488..464167b7f120b 100644
+index 75d8576fb035e..2e983d022e002 100644
 --- a/components/cronet/android/BUILD.gn
 +++ b/components/cronet/android/BUILD.gn
-@@ -236,39 +236,39 @@ sizes_test("cronet_sizes") {
+@@ -241,40 +241,40 @@ sizes_test("cronet_sizes") {
  # cronet_api_java.jar defines Cronet API.
  android_library("cronet_api_java") {
    sources = [
@@ -28,6 +28,7 @@ index 699ca663ae488..464167b7f120b 100644
 -    "api/src/org/chromium/net/DnsOptions.java",
 -    "api/src/org/chromium/net/ExperimentalBidirectionalStream.java",
 -    "api/src/org/chromium/net/ExperimentalCronetEngine.java",
+-    "api/src/org/chromium/net/ExperimentalOptionsTranslatingCronetEngineBuilder.java",
 -    "api/src/org/chromium/net/ExperimentalUrlRequest.java",
 -    "api/src/org/chromium/net/ICronetEngineBuilder.java",
 -    "api/src/org/chromium/net/InlineExecutionProhibitedException.java",
@@ -61,6 +62,7 @@ index 699ca663ae488..464167b7f120b 100644
 +    "api/src/android/net/http/DnsOptions.java",
 +    "api/src/android/net/http/ExperimentalBidirectionalStream.java",
 +    "api/src/android/net/http/ExperimentalCronetEngine.java",
++    "api/src/android/net/http/ExperimentalOptionsTranslatingCronetEngineBuilder.java",
 +    "api/src/android/net/http/ExperimentalUrlRequest.java",
 +    "api/src/android/net/http/ICronetEngineBuilder.java",
 +    "api/src/android/net/http/InlineExecutionProhibitedException.java",
@@ -89,13 +91,6 @@ index 699ca663ae488..464167b7f120b 100644
      _generated_interface_api_version_java,
    ]
  
-@@ -1622,4 +1622,4 @@ if (!is_component_build) {
-       ]
-     }
-   }
--}
-\ No newline at end of file
-+}
 -- 
-2.40.0.348.gf938b09366-goog
+2.41.0.rc0.172.g3f132b7071-goog
 

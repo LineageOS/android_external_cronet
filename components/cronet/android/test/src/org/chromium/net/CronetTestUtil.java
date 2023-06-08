@@ -6,6 +6,7 @@ package org.chromium.net;
 
 import android.net.Network;
 import android.net.http.ExperimentalHttpEngine;
+import android.net.http.ExperimentalOptionsTranslatingHttpEngineBuilder;
 import android.net.http.HttpEngine;
 import android.net.http.UrlRequest;
 
@@ -99,7 +100,9 @@ public class CronetTestUtil {
 
     public static CronetEngineBuilderImpl getCronetEngineBuilderImpl(
             ExperimentalHttpEngine.Builder builder) {
-        return (CronetEngineBuilderImpl) builder.getBuilderDelegate();
+        return (CronetEngineBuilderImpl) ((ExperimentalOptionsTranslatingHttpEngineBuilder)
+                                                  builder.getBuilderDelegate())
+                .getDelegate();
     }
 
     /**

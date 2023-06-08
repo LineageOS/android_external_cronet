@@ -30,7 +30,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
-import org.chromium.net.MetricsTestUtil.TestRequestFinishedListener;
 
 import java.nio.ByteBuffer;
 import java.time.Instant;
