@@ -159,8 +159,15 @@ public abstract class HttpEngine {
          *
          * {@hide}
          */
-        Builder(@NonNull IHttpEngineBuilder builderDelegate) {
-            mBuilderDelegate = builderDelegate;
+        @VisibleForTesting
+        public Builder(@NonNull IHttpEngineBuilder builderDelegate) {
+            if (builderDelegate instanceof ExperimentalOptionsTranslatingHttpEngineBuilder) {
+                // Already wrapped at the top level, no need to do it again
+                mBuilderDelegate = builderDelegate;
+            } else {
+                mBuilderDelegate =
+                        new ExperimentalOptionsTranslatingHttpEngineBuilder(builderDelegate);
+            }
         }
 
         /**
