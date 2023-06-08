@@ -9,20 +9,14 @@ import static android.net.http.DnsOptions.DNS_OPTION_ENABLED;
 import static android.net.http.DnsOptions.DNS_OPTION_UNSPECIFIED;
 
 import android.content.Context;
-import android.net.http.DnsOptions.StaleDnsOptions;
 
 import androidx.annotation.VisibleForTesting;
-
-import org.json.JSONException;
-import org.json.JSONObject;
 
 import java.io.IOException;
 import java.net.Proxy;
 import java.net.URL;
 import java.net.URLConnection;
 import java.time.Instant;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -91,10 +85,6 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
      * Experimental features may be deprecated in the future. Use at your own risk.
      */
     public static class Builder extends HttpEngine.Builder {
-        private JSONObject mParsedExperimentalOptions;
-        private final List<ExperimentalOptionsPatch> mExperimentalOptionsPatches =
-                new ArrayList<>();
-
         /**
          * Constructs a {@link Builder} object that facilitates creating a {@link HttpEngine}. The
          * default configuration enables HTTP/2 and disables QUIC, SDCH and the HTTP cache.
@@ -126,11 +116,7 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
          * @return the builder to facilitate chaining.
          */
         public Builder setExperimentalOptions(String options) {
-            if (options == null || options.isEmpty()) {
-                mParsedExperimentalOptions = null;
-            } else {
-                mParsedExperimentalOptions = parseExperimentalOptions(options);
-            }
+            mBuilderDelegate.setExperimentalOptions(options);
             return this;
         }
 
@@ -209,255 +195,21 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
         @Override
         @QuicOptions.Experimental
         public Builder setQuicOptions(QuicOptions options) {
-            // If the delegate builder supports enabling connection migration directly, just use it
-            if (mBuilderDelegate.getSupportedConfigOptions().contains(
-                    IHttpEngineBuilder.QUIC_OPTIONS)) {
-                mBuilderDelegate.setQuicOptions(options);
-                return this;
-            }
-
-            // If not, we'll have to work around it by modifying the experimental options JSON.
-            mExperimentalOptionsPatches.add((experimentalOptions) -> {
-                JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
-
-                // Note: using the experimental APIs always overwrites what's in the experimental
-                // JSON, even though "repeated" fields could in theory be additive.
-                if (!options.getAllowedQuicHosts().isEmpty()) {
-                    quicOptions.put(
-                            "host_whitelist", String.join(",", options.getAllowedQuicHosts()));
-                }
-                if (!options.getEnabledQuicVersions().isEmpty()) {
-                    quicOptions.put(
-                            "quic_version", String.join(",", options.getEnabledQuicVersions()));
-                }
-                if (!options.getConnectionOptions().isEmpty()) {
-                    quicOptions.put(
-                            "connection_options", String.join(",", options.getConnectionOptions()));
-                }
-                if (!options.getClientConnectionOptions().isEmpty()) {
-                    quicOptions.put("client_connection_options",
-                            String.join(",", options.getClientConnectionOptions()));
-                }
-                if (!options.getExtraQuicheFlags().isEmpty()) {
-                    quicOptions.put(
-                            "set_quic_flags", String.join(",", options.getExtraQuicheFlags()));
-                }
-
-                if (options.hasInMemoryServerConfigsCacheSize()) {
-                    quicOptions.put("max_server_configs_stored_in_properties",
-                            options.getInMemoryServerConfigsCacheSize());
-                }
-
-                if (options.getHandshakeUserAgent() != null) {
-                    quicOptions.put("user_agent_id", options.getHandshakeUserAgent());
-                }
-
-                if (options.getRetryWithoutAltSvcOnQuicErrors() != null) {
-                    quicOptions.put("retry_without_alt_svc_on_quic_errors",
-                            options.getRetryWithoutAltSvcOnQuicErrors());
-                }
-
-                if (options.getEnableTlsZeroRtt() != null) {
-                    quicOptions.put("disable_tls_zero_rtt", !options.getEnableTlsZeroRtt());
-                }
-
-                if (options.getPreCryptoHandshakeIdleTimeout() != null) {
-                    quicOptions.put("max_idle_time_before_crypto_handshake_seconds",
-                            options.getPreCryptoHandshakeIdleTimeout().toSeconds());
-                }
-
-                if (options.getCryptoHandshakeTimeout() != null) {
-                    quicOptions.put("max_time_before_crypto_handshake_seconds",
-                            options.getCryptoHandshakeTimeout().toSeconds());
-                }
-
-                if (options.getIdleConnectionTimeout() != null) {
-                    quicOptions.put("idle_connection_timeout_seconds",
-                            options.getIdleConnectionTimeout().toSeconds());
-                }
-
-                if (options.getRetransmittableOnWireTimeout() != null) {
-                    quicOptions.put("retransmittable_on_wire_timeout_milliseconds",
-                            options.getRetransmittableOnWireTimeout().toMillis());
-                }
-
-                if (options.getCloseSessionsOnIpChange() != null) {
-                    quicOptions.put(
-                            "close_sessions_on_ip_change", options.getCloseSessionsOnIpChange());
-                }
-
-                if (options.getGoawaySessionsOnIpChange() != null) {
-                    quicOptions.put(
-                            "goaway_sessions_on_ip_change", options.getGoawaySessionsOnIpChange());
-                }
-
-                if (options.getInitialBrokenServicePeriod() != null) {
-                    quicOptions.put("initial_delay_for_broken_alternative_service_seconds",
-                            options.getInitialBrokenServicePeriod().toSeconds());
-                }
-
-                if (options.getIncreaseBrokenServicePeriodExponentially() != null) {
-                    quicOptions.put("exponential_backoff_on_initial_delay",
-                            options.getIncreaseBrokenServicePeriodExponentially());
-                }
-
-                if (options.getDelayJobsWithAvailableSpdySession() != null) {
-                    quicOptions.put("delay_main_job_with_available_spdy_session",
-                            options.getDelayJobsWithAvailableSpdySession());
-                }
-            });
+            super.setQuicOptions(options);
             return this;
         }
 
         @Override
         @DnsOptions.Experimental
         public Builder setDnsOptions(DnsOptions options) {
-            // If the delegate builder supports enabling connection migration directly, just use it
-            if (mBuilderDelegate.getSupportedConfigOptions().contains(
-                    IHttpEngineBuilder.DNS_OPTIONS)) {
-                mBuilderDelegate.setDnsOptions(options);
-                return this;
-            }
-
-            // If not, we'll have to work around it by modifying the experimental options JSON.
-            mExperimentalOptionsPatches.add((experimentalOptions) -> {
-                JSONObject asyncDnsOptions = createDefaultIfAbsent(experimentalOptions, "AsyncDNS");
-
-                if (options.getUseHttpStackDnsResolver() != DNS_OPTION_UNSPECIFIED) {
-                    asyncDnsOptions.put("enable",
-                            options.getUseHttpStackDnsResolver() == DNS_OPTION_ENABLED);
-                }
-
-                JSONObject staleDnsOptions = createDefaultIfAbsent(experimentalOptions, "StaleDNS");
-
-                if (options.getStaleDns() != DNS_OPTION_UNSPECIFIED) {
-                    staleDnsOptions.put("enable",
-                            options.getStaleDns() == DNS_OPTION_ENABLED);
-                }
-
-                if (options.getPersistHostCache() != DNS_OPTION_UNSPECIFIED) {
-                    staleDnsOptions.put("persist_to_disk",
-                            options.getPersistHostCache() == DNS_OPTION_ENABLED);
-                }
-
-                if (options.getPersistHostCachePeriod() != null) {
-                    staleDnsOptions.put(
-                            "persist_delay_ms", options.getPersistHostCachePeriod().toMillis());
-                }
-
-                if (options.getStaleDnsOptions() != null) {
-                    StaleDnsOptions staleDnsOptionsJava = options.getStaleDnsOptions();
-
-                    if (staleDnsOptionsJava.getAllowCrossNetworkUsage()
-                            != DNS_OPTION_UNSPECIFIED) {
-                        staleDnsOptions.put("allow_other_network",
-                                staleDnsOptionsJava.getAllowCrossNetworkUsage()
-                                        == DNS_OPTION_ENABLED);
-                    }
-
-                    if (staleDnsOptionsJava.getFreshLookupTimeout() != null) {
-                        staleDnsOptions.put(
-                                "delay_ms", staleDnsOptionsJava.getFreshLookupTimeout().toMillis());
-                    }
-
-                    if (staleDnsOptionsJava.getUseStaleOnNameNotResolved()
-                            != DNS_OPTION_UNSPECIFIED) {
-                        staleDnsOptions.put("use_stale_on_name_not_resolved",
-                                staleDnsOptionsJava.getUseStaleOnNameNotResolved()
-                                        == DNS_OPTION_ENABLED);
-                    }
-
-                    if (staleDnsOptionsJava.getMaxExpiredDelay() != null) {
-                        staleDnsOptions.put("max_expired_time_ms",
-                                staleDnsOptionsJava.getMaxExpiredDelay().toMillis());
-                    }
-                }
-
-                JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
-                if (options.getPreestablishConnectionsToStaleDnsResults()
-                        != DNS_OPTION_UNSPECIFIED) {
-                    quicOptions.put("race_stale_dns_on_connection",
-                            options.getPreestablishConnectionsToStaleDnsResults()
-                                    == DNS_OPTION_ENABLED);
-                }
-            });
+            super.setDnsOptions(options);
             return this;
         }
 
         @Override
         @ConnectionMigrationOptions.Experimental
         public Builder setConnectionMigrationOptions(ConnectionMigrationOptions options) {
-            // If the delegate builder supports enabling connection migration directly, just use it
-            if (mBuilderDelegate.getSupportedConfigOptions().contains(
-                    IHttpEngineBuilder.CONNECTION_MIGRATION_OPTIONS)) {
-                mBuilderDelegate.setConnectionMigrationOptions(options);
-                return this;
-            }
-
-            // If not, we'll have to work around it by modifying the experimental options JSON.
-            mExperimentalOptionsPatches.add((experimentalOptions) -> {
-                JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
-
-                if (options.getDefaultNetworkMigration() != MIGRATION_OPTION_UNSPECIFIED) {
-                    quicOptions.put("migrate_sessions_on_network_change_v2",
-                            options.getDefaultNetworkMigration()
-                                    == MIGRATION_OPTION_ENABLED);
-                }
-                if (options.getAllowServerMigration() != null) {
-                    quicOptions.put("allow_server_migration", options.getAllowServerMigration());
-                }
-                if (options.getMigrateIdleConnections() != null) {
-                    quicOptions.put("migrate_idle_sessions", options.getMigrateIdleConnections());
-                }
-                if (options.getIdleMigrationPeriod() != null) {
-                    quicOptions.put("idle_session_migration_period_seconds",
-                            options.getIdleMigrationPeriod().toSeconds());
-                }
-                if (options.getMaxTimeOnNonDefaultNetwork() != null) {
-                    quicOptions.put("max_time_on_non_default_network_seconds",
-                            options.getMaxTimeOnNonDefaultNetwork().toSeconds());
-                }
-                if (options.getMaxPathDegradingNonDefaultMigrationsCount() != null) {
-                    quicOptions.put("max_migrations_to_non_default_network_on_path_degrading",
-                            options.getMaxPathDegradingNonDefaultMigrationsCount());
-                }
-                if (options.getMaxWriteErrorNonDefaultNetworkMigrationsCount() != null) {
-                    quicOptions.put("max_migrations_to_non_default_network_on_write_error",
-                            options.getMaxWriteErrorNonDefaultNetworkMigrationsCount());
-                }
-                if (options.getPathDegradationMigration() != MIGRATION_OPTION_UNSPECIFIED) {
-                    boolean pathDegradationValue = (options.getPathDegradationMigration()
-                            == MIGRATION_OPTION_ENABLED);
-
-                    boolean skipPortMigrationFlag = false;
-
-                    if (options.getAllowNonDefaultNetworkUsage()
-                            != MIGRATION_OPTION_UNSPECIFIED) {
-                        boolean nonDefaultNetworkValue =
-                                (options.getAllowNonDefaultNetworkUsage()
-                                        == MIGRATION_OPTION_ENABLED);
-                        if (!pathDegradationValue && nonDefaultNetworkValue) {
-                            // Misconfiguration which doesn't translate easily to the JSON flags
-                            throw new IllegalArgumentException(
-                                    "Unable to turn on non-default network usage without path "
-                                            + "degradation migration!");
-                        } else if (pathDegradationValue && nonDefaultNetworkValue) {
-                            // Both values being true results in the non-default network migration
-                            // being enabled.
-                            quicOptions.put("migrate_sessions_early_v2", true);
-                            quicOptions.put("retry_on_alternate_network_before_handshake", true);
-                            skipPortMigrationFlag = true;
-                        } else {
-                            quicOptions.put("migrate_sessions_early_v2", false);
-                        }
-                    }
-
-                    if (!skipPortMigrationFlag) {
-                        quicOptions.put("allow_port_migration", pathDegradationValue);
-                    }
-                }
-            });
-
+            super.setConnectionMigrationOptions(options);
             return this;
         }
 
@@ -488,52 +240,7 @@ public abstract class ExperimentalHttpEngine extends HttpEngine {
 
         @Override
         public ExperimentalHttpEngine build() {
-            if (mParsedExperimentalOptions == null && mExperimentalOptionsPatches.isEmpty()) {
-                return mBuilderDelegate.build();
-            }
-
-            if (mParsedExperimentalOptions == null) {
-                mParsedExperimentalOptions = new JSONObject();
-            }
-
-            for (ExperimentalOptionsPatch patch : mExperimentalOptionsPatches) {
-                try {
-                    patch.applyTo(mParsedExperimentalOptions);
-                } catch (JSONException e) {
-                    throw new IllegalStateException("Unable to apply JSON patch!", e);
-                }
-            }
-
-            mBuilderDelegate.setExperimentalOptions(mParsedExperimentalOptions.toString());
             return mBuilderDelegate.build();
-        }
-
-        private static JSONObject parseExperimentalOptions(String jsonString) {
-            try {
-                return new JSONObject(jsonString);
-            } catch (JSONException e) {
-                throw new IllegalArgumentException("Experimental options parsing failed", e);
-            }
-        }
-
-        private static JSONObject createDefaultIfAbsent(JSONObject jsonObject, String key) {
-            JSONObject object = jsonObject.optJSONObject(key);
-            if (object == null) {
-                object = new JSONObject();
-                try {
-                    jsonObject.put(key, object);
-                } catch (JSONException e) {
-                    throw new IllegalArgumentException(
-                            "Failed adding a default object for key [" + key + "]", e);
-                }
-            }
-
-            return object;
-        }
-
-        @FunctionalInterface
-        private interface ExperimentalOptionsPatch {
-            void applyTo(JSONObject experimentalOptions) throws JSONException;
         }
     }
 
