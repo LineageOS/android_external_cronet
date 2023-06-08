@@ -639,7 +639,6 @@ public class ExperimentalOptionsTest {
                 + "    \"allow_server_migration\": false,"
                 + "    \"migrate_idle_sessions\": true,"
                 + "    \"idle_session_migration_period_seconds\": 435370463,"
-                + "    \"retry_on_alternate_network_before_handshake\": true,"
                 + "    \"max_time_on_non_default_network_seconds\": 629840858,"
                 + "    \"max_migrations_to_non_default_network_on_path_degrading\": 223720377,"
                 + "    \"max_migrations_to_non_default_network_on_write_error\": 7483377,"
