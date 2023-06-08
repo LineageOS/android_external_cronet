@@ -28,11 +28,16 @@
 #include "base/sequence_checker.h"
 #include "base/synchronization/condition_variable.h"
 #include "base/synchronization/lock.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/thread_annotations.h"
 #include "net/base/address_map_linux.h"
 #include "net/base/ip_address.h"
 #include "net/base/net_export.h"
 #include "net/base/network_change_notifier.h"
+
+namespace net::test {
+class AddressTrackerLinuxTest;
+}
 
 namespace net::internal {
 
@@ -41,7 +46,9 @@ namespace net::internal {
 //
 // In tracking mode, this class should mostly be used on a single sequence,
 // except GetAddressMap() and GetOnlineLinks() (AddressMapOwnerLinux overrides)
-// which can be called on any thread.
+// which can be called on any thread. The main sequence should be able to block
+// (e.g. use a base::SequencedTaskRunner with base::MayBlock()).
+//
 // In non-tracking mode this should be used on a single thread.
 class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
  public:
@@ -61,11 +68,18 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
   // NOTE: Only ignore interfaces not used to connect to the internet. Adding
   // interfaces used to connect to the internet can cause critical network
   // changed signals to be lost allowing incorrect stale state to persist.
-  AddressTrackerLinux(
-      const base::RepeatingClosure& address_callback,
-      const base::RepeatingClosure& link_callback,
-      const base::RepeatingClosure& tunnel_callback,
-      const std::unordered_set<std::string>& ignored_interfaces);
+  //
+  // |blocking_thread_runner| is the sequence on which this AddressTrackerLinux
+  // will run. The AddressTrackerLinux can block in tracking mode and so it
+  // should run on a sequence that can block, e.g. a base::SequencedTaskRunner
+  // with base::MayBlock(). If nullptr, SetDiffCallback() cannot be used off of
+  // the AddressTrackerLinux's sequence.
+  AddressTrackerLinux(const base::RepeatingClosure& address_callback,
+                      const base::RepeatingClosure& link_callback,
+                      const base::RepeatingClosure& tunnel_callback,
+                      const std::unordered_set<std::string>& ignored_interfaces,
+                      scoped_refptr<base::SequencedTaskRunner>
+                          blocking_thread_runner = nullptr);
   ~AddressTrackerLinux() override;
 
   // In tracking mode, it starts watching the system configuration for
@@ -75,20 +89,42 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
   // GetAddressMap().
   void Init();
 
+  // Same as Init(), except instead of creating and binding a netlink socket,
+  // this AddressTrackerLinux will send and receive messages from |fd|.
+  void InitWithFdForTesting(base::ScopedFD fd);
+
   // AddressMapOwnerLinux implementation (callable on any thread):
   AddressMap GetAddressMap() const override;
   // Returns set of interface indices for online interfaces.
   std::unordered_set<int> GetOnlineLinks() const override;
 
+  AddressTrackerLinux* GetAddressTrackerLinux() override;
+
+  // This returns the current AddressMap and set of online links, and atomically
+  // starts recording diffs to those structures. This can be called on any
+  // thread, and must be called called before SetDiffCallback() below. Available
+  // only in tracking mode.
+  std::pair<AddressMap, std::unordered_set<int>>
+  GetInitialDataAndStartRecordingDiffs();
+
+  // Called after GetInitialDataAndStartRecordingDiffs().
+  //
   // Whenever the AddressMap or the set of online links (returned by the above
   // two methods) changes, this callback is called on AddressTrackerLinux's
   // sequence. On the first call, |diff_callback| is called synchronously with
-  // the current AddressMap and set of online links.
+  // the set of diffs that have been built since
+  // GetInitialDataAndStartRecordingDiffs() was called. If there are none,
+  // |diff_callback| won't be called.
   //
-  // This is only available in tracking mode, and must be called on
-  // AddressTrackerLinux's sequence. Note that other threads may see updated
-  // AddressMaps by calling GetAddressMap() before |diff_callback| is ever
-  // called.
+  // This is only available in tracking mode. It can be called on any thread,
+  // but it will post a task to the AddressTrackerLinux's sequence and therefore
+  // will finish asynchronously. The caller MUST ENSURE that the
+  // AddressTrackerLinux is not deleted until this task finishes.
+  // This also requires |sequenced_task_runner_| to be set by the
+  // AddressTrackerLinux constructor above.
+  //
+  // Note that other threads may see updated AddressMaps by calling
+  // GetAddressMap() before |diff_callback| is ever called.
   void SetDiffCallback(DiffCallback diff_callback);
 
   // Implementation of NetworkChangeNotifierLinux::GetCurrentConnectionType().
@@ -106,7 +142,7 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
   static bool IsTunnelInterfaceName(const char* name);
 
  private:
-  friend class AddressTrackerLinuxTest;
+  friend class net::test::AddressTrackerLinuxTest;
   FRIEND_TEST_ALL_PREFIXES(AddressTrackerLinuxNetlinkTest,
                            TestInitializeTwoTrackers);
   FRIEND_TEST_ALL_PREFIXES(AddressTrackerLinuxNetlinkTest,
@@ -133,39 +169,39 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
   // function should return a pointer to |ifname|.
   typedef char* (*GetInterfaceNameFunction)(int interface_index, char* ifname);
 
+  // Retrieves a dump of the current AddressMap and set of online links as part
+  // of initialization. Expects |netlink_fd_| to exist already.
+  void DumpInitialAddressesAndWatch();
+
   // Sets |*address_changed| to indicate whether |address_map_| changed and
   // sets |*link_changed| to indicate if |online_links_| changed and sets
   // |*tunnel_changed| to indicate if |online_links_| changed with regards to a
   // tunnel interface while reading messages from |netlink_fd_|.
   //
-  // If |address_map_| has changed and |address_map_diff| is not nullptr,
-  // |*address_map_diff| is populated with the changes to the AddressMap.
-  // Similarly, if |online_links_| has changed and |online_links_diff| is not
-  // nullptr, |*online_links_diff| is populated with the changes to the set of
+  // If |address_map_| has changed and |address_map_diff_| is not nullopt,
+  // |*address_map_diff_| is populated with the changes to the AddressMap.
+  // Similarly, if |online_links_| has changed and |online_links_diff_| is not
+  // nullopt, |*online_links_diff| is populated with the changes to the set of
   // online links.
   void ReadMessages(bool* address_changed,
                     bool* link_changed,
-                    bool* tunnel_changed,
-                    AddressMapDiff* address_map_diff,
-                    OnlineLinksDiff* online_links_diff);
+                    bool* tunnel_changed);
 
   // Sets |*address_changed| to true if |address_map_| changed, sets
   // |*link_changed| to true if |online_links_| changed, sets |*tunnel_changed|
   // to true if |online_links_| changed with regards to a tunnel interface while
   // reading the message from |buffer|.
   //
-  // If |address_map_| has changed and |address_map_diff| is not nullptr,
-  // |*address_map_diff| is populated with the changes to the AddressMap.
-  // Similarly, if |online_links_| has changed and |online_links_diff| is not
-  // nullptr, |*online_links_diff| is populated with the changes to the set of
+  // If |address_map_| has changed and |address_map_diff_| is not nullopt,
+  // |*address_map_diff_| is populated with the changes to the AddressMap.
+  // Similarly, if |online_links_| has changed and |online_links_diff_| is not
+  // nullopt, |*online_links_diff| is populated with the changes to the set of
   // online links.
   void HandleMessage(const char* buffer,
                      int length,
                      bool* address_changed,
                      bool* link_changed,
-                     bool* tunnel_changed,
-                     AddressMapDiff* address_map_diff,
-                     OnlineLinksDiff* online_links_diff);
+                     bool* tunnel_changed);
 
   // Call when some part of initialization failed; forces online and unblocks.
   void AbortAndForceOnline();
@@ -182,6 +218,10 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
   // Updates current_connection_type_ based on the network list.
   void UpdateCurrentConnectionType();
 
+  // Passes |address_map_diff_| and |online_links_diff_| to |diff_callback_| as
+  // arguments, and then clears them.
+  void RunDiffCallback();
+
   // Used by AddressTrackerLinuxTest, returns the number of threads waiting
   // for |connection_type_initialized_cv_|.
   int GetThreadsWaitingForConnectionTypeInitForTesting();
@@ -189,6 +229,15 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
   // Used by AddressTrackerLinuxNetlinkTest, returns true iff `Init` succeeded.
   // Undefined for non-tracking mode.
   bool DidTrackingInitSucceedForTesting() const;
+
+  AddressMapDiff& address_map_diff_for_testing() {
+    AddressTrackerAutoLock lock(*this, address_map_lock_);
+    return address_map_diff_.value();
+  }
+  OnlineLinksDiff& online_links_diff_for_testing() {
+    AddressTrackerAutoLock lock(*this, online_links_lock_);
+    return online_links_diff_.value();
+  }
 
   // Gets the name of an interface given the interface index |interface_index|.
   // May return empty string if it fails but should not return NULL. This is
@@ -208,10 +257,12 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
 
   mutable base::Lock address_map_lock_;
   AddressMap address_map_ GUARDED_BY(address_map_lock_);
+  absl::optional<AddressMapDiff> address_map_diff_;
 
   // Set of interface indices for links that are currently online.
-  mutable base::Lock online_links_lock_;
+  mutable base::Lock online_links_lock_ ACQUIRED_AFTER(address_map_lock_);
   std::unordered_set<int> online_links_ GUARDED_BY(online_links_lock_);
+  absl::optional<OnlineLinksDiff> online_links_diff_;
 
   // Set of interface names that should be ignored.
   const std::unordered_set<std::string> ignored_interfaces_;
@@ -226,7 +277,13 @@ class NET_EXPORT_PRIVATE AddressTrackerLinux : public AddressMapOwnerLinux {
 
   const bool tracking_;
 
+  // This can be set by the tracking constructor.
+  scoped_refptr<base::SequencedTaskRunner> sequenced_task_runner_;
+  // This SequenceChecker is still useful so instance variables above can be
+  // marked GUARDED_BY_CONTEXT(sequence_checker_).
   SEQUENCE_CHECKER(sequence_checker_);
+
+  base::WeakPtrFactory<AddressTrackerLinux> weak_ptr_factory_{this};
 };
 
 }  // namespace net::internal
