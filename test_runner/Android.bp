@@ -28,6 +28,7 @@ java_test_host {
     test_config: "AndroidNetTest.xml",
     libs: [
         "tradefed",
+        "framework-annotations-lib",
     ],
     required: [
         "cronet_net_tester_app",
@@ -56,6 +57,7 @@ java_test_host {
     test_config: "AndroidTest.xml",
     libs: [
         "tradefed",
+        "framework-annotations-lib",
     ],
     required: [
         "cronet_tester_app",
