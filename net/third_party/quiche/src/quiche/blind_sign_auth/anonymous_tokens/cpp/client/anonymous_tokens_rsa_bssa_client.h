@@ -26,6 +26,10 @@
 #include "quiche/blind_sign_auth/anonymous_tokens/cpp/crypto/rsa_blinder.h"
 #include "quiche/blind_sign_auth/anonymous_tokens/proto/anonymous_tokens.pb.h"
 #include "quiche/common/platform/api/quiche_export.h"
+// copybara:strip_begin(internal comment)
+// The QUICHE_EXPORT annotation is necessary for some classes and functions
+// to link correctly on Windows. Please do not remove them!
+// copybara:strip_end
 
 namespace private_membership {
 namespace anonymous_tokens {
@@ -73,12 +77,12 @@ class QUICHE_EXPORT AnonymousTokensRsaBssaClient {
   absl::StatusOr<std::vector<RSABlindSignatureTokenWithInput>> ProcessResponse(
       const AnonymousTokensSignResponse& response);
 
-  // Method to verify whether a blind token is valid or not.
+  // Method to verify whether an anonymous token is valid or not.
   //
   // Returns OK on a valid token and non-OK otherwise.
-  absl::Status Verify(
-      const RSABlindSignatureToken& token, absl::string_view message,
-      absl::optional<absl::string_view> public_metadata = absl::nullopt);
+  absl::Status Verify(const RSABlindSignaturePublicKey& public_key,
+                      const RSABlindSignatureToken& token,
+                      const PlaintextMessageWithPublicMetadata& input);
 
  private:
   struct BlindingInfo {

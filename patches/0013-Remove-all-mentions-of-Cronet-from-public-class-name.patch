@@ -1,4 +1,4 @@
-From 5d99a10a49d17624cf9197147ac8e1d1d08ed5c1 Mon Sep 17 00:00:00 2001
+From 836b1db751555881115d6c85e70b36a8a36557ab Mon Sep 17 00:00:00 2001
 From: Dan Stahr <danstahr@google.com>
 Date: Wed, 11 Jan 2023 11:39:25 +0000
 Subject: [PATCH] Remove all mentions of Cronet from public class names and
@@ -15,14 +15,14 @@ Test: m
 
 Change-Id: I3f9ec5c9c156040d656adabbc2ea8d2796aa6514
 ---
- components/cronet/android/BUILD.gn | 20 ++++++++++----------
- 1 file changed, 10 insertions(+), 10 deletions(-)
+ components/cronet/android/BUILD.gn | 22 +++++++++++-----------
+ 1 file changed, 11 insertions(+), 11 deletions(-)
 
 diff --git a/components/cronet/android/BUILD.gn b/components/cronet/android/BUILD.gn
-index 7f42d5f333b71..85a7052e31741 100644
+index 1f0f51d4350dd..f0da39eece35a 100644
 --- a/components/cronet/android/BUILD.gn
 +++ b/components/cronet/android/BUILD.gn
-@@ -237,13 +237,13 @@ android_library("cronet_api_java") {
+@@ -242,14 +242,14 @@ android_library("cronet_api_java") {
      "api/src/android/net/http/BidirectionalStream.java",
      "api/src/android/net/http/CallbackException.java",
      "api/src/android/net/http/ConnectionMigrationOptions.java",
@@ -33,14 +33,16 @@ index 7f42d5f333b71..85a7052e31741 100644
      "api/src/android/net/http/DnsOptions.java",
      "api/src/android/net/http/ExperimentalBidirectionalStream.java",
 -    "api/src/android/net/http/ExperimentalCronetEngine.java",
+-    "api/src/android/net/http/ExperimentalOptionsTranslatingCronetEngineBuilder.java",
 +    "api/src/android/net/http/ExperimentalHttpEngine.java",
++    "api/src/android/net/http/ExperimentalOptionsTranslatingHttpEngineBuilder.java",
      "api/src/android/net/http/ExperimentalUrlRequest.java",
 -    "api/src/android/net/http/ICronetEngineBuilder.java",
 +    "api/src/android/net/http/IHttpEngineBuilder.java",
      "api/src/android/net/http/InlineExecutionProhibitedException.java",
      "api/src/android/net/http/NetworkException.java",
      "api/src/android/net/http/NetworkQualityRttListener.java",
-@@ -255,16 +255,16 @@ android_library("cronet_api_java") {
+@@ -261,16 +261,16 @@ android_library("cronet_api_java") {
      "api/src/android/net/http/UploadDataSink.java",
      "api/src/android/net/http/UrlRequest.java",
      "api/src/android/net/http/UrlResponseInfo.java",
@@ -64,5 +66,5 @@ index 7f42d5f333b71..85a7052e31741 100644
      "api/src/android/net/http/apihelpers/UrlRequestCallbacks.java",
      _generated_interface_api_version_java,
 -- 
-2.40.0.348.gf938b09366-goog
+2.41.0.rc0.172.g3f132b7071-goog
 
