@@ -4,7 +4,7 @@
       "path": "packages/modules/Connectivity"
     }
   ],
-  "postsubmit": [
+  "presubmit": [
     {
       "name": "net_unittests_tester"
     },
