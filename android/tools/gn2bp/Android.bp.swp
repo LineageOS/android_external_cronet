@@ -7548,8 +7548,6 @@ cc_genrule {
          "done; " +
          "python3 $(location base/android/jni_generator/jni_registration_generator.py) --srcjar-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.srcjar " +
-         "--depfile " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.d " +
          "--sources-files " +
          "$(genDir)/java.sources " +
          "--include-test-only " +
@@ -7785,8 +7783,6 @@ java_genrule {
          "done; " +
          "python3 $(location base/android/jni_generator/jni_registration_generator.py) --srcjar-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.srcjar " +
-         "--depfile " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.d " +
          "--sources-files " +
          "$(genDir)/java.sources " +
          "--include-test-only " +
@@ -8018,8 +8014,6 @@ java_genrule {
          "done; " +
          "python3 $(location base/android/jni_generator/jni_registration_generator.py) --srcjar-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.srcjar " +
-         "--depfile " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.d " +
          "--sources-files " +
          "$(genDir)/java.sources " +
          "--include-test-only " +
@@ -8249,8 +8243,6 @@ cc_genrule {
          "done; " +
          "python3 $(location base/android/jni_generator/jni_registration_generator.py) --srcjar-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.srcjar " +
-         "--depfile " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.d " +
          "--sources-files " +
          "$(genDir)/java.sources " +
          "--include-test-only " +
