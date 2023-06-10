@@ -65,6 +65,7 @@ var (
 	allowHintMismatch  = flag.String("allow-hint-mismatch", "", "Semicolon-separated patterns of tests where hints may mismatch")
 	numWorkersFlag     = flag.Int("num-workers", runtime.NumCPU(), "The number of workers to run in parallel.")
 	shimPath           = flag.String("shim-path", "../../../build/ssl/test/bssl_shim", "The location of the shim binary.")
+	shimExtraFlags     = flag.String("shim-extra-flags", "", "Semicolon-separated extra flags to pass to the shim binary on each invocation.")
 	handshakerPath     = flag.String("handshaker-path", "../../../build/ssl/test/handshaker", "The location of the handshaker binary.")
 	resourceDir        = flag.String("resource-dir", ".", "The directory in which to find certificate and key files.")
 	fuzzer             = flag.Bool("fuzzer", false, "If true, tests against a BoringSSL built in fuzzer mode.")
@@ -1433,6 +1434,9 @@ func runTest(statusChan chan statusMsg, test *testCase, shimPath string, mallocN
 	}()
 
 	var flags []string
+	if len(*shimExtraFlags) > 0 {
+		flags = strings.Split(*shimExtraFlags, ";")
+	}
 	if test.testType == serverTest {
 		flags = append(flags, "-server")
 
@@ -1850,7 +1854,6 @@ var testCipherSuites = []testCipherSuite{
 	{"CHACHA20_POLY1305_SHA256", TLS_CHACHA20_POLY1305_SHA256},
 	{"AES_128_GCM_SHA256", TLS_AES_128_GCM_SHA256},
 	{"AES_256_GCM_SHA384", TLS_AES_256_GCM_SHA384},
-	{"RSA_WITH_NULL_SHA", TLS_RSA_WITH_NULL_SHA},
 }
 
 func hasComponent(suiteName, component string) bool {
@@ -1878,7 +1881,12 @@ func bigFromHex(hex string) *big.Int {
 
 func convertToSplitHandshakeTests(tests []testCase) (splitHandshakeTests []testCase, err error) {
 	var stdout bytes.Buffer
-	shim := exec.Command(*shimPath, "-is-handshaker-supported")
+	var flags []string
+	if len(*shimExtraFlags) > 0 {
+		flags = strings.Split(*shimExtraFlags, ";")
+	}
+	flags = append(flags, "-is-handshaker-supported")
+	shim := exec.Command(*shimPath, flags...)
 	shim.Stdout = &stdout
 	if err := shim.Run(); err != nil {
 		return nil, err
@@ -3672,10 +3680,6 @@ func addTestForCipherSuite(suite testCipherSuite, ver tlsVersion, protocol proto
 		flags = append(flags,
 			"-psk", psk,
 			"-psk-identity", pskIdentity)
-	}
-	if hasComponent(suite.name, "NULL") {
-		// NULL ciphers must be explicitly enabled.
-		flags = append(flags, "-cipher", "DEFAULT:NULL-SHA")
 	}
 
 	var shouldFail bool
@@ -11371,13 +11375,12 @@ var testCurves = []struct {
 	{"P-384", CurveP384},
 	{"P-521", CurveP521},
 	{"X25519", CurveX25519},
-	{"CECPQ2", CurveCECPQ2},
 }
 
 const bogusCurve = 0x1234
 
 func isPqGroup(r CurveID) bool {
-	return r == CurveCECPQ2
+	return r == CurveX25519Kyber768
 }
 
 func addCurveTests() {
@@ -11841,124 +11844,127 @@ func addCurveTests() {
 		},
 	})
 
-	// CECPQ2 should not be offered by a TLS < 1.3 client.
+	// Kyber should not be offered by a TLS < 1.3 client.
 	testCases = append(testCases, testCase{
-		name: "CECPQ2NotInTLS12",
+		name: "KyberNotInTLS12",
 		config: Config{
 			Bugs: ProtocolBugs{
-				FailIfCECPQ2Offered: true,
+				FailIfKyberOffered: true,
 			},
 		},
 		flags: []string{
 			"-max-version", strconv.Itoa(VersionTLS12),
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+			"-curves", strconv.Itoa(int(CurveX25519Kyber768)),
 			"-curves", strconv.Itoa(int(CurveX25519)),
 		},
 	})
 
-	// CECPQ2 should not crash a TLS < 1.3 client if the server mistakenly
+	// Kyber should not crash a TLS < 1.3 client if the server mistakenly
 	// selects it.
 	testCases = append(testCases, testCase{
-		name: "CECPQ2NotAcceptedByTLS12Client",
+		name: "KyberNotAcceptedByTLS12Client",
 		config: Config{
 			Bugs: ProtocolBugs{
-				SendCurve: CurveCECPQ2,
+				SendCurve: CurveX25519Kyber768,
 			},
 		},
 		flags: []string{
 			"-max-version", strconv.Itoa(VersionTLS12),
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+			"-curves", strconv.Itoa(int(CurveX25519Kyber768)),
 			"-curves", strconv.Itoa(int(CurveX25519)),
 		},
 		shouldFail:    true,
 		expectedError: ":WRONG_CURVE:",
 	})
 
-	// CECPQ2 should not be offered by default as a client.
+	// Kyber should not be offered by default as a client.
 	testCases = append(testCases, testCase{
-		name: "CECPQ2NotEnabledByDefaultInClients",
+		name: "KyberNotEnabledByDefaultInClients",
 		config: Config{
 			MinVersion: VersionTLS13,
 			Bugs: ProtocolBugs{
-				FailIfCECPQ2Offered: true,
+				FailIfKyberOffered: true,
 			},
 		},
 	})
 
-	// If CECPQ2 is offered, both X25519 and CECPQ2 should have a key-share.
+	// If Kyber is offered, both X25519 and Kyber should have a key-share.
 	testCases = append(testCases, testCase{
-		name: "NotJustCECPQ2KeyShare",
+		name: "NotJustKyberKeyShare",
 		config: Config{
 			MinVersion: VersionTLS13,
 			Bugs: ProtocolBugs{
-				ExpectedKeyShares: []CurveID{CurveCECPQ2, CurveX25519},
+				ExpectedKeyShares: []CurveID{CurveX25519Kyber768, CurveX25519},
 			},
 		},
 		flags: []string{
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+			"-curves", strconv.Itoa(int(CurveX25519Kyber768)),
 			"-curves", strconv.Itoa(int(CurveX25519)),
-			"-expect-curve-id", strconv.Itoa(int(CurveCECPQ2)),
+			// Cannot expect Kyber until we have a Go implementation of it.
+			// "-expect-curve-id", strconv.Itoa(int(CurveX25519Kyber768)),
 		},
 	})
 
 	// ... and the other way around
 	testCases = append(testCases, testCase{
-		name: "CECPQ2KeyShareIncludedSecond",
+		name: "KyberKeyShareIncludedSecond",
 		config: Config{
 			MinVersion: VersionTLS13,
 			Bugs: ProtocolBugs{
-				ExpectedKeyShares: []CurveID{CurveX25519, CurveCECPQ2},
+				ExpectedKeyShares: []CurveID{CurveX25519, CurveX25519Kyber768},
 			},
 		},
 		flags: []string{
 			"-curves", strconv.Itoa(int(CurveX25519)),
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+			"-curves", strconv.Itoa(int(CurveX25519Kyber768)),
 			"-expect-curve-id", strconv.Itoa(int(CurveX25519)),
 		},
 	})
 
-        // ... and even if there's another curve in the middle because it's the
-        // first classical and first post-quantum "curves" that get key shares
-        // included.
+	// ... and even if there's another curve in the middle because it's the
+	// first classical and first post-quantum "curves" that get key shares
+	// included.
 	testCases = append(testCases, testCase{
-		name: "CECPQ2KeyShareIncludedThird",
+		name: "KyberKeyShareIncludedThird",
 		config: Config{
 			MinVersion: VersionTLS13,
 			Bugs: ProtocolBugs{
-				ExpectedKeyShares: []CurveID{CurveX25519, CurveCECPQ2},
+				ExpectedKeyShares: []CurveID{CurveX25519, CurveX25519Kyber768},
 			},
 		},
 		flags: []string{
 			"-curves", strconv.Itoa(int(CurveX25519)),
 			"-curves", strconv.Itoa(int(CurveP256)),
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
+			"-curves", strconv.Itoa(int(CurveX25519Kyber768)),
 			"-expect-curve-id", strconv.Itoa(int(CurveX25519)),
 		},
 	})
 
-	// If CECPQ2 is the only configured curve, the key share is sent.
+	// If Kyber is the only configured curve, the key share is sent.
 	testCases = append(testCases, testCase{
-		name: "JustConfiguringCECPQ2Works",
+		name: "JustConfiguringKyberWorks",
 		config: Config{
 			MinVersion: VersionTLS13,
 			Bugs: ProtocolBugs{
-				ExpectedKeyShares: []CurveID{CurveCECPQ2},
+				ExpectedKeyShares: []CurveID{CurveX25519Kyber768},
 			},
 		},
 		flags: []string{
-			"-curves", strconv.Itoa(int(CurveCECPQ2)),
-			"-expect-curve-id", strconv.Itoa(int(CurveCECPQ2)),
+			"-curves", strconv.Itoa(int(CurveX25519Kyber768)),
+			"-expect-curve-id", strconv.Itoa(int(CurveX25519Kyber768)),
 		},
+		shouldFail:         true,
+		expectedLocalError: "no curve supported by both client and server",
 	})
 
-	// As a server, CECPQ2 is not yet supported by default.
+	// As a server, Kyber is not yet supported by default.
 	testCases = append(testCases, testCase{
 		testType: serverTest,
-		name:     "CECPQ2NotEnabledByDefaultForAServer",
+		name:     "KyberNotEnabledByDefaultForAServer",
 		config: Config{
 			MinVersion:       VersionTLS13,
-			CurvePreferences: []CurveID{CurveCECPQ2, CurveX25519},
-			DefaultCurves:    []CurveID{CurveCECPQ2},
+			CurvePreferences: []CurveID{CurveX25519Kyber768, CurveX25519},
+			DefaultCurves:    []CurveID{CurveX25519Kyber768},
 		},
 		flags: []string{
 			"-server-preference",
@@ -15603,9 +15609,6 @@ func addRSAKeyUsageTests() {
 			},
 			shouldFail:    true,
 			expectedError: ":KEY_USAGE_BIT_INCORRECT:",
-			flags: []string{
-				"-enforce-rsa-key-usage",
-			},
 		})
 
 		testCases = append(testCases, testCase{
@@ -15616,9 +15619,6 @@ func addRSAKeyUsageTests() {
 				MaxVersion:   ver.version,
 				Certificates: []Certificate{dsCert},
 				CipherSuites: dsSuites,
-			},
-			flags: []string{
-				"-enforce-rsa-key-usage",
 			},
 		})
 
@@ -15633,9 +15633,6 @@ func addRSAKeyUsageTests() {
 					Certificates: []Certificate{encCert},
 					CipherSuites: encSuites,
 				},
-				flags: []string{
-					"-enforce-rsa-key-usage",
-				},
 			})
 
 			testCases = append(testCases, testCase{
@@ -15649,9 +15646,6 @@ func addRSAKeyUsageTests() {
 				},
 				shouldFail:    true,
 				expectedError: ":KEY_USAGE_BIT_INCORRECT:",
-				flags: []string{
-					"-enforce-rsa-key-usage",
-				},
 			})
 
 			// In 1.2 and below, we should not enforce without the enforce-rsa-key-usage flag.
@@ -15664,7 +15658,7 @@ func addRSAKeyUsageTests() {
 					Certificates: []Certificate{dsCert},
 					CipherSuites: encSuites,
 				},
-				flags: []string{"-expect-key-usage-invalid"},
+				flags: []string{"-expect-key-usage-invalid", "-ignore-rsa-key-usage"},
 			})
 
 			testCases = append(testCases, testCase{
@@ -15676,21 +15670,22 @@ func addRSAKeyUsageTests() {
 					Certificates: []Certificate{encCert},
 					CipherSuites: dsSuites,
 				},
-				flags: []string{"-expect-key-usage-invalid"},
+				flags: []string{"-expect-key-usage-invalid", "-ignore-rsa-key-usage"},
 			})
 		}
 
 		if ver.version >= VersionTLS13 {
-			// In 1.3 and above, we enforce keyUsage even without the flag.
+			// In 1.3 and above, we enforce keyUsage even when disabled.
 			testCases = append(testCases, testCase{
 				testType: clientTest,
-				name:     "RSAKeyUsage-Client-WantSignature-GotEncipherment-Enforced-" + ver.name,
+				name:     "RSAKeyUsage-Client-WantSignature-GotEncipherment-AlwaysEnforced-" + ver.name,
 				config: Config{
 					MinVersion:   ver.version,
 					MaxVersion:   ver.version,
 					Certificates: []Certificate{encCert},
 					CipherSuites: dsSuites,
 				},
+				flags:         []string{"-ignore-rsa-key-usage"},
 				shouldFail:    true,
 				expectedError: ":KEY_USAGE_BIT_INCORRECT:",
 			})
