@@ -338,17 +338,6 @@ public final class DnsOptions {
         }
 
         /**
-         * @see #setStaleDnsOptions(StaleDnsOptions)
-         *
-         * {@hide}
-         */
-        @Experimental
-        @NonNull
-        public Builder setStaleDnsOptions(@NonNull StaleDnsOptions.Builder staleDnsOptionsBuilder) {
-            return setStaleDnsOptions(staleDnsOptionsBuilder.build());
-        }
-
-        /**
          * Sets whether Cronet should use stale cached DNS records to pre-establish connections.
          *
          * <p>If enabled, Cronet will optimistically pre-establish connections to servers that

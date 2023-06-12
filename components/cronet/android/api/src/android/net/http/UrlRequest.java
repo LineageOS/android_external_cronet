@@ -189,38 +189,6 @@ public abstract class UrlRequest {
         public abstract Builder setTrafficStatsUid(int uid);
 
         /**
-         * Associates the annotation object with this request. May add more than one. Passed through
-         * to a {@link RequestFinishedInfo.Listener}, see {@link
-         * RequestFinishedInfo#getAnnotations}.
-         *
-         * @param annotation an object to pass on to the {@link RequestFinishedInfo.Listener} with a
-         * {@link RequestFinishedInfo}.
-         * @return the builder to facilitate chaining.
-         *
-         * {@hide}
-         */
-        public Builder addRequestAnnotation(Object annotation) {
-            return this;
-        }
-
-        /**
-         * Sets a listener that gets invoked after {@link Callback#onCanceled onCanceled()}, {@link
-         * Callback#onFailed onFailed()} or {@link Callback#onSucceeded onSucceeded()} return.
-         *
-         * <p>The listener is invoked  with the request finished info on an
-         * {@link java.util.concurrent.Executor} provided by {@link
-         * RequestFinishedInfo.Listener#getExecutor getExecutor()}.
-         *
-         * @param listener the listener for finished requests.
-         * @return the builder to facilitate chaining.
-         *
-         * {@hide}
-         */
-        public Builder setRequestFinishedListener(RequestFinishedInfo.Listener listener) {
-            return this;
-        }
-
-        /**
          * Creates a {@link UrlRequest} using configuration within this {@link Builder}. The
          * returned
          * {@code UrlRequest} can then be started by calling {@link UrlRequest#start}.

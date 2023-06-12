@@ -150,21 +150,6 @@ public abstract class BidirectionalStream {
         @NonNull
         public abstract Builder setTrafficStatsUid(int uid);
 
-        /**
-         * Associates the annotation object with this request. May add more than one. Passed through
-         * to a {@link RequestFinishedInfo.Listener}, see {@link
-         * RequestFinishedInfo#getAnnotations}.
-         *
-         * @param annotation an object to pass on to the {@link RequestFinishedInfo.Listener} with a
-         * {@link RequestFinishedInfo}.
-         * @return the builder to facilitate chaining.
-         * {@hide}
-         */
-        @NonNull
-        public Builder addRequestAnnotation(@NonNull Object annotation) {
-            return this;
-        }
-
 
         /**
          * Creates a {@link BidirectionalStream} using configuration from this {@link Builder}. The
