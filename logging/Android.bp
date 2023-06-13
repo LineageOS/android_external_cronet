@@ -34,6 +34,19 @@ java_library {
     ],
 }
 
+
+java_library {
+    name: "rate_limiter",
+    srcs: [
+        "RateLimiter.java",
+    ],
+    sdk_version: "module_current",
+    min_sdk_version: "30",
+    apex_available: [
+        "com.android.tethering",
+    ],
+}
+
 java_library {
     name: "size_buckets",
     srcs: [
