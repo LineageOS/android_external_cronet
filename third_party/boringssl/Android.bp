@@ -116,6 +116,7 @@ cc_object {
         // to help prevent
         // merge conflicts.
         fuzzer: false,
+        memtag_globals: false,
     },
     target: {
         android: {
@@ -161,6 +162,7 @@ cc_object {
         address: false,
         hwaddress: false,
         fuzzer: false,
+        memtag_globals: false,
     },
     target: {
         android: {
