@@ -161,13 +161,7 @@ public abstract class HttpEngine {
          */
         @VisibleForTesting
         public Builder(@NonNull IHttpEngineBuilder builderDelegate) {
-            if (builderDelegate instanceof ExperimentalOptionsTranslatingHttpEngineBuilder) {
-                // Already wrapped at the top level, no need to do it again
-                mBuilderDelegate = builderDelegate;
-            } else {
-                mBuilderDelegate =
-                        new ExperimentalOptionsTranslatingHttpEngineBuilder(builderDelegate);
-            }
+            mBuilderDelegate = builderDelegate;
         }
 
         /**

@@ -1,52 +1,48 @@
 // Copyright 2016 The Chromium Authors
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
-package android.net.http;
-
-import static android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_ENABLED;
-import static android.net.http.ConnectionMigrationOptions.MIGRATION_OPTION_UNSPECIFIED;
-import static android.net.http.DnsOptions.DNS_OPTION_ENABLED;
-import static android.net.http.DnsOptions.DNS_OPTION_UNSPECIFIED;
-
-import android.net.http.DnsOptions.StaleDnsOptions;
+package org.chromium.net;
 
 import androidx.annotation.VisibleForTesting;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.time.Instant;
+import org.chromium.net.DnsOptions.StaleDnsOptions;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 /**
- * An implementation of IHttpEngineBuilder which handles translation of configuration options to
+ * An implementation of ICronetEngineBuilder which handles translation of configuration options to
  * json-based experimental options, if necessary.
  *
  * <p>{@hide internal class}
  */
-public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttpEngineBuilder {
+@VisibleForTesting
+public final class ExperimentalOptionsTranslatingCronetEngineBuilder extends ICronetEngineBuilder {
     private static final Set<Integer> SUPPORTED_OPTIONS = Collections.unmodifiableSet(
-            new HashSet(Arrays.asList(IHttpEngineBuilder.CONNECTION_MIGRATION_OPTIONS,
-                    IHttpEngineBuilder.DNS_OPTIONS, IHttpEngineBuilder.QUIC_OPTIONS)));
+            new HashSet(Arrays.asList(ICronetEngineBuilder.CONNECTION_MIGRATION_OPTIONS,
+                    ICronetEngineBuilder.DNS_OPTIONS, ICronetEngineBuilder.QUIC_OPTIONS)));
 
     private JSONObject mParsedExperimentalOptions;
     private final List<ExperimentalOptionsPatch> mExperimentalOptionsPatches = new ArrayList<>();
 
-    private final IHttpEngineBuilder mDelegate;
+    private final ICronetEngineBuilder mDelegate;
 
-    ExperimentalOptionsTranslatingHttpEngineBuilder(IHttpEngineBuilder delegate) {
+    ExperimentalOptionsTranslatingCronetEngineBuilder(ICronetEngineBuilder delegate) {
         this.mDelegate = delegate;
     }
 
     @Override
-    public IHttpEngineBuilder setQuicOptions(QuicOptions options) {
+    public ICronetEngineBuilder setQuicOptions(QuicOptions options) {
         // If the delegate builder supports enabling connection migration directly, just use it
-        if (mDelegate.getSupportedConfigOptions().contains(IHttpEngineBuilder.QUIC_OPTIONS)) {
+        if (mDelegate.getSupportedConfigOptions().contains(ICronetEngineBuilder.QUIC_OPTIONS)) {
             mDelegate.setQuicOptions(options);
             return this;
         }
@@ -57,8 +53,8 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
 
             // Note: using the experimental APIs always overwrites what's in the experimental
             // JSON, even though "repeated" fields could in theory be additive.
-            if (!options.getAllowedQuicHosts().isEmpty()) {
-                quicOptions.put("host_whitelist", String.join(",", options.getAllowedQuicHosts()));
+            if (!options.getQuicHostAllowlist().isEmpty()) {
+                quicOptions.put("host_whitelist", String.join(",", options.getQuicHostAllowlist()));
             }
             if (!options.getEnabledQuicVersions().isEmpty()) {
                 quicOptions.put("quic_version", String.join(",", options.getEnabledQuicVersions()));
@@ -75,7 +71,7 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
                 quicOptions.put("set_quic_flags", String.join(",", options.getExtraQuicheFlags()));
             }
 
-            if (options.hasInMemoryServerConfigsCacheSize()) {
+            if (options.getInMemoryServerConfigsCacheSize() != null) {
                 quicOptions.put("max_server_configs_stored_in_properties",
                         options.getInMemoryServerConfigsCacheSize());
             }
@@ -93,24 +89,24 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
                 quicOptions.put("disable_tls_zero_rtt", !options.getEnableTlsZeroRtt());
             }
 
-            if (options.getPreCryptoHandshakeIdleTimeout() != null) {
+            if (options.getPreCryptoHandshakeIdleTimeoutSeconds() != null) {
                 quicOptions.put("max_idle_time_before_crypto_handshake_seconds",
-                        options.getPreCryptoHandshakeIdleTimeout().toSeconds());
+                        options.getPreCryptoHandshakeIdleTimeoutSeconds());
             }
 
-            if (options.getCryptoHandshakeTimeout() != null) {
+            if (options.getCryptoHandshakeTimeoutSeconds() != null) {
                 quicOptions.put("max_time_before_crypto_handshake_seconds",
-                        options.getCryptoHandshakeTimeout().toSeconds());
+                        options.getCryptoHandshakeTimeoutSeconds());
             }
 
-            if (options.getIdleConnectionTimeout() != null) {
+            if (options.getIdleConnectionTimeoutSeconds() != null) {
                 quicOptions.put("idle_connection_timeout_seconds",
-                        options.getIdleConnectionTimeout().toSeconds());
+                        options.getIdleConnectionTimeoutSeconds());
             }
 
-            if (options.getRetransmittableOnWireTimeout() != null) {
+            if (options.getRetransmittableOnWireTimeoutMillis() != null) {
                 quicOptions.put("retransmittable_on_wire_timeout_milliseconds",
-                        options.getRetransmittableOnWireTimeout().toMillis());
+                        options.getRetransmittableOnWireTimeoutMillis());
             }
 
             if (options.getCloseSessionsOnIpChange() != null) {
@@ -123,9 +119,9 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
                         "goaway_sessions_on_ip_change", options.getGoawaySessionsOnIpChange());
             }
 
-            if (options.getInitialBrokenServicePeriod() != null) {
+            if (options.getInitialBrokenServicePeriodSeconds() != null) {
                 quicOptions.put("initial_delay_for_broken_alternative_service_seconds",
-                        options.getInitialBrokenServicePeriod().toSeconds());
+                        options.getInitialBrokenServicePeriodSeconds());
             }
 
             if (options.getIncreaseBrokenServicePeriodExponentially() != null) {
@@ -142,9 +138,9 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
     }
 
     @Override
-    public IHttpEngineBuilder setDnsOptions(DnsOptions options) {
+    public ICronetEngineBuilder setDnsOptions(DnsOptions options) {
         // If the delegate builder supports enabling connection migration directly, just use it
-        if (mDelegate.getSupportedConfigOptions().contains(IHttpEngineBuilder.DNS_OPTIONS)) {
+        if (mDelegate.getSupportedConfigOptions().contains(ICronetEngineBuilder.DNS_OPTIONS)) {
             mDelegate.setDnsOptions(options);
             return this;
         }
@@ -153,68 +149,62 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
         mExperimentalOptionsPatches.add((experimentalOptions) -> {
             JSONObject asyncDnsOptions = createDefaultIfAbsent(experimentalOptions, "AsyncDNS");
 
-            if (options.getUseHttpStackDnsResolver() != DNS_OPTION_UNSPECIFIED) {
-                asyncDnsOptions.put("enable",
-                        options.getUseHttpStackDnsResolver() == DNS_OPTION_ENABLED);
+            if (options.getUseBuiltInDnsResolver() != null) {
+                asyncDnsOptions.put("enable", options.getUseBuiltInDnsResolver());
             }
 
             JSONObject staleDnsOptions = createDefaultIfAbsent(experimentalOptions, "StaleDNS");
 
-            if (options.getStaleDns() != DNS_OPTION_UNSPECIFIED) {
-                staleDnsOptions.put("enable", options.getStaleDns() == DNS_OPTION_ENABLED);
+            if (options.getEnableStaleDns() != null) {
+                staleDnsOptions.put("enable", options.getEnableStaleDns());
             }
 
-            if (options.getPersistHostCache() != DNS_OPTION_UNSPECIFIED) {
-                staleDnsOptions.put("persist_to_disk",
-                        options.getPersistHostCache() == DNS_OPTION_ENABLED);
+            if (options.getPersistHostCache() != null) {
+                staleDnsOptions.put("persist_to_disk", options.getPersistHostCache());
             }
 
-            if (options.getPersistHostCachePeriod() != null) {
-                staleDnsOptions.put("persist_delay_ms",
-                        options.getPersistHostCachePeriod().toMillis());
+            if (options.getPersistHostCachePeriodMillis() != null) {
+                staleDnsOptions.put("persist_delay_ms", options.getPersistHostCachePeriodMillis());
             }
 
             if (options.getStaleDnsOptions() != null) {
                 StaleDnsOptions staleDnsOptionsJava = options.getStaleDnsOptions();
 
-                if (staleDnsOptionsJava.getAllowCrossNetworkUsage() != DNS_OPTION_UNSPECIFIED) {
-                    staleDnsOptions.put("allow_other_network",
-                            staleDnsOptionsJava.getAllowCrossNetworkUsage()
-                                    == DNS_OPTION_ENABLED);
-                }
-
-                if (staleDnsOptionsJava.getFreshLookupTimeout() != null) {
+                if (staleDnsOptionsJava.getAllowCrossNetworkUsage() != null) {
                     staleDnsOptions.put(
-                            "delay_ms", staleDnsOptionsJava.getFreshLookupTimeout().toMillis());
+                            "allow_other_network", staleDnsOptionsJava.getAllowCrossNetworkUsage());
                 }
 
-                if (staleDnsOptionsJava.getUseStaleOnNameNotResolved() != DNS_OPTION_UNSPECIFIED) {
+                if (staleDnsOptionsJava.getFreshLookupTimeoutMillis() != null) {
+                    staleDnsOptions.put(
+                            "delay_ms", staleDnsOptionsJava.getFreshLookupTimeoutMillis());
+                }
+
+                if (staleDnsOptionsJava.getUseStaleOnNameNotResolved() != null) {
                     staleDnsOptions.put("use_stale_on_name_not_resolved",
-                            staleDnsOptionsJava.getUseStaleOnNameNotResolved()
-                                    == DNS_OPTION_ENABLED);
+                            staleDnsOptionsJava.getUseStaleOnNameNotResolved());
                 }
 
-                if (staleDnsOptionsJava.getMaxExpiredDelay() != null) {
-                    staleDnsOptions.put("max_expired_time_ms",
-                            staleDnsOptionsJava.getMaxExpiredDelay().toMillis());
+                if (staleDnsOptionsJava.getMaxExpiredDelayMillis() != null) {
+                    staleDnsOptions.put(
+                            "max_expired_time_ms", staleDnsOptionsJava.getMaxExpiredDelayMillis());
                 }
             }
 
             JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
-            if (options.getPreestablishConnectionsToStaleDnsResults() != DNS_OPTION_UNSPECIFIED) {
+            if (options.getPreestablishConnectionsToStaleDnsResults() != null) {
                 quicOptions.put("race_stale_dns_on_connection",
-                        options.getPreestablishConnectionsToStaleDnsResults()
-                                == DNS_OPTION_ENABLED);
+                        options.getPreestablishConnectionsToStaleDnsResults());
             }
         });
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder setConnectionMigrationOptions(ConnectionMigrationOptions options) {
+    public ICronetEngineBuilder setConnectionMigrationOptions(ConnectionMigrationOptions options) {
         // If the delegate builder supports enabling connection migration directly, just use it
         if (mDelegate.getSupportedConfigOptions().contains(
-                    IHttpEngineBuilder.CONNECTION_MIGRATION_OPTIONS)) {
+                    ICronetEngineBuilder.CONNECTION_MIGRATION_OPTIONS)) {
             mDelegate.setConnectionMigrationOptions(options);
             return this;
         }
@@ -223,10 +213,9 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
         mExperimentalOptionsPatches.add((experimentalOptions) -> {
             JSONObject quicOptions = createDefaultIfAbsent(experimentalOptions, "QUIC");
 
-            if (options.getDefaultNetworkMigration() != MIGRATION_OPTION_UNSPECIFIED) {
+            if (options.getEnableDefaultNetworkMigration() != null) {
                 quicOptions.put("migrate_sessions_on_network_change_v2",
-                        options.getDefaultNetworkMigration()
-                                == MIGRATION_OPTION_ENABLED);
+                        options.getEnableDefaultNetworkMigration());
             }
             if (options.getAllowServerMigration() != null) {
                 quicOptions.put("allow_server_migration", options.getAllowServerMigration());
@@ -234,32 +223,33 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
             if (options.getMigrateIdleConnections() != null) {
                 quicOptions.put("migrate_idle_sessions", options.getMigrateIdleConnections());
             }
-            if (options.getIdleMigrationPeriod() != null) {
+            if (options.getIdleMigrationPeriodSeconds() != null) {
                 quicOptions.put("idle_session_migration_period_seconds",
-                        options.getIdleMigrationPeriod().toSeconds());
+                        options.getIdleMigrationPeriodSeconds());
             }
-            if (options.getMaxTimeOnNonDefaultNetwork() != null) {
+            if (options.getRetryPreHandshakeErrorsOnAlternateNetwork() != null) {
+                quicOptions.put("retry_on_alternate_network_before_handshake",
+                        options.getRetryPreHandshakeErrorsOnAlternateNetwork());
+            }
+            if (options.getMaxTimeOnNonDefaultNetworkSeconds() != null) {
                 quicOptions.put("max_time_on_non_default_network_seconds",
-                        options.getMaxTimeOnNonDefaultNetwork().toSeconds());
+                        options.getMaxTimeOnNonDefaultNetworkSeconds());
             }
-            if (options.getMaxPathDegradingNonDefaultMigrationsCount() != null) {
+            if (options.getMaxPathDegradingEagerMigrationsCount() != null) {
                 quicOptions.put("max_migrations_to_non_default_network_on_path_degrading",
-                        options.getMaxPathDegradingNonDefaultMigrationsCount());
+                        options.getMaxPathDegradingEagerMigrationsCount());
             }
-            if (options.getMaxWriteErrorNonDefaultNetworkMigrationsCount() != null) {
+            if (options.getMaxWriteErrorEagerMigrationsCount() != null) {
                 quicOptions.put("max_migrations_to_non_default_network_on_write_error",
-                        options.getMaxWriteErrorNonDefaultNetworkMigrationsCount());
+                        options.getMaxWriteErrorEagerMigrationsCount());
             }
-            if (options.getPathDegradationMigration() != MIGRATION_OPTION_UNSPECIFIED) {
-                boolean pathDegradationValue = options.getPathDegradationMigration()
-                        == MIGRATION_OPTION_ENABLED;
+            if (options.getEnablePathDegradationMigration() != null) {
+                boolean pathDegradationValue = options.getEnablePathDegradationMigration();
 
                 boolean skipPortMigrationFlag = false;
 
-                if (options.getAllowNonDefaultNetworkUsage() != MIGRATION_OPTION_UNSPECIFIED) {
-                    boolean nonDefaultNetworkValue =
-                            (options.getAllowNonDefaultNetworkUsage()
-                                    == MIGRATION_OPTION_ENABLED);
+                if (options.getAllowNonDefaultNetworkUsage() != null) {
+                    boolean nonDefaultNetworkValue = options.getAllowNonDefaultNetworkUsage();
                     if (!pathDegradationValue && nonDefaultNetworkValue) {
                         // Misconfiguration which doesn't translate easily to the JSON flags
                         throw new IllegalArgumentException(
@@ -285,7 +275,7 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
     }
 
     @Override
-    public IHttpEngineBuilder setExperimentalOptions(String options) {
+    public ICronetEngineBuilder setExperimentalOptions(String options) {
         if (options == null || options.isEmpty()) {
             mParsedExperimentalOptions = null;
         } else {
@@ -300,7 +290,7 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
     }
 
     @Override
-    public ExperimentalHttpEngine build() {
+    public ExperimentalCronetEngine build() {
         if (mParsedExperimentalOptions == null && mExperimentalOptionsPatches.isEmpty()) {
             return mDelegate.build();
         }
@@ -345,7 +335,7 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
     }
 
     @VisibleForTesting
-    public IHttpEngineBuilder getDelegate() {
+    public ICronetEngineBuilder getDelegate() {
         return mDelegate;
     }
 
@@ -356,62 +346,68 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
 
     // Delegating-only methods
     @Override
-    public IHttpEngineBuilder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
-            boolean includeSubdomains, Instant expirationDate) {
+    public ICronetEngineBuilder addPublicKeyPins(String hostName, Set<byte[]> pinsSha256,
+            boolean includeSubdomains, Date expirationDate) {
         mDelegate.addPublicKeyPins(hostName, pinsSha256, includeSubdomains, expirationDate);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder addQuicHint(String host, int port, int alternatePort) {
+    public ICronetEngineBuilder addQuicHint(String host, int port, int alternatePort) {
         mDelegate.addQuicHint(host, port, alternatePort);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder enableHttp2(boolean value) {
+    public ICronetEngineBuilder enableHttp2(boolean value) {
         mDelegate.enableHttp2(value);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder enableHttpCache(int cacheMode, long maxSize) {
+    public ICronetEngineBuilder enableHttpCache(int cacheMode, long maxSize) {
         mDelegate.enableHttpCache(cacheMode, maxSize);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder enablePublicKeyPinningBypassForLocalTrustAnchors(boolean value) {
+    public ICronetEngineBuilder enablePublicKeyPinningBypassForLocalTrustAnchors(boolean value) {
         mDelegate.enablePublicKeyPinningBypassForLocalTrustAnchors(value);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder enableQuic(boolean value) {
+    public ICronetEngineBuilder enableQuic(boolean value) {
         mDelegate.enableQuic(value);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder enableSdch(boolean value) {
+    public ICronetEngineBuilder enableSdch(boolean value) {
         mDelegate.enableSdch(value);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder enableBrotli(boolean value) {
+    public ICronetEngineBuilder enableBrotli(boolean value) {
         mDelegate.enableBrotli(value);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder setStoragePath(String value) {
+    public ICronetEngineBuilder setLibraryLoader(CronetEngine.Builder.LibraryLoader loader) {
+        mDelegate.setLibraryLoader(loader);
+        return this;
+    }
+
+    @Override
+    public ICronetEngineBuilder setStoragePath(String value) {
         mDelegate.setStoragePath(value);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder setUserAgent(String userAgent) {
+    public ICronetEngineBuilder setUserAgent(String userAgent) {
         mDelegate.setUserAgent(userAgent);
         return this;
     }
@@ -422,13 +418,13 @@ public final class ExperimentalOptionsTranslatingHttpEngineBuilder extends IHttp
     }
 
     @Override
-    public IHttpEngineBuilder enableNetworkQualityEstimator(boolean value) {
+    public ICronetEngineBuilder enableNetworkQualityEstimator(boolean value) {
         mDelegate.enableNetworkQualityEstimator(value);
         return this;
     }
 
     @Override
-    public IHttpEngineBuilder setThreadPriority(int priority) {
+    public ICronetEngineBuilder setThreadPriority(int priority) {
         mDelegate.setThreadPriority(priority);
         return this;
     }
