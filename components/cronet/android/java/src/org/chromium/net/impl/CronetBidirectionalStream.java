@@ -12,15 +12,14 @@ import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeClassQualifiedName;
 import org.chromium.base.annotations.NativeMethods;
-import android.net.http.BidirectionalStream;
-import android.net.http.CallbackException;
-import android.net.http.HeaderBlock;
-import android.net.http.HttpException;
-import android.net.http.ExperimentalBidirectionalStream;
-import android.net.http.NetworkException;
-import android.net.http.RequestFinishedInfo;
+import org.chromium.net.BidirectionalStream;
+import org.chromium.net.CallbackException;
+import org.chromium.net.CronetException;
+import org.chromium.net.ExperimentalBidirectionalStream;
+import org.chromium.net.NetworkException;
+import org.chromium.net.RequestFinishedInfo;
 import org.chromium.net.RequestPriority;
-import android.net.http.UrlResponseInfo;
+import org.chromium.net.UrlResponseInfo;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -94,7 +93,6 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     private final int mInitialPriority;
     private final String mInitialMethod;
     private final String mRequestHeaders[];
-    private final HeaderBlock mRequestHeaderBlock;
     private final boolean mDelayRequestHeadersUntilFirstFlush;
     private final Collection<Object> mRequestAnnotations;
     private final boolean mTrafficStatsTagSet;
@@ -102,7 +100,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     private final boolean mTrafficStatsUidSet;
     private final int mTrafficStatsUid;
     private final long mNetworkHandle;
-    private HttpException mException;
+    private CronetException mException;
 
     /*
      * Synchronizes access to mNativeStream, mReadState and mWriteState.
@@ -252,7 +250,6 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
         mExecutor = executor;
         mInitialMethod = httpMethod;
         mRequestHeaders = stringsFromHeaderList(requestHeaders);
-        mRequestHeaderBlock = new HeaderBlockImpl(requestHeaders);
         mDelayRequestHeadersUntilFirstFlush = delayRequestHeadersUntilNextFlush;
         mPendingData = new LinkedList<>();
         mFlushData = new LinkedList<>();
@@ -662,7 +659,8 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     @SuppressWarnings("unused")
     @CalledByNative
     private void onResponseTrailersReceived(String[] trailers) {
-        final HeaderBlock trailersBlock = new HeaderBlockImpl(headersListFromStrings(trailers));
+        final UrlResponseInfo.HeaderBlock trailersBlock =
+                new UrlResponseInfoImpl.HeaderBlockImpl(headersListFromStrings(trailers));
         postTaskToExecutor(new Runnable() {
             @Override
             public void run() {
@@ -781,15 +779,15 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
 
     private static int convertStreamPriority(@CronetEngineBase.StreamPriority int priority) {
         switch (priority) {
-            case STREAM_PRIORITY_IDLE:
+            case Builder.STREAM_PRIORITY_IDLE:
                 return RequestPriority.IDLE;
-            case STREAM_PRIORITY_LOWEST:
+            case Builder.STREAM_PRIORITY_LOWEST:
                 return RequestPriority.LOWEST;
-            case STREAM_PRIORITY_LOW:
+            case Builder.STREAM_PRIORITY_LOW:
                 return RequestPriority.LOW;
-            case STREAM_PRIORITY_MEDIUM:
+            case Builder.STREAM_PRIORITY_MEDIUM:
                 return RequestPriority.MEDIUM;
-            case STREAM_PRIORITY_HIGHEST:
+            case Builder.STREAM_PRIORITY_HIGHEST:
                 return RequestPriority.HIGHEST;
             default:
                 throw new IllegalArgumentException("Invalid stream priority.");
@@ -841,7 +839,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     /**
      * Fails the stream with an exception. Only called on the Executor.
      */
-    private void failWithExceptionOnExecutor(HttpException e) {
+    private void failWithExceptionOnExecutor(CronetException e) {
         mException = e;
         // Do not call into mCallback if request is complete.
         synchronized (mNativeStreamLock) {
@@ -874,7 +872,7 @@ public class CronetBidirectionalStream extends ExperimentalBidirectionalStream {
     /**
      * Fails the stream with an exception. Can be called on any thread.
      */
-    private void failWithException(final HttpException exception) {
+    private void failWithException(final CronetException exception) {
         postTaskToExecutor(new Runnable() {
             @Override
             public void run() {
