@@ -61,7 +61,7 @@ public class BrotliTest {
         String url = NativeTestServer.getEchoAllHeadersURL();
         TestUrlRequestCallback callback = startAndWaitForComplete(url);
         assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
-        assertTrue(callback.mResponseAsString.contains("accept-encoding: gzip, deflate, br"));
+        assertTrue(callback.mResponseAsString.contains("Accept-Encoding: gzip, deflate, br"));
     }
 
     @Test
