@@ -5,6 +5,7 @@
 package org.chromium.net;
 
 import android.annotation.SuppressLint;
+import androidx.annotation.NonNull;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
@@ -260,6 +261,48 @@ public abstract class BidirectionalStream {
          */
         public void onCanceled(BidirectionalStream stream, UrlResponseInfo info) {}
     }
+
+    /**
+     * See {@link BidirectionalStream.Builder#setHttpMethod(String)}.
+     */
+    @NonNull
+    public abstract String getHttpMethod();
+
+    /**
+     * See {@link BidirectionalStream.Builder#setTrafficStatsTag(int)}
+     */
+    public abstract boolean hasTrafficStatsTag();
+
+    /**
+     * See {@link BidirectionalStream.Builder#setTrafficStatsTag(int)}
+     */
+    public abstract int getTrafficStatsTag();
+
+    /**
+     * See {@link BidirectionalStream.Builder#setTrafficStatsUid(int)}
+     */
+    public abstract boolean hasTrafficStatsUid();
+
+    /**
+     * See {@link BidirectionalStream.Builder#setTrafficStatsUid(int)}
+     */
+    public abstract int getTrafficStatsUid();
+
+    /**
+     * See {@link Builder#addHeader(String, String)}
+     */
+    @NonNull
+    public abstract UrlResponseInfo.HeaderBlock getHeaders();
+
+    /**
+     * See {@link Builder#setPriority(int)}
+     */
+    public abstract int getPriority();
+
+    /**
+     * See {@link Builder#setDelayRequestHeadersUntilFirstFlushEnabled(boolean)}
+     */
+    public abstract boolean isDelayRequestHeadersUntilFirstFlushEnabled();
 
     /**
      * Starts the stream, all callbacks go to the {@code callback} argument passed to {@link
