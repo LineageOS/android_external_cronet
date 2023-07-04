@@ -5,6 +5,11 @@
 package org.chromium.net.impl;
 
 import static java.lang.Math.max;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_IDLE;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_LOWEST;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_LOW;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_MEDIUM;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_HIGHEST;
 
 import android.os.Build;
 
@@ -26,6 +31,7 @@ import org.chromium.net.RequestFinishedInfo;
 import org.chromium.net.RequestPriority;
 import org.chromium.net.UploadDataProvider;
 import org.chromium.net.UrlRequest;
+import org.chromium.net.UrlResponseInfo.HeaderBlock;
 import org.chromium.net.impl.CronetLogger.CronetTrafficInfo;
 
 import java.nio.ByteBuffer;
@@ -282,7 +288,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
 
     @Override
     public HeaderBlock getHeaders() {
-        return mRequestHeaders;
+        return new UrlResponseInfoImpl.HeaderBlockImpl(mRequestHeaders);
     }
 
     @Override
