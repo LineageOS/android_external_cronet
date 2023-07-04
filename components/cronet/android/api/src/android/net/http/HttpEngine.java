@@ -380,11 +380,16 @@ public abstract class HttpEngine {
          */
         private static IHttpEngineBuilder createBuilderDelegate(Context context) {
             try {
-                Class<?> clazz = context.getClassLoader().loadClass(
+                Class<?> cronetClazz = context.getClassLoader().loadClass(
                         "android.net.connectivity.org.chromium.net.impl.NativeCronetEngineBuilderImpl");
+                Class<?> aospClazz = context.getClassLoader().loadClass(
+                        "android.net.http.CronetEngineBuilderWrapper");
 
-                return (IHttpEngineBuilder) clazz.getConstructor(Context.class).newInstance(
-                                            context);
+                ICronetEngineBuilder cronetBuilderImpl = (ICronetEngineBuilder)
+                        cronetClazz.getConstructor(Context.class).newInstance(context);
+                IHttpEngineBuilder aospBuilderImpl = (IHttpEngineBuilder)
+                        aospClazz.getConstructor(ExperimentalCronetEngine.Builder.class).newInstance(new ExperimentalCronetEngine.Builder(cronetBuilderImpl));
+                return aospBuilderImpl;
             } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
                 throw new IllegalArgumentException(e);
             }
