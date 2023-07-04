@@ -295,7 +295,8 @@ public abstract class CronetEngineBuilderImpl extends ICronetEngineBuilder {
     }
 
     @HttpCacheSetting
-    int publicBuilderHttpCacheMode() {
+    @VisibleForTesting
+    public int publicBuilderHttpCacheMode() {
         return mHttpCacheMode.toPublicBuilderCacheMode();
     }
 
