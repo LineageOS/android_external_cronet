@@ -19,5 +19,6 @@ filegroup {
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
+        "//external/cronet:__subpackages__",
     ],
 }
