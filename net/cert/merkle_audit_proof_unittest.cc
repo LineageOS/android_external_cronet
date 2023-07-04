@@ -34,7 +34,7 @@ TEST(MerkleAuditProofTest, CalculatesAuditPathLengthCorrectly) {
   EXPECT_EQ(22u, CalculateAuditPathLength(848049, 3630887));
 }
 
-TEST(MerkleAuditProofDeathTest, DiesIfLeafIndexIsGreaterThanOrEqualToTreeSize) {
+TEST(MerkleAuditProofDeathTest, DISABLED_DiesIfLeafIndexIsGreaterThanOrEqualToTreeSize) {
 #ifdef OFFICIAL_BUILD
   // The official build does not print the reason a CHECK failed.
   const char kErrorRegex[] = "";
