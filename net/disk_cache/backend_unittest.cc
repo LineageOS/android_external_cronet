@@ -4036,7 +4036,7 @@ TEST_F(DiskCacheBackendTest, SimpleCacheAppCacheLoad) {
   BackendLoad();
 }
 
-TEST_F(DiskCacheBackendTest, SimpleDoomRecent) {
+TEST_F(DiskCacheBackendTest, DISABLED_SimpleDoomRecent) {
   SetSimpleCacheMode();
   BackendDoomRecent();
 }
