@@ -13,12 +13,70 @@
 // limitations under the License.
 
 filegroup {
-    name: "cronet_wrapper_sources",
+    name: "httpclient_api_sources",
     srcs: [
-        "java/src/android/net/http/*.java",
+        "java/src/android/net/http/BidirectionalStream.java",
+        "java/src/android/net/http/CallbackException.java",
+        "java/src/android/net/http/ConnectionMigrationOptions.java",
+        "java/src/android/net/http/DnsOptions.java",
+        "java/src/android/net/http/HeaderBlock.java",
+        "java/src/android/net/http/HttpEngine.java",
+        "java/src/android/net/http/IHttpEngineBuilder.java",
+        "java/src/android/net/http/HttpException.java",
+        "java/src/android/net/http/InlineExecutionProhibitedException.java",
+        "java/src/android/net/http/NetworkException.java",
+        "java/src/android/net/http/QuicException.java",
+        "java/src/android/net/http/QuicOptions.java",
+        "java/src/android/net/http/UploadDataProvider.java",
+        "java/src/android/net/http/UploadDataSink.java",
+        "java/src/android/net/http/UrlRequest.java",
+        "java/src/android/net/http/UrlResponseInfo.java",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
-        "//external/cronet:__subpackages__",
+    ],
+}
+
+java_library {
+    name: "httpclient_api",
+    srcs: [
+        ":httpclient_api_sources",
+        ":cronet_aml_components_cronet_android_interface_api_version",
+    ],
+    libs: [
+        "androidx.annotation_annotation",
+        "framework-annotations-lib",
+        "framework-connectivity.stubs.module_lib",
+        "cronet_aml_api_java",
+    ],
+    sdk_version: "module_current",
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+    ],
+}
+
+java_library {
+    name: "httpclient_impl",
+    srcs: [
+        "java/src/android/net/http/*Wrapper.java",
+        "java/src/android/net/http/CronetExceptionTranslationUtils.java",
+    ],
+    libs: [
+        "httpclient_api",
+        "androidx.annotation_annotation",
+        "framework-annotations-lib",
+        "framework-connectivity.stubs.module_lib",
+    ],
+    static_libs: [
+        "cronet_aml_api_java",
+        "cronet_aml_java",
+    ],
+    sdk_version: "module_current",
+    min_sdk_version: "30",
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+    ],
+    apex_available: [
+        "com.android.tethering",
     ],
 }
