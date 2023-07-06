@@ -10,6 +10,7 @@ import android.net.Network;
 
 import org.chromium.net.ExperimentalCronetEngine;
 import org.chromium.net.ICronetEngineBuilder;
+import org.chromium.net.ApiVersion;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
