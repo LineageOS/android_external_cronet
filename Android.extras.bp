@@ -50,6 +50,7 @@ java_library {
     ],
     libs: [
         "androidx.annotation_annotation",
+        "androidx.annotation_annotation-experimental-nodeps",
         "framework-annotations-lib",
         "framework-connectivity.stubs.module_lib",
     ],
