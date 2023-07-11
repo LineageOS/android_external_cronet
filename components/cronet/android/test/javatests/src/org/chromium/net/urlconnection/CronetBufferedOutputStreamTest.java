@@ -19,7 +19,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import android.net.http.HttpEngine;
+import org.chromium.net.CronetEngine;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CompareDefaultWithCronet;
 import org.chromium.net.CronetTestRule.OnlyRunCronetHttpURLConnection;
@@ -40,7 +40,7 @@ public class CronetBufferedOutputStreamTest {
 
     @Before
     public void setUp() throws Exception {
-        mTestRule.setStreamHandlerFactory(new HttpEngine.Builder(getContext()).build());
+        mTestRule.setStreamHandlerFactory(new CronetEngine.Builder(getContext()).build());
         assertTrue(NativeTestServer.startNativeTestServer(getContext()));
     }
 
