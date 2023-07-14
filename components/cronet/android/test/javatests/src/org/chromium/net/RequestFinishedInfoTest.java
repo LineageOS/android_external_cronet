@@ -13,12 +13,6 @@ import static org.junit.Assert.fail;
 import static org.chromium.base.CollectionUtil.newHashSet;
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.net.http.ExperimentalHttpEngine;
-import android.net.http.ExperimentalUrlRequest;
-import android.net.http.NetworkException;
-import android.net.http.RequestFinishedInfo;
-import android.net.http.UrlRequest;
-import android.net.http.UrlResponseInfo;
 import android.os.ConditionVariable;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -36,7 +30,6 @@ import org.chromium.net.CronetTestRule.RequiresMinApi;
 import org.chromium.net.MetricsTestUtil.TestExecutor;
 import org.chromium.net.impl.CronetMetrics;
 
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
@@ -85,7 +78,7 @@ public class RequestFinishedInfoTest {
 
     @After
     public void tearDown() throws Exception {
-        mTestFramework.mCronetEngine.shutdown();
+        mTestFramework.shutdownEngine();
         NativeTestServer.shutdownNativeTestServer();
     }
 
@@ -131,14 +124,14 @@ public class RequestFinishedInfoTest {
         ExperimentalUrlRequest.Builder urlRequestBuilder =
                 (ExperimentalUrlRequest.Builder) mTestFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
-        Instant startTime = Instant.now();
+        Date startTime = new Date();
         urlRequestBuilder.addRequestAnnotation("request annotation")
                 .addRequestAnnotation(this)
                 .build()
                 .start();
         callback.blockForDone();
         requestFinishedListener.blockUntilDone();
-        Instant endTime = Instant.now();
+        Date endTime = new Date();
 
         RequestFinishedInfo requestInfo = requestFinishedListener.getRequestInfo();
         MetricsTestUtil.checkRequestFinishedInfo(requestInfo, mUrl, startTime, endTime);
@@ -161,7 +154,7 @@ public class RequestFinishedInfoTest {
         ExperimentalUrlRequest.Builder urlRequestBuilder =
                 (ExperimentalUrlRequest.Builder) mTestFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
-        Instant startTime = Instant.now();
+        Date startTime = new Date();
         urlRequestBuilder.addRequestAnnotation("request annotation")
                 .addRequestAnnotation(this)
                 .build()
@@ -170,7 +163,7 @@ public class RequestFinishedInfoTest {
         // Block on the executor, not the listener, since blocking on the listener doesn't work when
         // it's created with a non-default executor.
         testExecutor.blockUntilDone();
-        Instant endTime = Instant.now();
+        Date endTime = new Date();
 
         RequestFinishedInfo requestInfo = requestFinishedListener.getRequestInfo();
         MetricsTestUtil.checkRequestFinishedInfo(requestInfo, mUrl, startTime, endTime);
@@ -193,7 +186,7 @@ public class RequestFinishedInfoTest {
         ExperimentalUrlRequest.Builder urlRequestBuilder =
                 (ExperimentalUrlRequest.Builder) mTestFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
-        Instant startTime = Instant.now();
+        Date startTime = new Date();
         urlRequestBuilder.addRequestAnnotation("request annotation")
                 .addRequestAnnotation(this)
                 .build()
@@ -201,7 +194,7 @@ public class RequestFinishedInfoTest {
         callback.blockForDone();
         firstListener.blockUntilDone();
         secondListener.blockUntilDone();
-        Instant endTime = Instant.now();
+        Date endTime = new Date();
 
         RequestFinishedInfo firstRequestInfo = firstListener.getRequestInfo();
         RequestFinishedInfo secondRequestInfo = secondListener.getRequestInfo();
@@ -233,12 +226,12 @@ public class RequestFinishedInfoTest {
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder urlRequestBuilder = mTestFramework.mCronetEngine.newUrlRequestBuilder(
                 connectionRefusedUrl, callback, callback.getExecutor());
-        Instant startTime = Instant.now();
+        Date startTime = new Date();
         urlRequestBuilder.build().start();
         callback.blockForDone();
         assertTrue(callback.mOnErrorCalled);
         requestFinishedListener.blockUntilDone();
-        Instant endTime = Instant.now();
+        Date endTime = new Date();
 
         RequestFinishedInfo requestInfo = requestFinishedListener.getRequestInfo();
         assertNotNull("RequestFinishedInfo.Listener must be called", requestInfo);
@@ -250,6 +243,9 @@ public class RequestFinishedInfoTest {
                 ((NetworkException) requestInfo.getException()).getErrorCode());
         RequestFinishedInfo.Metrics metrics = requestInfo.getMetrics();
         assertNotNull("RequestFinishedInfo.getMetrics() must not be null", metrics);
+        // The failure is occasionally fast enough that time reported is 0, so just check for null
+        assertNotNull(metrics.getTotalTimeMs());
+        assertNull(metrics.getTtfbMs());
 
         // Check the timing metrics
         assertNotNull(metrics.getRequestStart());
@@ -301,16 +297,16 @@ public class RequestFinishedInfoTest {
             }
         };
         ExperimentalUrlRequest.Builder urlRequestBuilder =
-                (ExperimentalUrlRequest.Builder) mTestFramework.mCronetEngine.newUrlRequestBuilder(
+                mTestFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
-        Instant startTime = Instant.now();
+        Date startTime = new Date();
         urlRequestBuilder.addRequestAnnotation("request annotation")
                 .addRequestAnnotation(this)
                 .build()
                 .start();
         callback.blockForDone();
         requestFinishedListener.blockUntilDone();
-        Instant endTime = Instant.now();
+        Date endTime = new Date();
 
         RequestFinishedInfo requestInfo = requestFinishedListener.getRequestInfo();
         MetricsTestUtil.checkRequestFinishedInfo(requestInfo, mUrl, startTime, endTime);
@@ -340,7 +336,7 @@ public class RequestFinishedInfoTest {
                 new TestRequestFinishedListener(executor);
         mTestFramework.mCronetEngine.addRequestFinishedListener(requestFinishedListener);
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
-        UrlRequest.Builder urlRequestBuilder =
+        ExperimentalUrlRequest.Builder urlRequestBuilder =
                 mTestFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
         // Empty headers are invalid and will cause start() to throw an exception.
@@ -376,18 +372,18 @@ public class RequestFinishedInfoTest {
         RequestFinishedInfo.Metrics metrics = new CronetMetrics(requestStart, dnsStart, dnsEnd,
                 connectStart, connectEnd, sslStart, sslEnd, sendingStart, sendingEnd, pushStart,
                 pushEnd, responseStart, requestEnd, socketReused, sentByteCount, receivedByteCount);
-        assertEquals(Instant.ofEpochMilli(requestStart), metrics.getRequestStart());
+        assertEquals(new Date(requestStart), metrics.getRequestStart());
         // -1 timestamp should translate to null
         assertNull(metrics.getDnsEnd());
-        assertEquals(Instant.ofEpochMilli(dnsStart), metrics.getDnsStart());
-        assertEquals(Instant.ofEpochMilli(connectStart), metrics.getConnectStart());
-        assertEquals(Instant.ofEpochMilli(connectEnd), metrics.getConnectEnd());
-        assertEquals(Instant.ofEpochMilli(sslStart), metrics.getSslStart());
-        assertEquals(Instant.ofEpochMilli(sslEnd), metrics.getSslEnd());
-        assertEquals(Instant.ofEpochMilli(pushStart), metrics.getPushStart());
-        assertEquals(Instant.ofEpochMilli(pushEnd), metrics.getPushEnd());
-        assertEquals(Instant.ofEpochMilli(responseStart), metrics.getResponseStart());
-        assertEquals(Instant.ofEpochMilli(requestEnd), metrics.getRequestEnd());
+        assertEquals(new Date(dnsStart), metrics.getDnsStart());
+        assertEquals(new Date(connectStart), metrics.getConnectStart());
+        assertEquals(new Date(connectEnd), metrics.getConnectEnd());
+        assertEquals(new Date(sslStart), metrics.getSslStart());
+        assertEquals(new Date(sslEnd), metrics.getSslEnd());
+        assertEquals(new Date(pushStart), metrics.getPushStart());
+        assertEquals(new Date(pushEnd), metrics.getPushEnd());
+        assertEquals(new Date(responseStart), metrics.getResponseStart());
+        assertEquals(new Date(requestEnd), metrics.getRequestEnd());
         assertEquals(socketReused, metrics.getSocketReused());
         assertEquals(sentByteCount, (long) metrics.getSentByteCount());
         assertEquals(receivedByteCount, (long) metrics.getReceivedByteCount());
@@ -405,14 +401,14 @@ public class RequestFinishedInfoTest {
         ExperimentalUrlRequest.Builder urlRequestBuilder =
                 (ExperimentalUrlRequest.Builder) mTestFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
-        Instant startTime = Instant.now();
+        Date startTime = new Date();
         urlRequestBuilder.addRequestAnnotation("request annotation")
                 .addRequestAnnotation(this)
                 .build()
                 .start();
         callback.blockForDone();
         requestFinishedListener.blockUntilDone();
-        Instant endTime = Instant.now();
+        Date endTime = new Date();
 
         RequestFinishedInfo requestInfo = requestFinishedListener.getRequestInfo();
         MetricsTestUtil.checkRequestFinishedInfo(requestInfo, mUrl, startTime, endTime);
@@ -442,14 +438,14 @@ public class RequestFinishedInfoTest {
         ExperimentalUrlRequest.Builder urlRequestBuilder =
                 (ExperimentalUrlRequest.Builder) mTestFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
-        Instant startTime = Instant.now();
+        Date startTime = new Date();
         urlRequestBuilder.addRequestAnnotation(requestAnnotation)
                 .setRequestFinishedListener(requestFinishedListener)
                 .build()
                 .start();
         callback.blockForDone();
         requestFinishedListener.blockUntilDone();
-        Instant endTime = Instant.now();
+        Date endTime = new Date();
         RequestFinishedInfo requestInfo = requestFinishedListener.getRequestInfo();
         MetricsTestUtil.checkRequestFinishedInfo(requestInfo, mUrl, startTime, endTime);
         assertEquals(RequestFinishedInfo.SUCCEEDED, requestInfo.getFinishedReason());
@@ -535,16 +531,16 @@ public class RequestFinishedInfoTest {
                 new AssertCallbackDoneRequestFinishedListener(callback);
         mTestFramework.mCronetEngine.addRequestFinishedListener(requestFinishedListener);
         ExperimentalUrlRequest.Builder urlRequestBuilder =
-                (ExperimentalUrlRequest.Builder) mTestFramework.mCronetEngine.newUrlRequestBuilder(
+                mTestFramework.mCronetEngine.newUrlRequestBuilder(
                         mUrl, callback, callback.getExecutor());
-        Instant startTime = Instant.now();
+        Date startTime = new Date();
         urlRequestBuilder.addRequestAnnotation("request annotation")
                 .addRequestAnnotation(this)
                 .build()
                 .start();
         callback.blockForDone();
         requestFinishedListener.blockUntilDone();
-        Instant endTime = Instant.now();
+        Date endTime = new Date();
 
         RequestFinishedInfo requestInfo = requestFinishedListener.getRequestInfo();
         MetricsTestUtil.checkRequestFinishedInfo(requestInfo, mUrl, startTime, endTime);
