@@ -5,9 +5,10 @@ package org.chromium.net.impl;
 
 import androidx.annotation.IntDef;
 
-import android.net.http.ExperimentalUrlRequest;
-import android.net.http.UploadDataProvider;
-import android.net.http.UrlRequest;
+import org.chromium.net.ExperimentalUrlRequest;
+import org.chromium.net.UploadDataProvider;
+import org.chromium.net.UrlRequest;
+import org.chromium.net.UrlRequest.Status;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -15,7 +16,7 @@ import java.util.concurrent.Executor;
 
 /**
  * Base class for classes that implement {@link UrlRequest} including experimental
- * features.
+ * features. {@link CronetUrlRequest} and {@link JavaUrlRequest} extends this class.
  */
 public abstract class UrlRequestBase extends ExperimentalUrlRequest {
     /**
@@ -28,6 +29,14 @@ public abstract class UrlRequestBase extends ExperimentalUrlRequest {
      * @param method "GET", "HEAD", "DELETE", "POST" or "PUT".
      */
     protected abstract void setHttpMethod(String method);
+
+    /**
+     * Adds a request header. Must be done before request has started.
+     *
+     * @param header header name.
+     * @param value header value.
+     */
+    protected abstract void addHeader(String header, String value);
 
     /**
      * Sets upload data provider. Must be done before request has started. May only be

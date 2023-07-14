@@ -11,10 +11,6 @@ import static org.chromium.net.CronetTestRule.SERVER_CERT_PEM;
 import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.net.http.HttpEngine;
-import android.net.http.ExperimentalHttpEngine;
-import android.net.http.UrlRequest;
-
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
@@ -34,7 +30,7 @@ public class NetworkErrorLoggingTest {
     @Rule
     public final CronetTestRule mTestRule = new CronetTestRule();
 
-    private HttpEngine mCronetEngine;
+    private CronetEngine mCronetEngine;
 
     @Before
     public void setUp() throws Exception {
@@ -55,8 +51,8 @@ public class NetworkErrorLoggingTest {
     @SmallTest
     @OnlyRunNativeCronet
     public void testManualReportUpload() throws Exception {
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
         mCronetEngine = builder.build();
@@ -81,8 +77,8 @@ public class NetworkErrorLoggingTest {
     @SmallTest
     @OnlyRunNativeCronet
     public void testUploadNELReportsFromHeaders() throws Exception {
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         builder.setExperimentalOptions("{\"NetworkErrorLogging\": {\"enable\": true}}");
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
@@ -116,8 +112,8 @@ public class NetworkErrorLoggingTest {
     @SmallTest
     @OnlyRunNativeCronet
     public void testUploadNELReportsFromPreloadedPolicy() throws Exception {
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         String serverOrigin = Http2TestServer.getServerUrl();
         String collectorUrl = Http2TestServer.getReportingCollectorUrl();
         builder.setExperimentalOptions(""

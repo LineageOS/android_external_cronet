@@ -14,8 +14,8 @@ import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeClassQualifiedName;
 import org.chromium.base.annotations.NativeMethods;
-import android.net.http.UploadDataProvider;
-import android.net.http.UploadDataSink;
+import org.chromium.net.UploadDataProvider;
+import org.chromium.net.UploadDataSink;
 
 import java.io.IOException;
 import java.lang.annotation.Retention;
