@@ -7,7 +7,6 @@ package org.chromium.net;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
 
-import android.net.http.RequestFinishedInfo;
 import android.os.ConditionVariable;
 
 import java.util.concurrent.Executor;

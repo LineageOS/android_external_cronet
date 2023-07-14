@@ -4,7 +4,7 @@
 
 package org.chromium.net.impl;
 
-import android.net.http.CallbackException;
+import org.chromium.net.CallbackException;
 
 /**
  * An implementation of {@link CallbackException}.
