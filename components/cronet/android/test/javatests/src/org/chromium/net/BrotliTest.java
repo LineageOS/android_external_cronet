@@ -12,10 +12,6 @@ import static org.chromium.net.CronetTestRule.SERVER_CERT_PEM;
 import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.net.http.HttpEngine;
-import android.net.http.ExperimentalHttpEngine;
-import android.net.http.UrlRequest;
-
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
@@ -38,7 +34,7 @@ public class BrotliTest {
     @Rule
     public final CronetTestRule mTestRule = new CronetTestRule();
 
-    private HttpEngine mCronetEngine;
+    private CronetEngine mCronetEngine;
 
     @Before
     public void setUp() throws Exception {
@@ -58,24 +54,22 @@ public class BrotliTest {
     @SmallTest
     @OnlyRunNativeCronet
     public void testBrotliAdvertised() throws Exception {
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
-        builder.setEnableBrotli(true);
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
+        builder.enableBrotli(true);
         mCronetEngine = builder.build();
         String url = NativeTestServer.getEchoAllHeadersURL();
         TestUrlRequestCallback callback = startAndWaitForComplete(url);
         assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
-        assertTrue(
-                "[" + callback.mResponseAsString + "] should reference Brotli",
-                callback.mResponseAsString.matches("(?is).*accept-encoding: gzip, deflate, br.*"));
+        assertTrue(callback.mResponseAsString.contains("Accept-Encoding: gzip, deflate, br"));
     }
 
     @Test
     @SmallTest
     @OnlyRunNativeCronet
     public void testBrotliNotAdvertised() throws Exception {
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         mCronetEngine = builder.build();
         String url = NativeTestServer.getEchoAllHeadersURL();
         TestUrlRequestCallback callback = startAndWaitForComplete(url);
@@ -88,18 +82,16 @@ public class BrotliTest {
     @OnlyRunNativeCronet
     @Ignore // TODO(danstahr): Add test server support for setting the Brotli header
     public void testBrotliDecoded() throws Exception {
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
-        builder.setEnableBrotli(true);
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
+        builder.enableBrotli(true);
         mCronetEngine = builder.build();
         String url = Http2TestServer.getServeSimpleBrotliResponse();
         TestUrlRequestCallback callback = startAndWaitForComplete(url);
         assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
         String expectedResponse = "The quick brown fox jumps over the lazy dog";
         assertEquals(expectedResponse, callback.mResponseAsString);
-        assertEquals(
-                callback.mResponseInfo.getHeaders().getAsMap().get("content-encoding").get(0),
-                "br");
+        assertEquals(callback.mResponseInfo.getAllHeaders().get("content-encoding").get(0), "br");
     }
 
     private TestUrlRequestCallback startAndWaitForComplete(String url) {

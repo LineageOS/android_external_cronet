@@ -4,7 +4,7 @@
 
 package org.chromium.net.urlconnection;
 
-import android.net.http.UploadDataProvider;
+import org.chromium.net.UploadDataProvider;
 
 import androidx.annotation.VisibleForTesting;
 
