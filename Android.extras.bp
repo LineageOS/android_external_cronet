@@ -50,18 +50,12 @@ java_library {
     ],
     libs: [
         "androidx.annotation_annotation",
-        "androidx.annotation_annotation-experimental-nodeps",
         "framework-annotations-lib",
         "framework-connectivity.stubs.module_lib",
     ],
     sdk_version: "module_current",
-    min_sdk_version: "30",
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
-        "//external/cronet/android:__subpackages__",
-    ],
-    apex_available: [
-        "com.android.tethering",
     ],
 }
 

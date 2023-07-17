@@ -13,9 +13,11 @@ import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
-import static org.chromium.net.CronetEngine.Builder.HTTP_CACHE_DISK_NO_HTTP;
+import static android.net.http.HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP;
 
 import android.content.Context;
+import android.net.http.HeaderBlock;
+import android.net.http.HttpEngine;
 import android.os.Build;
 import android.os.ConditionVariable;
 
@@ -31,16 +33,15 @@ import org.junit.rules.RuleChain;
 import org.junit.runner.RunWith;
 import org.junit.runners.JUnit4;
 
-import org.chromium.net.CronetEngine;
 import org.chromium.net.CronetLoggerTestRule;
 import org.chromium.net.CronetTestRule;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.CronetTestRule.RequiresMinAndroidApi;
-import org.chromium.net.ExperimentalCronetEngine;
+import android.net.http.ExperimentalHttpEngine;
 import org.chromium.net.NativeTestServer;
 import org.chromium.net.TestUrlRequestCallback;
-import org.chromium.net.UrlRequest;
+import android.net.http.UrlRequest;
 import org.chromium.net.impl.CronetEngineBuilderImpl.HttpCacheMode;
 import org.chromium.net.impl.CronetLogger.CronetEngineBuilderInfo;
 import org.chromium.net.impl.CronetLogger.CronetSource;
@@ -65,7 +66,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @RequiresMinAndroidApi(Build.VERSION_CODES.O)
 public final class CronetLoggerTest {
     private final CronetTestRule mTestRule = new CronetTestRule();
-    private final CronetLoggerTestRule mLoggerTestRule = new CronetLoggerTestRule(TestLogger.class);
+    private final CronetLoggerTestRule mLoggerTestRule = new CronetLoggerTestRule(new TestLogger());
 
     @Rule
     public final RuleChain chain = RuleChain.outerRule(mTestRule).around(mLoggerTestRule);
@@ -172,7 +173,7 @@ public final class CronetLoggerTest {
         assertEquals(builder.quicEnabled(), builderInfo.isQuicEnabled());
         assertEquals(builder.http2Enabled(), builderInfo.isHttp2Enabled());
         assertEquals(builder.brotliEnabled(), builderInfo.isBrotliEnabled());
-        assertEquals(builder.publicBuilderHttpCacheMode(), builderInfo.getHttpCacheMode());
+        assertEquals(builder.httpCacheMode(), builderInfo.getHttpCacheMode());
         assertEquals(builder.experimentalOptions(), builderInfo.getExperimentalOptions());
         assertEquals(builder.networkQualityEstimatorEnabled(),
                 builderInfo.isNetworkQualityEstimatorEnabled());
@@ -198,9 +199,9 @@ public final class CronetLoggerTest {
     @Test
     @SmallTest
     public void testHttpCacheModeEnum() {
-        final int publicBuilderHttpCacheModes[] = {CronetEngine.Builder.HTTP_CACHE_DISABLED,
-                CronetEngine.Builder.HTTP_CACHE_IN_MEMORY,
-                CronetEngine.Builder.HTTP_CACHE_DISK_NO_HTTP, CronetEngine.Builder.HTTP_CACHE_DISK};
+        final int publicBuilderHttpCacheModes[] = {HttpEngine.Builder.HTTP_CACHE_DISABLED,
+                HttpEngine.Builder.HTTP_CACHE_IN_MEMORY,
+                HttpEngine.Builder.HTTP_CACHE_DISK_NO_HTTP, HttpEngine.Builder.HTTP_CACHE_DISK};
         for (int publicBuilderHttpCacheMode : publicBuilderHttpCacheModes) {
             HttpCacheMode cacheModeEnum =
                     HttpCacheMode.fromPublicBuilderCacheMode(publicBuilderHttpCacheMode);
@@ -231,7 +232,7 @@ public final class CronetLoggerTest {
         final String url = NativeTestServer.getEchoBodyURL();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
         UrlRequest.Builder requestBuilder =
                 engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
         UrlRequest request = requestBuilder.build();
@@ -266,22 +267,23 @@ public final class CronetLoggerTest {
         final boolean isNetworkQualityEstimatorEnabled = true;
         final int threadPriority = THREAD_PRIORITY_DEFAULT;
 
-        ExperimentalCronetEngine.Builder builder =
-                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder builder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
 
         builder.setExperimentalOptions(experimentalOptions);
-        builder.enablePublicKeyPinningBypassForLocalTrustAnchors(
+        builder.setEnablePublicKeyPinningBypassForLocalTrustAnchors(
                 isPublicKeyPinningBypassForLocalTrustAnchorsEnabled);
         builder.setUserAgent(userAgent);
         builder.setStoragePath(storagePath);
-        builder.enableQuic(isQuicEnabled);
-        builder.enableHttp2(isHttp2Enabled);
-        builder.enableBrotli(isBrotliEnabled);
-        builder.enableHttpCache(cacheMode, 0);
+        builder.setEnableQuic(isQuicEnabled);
+        builder.setEnableHttp2(isHttp2Enabled);
+        builder.setEnableBrotli(isBrotliEnabled);
+        builder.setEnableHttpCache(cacheMode, 0);
+
         builder.enableNetworkQualityEstimator(isNetworkQualityEstimatorEnabled);
         builder.setThreadPriority(threadPriority);
 
-        CronetEngine engine = mTestFramework.startEngine();
+        mTestFramework.startEngine();
         final CronetEngineBuilderInfo builderInfo = mTestLogger.getLastCronetEngineBuilderInfo();
         final CronetVersion version = mTestLogger.getLastCronetVersion();
         final CronetSource source = mTestLogger.getLastCronetSource();
@@ -296,7 +298,7 @@ public final class CronetLoggerTest {
         assertEquals(cacheMode, builderInfo.getHttpCacheMode());
         assertEquals(experimentalOptions, builderInfo.getExperimentalOptions());
         assertEquals(
-                isNetworkQualityEstimatorEnabled, builderInfo.isNetworkQualityEstimatorEnabled());
+               isNetworkQualityEstimatorEnabled, builderInfo.isNetworkQualityEstimatorEnabled());
         assertEquals(threadPriority, builderInfo.getThreadPriority());
         assertEquals(ImplVersion.getCronetVersion(), version.toString());
         if (mTestRule.testingJavaImpl()) {
@@ -316,10 +318,10 @@ public final class CronetLoggerTest {
         JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = "www.example.com";
-        ExperimentalCronetEngine.Builder builder =
-                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder builder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
         builder.setExperimentalOptions(experimentalOptions);
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
         final int engineId = mTestLogger.getLastCronetEngineId();
 
         TestUrlRequestCallback callback1 = new TestUrlRequestCallback();
@@ -355,13 +357,13 @@ public final class CronetLoggerTest {
         JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = "www.example.com";
-        ExperimentalCronetEngine.Builder engineBuilder =
-                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder engineBuilder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
         engineBuilder.setExperimentalOptions(experimentalOptions);
 
-        CronetEngine engine1 = engineBuilder.build();
+        HttpEngine engine1 = engineBuilder.build();
         final int engine1Id = mTestLogger.getLastCronetEngineId();
-        CronetEngine engine2 = engineBuilder.build();
+        HttpEngine engine2 = engineBuilder.build();
         final int engine2Id = mTestLogger.getLastCronetEngineId();
 
         TestUrlRequestCallback callback1 = new TestUrlRequestCallback();
@@ -400,10 +402,10 @@ public final class CronetLoggerTest {
         JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = NativeTestServer.getEchoBodyURL();
-        ExperimentalCronetEngine.Builder engineBuilder =
-                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder engineBuilder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
         engineBuilder.setExperimentalOptions(experimentalOptions);
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder requestBuilder =
@@ -438,10 +440,10 @@ public final class CronetLoggerTest {
         JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String url = "www.unreachable-url.com";
         final String experimentalOptions = jsonExperimentalOptions.toString();
-        ExperimentalCronetEngine.Builder engineBuilder =
-                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder engineBuilder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
         engineBuilder.setExperimentalOptions(experimentalOptions);
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder requestBuilder =
@@ -477,10 +479,10 @@ public final class CronetLoggerTest {
         JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", true);
         final String experimentalOptions = jsonExperimentalOptions.toString();
         final String url = NativeTestServer.getEchoBodyURL();
-        ExperimentalCronetEngine.Builder engineBuilder =
-                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        ExperimentalHttpEngine.Builder engineBuilder =
+                (ExperimentalHttpEngine.Builder) mTestFramework.mBuilder;
         engineBuilder.setExperimentalOptions(experimentalOptions);
-        CronetEngine engine = mTestFramework.startEngine();
+        HttpEngine engine = mTestFramework.startEngine();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         callback.setAutoAdvance(false);
@@ -520,10 +522,10 @@ public final class CronetLoggerTest {
         headers = null;
         assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headers));
 
-        CronetUrlRequest.HeadersList headersList = new CronetUrlRequest.HeadersList();
-        assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headersList));
-        headersList = null;
-        assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headersList));
+        HeaderBlock headerBlock = asHeaderBlock(new CronetUrlRequest.HeadersList());
+        assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headerBlock));
+        headerBlock = null;
+        assertEquals(0, CronetUrlRequest.estimateHeadersSizeInBytes(headerBlock));
     }
 
     @Test
@@ -553,6 +555,10 @@ public final class CronetLoggerTest {
         headersList.add(
                 new AbstractMap.SimpleImmutableEntry<String, String>(null, "") // 33 + 0 + 0 = 33
         );
-        assertEquals(33, CronetUrlRequest.estimateHeadersSizeInBytes(headersList));
+        assertEquals(33, CronetUrlRequest.estimateHeadersSizeInBytes(asHeaderBlock(headersList)));
+    }
+
+    private static HeaderBlock asHeaderBlock(List<Map.Entry<String, String>> headers) {
+        return new HeaderBlockImpl(headers);
     }
 }
