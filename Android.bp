@@ -7178,7 +7178,7 @@ cc_library_shared {
         "third_party/protobuf/src/",
     ],
     cpp_std: "c++20",
-    stem: "libcronet.114.0.5735.84",
+    stem: "libcronet_testing.114.0.5735.84",
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
     ],
