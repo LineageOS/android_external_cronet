@@ -11,7 +11,7 @@ import org.junit.runner.Description;
 import org.junit.runners.model.Statement;
 
 import org.chromium.net.impl.CronetLogger;
-import org.chromium.net.impl.CronetLoggerFactory;
+import org.chromium.net.impl.CronetLoggerFactory.SwapLoggerForTesting;
 
 /**
  * Custom TestRule that instantiates a new fake CronetLogger for each test.
@@ -20,15 +20,17 @@ import org.chromium.net.impl.CronetLoggerFactory;
 public class CronetLoggerTestRule<T extends CronetLogger> implements TestRule {
     private static final String TAG = CronetLoggerTestRule.class.getSimpleName();
 
+    private Class<T> mTestLoggerClazz;
+
     // Expose the fake logger to the test.
     public T mTestLogger;
 
-    public CronetLoggerTestRule(@NonNull T testLogger) {
-        if (testLogger == null) {
-            throw new NullPointerException("TestLogger is required.");
+    public CronetLoggerTestRule(@NonNull Class<T> testLoggerClazz) {
+        if (testLoggerClazz == null) {
+            throw new NullPointerException("TestLoggerClazz is required.");
         }
 
-        mTestLogger = testLogger;
+        mTestLoggerClazz = testLoggerClazz;
     }
 
     @Override
@@ -36,32 +38,24 @@ public class CronetLoggerTestRule<T extends CronetLogger> implements TestRule {
         return new Statement() {
             @Override
             public void evaluate() throws Throwable {
-                try (SwapLoggerForTesting swapper = new SwapLoggerForTesting(mTestLogger)) {
+                try (SwapLoggerForTesting swapper = buildSwapper()) {
                     base.evaluate();
+                } finally {
+                    mTestLogger = null;
                 }
             }
         };
     }
 
-    /**
-     * Utility class to safely use a custom CronetLogger for the duration of a test.
-     * To be used within a try-with-resources statement within the test.
-     */
-    public static class SwapLoggerForTesting implements AutoCloseable {
-        /**
-         * Forces {@code CronetLoggerFactory#createLogger} to return {@code testLogger} instead of
-         * what it would have normally returned.
-         */
-        public SwapLoggerForTesting(CronetLogger testLogger) {
-            CronetLoggerFactory.setLoggerForTesting(testLogger);
-        }
+    private SwapLoggerForTesting buildSwapper() {
+        assert mTestLoggerClazz != null;
 
-        /**
-         * Restores CronetLoggerFactory to its original state.
-         */
-        @Override
-        public void close() {
-            CronetLoggerFactory.setLoggerForTesting(null);
+        try {
+            mTestLogger = mTestLoggerClazz.getConstructor().newInstance();
+            return new SwapLoggerForTesting(mTestLogger);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalArgumentException(
+                    "CronetTestBase#runTest failed while swapping TestLogger.", e);
         }
     }
 }

@@ -324,7 +324,7 @@ public class NetworkChangeNotifier {
     /**
      * Alerts all observers of a connection change.
      */
-    void notifyObserversOfConnectionTypeChange(int newConnectionType) {
+    public void notifyObserversOfConnectionTypeChange(int newConnectionType) {
         notifyObserversOfConnectionTypeChange(newConnectionType, getCurrentDefaultNetId());
     }
 

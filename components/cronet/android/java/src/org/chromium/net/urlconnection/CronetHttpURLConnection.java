@@ -9,11 +9,11 @@ import android.os.Build;
 import android.util.Log;
 import android.util.Pair;
 
-import android.net.http.HttpEngine;
-import android.net.http.HttpException;
-import android.net.http.ExperimentalUrlRequest;
-import android.net.http.UrlRequest;
-import android.net.http.UrlResponseInfo;
+import org.chromium.net.CronetEngine;
+import org.chromium.net.CronetException;
+import org.chromium.net.ExperimentalUrlRequest;
+import org.chromium.net.UrlRequest;
+import org.chromium.net.UrlResponseInfo;
 
 import androidx.annotation.VisibleForTesting;
 
@@ -42,7 +42,7 @@ import java.util.TreeMap;
 public class CronetHttpURLConnection extends HttpURLConnection {
     private static final String TAG = CronetHttpURLConnection.class.getSimpleName();
     private static final String CONTENT_LENGTH = "Content-Length";
-    private final HttpEngine mCronetEngine;
+    private final CronetEngine mCronetEngine;
     private final MessageLoop mMessageLoop;
     private UrlRequest mRequest;
     private final List<Pair<String, String>> mRequestHeaders;
@@ -61,7 +61,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
     private List<Map.Entry<String, String>> mResponseHeadersList;
     private Map<String, List<String>> mResponseHeadersMap;
 
-    public CronetHttpURLConnection(URL url, HttpEngine cronetEngine) {
+    public CronetHttpURLConnection(URL url, CronetEngine cronetEngine) {
         super(url);
         mCronetEngine = cronetEngine;
         mMessageLoop = new MessageLoop();
@@ -259,7 +259,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         }
         final ExperimentalUrlRequest.Builder requestBuilder =
                 (ExperimentalUrlRequest.Builder) mCronetEngine.newUrlRequestBuilder(
-                        getURL().toString(), mMessageLoop, new CronetUrlRequestCallback());
+                        getURL().toString(), new CronetUrlRequestCallback(), mMessageLoop);
         if (doOutput) {
             if (method.equals("GET")) {
                 method = "POST";
@@ -288,7 +288,9 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         for (Pair<String, String> requestHeader : mRequestHeaders) {
             requestBuilder.addHeader(requestHeader.first, requestHeader.second);
         }
-        requestBuilder.setCacheDisabled(!getUseCaches());
+        if (!getUseCaches()) {
+            requestBuilder.disableCache();
+        }
         // Set HTTP method.
         requestBuilder.setHttpMethod(method);
         if (checkTrafficStatsTag()) {
@@ -524,7 +526,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         return -1;
     }
 
-    private class CronetUrlRequestCallback implements UrlRequest.Callback {
+    private class CronetUrlRequestCallback extends UrlRequest.Callback {
         public CronetUrlRequestCallback() {}
 
         @Override
@@ -573,7 +575,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
         }
 
         @Override
-        public void onFailed(UrlRequest request, UrlResponseInfo info, HttpException exception) {
+        public void onFailed(UrlRequest request, UrlResponseInfo info, CronetException exception) {
             if (exception == null) {
                 throw new IllegalStateException(
                         "Exception cannot be null in onFailed.");
@@ -689,7 +691,7 @@ public class CronetHttpURLConnection extends HttpURLConnection {
             return mResponseHeadersList;
         }
         mResponseHeadersList = new ArrayList<Map.Entry<String, String>>();
-        for (Map.Entry<String, String> entry : mResponseInfo.getHeaders().getAsList()) {
+        for (Map.Entry<String, String> entry : mResponseInfo.getAllHeadersAsList()) {
             // Strips Content-Encoding response header. See crbug.com/592700.
             if (!entry.getKey().equalsIgnoreCase("Content-Encoding")) {
                 mResponseHeadersList.add(
