@@ -10,7 +10,6 @@ import static org.junit.Assert.fail;
 
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.net.http.UrlRequest;
 import android.os.ConditionVariable;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -26,8 +25,8 @@ import org.junit.runner.RunWith;
 import org.chromium.net.CronetTestRule.CronetTestFramework;
 import org.chromium.net.CronetTestRule.OnlyRunNativeCronet;
 import org.chromium.net.TestUrlRequestCallback.ResponseStep;
-import android.net.http.UrlRequest.Status;
-import android.net.http.UrlRequest.StatusListener;
+import org.chromium.net.UrlRequest.Status;
+import org.chromium.net.UrlRequest.StatusListener;
 import org.chromium.net.impl.LoadState;
 import org.chromium.net.impl.UrlRequestBase;
 
@@ -48,7 +47,7 @@ public class GetStatusTest {
 
     private CronetTestFramework mTestFramework;
 
-    private static class TestStatusListener implements StatusListener {
+    private static class TestStatusListener extends StatusListener {
         boolean mOnStatusCalled;
         int mStatus = Integer.MAX_VALUE;
         private final ConditionVariable mBlock = new ConditionVariable();

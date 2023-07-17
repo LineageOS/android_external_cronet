@@ -68,6 +68,28 @@ public final class CronetLoggerFactory {
         sTestingLogger = testingLogger;
     }
 
+    /**
+     * Utility class to safely use a custom CronetLogger for the duration of a test.
+     * To be used within a try-with-resources statement within the test.
+     */
+    public static class SwapLoggerForTesting implements AutoCloseable {
+        /**
+         * Forces {@code CronetLoggerFactory#createLogger} to return @param testLogger instead of
+         * what it would have normally returned.
+         */
+        public SwapLoggerForTesting(CronetLogger testLogger) {
+            CronetLoggerFactory.setLoggerForTesting(testLogger);
+        }
+
+        /**
+         * Restores CronetLoggerFactory to its original state.
+         */
+        @Override
+        public void close() {
+            CronetLoggerFactory.setLoggerForTesting(null);
+        }
+    }
+
     private static Class<? extends CronetLogger> fetchLoggerImplClass() {
         ClassLoader loader = CronetLoggerFactory.class.getClassLoader();
         try {
