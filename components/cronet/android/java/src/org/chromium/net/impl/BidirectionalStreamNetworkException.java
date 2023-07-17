@@ -19,14 +19,14 @@ public class BidirectionalStreamNetworkException extends NetworkExceptionImpl {
     }
 
     @Override
-    public boolean isImmediatelyRetryable() {
+    public boolean immediatelyRetryable() {
         switch (mCronetInternalErrorCode) {
             case NetError.ERR_HTTP2_PING_FAILED:
             case NetError.ERR_QUIC_HANDSHAKE_FAILED:
                 assert mErrorCode == ERROR_OTHER;
                 return true;
             default:
-                return super.isImmediatelyRetryable();
+                return super.immediatelyRetryable();
         }
     }
 }

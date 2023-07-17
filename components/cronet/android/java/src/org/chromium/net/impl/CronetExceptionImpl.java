@@ -4,12 +4,12 @@
 
 package org.chromium.net.impl;
 
-import android.net.http.HttpException;
+import org.chromium.net.CronetException;
 
 /**
- * Implements {@link HttpException}.
+ * Implements {@link CronetException}.
  */
-public class CronetExceptionImpl extends HttpException {
+public class CronetExceptionImpl extends CronetException {
     public CronetExceptionImpl(String message, Throwable cause) {
         super(message, cause);
     }
