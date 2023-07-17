@@ -5,8 +5,10 @@
 package org.chromium.net;
 
 import android.net.Network;
-import org.chromium.net.CronetEngine;
-import org.chromium.net.UrlRequest;
+import android.net.http.ExperimentalHttpEngine;
+import android.net.http.ExperimentalOptionsTranslatingHttpEngineBuilder;
+import android.net.http.HttpEngine;
+import android.net.http.UrlRequest;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -63,7 +65,7 @@ public class CronetTestUtil {
     public static class NetworkThreadTestConnector {
         private final CronetUrlRequestContext mRequestContext;
 
-        public NetworkThreadTestConnector(CronetEngine cronetEngine) {
+        public NetworkThreadTestConnector(HttpEngine cronetEngine) {
             mRequestContext = (CronetUrlRequestContext) cronetEngine;
             CronetTestUtilJni.get().prepareNetworkThread(
                     mRequestContext.getUrlRequestContextAdapter());
@@ -85,20 +87,20 @@ public class CronetTestUtil {
     }
 
     public static boolean doesURLRequestContextExistForTesting(
-            CronetEngine engine, Network network) {
+            HttpEngine engine, Network network) {
         CronetUrlRequestContext context = (CronetUrlRequestContext) engine;
         return CronetTestUtilJni.get().uRLRequestContextExistsForTesting(
                 context.getUrlRequestContextAdapter(), network.getNetworkHandle());
     }
 
     public static void setMockCertVerifierForTesting(
-             ExperimentalCronetEngine.Builder builder, long mockCertVerifier) {
+            ExperimentalHttpEngine.Builder builder, long mockCertVerifier) {
         getCronetEngineBuilderImpl(builder).setMockCertVerifierForTesting(mockCertVerifier);
     }
 
     public static CronetEngineBuilderImpl getCronetEngineBuilderImpl(
-            ExperimentalCronetEngine.Builder builder) {
-        return (CronetEngineBuilderImpl) ((ExperimentalOptionsTranslatingCronetEngineBuilder)
+            ExperimentalHttpEngine.Builder builder) {
+        return (CronetEngineBuilderImpl) ((ExperimentalOptionsTranslatingHttpEngineBuilder)
                                                   builder.getBuilderDelegate())
                 .getDelegate();
     }

@@ -6,12 +6,13 @@ package org.chromium.net.impl;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 
-import org.chromium.net.BidirectionalStream;
-import org.chromium.net.ExperimentalBidirectionalStream;
-import org.chromium.net.ExperimentalCronetEngine;
-import org.chromium.net.ExperimentalUrlRequest;
-import org.chromium.net.RequestFinishedInfo;
-import org.chromium.net.UrlRequest;
+import android.net.http.BidirectionalStream;
+import android.net.http.ExperimentalBidirectionalStream;
+import android.net.http.ExperimentalHttpEngine;
+import android.net.http.ExperimentalUrlRequest;
+import android.net.http.HeaderBlock;
+import android.net.http.RequestFinishedInfo;
+import android.net.http.UrlRequest;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -22,10 +23,9 @@ import java.util.Map;
 import java.util.concurrent.Executor;
 
 /**
- * Base class of {@link CronetUrlRequestContext} and {@link JavaCronetEngine} that contains
- * shared logic.
+ * Base class of {@link CronetUrlRequestContext}.
  */
-public abstract class CronetEngineBase extends ExperimentalCronetEngine {
+public abstract class CronetEngineBase extends ExperimentalHttpEngine {
     /*
      * Network handle representing the default network. To be used when a network has not been
      * explicitly set.
@@ -45,7 +45,7 @@ public abstract class CronetEngineBase extends ExperimentalCronetEngine {
      *         {@link UrlRequest.Builder#REQUEST_PRIORITY_IDLE REQUEST_PRIORITY_*}
      *         values.
      * @param requestAnnotations Objects to pass on to
-     *        {@link org.chromium.net.RequestFinishedInfo.Listener}.
+     *        {@link RequestFinishedInfo.Listener}.
      * @param disableCache disables cache for the request.
      *         If context is not set up to use cache this param has no effect.
      * @param disableConnectionMigration disables connection migration for this
@@ -71,7 +71,7 @@ public abstract class CronetEngineBase extends ExperimentalCronetEngine {
             boolean disableCache, boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, @Nullable RequestFinishedInfo.Listener requestFinishedListener,
-            @Idempotency int idempotency, long networkHandle);
+            @Idempotency int idempotency, long networkHandle, HeaderBlock headerBlock);
 
     /**
      * Creates a {@link BidirectionalStream} object. {@code callback} methods will
@@ -91,7 +91,7 @@ public abstract class CronetEngineBase extends ExperimentalCronetEngine {
      *         headers until flush() is called, and try to combine them
      *         with the next data frame.
      * @param requestAnnotations Objects to pass on to
-     *       {@link org.chromium.net.RequestFinishedInfo.Listener}.
+     *       {@link RequestFinishedInfo.Listener}.
      * @param trafficStatsTagSet {@code true} if {@code trafficStatsTag} represents a TrafficStats
      *         tag to apply to sockets used to perform this request.
      * @param trafficStatsTag TrafficStats tag to apply to sockets used to perform this request.
@@ -110,22 +110,22 @@ public abstract class CronetEngineBase extends ExperimentalCronetEngine {
 
     @Override
     public ExperimentalUrlRequest.Builder newUrlRequestBuilder(
-            String url, UrlRequest.Callback callback, Executor executor) {
+            String url, Executor executor, UrlRequest.Callback callback) {
         return new UrlRequestBuilderImpl(url, callback, executor, this);
     }
 
-    @IntDef({UrlRequest.Builder.REQUEST_PRIORITY_IDLE, UrlRequest.Builder.REQUEST_PRIORITY_LOWEST,
-            UrlRequest.Builder.REQUEST_PRIORITY_LOW, UrlRequest.Builder.REQUEST_PRIORITY_MEDIUM,
-            UrlRequest.Builder.REQUEST_PRIORITY_HIGHEST})
+    @IntDef({UrlRequest.REQUEST_PRIORITY_IDLE, UrlRequest.REQUEST_PRIORITY_LOWEST,
+            UrlRequest.REQUEST_PRIORITY_LOW, UrlRequest.REQUEST_PRIORITY_MEDIUM,
+            UrlRequest.REQUEST_PRIORITY_HIGHEST})
     @Retention(RetentionPolicy.SOURCE)
     public @interface RequestPriority {}
 
     @IntDef({
-            BidirectionalStream.Builder.STREAM_PRIORITY_IDLE,
-            BidirectionalStream.Builder.STREAM_PRIORITY_LOWEST,
-            BidirectionalStream.Builder.STREAM_PRIORITY_LOW,
-            BidirectionalStream.Builder.STREAM_PRIORITY_MEDIUM,
-            BidirectionalStream.Builder.STREAM_PRIORITY_HIGHEST,
+            BidirectionalStream.STREAM_PRIORITY_IDLE,
+            BidirectionalStream.STREAM_PRIORITY_LOWEST,
+            BidirectionalStream.STREAM_PRIORITY_LOW,
+            BidirectionalStream.STREAM_PRIORITY_MEDIUM,
+            BidirectionalStream.STREAM_PRIORITY_HIGHEST,
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface StreamPriority {}

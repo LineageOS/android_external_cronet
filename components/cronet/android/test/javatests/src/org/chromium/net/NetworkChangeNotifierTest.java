@@ -13,6 +13,8 @@ import static org.junit.Assert.assertTrue;
 
 import static org.chromium.net.CronetTestRule.assertContains;
 
+import android.net.http.NetworkException;
+import android.net.http.UrlRequest;
 import android.os.Build;
 import android.system.Os;
 
@@ -93,7 +95,8 @@ public class NetworkChangeNotifierTest {
         CronetLibraryLoader.postToInitThread(new Runnable() {
             @Override
             public void run() {
-                NetworkChangeNotifier.getInstance().notifyObserversOfConnectionTypeChange(
+                NetworkChangeNotifier.fakeDefaultNetwork(
+                        NetworkChangeNotifier.getInstance().getCurrentDefaultNetId(),
                         ConnectionType.CONNECTION_4G);
             }
         });
@@ -103,7 +106,7 @@ public class NetworkChangeNotifierTest {
         assertNotNull(callback.mError);
         assertTrue(callback.mOnErrorCalled);
         assertEquals(NetError.ERR_NETWORK_CHANGED,
-                ((NetworkException) callback.mError).getCronetInternalErrorCode());
+                ((NetworkException) callback.mError).getInternalErrorCode());
         assertContains("Exception in CronetUrlRequest: net::ERR_NETWORK_CHANGED",
                 callback.mError.getMessage());
     }

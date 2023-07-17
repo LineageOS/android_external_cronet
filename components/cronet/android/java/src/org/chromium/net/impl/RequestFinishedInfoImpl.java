@@ -7,9 +7,9 @@ package org.chromium.net.impl;
 import androidx.annotation.IntDef;
 import androidx.annotation.Nullable;
 
-import org.chromium.net.CronetException;
-import org.chromium.net.RequestFinishedInfo;
-import org.chromium.net.UrlResponseInfo;
+import android.net.http.HttpException;
+import android.net.http.RequestFinishedInfo;
+import android.net.http.UrlResponseInfo;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -30,7 +30,7 @@ public class RequestFinishedInfoImpl extends RequestFinishedInfo {
     @Nullable
     private final UrlResponseInfo mResponseInfo;
     @Nullable
-    private final CronetException mException;
+    private final HttpException mException;
 
     @IntDef({SUCCEEDED, FAILED, CANCELED})
     @Retention(RetentionPolicy.SOURCE)
@@ -38,7 +38,7 @@ public class RequestFinishedInfoImpl extends RequestFinishedInfo {
 
     public RequestFinishedInfoImpl(String url, Collection<Object> annotations,
             RequestFinishedInfo.Metrics metrics, @FinishedReason int finishedReason,
-            @Nullable UrlResponseInfo responseInfo, @Nullable CronetException exception) {
+            @Nullable UrlResponseInfo responseInfo, @Nullable HttpException exception) {
         mUrl = url;
         mAnnotations = annotations;
         mMetrics = metrics;
@@ -79,7 +79,7 @@ public class RequestFinishedInfoImpl extends RequestFinishedInfo {
 
     @Override
     @Nullable
-    public CronetException getException() {
+    public HttpException getException() {
         return mException;
     }
 }
