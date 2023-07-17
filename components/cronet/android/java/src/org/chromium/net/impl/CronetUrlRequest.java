@@ -5,8 +5,12 @@
 package org.chromium.net.impl;
 
 import static java.lang.Math.max;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_IDLE;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_LOWEST;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_LOW;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_MEDIUM;
+import static org.chromium.net.UrlRequest.Builder.REQUEST_PRIORITY_HIGHEST;
 
-import android.net.http.HeaderBlock;
 import android.os.Build;
 
 import androidx.annotation.RequiresApi;
@@ -18,15 +22,16 @@ import org.chromium.base.annotations.JNIAdditionalImport;
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeClassQualifiedName;
 import org.chromium.base.annotations.NativeMethods;
-import android.net.http.CallbackException;
-import android.net.http.HttpException;
+import org.chromium.net.CallbackException;
+import org.chromium.net.CronetException;
 import org.chromium.net.Idempotency;
-import android.net.http.InlineExecutionProhibitedException;
-import android.net.http.NetworkException;
-import android.net.http.RequestFinishedInfo;
+import org.chromium.net.InlineExecutionProhibitedException;
+import org.chromium.net.NetworkException;
+import org.chromium.net.RequestFinishedInfo;
 import org.chromium.net.RequestPriority;
-import android.net.http.UploadDataProvider;
-import android.net.http.UrlRequest;
+import org.chromium.net.UploadDataProvider;
+import org.chromium.net.UrlRequest;
+import org.chromium.net.UrlResponseInfo.HeaderBlock;
 import org.chromium.net.impl.CronetLogger.CronetTrafficInfo;
 
 import java.nio.ByteBuffer;
@@ -89,7 +94,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
     private final int mPriority;
     private final int mIdempotency;
     private String mInitialMethod;
-    private final HeaderBlock mRequestHeaders;
+    private final HeadersList mRequestHeaders = new HeadersList();
     private final Collection<Object> mRequestAnnotations;
     private final boolean mDisableCache;
     private final boolean mDisableConnectionMigration;
@@ -110,7 +115,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
     // UrlRequest.Callback's and RequestFinishedInfo.Listener's executors after the last update.
     @RequestFinishedInfoImpl.FinishedReason
     private int mFinishedReason;
-    private HttpException mException;
+    private CronetException mException;
     private CronetMetrics mMetrics;
     private boolean mQuicConnectionMigrationAttempted;
     private boolean mQuicConnectionMigrationSuccessful;
@@ -157,7 +162,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
             boolean disableCache, boolean disableConnectionMigration, boolean allowDirectExecutor,
             boolean trafficStatsTagSet, int trafficStatsTag, boolean trafficStatsUidSet,
             int trafficStatsUid, RequestFinishedInfo.Listener requestFinishedListener,
-            int idempotency, long networkHandle, HeaderBlock headerBlock) {
+            int idempotency, long networkHandle) {
         if (url == null) {
             throw new NullPointerException("URL is required");
         }
@@ -189,7 +194,6 @@ public final class CronetUrlRequest extends UrlRequestBase {
                 : null;
         mIdempotency = convertIdempotency(idempotency);
         mNetworkHandle = networkHandle;
-        mRequestHeaders = headerBlock;
     }
 
     @Override
@@ -200,6 +204,30 @@ public final class CronetUrlRequest extends UrlRequestBase {
         }
         mInitialMethod = method;
     }
+
+    @Override
+    public void addHeader(String header, String value) {
+        checkNotStarted();
+        if (header == null) {
+            throw new NullPointerException("Invalid header name.");
+        }
+        if (value == null) {
+            throw new NullPointerException("Invalid header value.");
+        }
+        mRequestHeaders.add(new AbstractMap.SimpleImmutableEntry<String, String>(header, value));
+    }
+
+    @Override
+    public void setUploadDataProvider(UploadDataProvider uploadDataProvider, Executor executor) {
+        if (uploadDataProvider == null) {
+            throw new NullPointerException("Invalid UploadDataProvider.");
+        }
+        if (mInitialMethod == null) {
+            mInitialMethod = "POST";
+        }
+        mUploadDataStream = new CronetUploadDataStream(uploadDataProvider, executor, this);
+    }
+
     @Override
     public String getHttpMethod() {
         return mInitialMethod;
@@ -260,18 +288,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
 
     @Override
     public HeaderBlock getHeaders() {
-        return mRequestHeaders;
-    }
-
-    @Override
-    public void setUploadDataProvider(UploadDataProvider uploadDataProvider, Executor executor) {
-        if (uploadDataProvider == null) {
-            throw new NullPointerException("Invalid UploadDataProvider.");
-        }
-        if (mInitialMethod == null) {
-            mInitialMethod = "POST";
-        }
-        mUploadDataStream = new CronetUploadDataStream(uploadDataProvider, executor, this);
+        return new UrlResponseInfoImpl.HeaderBlockImpl(mRequestHeaders);
     }
 
     @Override
@@ -294,7 +311,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
                 }
 
                 boolean hasContentType = false;
-                for (Map.Entry<String, String> header : mRequestHeaders.getAsList()) {
+                for (Map.Entry<String, String> header : mRequestHeaders) {
                     if (header.getKey().equalsIgnoreCase("Content-Type")
                             && !header.getValue().isEmpty()) {
                         hasContentType = true;
@@ -473,15 +490,15 @@ public final class CronetUrlRequest extends UrlRequestBase {
 
     private static int convertRequestPriority(int priority) {
         switch (priority) {
-            case REQUEST_PRIORITY_IDLE:
+            case Builder.REQUEST_PRIORITY_IDLE:
                 return RequestPriority.IDLE;
-            case REQUEST_PRIORITY_LOWEST:
+            case Builder.REQUEST_PRIORITY_LOWEST:
                 return RequestPriority.LOWEST;
-            case REQUEST_PRIORITY_LOW:
+            case Builder.REQUEST_PRIORITY_LOW:
                 return RequestPriority.LOW;
-            case REQUEST_PRIORITY_MEDIUM:
+            case Builder.REQUEST_PRIORITY_MEDIUM:
                 return RequestPriority.MEDIUM;
-            case REQUEST_PRIORITY_HIGHEST:
+            case Builder.REQUEST_PRIORITY_HIGHEST:
                 return RequestPriority.HIGHEST;
             default:
                 return RequestPriority.MEDIUM;
@@ -527,10 +544,10 @@ public final class CronetUrlRequest extends UrlRequestBase {
      * We are not really interested in their specific size but something which is close enough.
      */
     @VisibleForTesting
-    public static long estimateHeadersSizeInBytes(HeaderBlock headers) {
+    public static long estimateHeadersSizeInBytes(HeadersList headers) {
         if (headers == null) return 0;
         long responseHeaderSizeInBytes = 0;
-        for (Map.Entry<String, String> entry : headers.getAsList()) {
+        for (Map.Entry<String, String> entry : headers) {
             String key = entry.getKey();
             if (key != null) responseHeaderSizeInBytes += key.length();
             String value = entry.getValue();
@@ -604,7 +621,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
     /**
      * Fails the request with an exception on any thread.
      */
-    private void failWithException(final HttpException exception) {
+    private void failWithException(final CronetException exception) {
         synchronized (mUrlRequestAdapterLock) {
             if (isDoneLocked()) {
                 return;
@@ -846,8 +863,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
             if (mMetrics != null) {
                 throw new IllegalStateException("Metrics collection should only happen once.");
             }
-            mMetrics = new CronetMetrics(
-                    requestStartMs, dnsStartMs, dnsEndMs, connectStartMs,
+            mMetrics = new CronetMetrics(requestStartMs, dnsStartMs, dnsEndMs, connectStartMs,
                     connectEndMs, sslStartMs, sslEndMs, sendingStartMs, sendingEndMs, pushStartMs,
                     pushEndMs, responseStartMs, requestEndMs, socketReused, sentByteCount,
                     receivedByteCount);
@@ -948,7 +964,7 @@ public final class CronetUrlRequest extends UrlRequestBase {
         final int httpStatusCode;
         final boolean wasCached;
         if (mResponseInfo != null) {
-            responseHeaders = mResponseInfo.getHeaders().getAsMap();
+            responseHeaders = mResponseInfo.getAllHeaders();
             negotiatedProtocol = mResponseInfo.getNegotiatedProtocol();
             httpStatusCode = mResponseInfo.getHttpStatusCode();
             wasCached = mResponseInfo.wasCached();
@@ -993,14 +1009,16 @@ public final class CronetUrlRequest extends UrlRequestBase {
 
         final Duration headersLatency;
         if (mMetrics.getRequestStart() != null && mMetrics.getResponseStart() != null) {
-            headersLatency = Duration.between(mMetrics.getRequestStart(), mMetrics.getResponseStart());
+            headersLatency = Duration.ofMillis(
+                    mMetrics.getResponseStart().getTime() - mMetrics.getRequestStart().getTime());
         } else {
             headersLatency = Duration.ofSeconds(0);
         }
 
         final Duration totalLatency;
         if (mMetrics.getRequestStart() != null && mMetrics.getRequestEnd() != null) {
-            totalLatency = Duration.between(mMetrics.getRequestStart(), mMetrics.getRequestEnd());
+            totalLatency = Duration.ofMillis(
+                    mMetrics.getRequestEnd().getTime() - mMetrics.getRequestStart().getTime());
         } else {
             totalLatency = Duration.ofSeconds(0);
         }
