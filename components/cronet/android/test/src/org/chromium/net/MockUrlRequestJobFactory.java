@@ -6,7 +6,7 @@ package org.chromium.net;
 
 import static junit.framework.Assert.assertTrue;
 
-import org.chromium.net.CronetEngine;
+import android.net.http.HttpEngine;
 
 import org.chromium.base.annotations.JNINamespace;
 import org.chromium.base.annotations.NativeMethods;
@@ -24,7 +24,7 @@ public final class MockUrlRequestJobFactory {
     /**
      * Sets up URL interceptors.
      */
-    public MockUrlRequestJobFactory(CronetEngine cronetEngine) {
+    public MockUrlRequestJobFactory(HttpEngine cronetEngine) {
         mNetworkThreadTestConnector = new CronetTestUtil.NetworkThreadTestConnector(cronetEngine);
 
         mInterceptorHandle = MockUrlRequestJobFactoryJni.get().addUrlInterceptors(

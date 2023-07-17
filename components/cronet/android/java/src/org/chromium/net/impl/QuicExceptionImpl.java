@@ -4,7 +4,7 @@
 
 package org.chromium.net.impl;
 
-import org.chromium.net.QuicException;
+import android.net.http.QuicException;
 
 /**
  * Implements {@link QuicException}.
@@ -45,13 +45,13 @@ public class QuicExceptionImpl extends QuicException {
     }
 
     @Override
-    public int getCronetInternalErrorCode() {
-        return mNetworkException.getCronetInternalErrorCode();
+    public int getInternalErrorCode() {
+        return mNetworkException.getInternalErrorCode();
     }
 
     @Override
-    public boolean immediatelyRetryable() {
-        return mNetworkException.immediatelyRetryable();
+    public boolean isImmediatelyRetryable() {
+        return mNetworkException.isImmediatelyRetryable();
     }
 
     @Override
