@@ -14,6 +14,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.SmallTest;
 
+import com.android.testutils.SkipPresubmit;
+
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
@@ -246,6 +248,7 @@ public class QuicTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     public void testMetricsWithQuic() throws Exception {
         ExperimentalCronetEngine cronetEngine = mBuilder.build();
         TestRequestFinishedListener requestFinishedListener = new TestRequestFinishedListener();

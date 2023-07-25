@@ -28,6 +28,8 @@ import android.os.Process;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
 
+import com.android.testutils.SkipPresubmit;
+
 import org.json.JSONObject;
 import org.junit.After;
 import org.junit.Before;
@@ -847,6 +849,7 @@ public class CronetUrlRequestContextTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     // Tests that if CronetEngine is shut down on the network thread, an appropriate exception
     // is thrown.
     public void testShutDownEngineOnNetworkThread() throws Exception {
@@ -904,6 +907,7 @@ public class CronetUrlRequestContextTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     // Tests that if CronetEngine is shut down when reading from disk cache,
     // there isn't a crash. See crbug.com/486120.
     public void testShutDownEngineWhenReadingFromDiskCache() throws Exception {
@@ -1246,6 +1250,7 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     public void testEnableHttpCacheDisk() throws Exception {
         CronetEngine cronetEngine =
                 createCronetEngineWithCache(CronetEngine.Builder.HTTP_CACHE_DISK);
@@ -1260,6 +1265,7 @@ public class CronetUrlRequestContextTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     public void testNoConcurrentDiskUsage() throws Exception {
         CronetEngine cronetEngine =
                 createCronetEngineWithCache(CronetEngine.Builder.HTTP_CACHE_DISK);
@@ -1280,6 +1286,7 @@ public class CronetUrlRequestContextTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     public void testEnableHttpCacheDiskNoHttp() throws Exception {
         CronetEngine cronetEngine =
                 createCronetEngineWithCache(CronetEngine.Builder.HTTP_CACHE_DISK_NO_HTTP);
@@ -1300,6 +1307,7 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     public void testDisableCache() throws Exception {
         CronetEngine cronetEngine =
                 createCronetEngineWithCache(CronetEngine.Builder.HTTP_CACHE_DISK);
@@ -1332,6 +1340,7 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     public void testEnableHttpCacheDiskNewEngine() throws Exception {
         CronetEngine cronetEngine =
                 createCronetEngineWithCache(CronetEngine.Builder.HTTP_CACHE_DISK);
