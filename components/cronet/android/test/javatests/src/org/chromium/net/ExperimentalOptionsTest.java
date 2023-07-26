@@ -25,6 +25,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.LargeTest;
 import androidx.test.filters.MediumTest;
 
+import com.android.testutils.SkipPresubmit;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.junit.After;
@@ -218,6 +220,7 @@ public class ExperimentalOptionsTest {
     @Test
     @MediumTest
     @OnlyRunNativeCronet
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     // Tests that basic Cronet functionality works when host cache persistence is enabled, and that
     // persistence works.
     public void testHostCachePersistence() throws Exception {
