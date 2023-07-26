@@ -363,6 +363,7 @@ android_library {
         "guava",
         "hamcrest-library",
         "junit",
+        "net-tests-utils",
         "truth",
     ],
     libs: [
