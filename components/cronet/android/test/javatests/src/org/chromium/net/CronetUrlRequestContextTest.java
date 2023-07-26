@@ -708,6 +708,7 @@ public class CronetUrlRequestContextTest {
 
     @Test
     @SmallTest
+    @SkipPresubmit(reason = "b/293141085 flaky test")
     public void testGetActiveRequestCountWithError() throws Exception {
         final String badUrl = "www.unreachable-url.com";
         final CronetTestFramework testFramework = mTestRule.startCronetTestFramework();
