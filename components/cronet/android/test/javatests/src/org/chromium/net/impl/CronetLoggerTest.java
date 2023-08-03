@@ -302,7 +302,7 @@ public final class CronetLoggerTest {
         if (mTestRule.testingJavaImpl()) {
             assertEquals(CronetSource.CRONET_SOURCE_FALLBACK, source);
         } else {
-            assertEquals(CronetSource.CRONET_SOURCE_STATICALLY_LINKED, source);
+            assertEquals(CronetSource.CRONET_SOURCE_PLATFORM, source);
         }
 
         assertEquals(1, mTestLogger.callsToLogCronetEngineCreation());
