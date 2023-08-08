@@ -4,7 +4,7 @@
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
 //
-//      http://www.apache.org/licenses/LICENSE-2.0
+//      http://www.apache.org/licensNew.javaues/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS,
@@ -265,11 +265,16 @@ filegroup {
         "components/cronet/android/test/javatests/**/UrlResponseInfoTest.java",
         "components/cronet/android/test/javatests/**/BidirectionalStreamQuicTest.java",
         "components/cronet/android/test/javatests/**/BrotliTest.java",
+        "components/cronet/android/test/javatests/**/ContextInterceptor.java",
         "components/cronet/android/test/javatests/**/CronetLoggerTestRule.java",
         "components/cronet/android/test/javatests/**/CronetLoggerTest.java",
+        "components/cronet/android/test/javatests/**/CronetManifestInterceptor.java",
         "components/cronet/android/test/javatests/**/CronetManifestTest.java",
         "components/cronet/android/test/javatests/**/CronetStressTest.java",
         "components/cronet/android/test/javatests/**/CronetTestRule.java",
+        // TODO: Remove once https://crrev.com/c/4667153 (i.e., Cronet 117.0.5911.0) gets
+        // imported. See https://android-review.git.corp.google.com/c/platform/external/cronet/+/2687908/comment/46c6fff9_6778590e/
+        "components/cronet/android/test/javatests/**/CronetTestRuleNew.java",
         "components/cronet/android/test/javatests/**/CronetTestRuleTest.java",
         "components/cronet/android/test/javatests/**/CronetUploadTest.java",
         "components/cronet/android/test/javatests/**/CronetUrlRequestTest.java",
