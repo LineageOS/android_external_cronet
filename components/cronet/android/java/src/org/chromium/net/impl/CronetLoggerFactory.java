@@ -27,7 +27,7 @@ public final class CronetLoggerFactory {
 
     // Class that is packaged for Cronet telemetry.
     private static final String CRONET_LOGGER_IMPL_CLASS =
-            "com.google.net.cronet.telemetry.CronetLoggerImpl";
+            "android.net.http.CronetLoggerImpl";
 
     /**
      * Bypasses CronetLoggerFactory logic and always creates a NoOpLogger.
