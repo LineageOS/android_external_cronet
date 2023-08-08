@@ -227,11 +227,38 @@ public final class CronetLoggerTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
-    public void testTelemetryDefaultDisabled() throws JSONException {
+    public void testTelemetryDefaultEnabled() throws JSONException {
         final String url = NativeTestServer.getEchoBodyURL();
 
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         CronetEngine engine = mTestFramework.startEngine();
+        UrlRequest.Builder requestBuilder =
+                engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
+        UrlRequest request = requestBuilder.build();
+        request.start();
+        callback.blockForDone();
+        assertFalse(callback.mOnCanceledCalled);
+        assertFalse(callback.mOnErrorCalled);
+        mTestLogger.waitForLogCronetTrafficInfo();
+
+        // Test-logger should be bypassed.
+        assertEquals(1, mTestLogger.callsToLogCronetEngineCreation());
+        assertEquals(1, mTestLogger.callsToLogCronetTrafficInfo());
+    }
+
+    @Test
+    @SmallTest
+    @OnlyRunNativeCronet
+    public void testTelemetryDisabled() throws JSONException {
+        final String url = NativeTestServer.getEchoBodyURL();
+        JSONObject jsonExperimentalOptions = new JSONObject().put("enable_telemetry", false);
+        final String experimentalOptions = jsonExperimentalOptions.toString();
+        ExperimentalCronetEngine.Builder builder =
+                (ExperimentalCronetEngine.Builder) mTestFramework.mBuilder;
+        builder.setExperimentalOptions(experimentalOptions);
+        CronetEngine engine = mTestFramework.startEngine();
+
+        TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder requestBuilder =
                 engine.newUrlRequestBuilder(url, callback, callback.getExecutor());
         UrlRequest request = requestBuilder.build();
