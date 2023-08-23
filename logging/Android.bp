@@ -35,7 +35,7 @@ java_library {
 }
 
 java_library {
-    name: "experimental_options",
+    name: "cronet_experimental_options",
     srcs: [
         "ExperimentalOptions.java",
     ],
@@ -50,7 +50,7 @@ java_library {
 }
 
 java_library {
-    name: "rate_limiter",
+    name: "cronet_rate_limiter",
     srcs: [
         "RateLimiter.java",
     ],
@@ -62,7 +62,7 @@ java_library {
 }
 
 java_library {
-    name: "size_buckets",
+    name: "cronet_size_buckets",
     srcs: [
         "SizeBuckets.java",
     ],
