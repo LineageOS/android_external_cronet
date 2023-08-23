@@ -268,7 +268,7 @@ public final class ExperimentalOptions {
   }
 
   // Source: //external/cronet:net/third_party/quiche/src/quiche/quic/core/crypto/crypto_protocol.h
-  static final Set<String> validConnectionOptions =
+  public static final Set<String> validConnectionOptions =
       Set.of(
           "CHLO", "SHLO", "SCFG", "REJ", "CETV", "PRST", "SCUP", "ALPN", "P256", "C255", "AESG",
           "CC20", "QBIC", "AFCW", "IFW5", "IFW6", "IFW7", "IFW8", "IFW9", "IFWA", "TBBR", "1RTT",
