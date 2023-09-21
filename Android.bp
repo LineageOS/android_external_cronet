@@ -6984,7 +6984,7 @@ cc_library_shared {
         "-Wl,-wrap,valloc",
         "-Wl,-wrap,vasprintf",
     ],
-    stem: "libcronet.114.0.5735.84",
+    stem: "libmainlinecronet.114.0.5735.84",
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
     ],
@@ -13681,6 +13681,7 @@ java_library {
         "error_prone_annotations",
         "framework-connectivity-t.stubs.module_lib",
         "framework-connectivity.stubs.module_lib",
+        "framework-location.stubs.module_lib",
         "framework-mediaprovider.stubs.module_lib",
         "framework-tethering.stubs.module_lib",
         "framework-wifi.stubs.module_lib",
@@ -13701,7 +13702,7 @@ java_library {
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
-        "//external/cronet/android:__subpackages__",
+        "//external/cronet:__subpackages__",
     ],
 }
 
@@ -13942,6 +13943,7 @@ java_library {
         "error_prone_annotations",
         "framework-connectivity-t.stubs.module_lib",
         "framework-connectivity.stubs.module_lib",
+        "framework-location.stubs.module_lib",
         "framework-mediaprovider.stubs.module_lib",
         "framework-tethering.stubs.module_lib",
         "framework-wifi.stubs.module_lib",
