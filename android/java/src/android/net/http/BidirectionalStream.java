@@ -60,8 +60,7 @@ public abstract class BidirectionalStream {
 
     /**
      * Builder for {@link BidirectionalStream}s. Allows configuring stream before constructing
-     * it via {@link Builder#build}. Created by
-     * {@link ExperimentalHttpEngine#newBidirectionalStreamBuilder}.
+     * it via {@link Builder#build}.
      */
     // SuppressLint: Builder can not be final since this is abstract and inherited
     @SuppressLint("StaticFinalBuilder")
@@ -136,7 +135,7 @@ public abstract class BidirectionalStream {
          * Sets specific UID to use when accounting socket traffic caused by this request. See
          * {@link android.net.TrafficStats} for more information. Designed for use when performing
          * an operation on behalf of another application. Caller must hold
-         * {@link android.Manifest.permission#MODIFY_NETWORK_ACCOUNTING} permission. By default
+         * {@code android.Manifest.permission#MODIFY_NETWORK_ACCOUNTING} permission. By default
          * traffic is attributed to UID of caller.
          * <p>
          * <b>NOTE:</b>Setting a UID disallows sharing of sockets with requests
@@ -178,7 +177,7 @@ public abstract class BidirectionalStream {
 
         /**
          * Invoked when initial response headers are received. Headers are available from {@code
-         * info.}{@link UrlResponseInfo#getAllHeaders getAllHeaders()}. Consumer may call {@link
+         * info.}{@link UrlResponseInfo#getHeaders getHeaders()}. Consumer may call {@link
          * BidirectionalStream#read read()} to start reading. Consumer may call {@link
          * BidirectionalStream#write write()} to start writing or close the stream.
          *
@@ -252,7 +251,7 @@ public abstract class BidirectionalStream {
         /**
          * Invoked if the stream failed for any reason after {@link BidirectionalStream#start}.
          * <a href="https://tools.ietf.org/html/rfc7540#section-7">HTTP/2 error codes</a> are
-         * mapped to {@link NetworkException#getInternalErrorCode} codes. Once invoked,
+         * mapped to {@link NetworkException#getErrorCode} codes. Once invoked,
          * no further {@link BidirectionalStream.Callback} methods will be invoked.
          *
          * @param stream the stream which has failed
