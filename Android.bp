@@ -3536,7 +3536,7 @@ cc_library_static {
 cc_genrule {
     name: "cronet_aml_base_build_date",
     cmd: "$(location base/write_build_date_header.py) $(out) " +
-         "1691151576",
+         "1695894411",
     out: [
         "base/generated_build_date.h",
     ],
@@ -3552,7 +3552,7 @@ cc_genrule {
 cc_genrule {
     name: "cronet_aml_base_build_date__testing",
     cmd: "$(location base/write_build_date_header.py) $(out) " +
-         "1691151576",
+         "1695894411",
     host_supported: true,
     out: [
         "base/generated_build_date.h",
