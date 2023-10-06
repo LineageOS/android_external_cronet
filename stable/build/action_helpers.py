@@ -79,19 +79,26 @@ def write_depfile(depfile_path: str,
   assert not isinstance(inputs, str)  # Easy mistake to make
 
   def _process_path(path):
+    # Ensure that the path is relative to the directory containing the depfile.
     assert not os.path.isabs(path), f'Found abs path in depfile: {path}'
     if os.path.sep != posixpath.sep:
       path = str(pathlib.Path(path).as_posix())
     assert '\\' not in path, f'Found \\ in depfile: {path}'
     return path.replace(' ', '\\ ')
 
+  rel_first_gn_output = os.path.relpath(first_gn_output, os.path.dirname(depfile_path))
+
   sb = []
-  sb.append(_process_path(first_gn_output))
+  sb.append(_process_path(rel_first_gn_output))
   if inputs:
+    # Exclude 'java.sources' from the depfile inputs.
+    inputs = [input_path for input_path in inputs if not input_path.endswith('java.sources')]
     # Sort and uniquify to ensure file is hermetic.
+    # Convert paths to relative paths.
+    relative_inputs = [_process_path(p) for p in set(inputs)]
     # One path per line to keep it human readable.
     sb.append(': \\\n ')
-    sb.append(' \\\n '.join(sorted(_process_path(p) for p in set(inputs))))
+    sb.append(' \\\n '.join(sorted(relative_inputs)))
   else:
     sb.append(': ')
   sb.append('\n')
