@@ -144,10 +144,6 @@ java_defaults {
         "androidx.annotation_annotation",
         "junit",
     ],
-    test_suites: [
-        "general-tests",
-        "mts-tethering",
-    ],
 }
 
 filegroup {
@@ -252,7 +248,7 @@ android_test_helper_app {
     static_libs: ["cronet_for_testing_net_java"],
     resource_dirs : [
         "net/android/unittest_support/res",
-    ]
+    ],
 }
 
 // ------------------------------ JAVA TEST TARGETS --------------------------------------------
