@@ -19,25 +19,16 @@ package android.net.http;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 import android.util.Log;
-
 import androidx.annotation.VisibleForTesting;
-
 import java.nio.ByteBuffer;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.chromium.net.impl.CronetLogger;
-import org.chromium.net.impl.CronetLogger.CronetEngineBuilderInfo;
-import org.chromium.net.impl.CronetLogger.CronetSource;
-import org.chromium.net.impl.CronetLogger.CronetTrafficInfo;
-import org.chromium.net.impl.CronetLogger.CronetVersion;
 
 /** Logger for logging cronet's telemetry */
 public class CronetLoggerImpl extends CronetLogger {
   private static final String TAG = CronetLoggerImpl.class.getSimpleName();
-
-  private static final long ENGINE_CREATED_ENGINE_ID_NOT_LOGGED = Long.MAX_VALUE;
-  private static final long TRAFFIC_REPORTED_ENGINE_ID_NOT_LOGGED = Long.MIN_VALUE;
 
   private static final MessageDigest MD5_MESSAGE_DIGEST;
 
@@ -76,7 +67,6 @@ public class CronetLoggerImpl extends CronetLogger {
       return;
     }
 
-
     writeCronetEngineCreation(cronetEngineId, builder, version, source);
   }
 
@@ -108,8 +98,7 @@ public class CronetLoggerImpl extends CronetLogger {
 
       CronetStatsLog.write(
           CronetStatsLog.CRONET_ENGINE_CREATED,
-          // TODO(b/248214707): Start logging the engine ID again.
-          ENGINE_CREATED_ENGINE_ID_NOT_LOGGED,
+          cronetEngineId,
           version.getMajorVersion(),
           version.getMinorVersion(),
           version.getBuildVersion(),
@@ -146,7 +135,8 @@ public class CronetLoggerImpl extends CronetLogger {
           experimentalOptions.getStaleDnsPersistToDiskOption().getValue(),
           experimentalOptions.getStaleDnsPersistDelayMillisOption(),
           experimentalOptions.getStaleDnsUseStaleOnNameNotResolvedOption().getValue(),
-          experimentalOptions.getDisableIpv6OnWifiOption().getValue());
+          experimentalOptions.getDisableIpv6OnWifiOption().getValue(),
+          /* cronet_initialization_ref = */ -1);
     } catch (Exception e) { // catching all exceptions since we don't want to crash the client
       Log.d(
           TAG,
@@ -162,8 +152,7 @@ public class CronetLoggerImpl extends CronetLogger {
     try {
       CronetStatsLog.write(
           CronetStatsLog.CRONET_TRAFFIC_REPORTED,
-          // TODO(b/248214707): Start logging the engine ID again.
-          TRAFFIC_REPORTED_ENGINE_ID_NOT_LOGGED,
+          cronetEngineId,
           SizeBuckets.calcRequestHeadersSizeBucket(trafficInfo.getRequestHeaderSizeInBytes()),
           SizeBuckets.calcRequestBodySizeBucket(trafficInfo.getRequestBodySizeInBytes()),
           SizeBuckets.calcResponseHeadersSizeBucket(trafficInfo.getResponseHeaderSizeInBytes()),
@@ -174,7 +163,14 @@ public class CronetLoggerImpl extends CronetLogger {
           (int) trafficInfo.getTotalLatency().toMillis(),
           trafficInfo.wasConnectionMigrationAttempted(),
           trafficInfo.didConnectionMigrationSucceed(),
-          samplesRateLimitedCount);
+          samplesRateLimitedCount,
+          /* terminal_state = */ CronetStatsLog.CRONET_TRAFFIC_REPORTED__TERMINAL_STATE__STATE_UNKNOWN,
+          /* user_callback_exception_count = */ -1,
+          /* total_idle_time_millis = */ -1,
+          /* total_user_executor_execute_latency_millis = */ -1,
+          /* read_count = */ -1,
+          /* on_upload_read_count = */ -1,
+          /* is_bidi_stream = */ CronetStatsLog.CRONET_TRAFFIC_REPORTED__IS_BIDI_STREAM__UNSET); // 0 maps to UNKNOWN
     } catch (Exception e) {
       // using addAndGet because another thread might have modified samplesRateLimited's value
       samplesRateLimited.addAndGet(samplesRateLimitedCount);
@@ -224,4 +220,3 @@ public class CronetLoggerImpl extends CronetLogger {
     return ByteBuffer.wrap(md).getLong();
   }
 }
-
