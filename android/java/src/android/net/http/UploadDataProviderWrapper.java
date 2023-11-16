@@ -44,4 +44,9 @@ public class UploadDataProviderWrapper extends org.chromium.net.UploadDataProvid
         UploadDataSinkWrapper wrappedSink = new UploadDataSinkWrapper(sink);
         backend.rewind(wrappedSink);
     }
+
+    @Override
+    public void close() throws IOException {
+        backend.close();
+    }
 }
