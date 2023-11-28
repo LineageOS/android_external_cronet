@@ -893,11 +893,14 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runtime.class " +
          "--javap " +
-         "$$(find $${OUT_DIR:-out}/.path -name javap) " +
+         "$(location :javap) " +
          "--package_prefix " +
          "android.net.connectivity",
     out: [
         "base/android_runtime_jni_headers/Runtime_jni.h",
+    ],
+    tools: [
+        ":javap",
     ],
     tool_files: [
         ":current_android_jar",
@@ -929,9 +932,12 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runtime.class " +
          "--javap " +
-         "$$(find $${OUT_DIR:-out}/.path -name javap)",
+         "$(location :javap)",
     out: [
         "base/android_runtime_jni_headers/Runtime_jni.h",
+    ],
+    tools: [
+        ":javap",
     ],
     tool_files: [
         ":current_android_jar",
@@ -964,11 +970,14 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runnable.class " +
          "--javap " +
-         "$$(find $${OUT_DIR:-out}/.path -name javap) " +
+         "$(location :javap) " +
          "--package_prefix " +
          "android.net.connectivity",
     out: [
         "base/android_runtime_unchecked_jni_headers/Runnable_jni.h",
+    ],
+    tools: [
+        ":javap",
     ],
     tool_files: [
         ":current_android_jar",
@@ -1001,9 +1010,12 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runnable.class " +
          "--javap " +
-         "$$(find $${OUT_DIR:-out}/.path -name javap)",
+         "$(location :javap)",
     out: [
         "base/android_runtime_unchecked_jni_headers/Runnable_jni.h",
+    ],
+    tools: [
+        ":javap",
     ],
     tool_files: [
         ":current_android_jar",
