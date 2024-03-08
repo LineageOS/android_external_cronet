@@ -27,34 +27,35 @@ package {
 }
 
 // GN: //components/cronet/android:cronet_api_java
-// TODO(danstahr): add the API helpers separately after the main API is checked in and thoroughly reviewed
 filegroup {
     name: "cronet_aml_api_sources",
     srcs: [
         ":cronet_aml_components_cronet_android_interface_api_version",
-        "components/cronet/android/api/src/android/net/http/BidirectionalStream.java",
-        "components/cronet/android/api/src/android/net/http/CallbackException.java",
-        "components/cronet/android/api/src/android/net/http/ConnectionMigrationOptions.java",
-        "components/cronet/android/api/src/android/net/http/DnsOptions.java",
-        "components/cronet/android/api/src/android/net/http/ExperimentalBidirectionalStream.java",
-        "components/cronet/android/api/src/android/net/http/ExperimentalHttpEngine.java",
-        "components/cronet/android/api/src/android/net/http/ExperimentalOptionsTranslatingHttpEngineBuilder.java",
-        "components/cronet/android/api/src/android/net/http/ExperimentalUrlRequest.java",
-        "components/cronet/android/api/src/android/net/http/HeaderBlock.java",
-        "components/cronet/android/api/src/android/net/http/HttpEngine.java",
-        "components/cronet/android/api/src/android/net/http/HttpException.java",
-        "components/cronet/android/api/src/android/net/http/IHttpEngineBuilder.java",
-        "components/cronet/android/api/src/android/net/http/InlineExecutionProhibitedException.java",
-        "components/cronet/android/api/src/android/net/http/NetworkException.java",
-        "components/cronet/android/api/src/android/net/http/NetworkQualityRttListener.java",
-        "components/cronet/android/api/src/android/net/http/NetworkQualityThroughputListener.java",
-        "components/cronet/android/api/src/android/net/http/QuicException.java",
-        "components/cronet/android/api/src/android/net/http/QuicOptions.java",
-        "components/cronet/android/api/src/android/net/http/RequestFinishedInfo.java",
-        "components/cronet/android/api/src/android/net/http/UploadDataProvider.java",
-        "components/cronet/android/api/src/android/net/http/UploadDataSink.java",
-        "components/cronet/android/api/src/android/net/http/UrlRequest.java",
-        "components/cronet/android/api/src/android/net/http/UrlResponseInfo.java",
+        "components/cronet/android/api/src/org/chromium/net/CallbackException.java",
+        "components/cronet/android/api/src/org/chromium/net/ConnectionMigrationOptions.java",
+        "components/cronet/android/api/src/org/chromium/net/CronetEngine.java",
+        "components/cronet/android/api/src/org/chromium/net/CronetException.java",
+        "components/cronet/android/api/src/org/chromium/net/CronetProvider.java",
+        "components/cronet/android/api/src/org/chromium/net/DnsOptions.java",
+        "components/cronet/android/api/src/org/chromium/net/ExperimentalBidirectionalStream.java",
+        "components/cronet/android/api/src/org/chromium/net/BidirectionalStream.java",
+        "components/cronet/android/api/src/org/chromium/net/ExperimentalCronetEngine.java",
+        "components/cronet/android/api/src/org/chromium/net/ExperimentalOptionsTranslatingCronetEngineBuilder.java",
+        "components/cronet/android/api/src/org/chromium/net/ExperimentalUrlRequest.java",
+        "components/cronet/android/api/src/org/chromium/net/ICronetEngineBuilder.java",
+        "components/cronet/android/api/src/org/chromium/net/InlineExecutionProhibitedException.java",
+        "components/cronet/android/api/src/org/chromium/net/NetworkException.java",
+        "components/cronet/android/api/src/org/chromium/net/NetworkQualityRttListener.java",
+        "components/cronet/android/api/src/org/chromium/net/NetworkQualityThroughputListener.java",
+        "components/cronet/android/api/src/org/chromium/net/QuicException.java",
+        "components/cronet/android/api/src/org/chromium/net/QuicOptions.java",
+        "components/cronet/android/api/src/org/chromium/net/RequestFinishedInfo.java",
+        "components/cronet/android/api/src/org/chromium/net/UploadDataProvider.java",
+        "components/cronet/android/api/src/org/chromium/net/UploadDataProviders.java",
+        "components/cronet/android/api/src/org/chromium/net/UploadDataSink.java",
+        "components/cronet/android/api/src/org/chromium/net/UrlRequest.java",
+        "components/cronet/android/api/src/org/chromium/net/UrlResponseInfo.java",
+        "components/cronet/android/api/src/org/chromium/net/apihelpers/UploadDataProviders.java",
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
@@ -892,11 +893,14 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runtime.class " +
          "--javap " +
-         "$$(find $${OUT_DIR:-out}/.path -name javap) " +
+         "$(location :javap) " +
          "--package_prefix " +
          "android.net.connectivity",
     out: [
         "base/android_runtime_jni_headers/Runtime_jni.h",
+    ],
+    tools: [
+        ":javap",
     ],
     tool_files: [
         ":current_android_jar",
@@ -928,9 +932,12 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runtime.class " +
          "--javap " +
-         "$$(find $${OUT_DIR:-out}/.path -name javap)",
+         "$(location :javap)",
     out: [
         "base/android_runtime_jni_headers/Runtime_jni.h",
+    ],
+    tools: [
+        ":javap",
     ],
     tool_files: [
         ":current_android_jar",
@@ -963,11 +970,14 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runnable.class " +
          "--javap " +
-         "$$(find $${OUT_DIR:-out}/.path -name javap) " +
+         "$(location :javap) " +
          "--package_prefix " +
          "android.net.connectivity",
     out: [
         "base/android_runtime_unchecked_jni_headers/Runnable_jni.h",
+    ],
+    tools: [
+        ":javap",
     ],
     tool_files: [
         ":current_android_jar",
@@ -1000,9 +1010,12 @@ cc_genrule {
          "--input_file " +
          "java/lang/Runnable.class " +
          "--javap " +
-         "$$(find $${OUT_DIR:-out}/.path -name javap)",
+         "$(location :javap)",
     out: [
         "base/android_runtime_unchecked_jni_headers/Runnable_jni.h",
+    ],
+    tools: [
+        ":javap",
     ],
     tool_files: [
         ":current_android_jar",
@@ -3535,7 +3548,7 @@ cc_library_static {
 cc_genrule {
     name: "cronet_aml_base_build_date",
     cmd: "$(location base/write_build_date_header.py) $(out) " +
-         "1684972835",
+         "1702301943",
     out: [
         "base/generated_build_date.h",
     ],
@@ -3551,7 +3564,7 @@ cc_genrule {
 cc_genrule {
     name: "cronet_aml_base_build_date__testing",
     cmd: "$(location base/write_build_date_header.py) $(out) " +
-         "1684972835",
+         "1702301943",
     host_supported: true,
     out: [
         "base/generated_build_date.h",
@@ -6983,7 +6996,7 @@ cc_library_shared {
         "-Wl,-wrap,valloc",
         "-Wl,-wrap,vasprintf",
     ],
-    stem: "libcronet.114.0.5735.84",
+    stem: "libmainlinecronet.114.0.5735.84",
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
     ],
@@ -7177,6 +7190,10 @@ cc_library_shared {
         "third_party/protobuf/src/",
     ],
     cpp_std: "c++20",
+    stem: "libcronet_testing.114.0.5735.84",
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+    ],
     ldflags: [
         "-Wl,--as-needed",
         "-Wl,--gc-sections",
@@ -7496,7 +7513,6 @@ cc_genrule {
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
-        "components/cronet/android/java/src/org/chromium/net/impl/HeaderBlockImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
@@ -7548,8 +7564,6 @@ cc_genrule {
          "done; " +
          "python3 $(location base/android/jni_generator/jni_registration_generator.py) --srcjar-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.srcjar " +
-         "--depfile " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.d " +
          "--sources-files " +
          "$(genDir)/java.sources " +
          "--include-test-only " +
@@ -7733,7 +7747,6 @@ java_genrule {
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
-        "components/cronet/android/java/src/org/chromium/net/impl/HeaderBlockImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
@@ -7785,8 +7798,6 @@ java_genrule {
          "done; " +
          "python3 $(location base/android/jni_generator/jni_registration_generator.py) --srcjar-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.srcjar " +
-         "--depfile " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.d " +
          "--sources-files " +
          "$(genDir)/java.sources " +
          "--include-test-only " +
@@ -7971,7 +7982,6 @@ genrule_defaults {
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
-        "components/cronet/android/java/src/org/chromium/net/impl/HeaderBlockImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
@@ -8023,8 +8033,6 @@ genrule_defaults {
          "done; " +
          "python3 $(location base/android/jni_generator/jni_registration_generator.py) --srcjar-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.srcjar " +
-         "--depfile " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.d " +
          "--sources-files " +
          "$(genDir)/java.sources " +
          "--include-test-only " +
@@ -8207,7 +8215,6 @@ cc_genrule {
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
-        "components/cronet/android/java/src/org/chromium/net/impl/HeaderBlockImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
@@ -8259,8 +8266,6 @@ cc_genrule {
          "done; " +
          "python3 $(location base/android/jni_generator/jni_registration_generator.py) --srcjar-path " +
          "$(genDir)/components/cronet/android/cronet_jni_registration.srcjar " +
-         "--depfile " +
-         "$(genDir)/components/cronet/android/cronet_jni_registration.d " +
          "--sources-files " +
          "$(genDir)/java.sources " +
          "--include-test-only " +
@@ -8813,7 +8818,6 @@ cc_library_shared {
         "cronet_aml_base_nodebug_assertion__testing",
         "cronet_aml_buildtools_third_party_libc___libc____testing",
         "cronet_aml_buildtools_third_party_libc__abi_libc__abi__testing",
-        "cronet_aml_components_cronet_android_cronet_static__testing",
         "cronet_aml_components_cronet_cronet_common__testing",
         "cronet_aml_components_cronet_cronet_version_header__testing",
         "cronet_aml_components_cronet_metrics_util__testing",
@@ -9461,7 +9465,7 @@ java_genrule {
          "'API_LEVEL=24' " +
          "-o " +
          "$(out) " +
-         "$(location components/cronet/android/api/src/android/net/http/ApiVersion.template)",
+         "$(location components/cronet/android/api/src/org/chromium/net/ApiVersion.template)",
     out: [
         "components/cronet/android/templates/org/chromium/net/ApiVersion.java",
     ],
@@ -9470,7 +9474,7 @@ java_genrule {
         "build/util/android_chrome_version.py",
         "build/util/version.py",
         "chrome/VERSION",
-        "components/cronet/android/api/src/android/net/http/ApiVersion.template",
+        "components/cronet/android/api/src/org/chromium/net/ApiVersion.template",
     ],
 }
 
@@ -13628,8 +13632,9 @@ java_library {
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
-        "components/cronet/android/java/src/org/chromium/net/impl/HeaderBlockImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
+        "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java",
+        "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetProvider.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
         "components/cronet/android/java/src/org/chromium/net/impl/Preconditions.java",
@@ -13688,6 +13693,7 @@ java_library {
         "error_prone_annotations",
         "framework-connectivity-t.stubs.module_lib",
         "framework-connectivity.stubs.module_lib",
+        "framework-location.stubs.module_lib",
         "framework-mediaprovider.stubs.module_lib",
         "framework-tethering.stubs.module_lib",
         "framework-wifi.stubs.module_lib",
@@ -13708,6 +13714,7 @@ java_library {
     ],
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
+        "//external/cronet:__subpackages__",
     ],
 }
 
@@ -13887,8 +13894,9 @@ java_library {
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUploadDataStream.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequest.java",
         "components/cronet/android/java/src/org/chromium/net/impl/CronetUrlRequestContext.java",
-        "components/cronet/android/java/src/org/chromium/net/impl/HeaderBlockImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderImpl.java",
+        "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetEngineBuilderWithLibraryLoaderImpl.java",
+        "components/cronet/android/java/src/org/chromium/net/impl/NativeCronetProvider.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NetworkExceptionImpl.java",
         "components/cronet/android/java/src/org/chromium/net/impl/NoOpLogger.java",
         "components/cronet/android/java/src/org/chromium/net/impl/Preconditions.java",
@@ -13947,6 +13955,7 @@ java_library {
         "error_prone_annotations",
         "framework-connectivity-t.stubs.module_lib",
         "framework-connectivity.stubs.module_lib",
+        "framework-location.stubs.module_lib",
         "framework-mediaprovider.stubs.module_lib",
         "framework-tethering.stubs.module_lib",
         "framework-wifi.stubs.module_lib",

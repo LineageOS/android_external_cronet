@@ -17,14 +17,6 @@ import static org.chromium.net.CronetTestRule.SERVER_KEY_PKCS8_PEM;
 import static org.chromium.net.CronetTestRule.assertContains;
 import static org.chromium.net.CronetTestRule.getContext;
 
-import android.net.http.BidirectionalStream;
-import android.net.http.HttpEngine;
-import android.net.http.HttpException;
-import android.net.http.ExperimentalBidirectionalStream;
-import android.net.http.ExperimentalHttpEngine;
-import android.net.http.NetworkException;
-import android.net.http.RequestFinishedInfo;
-import android.net.http.UrlResponseInfo;
 import android.os.Build;
 import android.os.ConditionVariable;
 import android.os.Process;
@@ -70,14 +62,14 @@ public class BidirectionalStreamTest {
     @Rule
     public final CronetTestRule mTestRule = new CronetTestRule();
 
-    private ExperimentalHttpEngine mCronetEngine;
+    private ExperimentalCronetEngine mCronetEngine;
 
     @Before
     public void setUp() throws Exception {
         // Load library first to create MockCertVerifier.
         System.loadLibrary("cronet_tests");
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
 
@@ -214,7 +206,7 @@ public class BidirectionalStreamTest {
         assertTrue(stream.isDone());
         assertContains("Exception in BidirectionalStream: net::ERR_DISALLOWED_URL_SCHEME",
                 callback.mError.getMessage());
-        assertEquals(-301, ((NetworkException) callback.mError).getInternalErrorCode());
+        assertEquals(-301, ((NetworkException) callback.mError).getCronetInternalErrorCode());
     }
 
     @Test
@@ -839,12 +831,12 @@ public class BidirectionalStreamTest {
     public void testCustomCronetEngineUserAgent() throws Exception {
         String userAgentName = "User-Agent";
         String userAgentValue = "User-Agent-Value";
-        ExperimentalHttpEngine.Builder engineBuilder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder engineBuilder =
+                new ExperimentalCronetEngine.Builder(getContext());
         engineBuilder.setUserAgent(userAgentValue);
         CronetTestUtil.setMockCertVerifierForTesting(
                 engineBuilder, QuicTestServer.createMockCertVerifier());
-        ExperimentalHttpEngine engine = engineBuilder.build();
+        ExperimentalCronetEngine engine = engineBuilder.build();
         TestBidirectionalStreamCallback callback = new TestBidirectionalStreamCallback();
         BidirectionalStream.Builder builder = engine.newBidirectionalStreamBuilder(
                 Http2TestServer.getEchoHeaderUrl(userAgentName), callback, callback.getExecutor());
@@ -867,7 +859,7 @@ public class BidirectionalStreamTest {
         builder.build().start();
         callback.blockForDone();
         assertEquals(200, callback.mResponseInfo.getHttpStatusCode());
-        assertEquals(new HttpEngine.Builder(getContext()).getDefaultUserAgent(),
+        assertEquals(new CronetEngine.Builder(getContext()).getDefaultUserAgent(),
                 callback.mResponseAsString);
     }
 
@@ -1253,8 +1245,8 @@ public class BidirectionalStreamTest {
     private void throwOrCancel(
             FailureType failureType, ResponseStep failureStep, boolean expectError) {
         // Use a fresh CronetEngine each time so Http2 session is not reused.
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         CronetTestUtil.setMockCertVerifierForTesting(
                 builder, QuicTestServer.createMockCertVerifier());
         mCronetEngine = builder.build();
@@ -1406,7 +1398,7 @@ public class BidirectionalStreamTest {
 
         @Override
         public void onFailed(
-                BidirectionalStream stream, UrlResponseInfo info, HttpException error) {
+                BidirectionalStream stream, UrlResponseInfo info, CronetException error) {
             mCronetEngine.shutdown();
             // Clear mCronetEngine so it doesn't get shut down second time in tearDown().
             mCronetEngine = null;
@@ -1562,8 +1554,8 @@ public class BidirectionalStreamTest {
             int netError, int errorCode, boolean immediatelyRetryable) throws Exception {
         NetworkException exception =
                 new BidirectionalStreamNetworkException("", errorCode, netError);
-        assertEquals(immediatelyRetryable, exception.isImmediatelyRetryable());
-        assertEquals(netError, exception.getInternalErrorCode());
+        assertEquals(immediatelyRetryable, exception.immediatelyRetryable());
+        assertEquals(netError, exception.getCronetInternalErrorCode());
         assertEquals(errorCode, exception.getErrorCode());
     }
 

@@ -12,12 +12,10 @@ import static org.junit.Assert.fail;
 import static org.chromium.net.CronetTestRule.getContext;
 import static org.chromium.net.CronetTestRule.getTestStorage;
 
-import android.net.http.HttpEngine;
-import android.net.http.ExperimentalHttpEngine;
-import android.net.http.UrlRequest;
-
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 import androidx.test.filters.SmallTest;
+
+import com.android.testutils.SkipPresubmit;
 
 import org.junit.After;
 import org.junit.Before;
@@ -70,12 +68,12 @@ public class DiskStorageTest {
         assertTrue(readOnlyStorage.mkdir());
         // Setting the storage directory as readonly has no effect.
         assertTrue(readOnlyStorage.setReadOnly());
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         builder.setStoragePath(mReadOnlyStoragePath);
-        builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
+        builder.enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
 
-        HttpEngine cronetEngine = builder.build();
+        CronetEngine cronetEngine = builder.build();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         String url = NativeTestServer.getFileURL("/cacheable.txt");
         UrlRequest.Builder requestBuilder =
@@ -108,6 +106,7 @@ public class DiskStorageTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     // Crashing on Android Cronet Builder, see crbug.com/601409.
     public void testPurgeOldVersion() throws Exception {
         String testStorage = getTestStorage(getContext());
@@ -133,12 +132,12 @@ public class DiskStorageTest {
             }
         }
 
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         builder.setStoragePath(getTestStorage(getContext()));
-        builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
+        builder.enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
 
-        HttpEngine cronetEngine = builder.build();
+        CronetEngine cronetEngine = builder.build();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         String url = NativeTestServer.getFileURL("/cacheable.txt");
         UrlRequest.Builder requestBuilder =
@@ -171,15 +170,16 @@ public class DiskStorageTest {
     @Test
     @SmallTest
     @OnlyRunNativeCronet
+    @SkipPresubmit(reason = "b/293141085 Tests that enable disk cache are flaky")
     // Tests that if cache version is current, Cronet does not purge the directory.
     public void testCacheVersionCurrent() throws Exception {
         // Initialize a CronetEngine and shut it down.
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         builder.setStoragePath(getTestStorage(getContext()));
-        builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
+        builder.enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
 
-        HttpEngine cronetEngine = builder.build();
+        CronetEngine cronetEngine = builder.build();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         String url = NativeTestServer.getFileURL("/cacheable.txt");
         UrlRequest.Builder requestBuilder =
@@ -205,7 +205,7 @@ public class DiskStorageTest {
         }
 
         // Creates a new CronetEngine and make a request.
-        HttpEngine engine = builder.build();
+        CronetEngine engine = builder.build();
         TestUrlRequestCallback callback2 = new TestUrlRequestCallback();
         String url2 = NativeTestServer.getFileURL("/cacheable.txt");
         UrlRequest.Builder requestBuilder2 =
@@ -236,16 +236,16 @@ public class DiskStorageTest {
     // Tests that enableHttpCache throws if storage path not set
     public void testEnableHttpCacheThrowsIfStoragePathNotSet() throws Exception {
         // Initialize a CronetEngine and shut it down.
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         try {
-            builder.setEnableHttpCache(HttpEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
+            builder.enableHttpCache(CronetEngine.Builder.HTTP_CACHE_DISK, 1024 * 1024);
             fail("Enabling http cache without a storage path should throw an exception");
         } catch (IllegalArgumentException e) {
             // Expected
         }
 
-        HttpEngine cronetEngine = builder.build();
+        CronetEngine cronetEngine = builder.build();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         String url = NativeTestServer.getFileURL("/cacheable.txt");
         UrlRequest.Builder requestBuilder =
@@ -270,11 +270,11 @@ public class DiskStorageTest {
     public void testPrefsFileCreatedWithoutHttpCache() throws Exception {
         // Initialize a CronetEngine and shut it down.
         String testStorage = getTestStorage(getContext());
-        ExperimentalHttpEngine.Builder builder =
-                new ExperimentalHttpEngine.Builder(getContext());
+        ExperimentalCronetEngine.Builder builder =
+                new ExperimentalCronetEngine.Builder(getContext());
         builder.setStoragePath(testStorage);
 
-        HttpEngine cronetEngine = builder.build();
+        CronetEngine cronetEngine = builder.build();
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         String url = NativeTestServer.getFileURL("/cacheable.txt");
         UrlRequest.Builder requestBuilder =

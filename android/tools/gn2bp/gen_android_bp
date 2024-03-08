@@ -953,7 +953,7 @@ class JniGeneratorSanitizer(BaseActionSanitizer):
   def _sanitize_args(self):
     self._set_value_arg('--jar_file', '$(location :current_android_jar)', False)
     if self._has_arg('--jar_file'):
-      self._append_arg('--javap', '$$(find $${OUT_DIR:-out}/.path -name javap)')
+      self._append_arg('--javap', '$(location :javap)')
     self._update_value_arg('--output_dir', self._sanitize_filepath)
     self._update_value_arg('--includes', self._sanitize_filepath, False)
     self._delete_value_arg('--prev_output_dir', False)
@@ -980,6 +980,12 @@ class JniGeneratorSanitizer(BaseActionSanitizer):
                   for file in tool_files }
     return tool_files
 
+  def get_tools(self):
+    tools = super().get_tools()
+    if self._has_arg('--jar_file'):
+      tools.add(":javap")
+    return tools
+
 class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
   def __init__(self, target, arch, is_test_target):
     self.is_test_target = is_test_target
@@ -995,6 +1001,7 @@ class JniRegistrationGeneratorSanitizer(BaseActionSanitizer):
     self._update_value_arg('--depfile', self._sanitize_filepath)
     self._update_value_arg('--srcjar-path', self._sanitize_filepath)
     self._update_value_arg('--header-path', self._sanitize_filepath)
+    self._delete_value_arg('--depfile', False)
     self._set_value_arg('--sources-files', '$(genDir)/java.sources')
     # update_jni_registration_module removes them from the srcs of the module
     # It might be better to remove sources by '--sources-exclusions'

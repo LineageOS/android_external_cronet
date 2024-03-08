@@ -27,7 +27,7 @@ public final class CronetLoggerFactory {
 
     // Class that is packaged for Cronet telemetry.
     private static final String CRONET_LOGGER_IMPL_CLASS =
-            "com.google.net.cronet.telemetry.CronetLoggerImpl";
+            "android.net.http.CronetLoggerImpl";
 
     /**
      * Bypasses CronetLoggerFactory logic and always creates a NoOpLogger.
@@ -66,6 +66,28 @@ public final class CronetLoggerFactory {
     @VisibleForTesting
     public static void setLoggerForTesting(@Nullable CronetLogger testingLogger) {
         sTestingLogger = testingLogger;
+    }
+
+    /**
+     * Utility class to safely use a custom CronetLogger for the duration of a test.
+     * To be used within a try-with-resources statement within the test.
+     */
+    public static class SwapLoggerForTesting implements AutoCloseable {
+        /**
+         * Forces {@code CronetLoggerFactory#createLogger} to return @param testLogger instead of
+         * what it would have normally returned.
+         */
+        public SwapLoggerForTesting(CronetLogger testLogger) {
+            CronetLoggerFactory.setLoggerForTesting(testLogger);
+        }
+
+        /**
+         * Restores CronetLoggerFactory to its original state.
+         */
+        @Override
+        public void close() {
+            CronetLoggerFactory.setLoggerForTesting(null);
+        }
     }
 
     private static Class<? extends CronetLogger> fetchLoggerImplClass() {
