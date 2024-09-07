@@ -42,10 +42,10 @@ android_library {
         "truth",
     ],
     libs: [
-        "android.test.base",
+        "android.test.base.stubs.test",
         "androidx.annotation_annotation",
-        "framework-connectivity",
-        "org.apache.http.legacy",
+        "framework-connectivity.stubs.system",
+        "org.apache.http.legacy.stubs.test",
     ],
     lint: {
         test: true,
