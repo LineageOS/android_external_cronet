@@ -214,6 +214,9 @@ java_defaults {
         "framework-wifi.stubs.module_lib",
     ],
     sdk_version: "module_current",
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
 }
 
 filegroup {

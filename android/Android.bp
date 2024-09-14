@@ -80,3 +80,9 @@ java_library {
         "com.android.tethering",
     ],
 }
+
+filegroup {
+  name: "remove_gen_jni_jarjar_rules",
+  srcs: ["tools/remove-gen-jni-jarjar-rules.txt"],
+  visibility: ["//external/cronet:__subpackages__"]
+}

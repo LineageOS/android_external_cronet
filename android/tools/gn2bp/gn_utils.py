@@ -57,6 +57,9 @@ def repo_root():
   return os.path.join(
       os.path.realpath(os.path.dirname(__file__)), os.path.pardir)
 
+def _get_build_path_from_label(target_name: str) -> str:
+  """Returns the path to the BUILD file for which this target was declared."""
+  return target_name[2:].split(":")[0]
 
 def _clean_string(str):
   return str.replace('\\', '').replace('../../', '').replace('"', '').strip()
@@ -101,7 +104,7 @@ def _get_jni_registration_deps(gn_target_name, gn_desc):
 def label_to_path(label):
   """Turn a GN output label (e.g., //some_dir/file.cc) into a path."""
   assert label.startswith('//')
-  return label[2:] or "./"
+  return label[2:] or ""
 
 def label_without_toolchain(label):
   """Strips the toolchain from a GN label.
@@ -208,6 +211,7 @@ class GnParser(object):
       # an import of a JAR like `android_java_prebuilt` targets in GN
       self.jar_path = ""
       self.sdk_version = ""
+      self.build_file_path = ""
 
     # Properties to forward access to common arch.
     # TODO: delete these after the transition has been completed.
@@ -510,7 +514,7 @@ class GnParser(object):
     # accessible headers.
     public_headers = [x for x in desc.get('public', []) if x != '*']
     target.public_headers.update(public_headers)
-
+    target.build_file_path = _get_build_path_from_label(target_name)
     target.arch[arch].cflags.update(desc.get('cflags', []) + desc.get('cflags_cc', []))
     target.libs.update(desc.get('libs', []))
     target.arch[arch].ldflags.update(desc.get('ldflags', []))

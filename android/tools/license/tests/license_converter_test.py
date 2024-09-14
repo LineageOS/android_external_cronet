@@ -9,7 +9,7 @@ PARENT_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir))
 
 sys.path.insert(0, PARENT_ROOT)
-import license_type, license_utils, create_android_metadata_license, mapper
+import license_type, license_utils, create_android_metadata_license, mapper, constants
 
 
 class LicenseParserTest(unittest.TestCase):
@@ -49,7 +49,7 @@ class LicenseParserTest(unittest.TestCase):
     ]))
 
     metadata = license_utils.parse_chromium_readme_file(temp_file.name,
-                                                        license_utils.create_license_post_processing(
+                                                        constants.create_license_post_processing(
                                                             mapper.Mapper(
                                                                 "License",
                                                                 ["Apache 2.0"],
@@ -71,7 +71,7 @@ class LicenseParserTest(unittest.TestCase):
                            "Failed to post-process",
                            lambda: license_utils.parse_chromium_readme_file(
                                temp_file.name,
-                               license_utils.create_license_post_processing(
+                               constants.create_license_post_processing(
                                    mapper.Mapper("License", ["Apache 2.1"],
                                                  ["MPL 1.1"]))))
 
@@ -88,7 +88,7 @@ class LicenseParserTest(unittest.TestCase):
                            "Failed to post-process",
                            lambda: license_utils.parse_chromium_readme_file(
                                temp_file.name,
-                               license_utils.create_license_post_processing(
+                               constants.create_license_post_processing(
                                    mapper.Mapper("License", None,
                                                  ["MPL 1.1"]))))
 
@@ -104,7 +104,7 @@ class LicenseParserTest(unittest.TestCase):
                            "Failed to post-process",
                            lambda: license_utils.parse_chromium_readme_file(
                                temp_file.name,
-                               license_utils.create_license_post_processing(
+                               constants.create_license_post_processing(
                                    mapper.Mapper("License", "Apache 2.0",
                                                  ["MPL 1.1"]))))
 
