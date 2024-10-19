@@ -16,11 +16,16 @@ common_excludes = [
     # Exclude all Android build files
     "**/Android.bp",
     "**/Android.mk",
+    # Remove Bazel BUILD files as they are recognized in AOSP (roboleaf).
+    "**/BUILD",
 
     # Exclude existing *OWNERS files
     "**/*OWNERS",
     "**/.git/**",
     "**/.gitignore",
+    "**/.gitmodules",
+    "**/.github/**",
+    "**/MODULE.bazel.lock",
 ]
 
 cronet_origin_files = glob(
@@ -116,11 +121,34 @@ cronet_origin_files = glob(
         "third_party/quic_trace/**",
         # Note: Only used for tests.
         "third_party/re2/**",
+        "third_party/rust/**",
         # Note: Cronet currently uses Android's zlib
         # "third_party/zlib/**",
         "url/third_party/mozilla/**",
     ],
-    exclude = common_excludes,
+    exclude = common_excludes + [
+        # Those crates are missing README.chromium and LICENSE files.
+        # See b/369505588 and b/369075726
+        "third_party/rust/chromium_crates_io/vendor/cc-*/**",
+        "third_party/rust/cc/**",
+        "third_party/rust/chromium_crates_io/vendor/codespan-reporting-*/**",
+        "third_party/rust/codespan_reporting/**",
+        "third_party/rust/chromium_crates_io/vendor/link-cplusplus-*/**",
+        "third_party/rust/chromium_crates_io/vendor/minimal-lexical-*/**",
+        "third_party/rust/chromium_crates_io/vendor/rstest_macros-*/**",
+        "third_party/rust/rstest_macros/**",
+        "third_party/rust/chromium_crates_io/vendor/rstest-*/**",
+        "third_party/rust/rstest/**",
+        "third_party/rust/chromium_crates_io/vendor/rstest_reuse-*/**",
+        "third_party/rust/rstest_reuse/**",
+        "third_party/rust/chromium_crates_io/vendor/rustc-demangle-capi-*/**",
+        "third_party/rust/rustc_demangle_capi/**",
+        "third_party/rust/chromium_crates_io/vendor/wasi-*+wasi-snapshot-preview1/**",
+        "third_party/rust/chromium_crates_io/vendor/winapi-i686-pc-windows-gnu-*/**",
+        "third_party/rust/chromium_crates_io/vendor/winapi-x86_64-pc-windows-gnu-*/**",
+        "third_party/rust/chromium_crates_io/vendor/winapi-0.*/**",
+        "third_party/rust/winapi/**",
+    ],
 )
 
 core.workflow(

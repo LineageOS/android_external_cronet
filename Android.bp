@@ -2292,7 +2292,7 @@ cc_genrule {
 cc_genrule {
     name: "cronet_aml_base_build_date",
     cmd: "mkdir -p $(genDir)/base && $(location base/write_build_date_header.py) $(out) " +
-         "1724776955",
+         "1727080216",
     out: [
         "base/generated_build_date.h",
     ],
@@ -2311,7 +2311,7 @@ cc_genrule {
 cc_genrule {
     name: "cronet_aml_base_build_date__testing",
     cmd: "mkdir -p $(genDir)/base && $(location base/write_build_date_header.py) $(out) " +
-         "1724776955",
+         "1727080216",
     host_supported: true,
     out: [
         "base/generated_build_date.h",
@@ -3483,7 +3483,7 @@ cc_genrule {
 // GN: //base:rust_buildflags
 cc_genrule {
     name: "cronet_aml_base_rust_buildflags",
-    cmd: "mkdir -p $(genDir)/base && echo '--flags BUILD_RUST_JSON_READER=\"false\" BUILD_RUST_BASE_CONVERSIONS=\"false\"' | " +
+    cmd: "mkdir -p $(genDir)/base && echo '--flags BUILD_RUST_JSON_READER=\"false\" BUILD_RUST_BASE_CONVERSIONS=\"true\"' | " +
          "$(location build/write_buildflag_header.py) --output " +
          "$(out) " +
          "--rulename " +
@@ -3509,7 +3509,7 @@ cc_genrule {
 // GN: //base:rust_buildflags__testing
 cc_genrule {
     name: "cronet_aml_base_rust_buildflags__testing",
-    cmd: "mkdir -p $(genDir)/base && echo '--flags BUILD_RUST_JSON_READER=\"false\" BUILD_RUST_BASE_CONVERSIONS=\"false\"' | " +
+    cmd: "mkdir -p $(genDir)/base && echo '--flags BUILD_RUST_JSON_READER=\"false\" BUILD_RUST_BASE_CONVERSIONS=\"true\"' | " +
          "$(location build/write_buildflag_header.py) --output " +
          "$(out) " +
          "--rulename " +
@@ -4241,7 +4241,7 @@ genrule {
 }
 
 // GN: //build/android:build_config_gen__testing
-cc_object {
+cc_preprocess_no_configuration {
     name: "cronet_aml_build_android_build_config_gen__testing_preprocess",
     srcs: [
         ":cronet_aml_build_android_build_config_gen__testing_rename",
@@ -4251,7 +4251,6 @@ cc_object {
         "-E",
         "-P",
     ],
-    compile_multilib: "first",
 }
 
 // GN: //build/android:build_config_gen__testing
@@ -4267,7 +4266,7 @@ genrule {
 }
 
 // GN: //build/android:build_config_gen
-cc_object {
+cc_preprocess_no_configuration {
     name: "cronet_aml_build_android_build_config_gen_preprocess",
     srcs: [
         ":cronet_aml_build_android_build_config_gen_rename",
@@ -4277,7 +4276,6 @@ cc_object {
         "-E",
         "-P",
     ],
-    compile_multilib: "first",
 }
 
 // GN: //build/android:build_config_gen
@@ -4705,6 +4703,246 @@ cc_genrule {
     ],
     visibility: [
         "//external/cronet:__subpackages__",
+    ],
+}
+
+// GN: //build/rust:cxx_cppdeps
+cc_library_static {
+    name: "cronet_aml_build_rust_cxx_cppdeps",
+    srcs: [
+        "third_party/rust/chromium_crates_io/vendor/cxx-1.0.120/src/cxx.cc",
+    ],
+    static_libs: [
+        "libcxx_cronet_aml_third_party_rust_cxx_v1_lib__FFI",
+    ],
+    defaults: [
+        "cronet_aml_cc_defaults",
+    ],
+    cflags: [
+        "-DANDROID",
+        "-DANDROID_NDK_VERSION_ROLL=r26b_1",
+        "-DCR_CLANG_REVISION=\"llvmorg-19-init-8091-gab037c4f-22\"",
+        "-DCR_LIBCXX_REVISION=e3b94d0e5b86883fd77696bf10dc33ba250ba99b",
+        "-DCXX_RS_EXPORT=",
+        "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
+        "-DHAVE_SYS_UIO_H",
+        "-DNDEBUG",
+        "-DNO_UNWIND_TABLES",
+        "-DNVALGRIND",
+        "-DOFFICIAL_BUILD",
+        "-DRUST_CXX_NO_EXCEPTIONS",
+        "-D_GNU_SOURCE",
+        "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
+        "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
+        "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
+        "-D__STDC_CONSTANT_MACROS",
+        "-D__STDC_FORMAT_MACROS",
+        "-fdata-sections",
+        "-ffunction-sections",
+        "-fno-asynchronous-unwind-tables",
+        "-fno-unwind-tables",
+        "-fstack-protector",
+        "-fvisibility-inlines-hidden",
+        "-fvisibility=hidden",
+        "-g1",
+    ],
+    include_dirs: [
+        "external/cronet/",
+        "external/cronet/buildtools/third_party/libc++/",
+        "external/cronet/third_party/libc++/src/include",
+        "external/cronet/third_party/libc++abi/src/include",
+    ],
+    cpp_std: "c++20",
+    ldflags: [
+        "-Wl,--as-needed",
+        "-Wl,--gc-sections",
+        "-Wl,--icf=all",
+    ],
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+    target: {
+        android_arm: {
+            cflags: [
+                "-D_FORTIFY_SOURCE=2",
+            ],
+        },
+        android_arm64: {
+            cflags: [
+                "-D_FORTIFY_SOURCE=2",
+                "-O2",
+                "-mno-outline",
+            ],
+        },
+        android_x86: {
+            cflags: [
+                "-D_FORTIFY_SOURCE=2",
+                "-msse3",
+            ],
+        },
+        android_x86_64: {
+            cflags: [
+                "-D_FORTIFY_SOURCE=2",
+                "-msse3",
+            ],
+        },
+    },
+}
+
+// GN: //build/rust:cxx_cppdeps__testing
+cc_library_static {
+    name: "cronet_aml_build_rust_cxx_cppdeps__testing",
+    srcs: [
+        "third_party/rust/chromium_crates_io/vendor/cxx-1.0.120/src/cxx.cc",
+    ],
+    static_libs: [
+        "libcxx_cronet_aml_third_party_rust_cxx_v1_lib__testing__FFI",
+    ],
+    host_supported: true,
+    defaults: [
+        "cronet_aml_cc_defaults",
+    ],
+    cflags: [
+        "-DCR_CLANG_REVISION=\"llvmorg-19-init-8091-gab037c4f-22\"",
+        "-DCR_LIBCXX_REVISION=e3b94d0e5b86883fd77696bf10dc33ba250ba99b",
+        "-DCXX_RS_EXPORT=",
+        "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
+        "-DNDEBUG",
+        "-DNO_UNWIND_TABLES",
+        "-DNVALGRIND",
+        "-DOFFICIAL_BUILD",
+        "-DRUST_CXX_NO_EXCEPTIONS",
+        "-D_GNU_SOURCE",
+        "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
+        "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
+        "-D__STDC_CONSTANT_MACROS",
+        "-D__STDC_FORMAT_MACROS",
+        "-fdata-sections",
+        "-ffunction-sections",
+        "-fno-asynchronous-unwind-tables",
+        "-fno-unwind-tables",
+        "-fstack-protector",
+        "-fvisibility-inlines-hidden",
+        "-fvisibility=hidden",
+        "-g1",
+    ],
+    include_dirs: [
+        "external/cronet/",
+        "external/cronet/buildtools/third_party/libc++/",
+        "external/cronet/third_party/libc++/src/include",
+        "external/cronet/third_party/libc++abi/src/include",
+    ],
+    cpp_std: "c++20",
+    ldflags: [
+        "-Wl,--as-needed",
+        "-Wl,--gc-sections",
+        "-Wl,--icf=all",
+    ],
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+    target: {
+        android_arm: {
+            cflags: [
+                "-DANDROID",
+                "-DANDROID_NDK_VERSION_ROLL=r26b_1",
+                "-DHAVE_SYS_UIO_H",
+                "-D_FORTIFY_SOURCE=2",
+                "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
+            ],
+        },
+        android_arm64: {
+            cflags: [
+                "-DANDROID",
+                "-DANDROID_NDK_VERSION_ROLL=r26b_1",
+                "-DHAVE_SYS_UIO_H",
+                "-D_FORTIFY_SOURCE=2",
+                "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
+                "-O2",
+                "-mno-outline",
+            ],
+        },
+        android_riscv64: {
+            cflags: [
+                "-DANDROID",
+                "-DANDROID_NDK_VERSION_ROLL=r26b_1",
+                "-DHAVE_SYS_UIO_H",
+                "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
+            ],
+        },
+        android_x86: {
+            cflags: [
+                "-DANDROID",
+                "-DANDROID_NDK_VERSION_ROLL=r26b_1",
+                "-DHAVE_SYS_UIO_H",
+                "-D_FORTIFY_SOURCE=2",
+                "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
+                "-msse3",
+            ],
+        },
+        android_x86_64: {
+            cflags: [
+                "-DANDROID",
+                "-DANDROID_NDK_VERSION_ROLL=r26b_1",
+                "-DHAVE_SYS_UIO_H",
+                "-D_FORTIFY_SOURCE=2",
+                "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
+                "-msse3",
+            ],
+        },
+        host: {
+            cflags: [
+                "-DCR_SYSROOT_KEY=20230611T210420Z-2",
+                "-DUSE_AURA=1",
+                "-DUSE_OZONE=1",
+                "-DUSE_UDEV",
+                "-D_FILE_OFFSET_BITS=64",
+                "-D_FORTIFY_SOURCE=2",
+                "-D_LARGEFILE64_SOURCE",
+                "-D_LARGEFILE_SOURCE",
+                "-O2",
+                "-msse3",
+            ],
+            compile_multilib: "64",
+        },
+    },
+}
+
+// GN: //build/rust/tests/test_rust_static_library:test_rust_static_library_cxx_generated_gen__testing
+cc_genrule {
+    name: "cronet_aml_build_rust_tests_test_rust_static_library_test_rust_static_library_cxx_generated_gen__testing",
+    srcs: [
+        "build/rust/tests/test_rust_static_library/src/lib.rs",
+    ],
+    tools: [
+        "cxxbridge",
+    ],
+    cmd: "$(location cxxbridge) $(in) > $(out)",
+    out: [
+        "build/rust/tests/test_rust_static_library/src/lib.rs.cc",
+    ],
+    apex_available: [
+        "com.android.tethering",
+    ],
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+}
+
+// GN: //build/rust/tests/test_rust_static_library:test_rust_static_library_cxx_generated_gen__testing
+cc_genrule {
+    name: "cronet_aml_build_rust_tests_test_rust_static_library_test_rust_static_library_cxx_generated_gen__testing_header",
+    srcs: [
+        "build/rust/tests/test_rust_static_library/src/lib.rs",
+    ],
+    tools: [
+        "cxxbridge",
+    ],
+    cmd: "$(location cxxbridge) $(in) --header > $(out)",
+    out: [
+        "build/rust/tests/test_rust_static_library/src/lib.rs.h",
     ],
 }
 
@@ -6382,6 +6620,7 @@ cc_library_shared {
         "cronet_aml_base_third_party_cityhash_v103_cityhash_v103__testing",
         "cronet_aml_base_third_party_double_conversion_double_conversion__testing",
         "cronet_aml_base_third_party_superfasthash_superfasthash__testing",
+        "cronet_aml_build_rust_cxx_cppdeps__testing",
         "cronet_aml_buildtools_third_party_libc___libc____testing",
         "cronet_aml_buildtools_third_party_libc__abi_libc__abi__testing",
         "cronet_aml_components_cronet_android_base_feature_overrides_proto__testing",
@@ -6879,7 +7118,7 @@ genrule {
 }
 
 // GN: //components/cronet/android:load_states_list__testing
-cc_object {
+cc_preprocess_no_configuration {
     name: "cronet_aml_components_cronet_android_load_states_list__testing_preprocess",
     srcs: [
         ":cronet_aml_components_cronet_android_load_states_list__testing_rename",
@@ -6889,7 +7128,6 @@ cc_object {
         "-E",
         "-P",
     ],
-    compile_multilib: "first",
 }
 
 // GN: //components/cronet/android:load_states_list__testing
@@ -6905,7 +7143,7 @@ genrule {
 }
 
 // GN: //components/cronet/android:load_states_list
-cc_object {
+cc_preprocess_no_configuration {
     name: "cronet_aml_components_cronet_android_load_states_list_preprocess",
     srcs: [
         ":cronet_aml_components_cronet_android_load_states_list_rename",
@@ -6915,7 +7153,6 @@ cc_object {
         "-E",
         "-P",
     ],
-    compile_multilib: "first",
 }
 
 // GN: //components/cronet/android:load_states_list
@@ -7642,7 +7879,7 @@ genrule {
 }
 
 // GN: //net/android:net_errors_java__testing
-cc_object {
+cc_preprocess_no_configuration {
     name: "cronet_aml_net_android_net_errors_java__testing_preprocess",
     srcs: [
         ":cronet_aml_net_android_net_errors_java__testing_rename",
@@ -7652,7 +7889,6 @@ cc_object {
         "-E",
         "-P",
     ],
-    compile_multilib: "first",
 }
 
 // GN: //net/android:net_errors_java__testing
@@ -7668,7 +7904,7 @@ genrule {
 }
 
 // GN: //net/android:net_errors_java
-cc_object {
+cc_preprocess_no_configuration {
     name: "cronet_aml_net_android_net_errors_java_preprocess",
     srcs: [
         ":cronet_aml_net_android_net_errors_java_rename",
@@ -7678,7 +7914,6 @@ cc_object {
         "-E",
         "-P",
     ],
-    compile_multilib: "first",
 }
 
 // GN: //net/android:net_errors_java

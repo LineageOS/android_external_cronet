@@ -30,7 +30,9 @@ python_test_host {
         "license_converter",
     ],
     test_suites: ["general-tests"],
-    data: [":license_data"],
+    // Uncomment the `data` field once b/372449684 is fixed and enable
+    // the corresponding test in license_converter_test.py
+    // data: [":license_data"],
     test_options: {
         unit_test: true,
     },

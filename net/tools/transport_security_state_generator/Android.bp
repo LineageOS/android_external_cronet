@@ -40,6 +40,7 @@ cc_binary {
         "cronet_aml_base_third_party_cityhash_v103_cityhash_v103__testing",
         "cronet_aml_base_third_party_double_conversion_double_conversion__testing",
         "cronet_aml_base_third_party_superfasthash_superfasthash__testing",
+        "cronet_aml_build_rust_cxx_cppdeps__testing",
         "cronet_aml_buildtools_third_party_libc___libc____testing",
         "cronet_aml_buildtools_third_party_libc__abi_libc__abi__testing",
         "cronet_aml_crypto_crypto__testing",

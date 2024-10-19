@@ -51,6 +51,7 @@ import com.android.testutils.DevSdkIgnoreRunner;
 import com.google.common.base.Strings;
 
 import org.junit.After;
+import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -306,9 +307,29 @@ public class UrlRequestTest {
     }
 
     @Test
+    public void testUrlRequest_isCacheEnabled() throws Exception {
+        UrlRequest.Builder builder = createUrlRequestBuilder(mTestServer.getSuccessUrl());
+        final boolean isCacheDisabled = false;
+
+        builder.setCacheDisabled(isCacheDisabled);
+        UrlRequest request = builder.build();
+        assertThat(request.isCacheDisabled()).isEqualTo(isCacheDisabled);
+    }
+
+    @Test
     public void testUrlRequest_isDirectExecutorAllowed() throws Exception {
         UrlRequest.Builder builder = createUrlRequestBuilder(mTestServer.getSuccessUrl());
         final boolean isDirectExecutorAllowed = true;
+
+        builder.setDirectExecutorAllowed(isDirectExecutorAllowed);
+        UrlRequest request = builder.build();
+        assertThat(request.isDirectExecutorAllowed()).isEqualTo(isDirectExecutorAllowed);
+    }
+
+    @Test
+    public void testUrlRequest_isDirectExecutorDisallowed() throws Exception {
+        UrlRequest.Builder builder = createUrlRequestBuilder(mTestServer.getSuccessUrl());
+        final boolean isDirectExecutorAllowed = false;
 
         builder.setDirectExecutorAllowed(isDirectExecutorAllowed);
         UrlRequest request = builder.build();

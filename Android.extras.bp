@@ -31,6 +31,7 @@ license {
         "SPDX-license-identifier-MPL-1.1",
         "SPDX-license-identifier-MPL-2.0",
         "SPDX-license-identifier-NCSA",
+        "SPDX-license-identifier-Zlib",
         // "SPDX-license-identifier-GPL-2.0-with-autoconf-exception", // ICU TODO(aymanm): Reapply those once aosp/2470343 is merged
         // "SPDX-license-identifier-GPL-3.0-with-autoconf-exception", // ICU TODO(aymanm): Reapply those once aosp/2470343 is merged
         "SPDX-license-identifier-OpenSSL",

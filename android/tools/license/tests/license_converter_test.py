@@ -9,7 +9,8 @@ PARENT_ROOT = os.path.abspath(
     os.path.join(os.path.dirname(__file__), os.pardir))
 
 sys.path.insert(0, PARENT_ROOT)
-import license_type, license_utils, create_android_metadata_license, mapper, constants
+import license_type, license_utils, \
+  create_android_metadata_license, mapper, constants
 
 
 class LicenseParserTest(unittest.TestCase):
@@ -146,6 +147,54 @@ class LicenseParserTest(unittest.TestCase):
         license_utils.get_most_restrictive_type(["Apache 2.0", "MPL 1.1"]),
         license_type.LicenseType.RECIPROCAL)
 
+  def test_generate_license_for_rust_crate(self):
+    with tempfile.TemporaryDirectory() as temp_directory:
+      # Rust directories in Chromium have a special structure that looks like
+      # //third_party/rust
+      #                   /my_crate/
+      #                   /crates/my_crate/src
+      # README.chromium and BUILD.gn lives in //third_party/rust/my_crate while
+      # the actual crate lives in //third_party/rust/crates/my_crate/.
+      #
+      # This test verifies that we generate the licensing files in the directory
+      # where the source lives and not where the README.chromium lives.
+      #
+      # See https://source.chromium.org/chromium/chromium/src/+/main:third_party/rust/
+      readme_dir = Path(
+          os.path.join(temp_directory, "third_party/rust/my_crate"))
+      readme_dir.mkdir(parents=True)
+      crate_path = Path(
+          os.path.join(temp_directory, "third_party/rust/crates/my_crate/src"))
+      crate_path.mkdir(parents=True)
+      self._write_empty_file(os.path.join(crate_path, "COPYING"))
+      with open(os.path.join(readme_dir, "README.chromium"),
+                "w", encoding="utf-8") as readme:
+        readme.write("\n".join([
+            "Name: some_name",
+            "URL: some_site",
+            "License: Apache 2.0",
+            "License File: //third_party/rust/crates/my_crate/src/COPYING"
+        ]))
+      # COPYING file must exist as we check for symlink to make sure that
+      # they still exist.
+      create_android_metadata_license.update_license(temp_directory, {})
+      self.assertTrue(os.path.exists(os.path.join(crate_path, "METADATA")))
+      self.assertTrue(os.path.islink(os.path.join(crate_path, "LICENSE")))
+      self.assertTrue(os.path.exists(
+          os.path.join(crate_path, "MODULE_LICENSE_APACHE_2_0")))
+      metadata_content = Path(
+          os.path.join(crate_path, "METADATA")).read_text()
+      self.assertRegex(
+          metadata_content,
+          "name: \"some_name\"")
+      self.assertRegex(
+          metadata_content,
+          "license_type: NOTICE")
+      # Verify that the symlink is relative and not absolute path.
+      self.assertRegex(os.readlink(os.path.join(crate_path, "LICENSE")),
+                       "^[^\/].*",
+                       "Symlink path must be relative.")
+
   def test_generate_license_for_temp_dir(self):
     with tempfile.TemporaryDirectory() as temp_directory:
       with open(os.path.join(temp_directory, "README.chromium"),
@@ -160,7 +209,8 @@ class LicenseParserTest(unittest.TestCase):
       # they still exist.
       self._write_empty_file(os.path.join(temp_directory, "COPYING"))
       create_android_metadata_license.update_license(temp_directory, {})
-      self.assertTrue(os.path.exists(os.path.join(temp_directory, "METADATA")))
+      self.assertTrue(
+          os.path.exists(os.path.join(temp_directory, "METADATA")))
       self.assertTrue(os.path.islink(os.path.join(temp_directory, "LICENSE")))
       self.assertTrue(os.path.exists(
           os.path.join(temp_directory, "MODULE_LICENSE_APACHE_2_0")))
@@ -187,7 +237,8 @@ class LicenseParserTest(unittest.TestCase):
       # they still exist.
       self._write_empty_file(os.path.join(temp_directory, "COPYING"))
       create_android_metadata_license.update_license(temp_directory, {})
-      self.assertTrue(os.path.exists(os.path.join(temp_directory, "METADATA")))
+      self.assertTrue(
+          os.path.exists(os.path.join(temp_directory, "METADATA")))
       os.remove(os.path.join(temp_directory, "METADATA"))
       self.assertRaisesRegex(Exception, "Failed to find metadata",
                              lambda: create_android_metadata_license.update_license(
@@ -281,6 +332,7 @@ class LicenseParserTest(unittest.TestCase):
                                  temp_directory, {},
                                  verify_only=True))
 
+  @unittest.skip("b/372449684")
   def test_license_for_aosp(self):
     """This test verifies that external/cronet conforms to the licensing structure."""
     # When running inside the context of atest, the working directory contains

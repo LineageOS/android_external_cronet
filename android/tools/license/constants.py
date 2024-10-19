@@ -65,6 +65,10 @@ POST_PROCESS_OPERATION = {
             'Public Domain: United States Government Work under 17 U.S.C. 105'],
                ["unencumbered"]),
         Mapper("License File", "", "N/A")),
+    "third_party/rust/unicode_ident/v1/README.chromium": create_license_post_processing(
+        Mapper("License", [
+            'Apache 2.0 AND Unicode License Agreement - Data Files and Software (2016)'],
+               ["Apache 2.0", "Unicode"])),
 }
 
 # This is relative to the repo_directory passed in |update_license|
@@ -73,4 +77,11 @@ IGNORED_README = {
     "testing/android/native_test/README.chromium",
     # Not a third-party.
     "build/internal/README.chromium",
+    # b/369075726, those crates are missing LICENSE files upstream, once fixed
+    # and imported, we will create a README for those.
+    "third_party/rust/rstest/v0_17/README.chromium",
+    "third_party/rust/rustc_demangle_capi/v0_1/README.chromium",
+    "third_party/rust/rstest_macros/v0_17/README.chromium",
+    "third_party/rust/codespan_reporting/v0_11/README.chromium",
+    "third_party/rust/rstest_reuse/v0_5/README.chromium",
 }
