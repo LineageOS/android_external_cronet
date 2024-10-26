@@ -31,8 +31,10 @@ java_test_host {
         "framework-annotations-lib",
     ],
     data: [
-        ":cronet_net_tester_app",
         ":net_unittests_data",
+    ],
+    device_common_data: [
+        ":cronet_net_tester_app",
     ],
     test_suites: [
         "general-tests",
@@ -69,7 +71,7 @@ java_test_host {
             enabled: false,
         },
     },
-    data: [
+    device_common_data: [
         ":cronet_tester_app",
     ],
 }
