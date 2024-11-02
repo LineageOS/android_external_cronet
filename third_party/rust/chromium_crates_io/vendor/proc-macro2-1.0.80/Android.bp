@@ -49,6 +49,7 @@ rust_library_rlib {
         "src/rcvec.rs",
         "src/wrapper.rs",
     ],
+    host_cross_supported: false,
     host_supported: true,
     device_supported: false,
     apex_available: [
@@ -109,6 +110,7 @@ rust_library_rlib {
         "src/rcvec.rs",
         "src/wrapper.rs",
     ],
+    host_cross_supported: false,
     host_supported: true,
     device_supported: false,
     apex_available: [

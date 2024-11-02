@@ -103,6 +103,7 @@ rust_library_rlib {
     ],
     crate_name: "syn",
     crate_root: "src/lib.rs",
+    host_cross_supported: false,
     rustlibs: [
         "libproc_macro2_cronet_aml_third_party_rust_proc_macro2_v1_lib",
         "libquote_cronet_aml_third_party_rust_quote_v1_lib",
@@ -211,6 +212,7 @@ rust_library_rlib {
     ],
     crate_name: "syn",
     crate_root: "src/lib.rs",
+    host_cross_supported: false,
     rustlibs: [
         "libproc_macro2_cronet_aml_third_party_rust_proc_macro2_v1_lib__testing",
         "libquote_cronet_aml_third_party_rust_quote_v1_lib__testing",
