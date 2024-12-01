@@ -1,0 +1,49 @@
+//
+// Copyright (C) 2024 The Android Open Source Project
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+//
+
+aconfig_declarations {
+    name: "com.android.net.http.flags-aconfig",
+    package: "android.net.http",
+    container: "com.android.tethering",
+    srcs: ["preload_httpengine.aconfig"],
+    exportable: true,
+}
+
+// TODO: is this non-exported library necessary? If not, delete it.
+java_aconfig_library {
+    name: "com.android.net.http.flags-aconfig-java",
+    aconfig_declarations: "com.android.net.http.flags-aconfig",
+    defaults: ["framework-minus-apex-aconfig-java-defaults"],
+    apex_available: [
+        "com.android.tethering",
+    ],
+    min_sdk_version: "30",
+}
+
+// This is a duplicate of the original java_aconfig_library
+// but this is intended to be used only in the framework where
+// it gets jarjared. It's important to note that the framework
+// will see flags value that are different from the values
+// presented from the original java_aconfig.
+java_aconfig_library {
+    name: "com.android.net.http.flags-aconfig-exported-java",
+    aconfig_declarations: "com.android.net.http.flags-aconfig",
+    min_sdk_version: "30",
+    defaults: ["framework-minus-apex-aconfig-java-defaults"],
+    apex_available: [
+        "//apex_available:platform",
+    ],
+}

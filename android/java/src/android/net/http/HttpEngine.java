@@ -4,7 +4,11 @@
 
 package android.net.http;
 
+import static android.annotation.SystemApi.Client.MODULE_LIBRARIES;
+
+import android.annotation.FlaggedApi;
 import android.annotation.SuppressLint;
+import android.annotation.SystemApi;
 import android.content.Context;
 import android.net.Network;
 
@@ -40,11 +44,41 @@ import javax.net.ssl.HttpsURLConnection;
 // the lifespan of the app.
 @SuppressLint("NotCloseable")
 public abstract class HttpEngine {
-
+    private static boolean sPreloaded = false;
     /**
      * {@hide}
      */
     protected HttpEngine() {}
+
+    /**
+     * Calling this will preload HttpEngine's Impl code.
+     * This is mostly meant to be called from the Zygote during init to reduce
+     * the impact of loading HttpEngine during app's startup.
+     *
+     * @hide
+     */
+    @SystemApi(client=MODULE_LIBRARIES)
+    @FlaggedApi(Flags.FLAG_PRELOAD_HTTPENGINE_IN_ZYGOTE)
+    public static void preload() {
+        // Load and explicitly initialize the given class. Use
+        // Class.forName(String, boolean, ClassLoader) to avoid repeated stack lookups
+        // (to derive the caller's class-loader). Use true to force initialization, and
+        // null for the boot classpath class-loader (could as well cache the
+        // class-loader of this class in a variable).
+        if (sPreloaded) {
+            throw new IllegalStateException("HttpEngine already preloaded");
+        }
+
+        try {
+            // TODO(b/380349437): Preload all of HttpEngine Impl classes
+            // and the shared library as well.
+            Class.forName(ICronetEngineBuilder.class.getName(), true, null);
+        } catch (ClassNotFoundException e) {
+            throw new IllegalStateException("Failed to preload class", e);
+        } finally {
+            sPreloaded = true;
+        }
+    }
 
     /**
      * Returns a new {@link Builder} object that facilitates creating a {@link HttpEngine}.

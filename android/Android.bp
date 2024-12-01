@@ -49,6 +49,7 @@ java_library {
         "framework-connectivity.stubs.module_lib",
         "cronet_aml_api_java",
     ],
+    static_libs: ["com.android.net.http.flags-aconfig-java"],
     sdk_version: "module_current",
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
@@ -82,7 +83,7 @@ java_library {
 }
 
 filegroup {
-  name: "remove_gen_jni_jarjar_rules",
-  srcs: ["tools/remove-gen-jni-jarjar-rules.txt"],
-  visibility: ["//external/cronet:__subpackages__"]
+    name: "remove_gen_jni_jarjar_rules",
+    srcs: ["tools/remove-gen-jni-jarjar-rules.txt"],
+    visibility: ["//external/cronet:__subpackages__"],
 }

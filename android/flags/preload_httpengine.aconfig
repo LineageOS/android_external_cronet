@@ -1,0 +1,11 @@
+package: "android.net.http"
+container: "com.android.tethering"
+
+flag {
+  name: "preload_httpengine_in_zygote"
+  namespace: "android_core_networking"
+  description: "API Guard for preloading httpEngine in Zygote."
+  bug: "380349437"
+  is_fixed_read_only: true
+  is_exported: true
+}
