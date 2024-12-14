@@ -526,7 +526,6 @@ TEST_F(CertNetFetcherURLRequestTest, CancelAfterRunningMessageLoop) {
 
 // Fetch the same URLs in parallel and verify that only 1 request is made per
 // URL.
-// b/283075390
 TEST_F(CertNetFetcherURLRequestTest, ParallelFetchDuplicates) {
   ASSERT_TRUE(test_server_.Start());
 
