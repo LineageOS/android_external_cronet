@@ -151,18 +151,18 @@ public final class Http2TestServer {
     }
 
     public static boolean startHttp2TestServer(Context context, CountDownLatch hangingUrlLatch)
-        throws Exception {
+            throws Exception {
         TestFilesInstaller.installIfNeeded(context);
         return startHttp2TestServer(
-            context, SERVER_CERT_PEM, SERVER_KEY_PKCS8_PEM, hangingUrlLatch);
+                context, SERVER_CERT_PEM, SERVER_KEY_PKCS8_PEM, hangingUrlLatch);
     }
 
     private static boolean startHttp2TestServer(
-        Context context,
-        String certFileName,
-        String keyFileName,
-        CountDownLatch hangingUrlLatch)
-        throws Exception {
+            Context context,
+            String certFileName,
+            String keyFileName,
+            CountDownLatch hangingUrlLatch)
+            throws Exception {
         sReportingCollector = new ReportingCollector();
         Http2TestServerRunnable http2TestServerRunnable =
                 new Http2TestServerRunnable(
@@ -183,28 +183,28 @@ public final class Http2TestServer {
         private final CountDownLatch mHangingUrlLatch;
 
         Http2TestServerRunnable(File certFile, File keyFile, CountDownLatch hangingUrlLatch)
-            throws Exception {
+                throws Exception {
             ApplicationProtocolConfig applicationProtocolConfig =
-                new ApplicationProtocolConfig(
-                    Protocol.ALPN, SelectorFailureBehavior.NO_ADVERTISE,
-                    SelectedListenerFailureBehavior.ACCEPT,
-                    ApplicationProtocolNames.HTTP_2);
+                    new ApplicationProtocolConfig(
+                            Protocol.ALPN, SelectorFailureBehavior.NO_ADVERTISE,
+                            SelectedListenerFailureBehavior.ACCEPT,
+                                    ApplicationProtocolNames.HTTP_2);
 
             // Don't make netty use java.security.KeyStore.getInstance("JKS") as it doesn't
             // exist.  Just avoid a KeyManagerFactory as it's unnecessary for our testing.
             System.setProperty("io.netty.handler.ssl.openssl.useKeyManagerFactory", "false");
 
             mSslCtx =
-                new OpenSslServerContext(
-                    certFile,
-                    keyFile,
-                    null,
-                    null,
-                    Http2SecurityUtil.CIPHERS,
-                    SupportedCipherSuiteFilter.INSTANCE,
-                    applicationProtocolConfig,
-                    0,
-                    0);
+                    new OpenSslServerContext(
+                            certFile,
+                            keyFile,
+                            null,
+                            null,
+                            Http2SecurityUtil.CIPHERS,
+                            SupportedCipherSuiteFilter.INSTANCE,
+                            applicationProtocolConfig,
+                            0,
+                            0);
 
             mHangingUrlLatch = hangingUrlLatch;
         }
@@ -253,9 +253,9 @@ public final class Http2TestServer {
         @Override
         public void initChannel(SocketChannel ch) {
             ch.pipeline()
-                .addLast(
-                    mSslCtx.newHandler(ch.alloc()),
-                    new Http2NegotiationHandler(mHangingUrlLatch));
+                    .addLast(
+                            mSslCtx.newHandler(ch.alloc()),
+                            new Http2NegotiationHandler(mHangingUrlLatch));
         }
     }
 
@@ -269,15 +269,15 @@ public final class Http2TestServer {
 
         @Override
         protected void configurePipeline(ChannelHandlerContext ctx, String protocol)
-            throws Exception {
+                throws Exception {
             if (ApplicationProtocolNames.HTTP_2.equals(protocol)) {
                 ctx.pipeline()
-                    .addLast(
-                        new Http2TestHandler.Builder()
-                            .setReportingCollector(sReportingCollector)
-                            .setServerUrl(getServerUrl())
-                            .setHangingUrlLatch(mHangingUrlLatch)
-                            .build());
+                        .addLast(
+                                new Http2TestHandler.Builder()
+                                        .setReportingCollector(sReportingCollector)
+                                        .setServerUrl(getServerUrl())
+                                        .setHangingUrlLatch(mHangingUrlLatch)
+                                        .build());
                 return;
             }
 

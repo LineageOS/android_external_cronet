@@ -24,11 +24,12 @@ public final class NativeTestServer {
 
     public static boolean startNativeTestServer(Context context) {
         TestFilesInstaller.installIfNeeded(context);
-        return NativeTestServerJni.get().startNativeTestServer(
-                TestFilesInstaller.getInstalledPath(context),
-            UrlUtils.getIsolatedTestRoot(),
-            false, // useHttps
-            ServerCertificate.CERT_OK);
+        return NativeTestServerJni.get()
+                .startNativeTestServer(
+                        TestFilesInstaller.getInstalledPath(context),
+                        UrlUtils.getIsolatedTestRoot(),
+                        false, // useHttps
+                        ServerCertificate.CERT_OK);
     }
 
     public static boolean startNativeTestServerWithHTTPS(

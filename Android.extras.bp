@@ -220,6 +220,20 @@ java_defaults {
     ],
 }
 
+// the current rust_bindgen modules does not have a `include_dirs` attribute which means
+// that the CC header generated from the rust_bindgen will not be allowed to reference
+// other headers through relative path from repository root like how Chromium does, so
+// in order to circumvent this issue, this module exists in order to allow
+// rust_bindgen module access to include header files  using the relative path
+// from the repository root.
+cc_library_headers {
+    name: "cronet_repository_root_include_dirs_anchor",
+    export_include_dirs: ["."],
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+}
+
 filegroup {
   name: "license_data",
   srcs: ["**/README.chromium", "**/MODULE_LICENSE_*", "**/LICENSE", "**/METADATA"]
