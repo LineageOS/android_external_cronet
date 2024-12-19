@@ -18,6 +18,7 @@ import androidx.test.filters.SmallTest;
 
 import com.google.common.truth.Correspondence;
 
+import org.chromium.net.impl.CronetLibraryLoader;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -51,6 +52,12 @@ public class CronetEngineBuilderTest {
         assertIllegalArgumentException(null, "1.2.3");
         assertIllegalArgumentException("1.2.3", null);
         assertIllegalArgumentException("1.2.3", "1.2.3x");
+    }
+
+    @Test
+    @SmallTest
+    public void testCronetLibraryPreloadMustNotCrash() {
+        CronetLibraryLoader.preload();
     }
 
     /**

@@ -15,6 +15,8 @@ import android.net.Network;
 import org.chromium.net.ExperimentalCronetEngine;
 import org.chromium.net.ICronetEngineBuilder;
 import org.chromium.net.ApiVersion;
+import org.chromium.net.impl.CronetLibraryLoader;
+import org.chromium.net.impl.NativeCronetEngineBuilderImpl;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -69,6 +71,7 @@ public abstract class HttpEngine {
             throw new IllegalStateException("HttpEngine already preloaded");
         }
 
+        CronetLibraryLoader.preload();
         try {
             // TODO(b/380349437): Preload all of HttpEngine Impl classes
             // and the shared library as well.
@@ -414,20 +417,8 @@ public abstract class HttpEngine {
          * @return the created {@link IHttpEngineBuilder}.
          */
         private static IHttpEngineBuilder createBuilderDelegate(Context context) {
-            try {
-                Class<?> cronetClazz = context.getClassLoader().loadClass(
-                        "android.net.connectivity.org.chromium.net.impl.NativeCronetEngineBuilderImpl");
-                Class<?> aospClazz = context.getClassLoader().loadClass(
-                        "android.net.http.CronetEngineBuilderWrapper");
-
-                ICronetEngineBuilder cronetBuilderImpl = (ICronetEngineBuilder)
-                        cronetClazz.getConstructor(Context.class).newInstance(context);
-                IHttpEngineBuilder aospBuilderImpl = (IHttpEngineBuilder)
-                        aospClazz.getConstructor(ExperimentalCronetEngine.Builder.class).newInstance(new ExperimentalCronetEngine.Builder(cronetBuilderImpl));
-                return aospBuilderImpl;
-            } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
-                throw new IllegalArgumentException(e);
-            }
+            return new CronetEngineBuilderWrapper(new ExperimentalCronetEngine.Builder(
+                    new NativeCronetEngineBuilderImpl(context)));
         }
     }
 
