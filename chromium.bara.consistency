@@ -12633,7 +12633,7 @@ testing/android/native_test/java/src/org/chromium/native_test/NativeBrowserTestA
 testing/android/native_test/java/src/org/chromium/native_test/NativeBrowserTestApplication.java: feac4dec3f41fe622bb9a736197b56de09951272e3bc84142401a4800987c929
 testing/android/native_test/java/src/org/chromium/native_test/NativeTest.java: e15ae002b119e3a810095bfb19217b5146bf161aedbc4e94ff101c2abbd1d9b4
 testing/android/native_test/java/src/org/chromium/native_test/NativeTestApplication.java: fd8061139673d2e5b907e271859067aa154496e9a95d85a3f3cfdb30ec55ea1a
-testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTest.java: 70675ba224b4c632684bc259081833d3398a6bb1127d47efe5c8de5b20762cb7
+testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTest.java: 6e83f5b9e5c56ce06bc8e7b3792ed5aa3443396facefd54ca5ad85338b83a2c5
 testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTestActivity.java: 7904c2d259d2170a7c2f749d73a2ab481c546c07c4fb632243925fbc69b7473e
 testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTestNativeActivity.java: a4cfb0b9875b361ea1cc8ee971d2cb9a5a12054d40f9c919f0ed928738016a30
 testing/android/native_test/main_runner.cc: 7faa7c4b6c2590d6a8c925abd49d57c90baafdb0ad6d8b01a03d8d74d14d510c
@@ -49398,7 +49398,7 @@ index 0aa4543..5ca3cc9 100644
      }
      difference_type operator-(const Iterator& rhs) const {
 diff --git a/premerge/testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTest.java b/checkout/testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTest.java
-index 90c3f7b..bb7154f 100644
+index 90c3f7b..b22a05f 100644
 --- a/premerge/testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTest.java
 +++ b/checkout/testing/android/native_test/java/src/org/chromium/native_test/NativeUnitTest.java
 @@ -17,6 +17,21 @@ import org.chromium.build.NativeLibraries;
