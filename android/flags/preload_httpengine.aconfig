@@ -9,3 +9,17 @@ flag {
   is_fixed_read_only: true
   is_exported: true
 }
+
+flag {
+  name: "preload_httpengine_shared_library"
+  namespace: "android_core_networking"
+  description: "Impl Guard for preloading HttpEngine's Native code into the zygote"
+  bug: "380349437"
+}
+
+flag {
+  name: "preload_httpengine_java_impl_classes"
+  namespace: "android_core_networking"
+  description: "Impl Guard for preloading HttpEngine's impl java classes"
+  bug: "380349437"
+}

@@ -1,0 +1,2 @@
+# android.net.http package is not jarjared so don't append package-prefix.
+android\.net\.http\..+

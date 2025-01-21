@@ -5,6 +5,7 @@
 package android.net.http;
 
 import static android.annotation.SystemApi.Client.MODULE_LIBRARIES;
+import static android.net.http.HttpEngineJavaClasses.ALL_CLASSES;
 
 import android.annotation.FlaggedApi;
 import android.annotation.SuppressLint;
@@ -12,8 +13,8 @@ import android.annotation.SystemApi;
 import android.content.Context;
 import android.net.Network;
 
+
 import org.chromium.net.ExperimentalCronetEngine;
-import org.chromium.net.ICronetEngineBuilder;
 import org.chromium.net.ApiVersion;
 import org.chromium.net.impl.CronetLibraryLoader;
 import org.chromium.net.impl.NativeCronetEngineBuilderImpl;
@@ -24,8 +25,6 @@ import androidx.annotation.Nullable;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandlerFactory;
@@ -62,19 +61,25 @@ public abstract class HttpEngine {
     @SystemApi(client=MODULE_LIBRARIES)
     @FlaggedApi(Flags.FLAG_PRELOAD_HTTPENGINE_IN_ZYGOTE)
     public static void preload() {
-        // Load and explicitly initialize the given class. Use
-        // Class.forName(String, boolean, ClassLoader) to avoid repeated stack lookups
-        // (to derive the caller's class-loader). Use true to force initialization, and
-        // null for the boot classpath class-loader (could as well cache the
-        // class-loader of this class in a variable).
         if (sPreloaded) {
             throw new IllegalStateException("HttpEngine already preloaded");
         }
 
+        if (Flags.preloadHttpengineSharedLibrary()) {
+            CronetLibraryLoader.preload();
+        }
+
         try {
-            // TODO(b/380349437): Preload all of HttpEngine Impl classes
-            // and the shared library as well.
-            Class.forName(ICronetEngineBuilder.class.getName(), true, null);
+            if (Flags.preloadHttpengineJavaImplClasses()) {
+                for (String clazz : ALL_CLASSES) {
+                    // Load and explicitly initialize the given class. Use
+                    // Class.forName(String, boolean, ClassLoader) to avoid repeated stack lookups
+                    // (to derive the caller's class-loader). Use true to force initialization, and
+                    // null for the boot classpath class-loader (could as well cache the
+                    // class-loader of this class in a variable).
+                    Class.forName(clazz, true, null);
+                }
+            }
         } catch (ClassNotFoundException e) {
             throw new IllegalStateException("Failed to preload class", e);
         } finally {

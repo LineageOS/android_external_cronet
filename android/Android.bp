@@ -36,6 +36,29 @@ filegroup {
     ],
 }
 
+java_genrule {
+    name: "httpclient_classes_java",
+    tool_files: [
+        ":httpclient_impl_internal{.jar}",
+        "package_prefix_exclude.txt",
+        "preloading_exclude.txt"
+    ],
+    tools: [
+        "jar-classes-collector",
+    ],
+    out: ["HttpEngineJavaClasses.java"],
+    cmd: "$(location jar-classes-collector) " +
+        "$(location :httpclient_impl_internal{.jar}) " +
+        "--prefix android.net.connectivity " +
+        "--prefix-excludes $(location package_prefix_exclude.txt) " +
+        "--excludes $(location preloading_exclude.txt) " +
+        "--java-package android.net.http " +
+        "--output $(out)",
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+}
+
 java_library {
     name: "httpclient_api",
     srcs: [
@@ -59,6 +82,21 @@ java_library {
 
 java_library {
     name: "httpclient_impl",
+    srcs: [":httpclient_classes_java"],
+    static_libs: ["httpclient_impl_internal"],
+    sdk_version: "module_current",
+    min_sdk_version: "30",
+    visibility: [
+        "//packages/modules/Connectivity:__subpackages__",
+        "//external/cronet:__subpackages__",
+    ],
+    apex_available: [
+        "com.android.tethering",
+    ],
+}
+
+java_library {
+    name: "httpclient_impl_internal",
     srcs: [
         "java/src/android/net/http/*Wrapper.java",
         "java/src/android/net/http/IHttpEngineBuilder.java",

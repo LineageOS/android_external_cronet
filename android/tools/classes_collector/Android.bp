@@ -1,0 +1,28 @@
+python_binary_host {
+    name: "jar-classes-collector",
+    srcs: [
+        "classes_collector.py",
+    ],
+    main: "classes_collector.py",
+    visibility: ["//external/cronet:__subpackages__"],
+}
+
+python_test_host {
+    name: "jar-classes-collector-test",
+    srcs: [
+        "classes_collector.py",
+        "classes_collector_test.py",
+    ],
+    device_common_data: [
+        "testdata/test-excludes.txt",
+        "testdata/test-package-prefix-excludes.txt",
+        ":test_classes_collector_java",
+    ],
+    main: "classes_collector_test.py",
+}
+
+java_library {
+    name: "test_classes_collector_java",
+    srcs: ["testdata/java/**/*.java"],
+    visibility: ["//visibility:private"],
+}

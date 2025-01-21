@@ -1,0 +1,2 @@
+android\.jarjared\.ExcludedClass
+android\.net\.ParentClass\$ChildClassB

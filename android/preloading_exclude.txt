@@ -1,0 +1,18 @@
+# on-demand lazy initialization does not work when this class is preloaded because this class always
+# assumes that it's called through its parent's class method which means that the user has already
+# done some setup before calling it.
+org\.chromium\.base\.BuildInfo\$Holder
+org\.chromium\.base\.ContextUtils\$Holder
+# Tried to create a thread via static initializer which is prohibited.
+org\.chromium\.base\.LifetimeAssert\$WrappedReference
+
+# Landroid/net/connectivity/org/chromium/base/TraceEvent$LooperMonitorHolder; failed initialization:
+# java.lang.NullPointerException: Attempt to invoke virtual method
+# 'boolean android.net.connectivity.org.chromium.base.CommandLine.hasSwitch(java.lang.String)'
+# on a null object reference
+# Same as the other holders, assumed to be called and initialized through its parent.
+org\.chromium\.base\.TraceEvent\$LooperMonitorHolder
+
+# android/net/connectivity/org/chromium/base/jank_tracker/JankReportingScheduler$LazyHolder;
+# failed initialization: java.lang.InternalError: Cannot create threads in zygote
+org\.chromium\.base\.jank_tracker\.JankReportingScheduler\$LazyHolder

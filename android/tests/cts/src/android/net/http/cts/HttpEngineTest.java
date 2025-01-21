@@ -36,6 +36,7 @@ import android.net.http.ConnectionMigrationOptions;
 import android.net.http.DnsOptions;
 import android.net.http.Flags;
 import android.net.http.HttpEngine;
+import android.net.http.HttpEngineJavaClasses;
 import android.net.http.QuicOptions;
 import android.net.http.UrlRequest;
 import android.net.http.UrlResponseInfo;
@@ -118,6 +119,22 @@ public class HttpEngineTest {
         } catch (Exception e) {
             // Do nothing.
         }
+    }
+
+    /** This is to confirm that the generated list of classes to be preloaded actually
+     * has something in it so it doesn't just silently break. It does not need to have
+     * everything but we assume that if it includes few essential classes then that
+     * should mean it's working as intended.
+     */
+    @Test
+    public void testHttpEngine_PreloadedClassesListContainsEssentialClasses() {
+        assertThat(HttpEngineJavaClasses.ALL_CLASSES).asList().containsAtLeast(
+                "android.net.connectivity.org.chromium.net.impl.CronetUrlRequestContext",
+                "android.net.connectivity.org.chromium.net.impl.CronetUrlRequest",
+                "android.net.connectivity.org.chromium.net.CronetEngine",
+                "android.net.http.CronetEngineWrapper");
+        assertThat(HttpEngineJavaClasses.ALL_CLASSES).asList().doesNotContain(
+                "android.net.connectivity.org.chromium.base.BuildInfo$Holder");
     }
 
     @Test

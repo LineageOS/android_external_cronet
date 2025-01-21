@@ -48,6 +48,7 @@ android_library {
         "androidx.annotation_annotation",
         "framework-connectivity.stubs.module_lib",
         "framework-connectivity.stubs.system",
+        "httpclient_impl",
         "org.apache.http.legacy.stubs.test",
     ],
     lint: {
