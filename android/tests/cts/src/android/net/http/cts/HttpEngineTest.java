@@ -44,7 +44,10 @@ import android.net.http.cts.util.HttpCtsTestServer;
 import android.net.http.cts.util.TestUrlRequestCallback;
 import android.net.http.cts.util.TestUrlRequestCallback.ResponseStep;
 import android.os.Build;
+import android.platform.test.annotations.DisableFlags;
+import android.platform.test.annotations.EnableFlags;
 import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.SetFlagsRule;
 
 import androidx.test.core.app.ApplicationProvider;
 
@@ -53,6 +56,7 @@ import com.android.testutils.DevSdkIgnoreRunner;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
@@ -74,6 +78,9 @@ public class HttpEngineTest {
     private UrlRequest mRequest;
     private HttpEngine mEngine;
     private Context mContext;
+
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     @Before
     public void setUp() throws Exception {
@@ -135,6 +142,30 @@ public class HttpEngineTest {
                 "android.net.http.CronetEngineWrapper");
         assertThat(HttpEngineJavaClasses.ALL_CLASSES).asList().doesNotContain(
                 "android.net.connectivity.org.chromium.base.BuildInfo$Holder");
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_PRELOAD_HTTPENGINE_SHARED_LIBRARY})
+    public void testHttpEngine_RequestSucceedsWithNativePreload() throws Exception {
+        testHttpEngine_Default();
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_PRELOAD_HTTPENGINE_SHARED_LIBRARY})
+    public void testHttpEngine_RequestSucceedsWithoutNativePreload() throws Exception {
+        testHttpEngine_Default();
+    }
+
+    @Test
+    @EnableFlags({Flags.FLAG_PRELOAD_HTTPENGINE_JAVA_IMPL_CLASSES})
+    public void testHttpEngine_RequestSucceedsWithPreloadJavaClasses() throws Exception {
+        testHttpEngine_Default();
+    }
+
+    @Test
+    @DisableFlags({Flags.FLAG_PRELOAD_HTTPENGINE_JAVA_IMPL_CLASSES})
+    public void testHttpEngine_RequestSucceedsWithoutPreloadJavaClasses() throws Exception {
+        testHttpEngine_Default();
     }
 
     @Test
