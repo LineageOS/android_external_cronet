@@ -206,15 +206,7 @@ android_library {
 
 java_defaults {
     name: "cronet_aml_java_framework_defaults",
-    libs: [
-        "framework-connectivity-pre-jarjar-without-cronet",
-        "framework-connectivity-t.stubs.module_lib",
-        "framework-location.stubs.module_lib",
-        "framework-mediaprovider.stubs.module_lib",
-        "framework-statsd.stubs.module_lib",
-        "framework-wifi.stubs.module_lib",
-    ],
-    sdk_version: "module_current",
+    sdk_version: "system_current",
     visibility: [
         "//external/cronet:__subpackages__",
     ],
