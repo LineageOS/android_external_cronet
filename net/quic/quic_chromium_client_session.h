@@ -42,10 +42,12 @@
 #include "net/quic/quic_connection_logger.h"
 #include "net/quic/quic_crypto_client_config_handle.h"
 #include "net/quic/quic_http3_logger.h"
+#include "net/quic/quic_session_alias_key.h"
 #include "net/quic/quic_session_key.h"
 #include "net/socket/socket_performance_watcher.h"
 #include "net/spdy/http2_priority_dependencies.h"
 #include "net/spdy/multiplexed_session.h"
+#include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "net/third_party/quiche/src/quiche/quic/core/http/quic_spdy_client_session_base.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_crypto_client_stream.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_packet_writer.h"
@@ -53,6 +55,7 @@
 #include "net/third_party/quiche/src/quiche/quic/core/quic_path_validator.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_server_id.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_time.h"
+#include "net/third_party/quiche/src/quiche/quic/core/quic_types.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "url/origin.h"
 #include "url/scheme_host_port.h"
@@ -333,6 +336,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
     void OnSessionClosed(quic::ParsedQuicVersion quic_version,
                          int net_error,
                          quic::QuicErrorCode quic_error,
+                         quic::ConnectionCloseSource source,
                          bool port_migration_detected,
                          bool quic_connection_migration_attempted,
                          bool quic_connection_migration_successful,
@@ -359,6 +363,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
     bool was_handshake_confirmed_;
     int net_error_ = OK;
     quic::QuicErrorCode quic_error_ = quic::QUIC_NO_ERROR;
+    quic::ConnectionCloseSource source_ =
+        quic::ConnectionCloseSource::FROM_SELF;
     bool port_migration_detected_ = false;
     bool quic_connection_migration_attempted_ = false;
     bool quic_connection_migration_successful_ = false;
@@ -470,8 +476,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
 
    private:
     handles::NetworkHandle network_handle_;
-    std::unique_ptr<QuicChromiumPacketWriter> writer_;
     std::unique_ptr<QuicChromiumPacketReader> reader_;
+    std::unique_ptr<QuicChromiumPacketWriter> writer_;
   };
 
   // This class implements Chrome logic for path validation events associated
@@ -588,6 +594,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   // connection), the `dns_resolution_*_time` arguments should be equal and
   // the current time, and `endpoint_result` should be an empty value, with an
   // empty address list.
+  // TODO(crbug.com/332924003): Delete the |report_ecn| argument when the
+  // feature is deprecated.
   QuicChromiumClientSession(
       quic::QuicConnection* connection,
       std::unique_ptr<DatagramClientSocket> socket,
@@ -597,7 +605,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       TransportSecurityState* transport_security_state,
       SSLConfigService* ssl_config_service,
       std::unique_ptr<QuicServerInfo> server_info,
-      const QuicSessionKey& session_key,
+      QuicSessionAliasKey session_alias_key,
       bool require_confirmation,
       bool migrate_sesion_early_v2,
       bool migrate_session_on_network_change_v2,
@@ -622,6 +630,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       base::SequencedTaskRunner* task_runner,
       std::unique_ptr<SocketPerformanceWatcher> socket_performance_watcher,
       const ConnectionEndpointMetadata& metadata,
+      bool report_ecn,
+      bool enable_origin_frame,
       const NetLogWithSource& net_log);
 
   QuicChromiumClientSession(const QuicChromiumClientSession&) = delete;
@@ -698,7 +708,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   // quic::QuicSpdySession methods:
   size_t WriteHeadersOnHeadersStream(
       quic::QuicStreamId id,
-      spdy::Http2HeaderBlock headers,
+      quiche::HttpHeaderBlock headers,
       bool fin,
       const spdy::SpdyStreamPrecedence& precedence,
       quiche::QuicheReferenceCountedPointer<quic::QuicAckListenerInterface>
@@ -706,6 +716,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   void OnHttp3GoAway(uint64_t id) override;
   void OnAcceptChFrameReceivedViaAlps(
       const quic::AcceptChFrame& frame) override;
+  void OnOriginFrame(const quic::OriginFrame& frame) override;
 
   // quic::QuicSession methods:
   QuicChromiumClientStream* CreateOutgoingBidirectionalStream() override;
@@ -796,8 +807,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   // Returns true if the stream factory disables gQUIC 0-RTT.
   bool gquic_zero_rtt_disabled() const;
 
-  // Returns a Handle to this session.
-  std::unique_ptr<QuicChromiumClientSession::Handle> CreateHandle(
+  // Returns a Handle to this session. Virtual for testing.
+  virtual std::unique_ptr<QuicChromiumClientSession::Handle> CreateHandle(
       url::SchemeHostPort destination);
 
   // Returns the number of client hello messages that have been sent on the
@@ -818,6 +829,10 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   }
 
   const QuicSessionKey& quic_session_key() const { return session_key_; }
+
+  const QuicSessionAliasKey& session_alias_key() const {
+    return session_alias_key_;
+  }
 
   // Attempts to migrate session when |writer| encounters a write error.
   // If |writer| is no longer actively used, abort migration.
@@ -915,6 +930,12 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   // order.
   const std::set<std::string>& GetDnsAliasesForSessionKey(
       const QuicSessionKey& key) const;
+
+  const std::set<url::SchemeHostPort>& received_origins() const {
+    return received_origins_;
+  }
+
+  void SetGoingAwayForTesting(bool going_away) { going_away_ = going_away; }
 
  protected:
   // quic::QuicSession methods:
@@ -1051,6 +1072,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       StreamRequest* stream_request);
 #endif  // BUILDFLAG(ENABLE_WEBSOCKETS)
 
+  const QuicSessionAliasKey session_alias_key_;
   QuicSessionKey session_key_;
   bool require_confirmation_;
   bool migrate_session_early_v2_;
@@ -1096,6 +1118,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   std::unique_ptr<CertVerifyResult> cert_verify_result_;
   bool pkp_bypassed_ = false;
   bool is_fatal_cert_error_ = false;
+  bool report_ecn_;
+  const bool enable_origin_frame_;
   HandleSet handles_;
   StreamRequestQueue stream_requests_;
   std::vector<CompletionOnceCallback> waiting_for_confirmation_callbacks_;
@@ -1109,6 +1133,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   // True when the session is going away, and streams may no longer be created
   // on this session. Existing stream will continue to be processed.
   bool going_away_ = false;
+  // Connection close source
+  quic::ConnectionCloseSource source_ = quic::ConnectionCloseSource::FROM_SELF;
   // True when the session receives a go away from server due to port migration.
   bool port_migration_detected_ = false;
   bool quic_connection_migration_attempted_ = false;
@@ -1148,6 +1174,9 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   // Map of origin to Accept-CH header field values received via ALPS.
   base::flat_map<url::SchemeHostPort, std::string>
       accept_ch_entries_received_via_alps_;
+
+  // Stores origins received in ORIGIN frame.
+  std::set<url::SchemeHostPort> received_origins_;
 
   std::vector<uint8_t> ech_config_list_;
 

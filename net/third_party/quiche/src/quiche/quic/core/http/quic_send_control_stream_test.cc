@@ -4,8 +4,12 @@
 
 #include "quiche/quic/core/http/quic_send_control_stream.h"
 
+#include <memory>
+#include <optional>
+#include <ostream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/strings/escaping.h"
 #include "absl/strings/string_view.h"
@@ -239,6 +243,16 @@ TEST_P(QuicSendControlStreamTest, WriteSettingsOnlyOnce) {
   // No data should be written the second time MaybeSendSettingsFrame() is
   // called.
   send_control_stream_->MaybeSendSettingsFrame();
+}
+
+TEST_P(QuicSendControlStreamTest, SendOriginFrameOnce) {
+  Initialize();
+  std::vector<std::string> origins = {"a", "b", "c"};
+
+  EXPECT_CALL(session_, WritevData(send_control_stream_->id(), _, _, _, _, _))
+      .Times(1);
+  send_control_stream_->MaybeSendOriginFrame(origins);
+  send_control_stream_->MaybeSendOriginFrame(origins);
 }
 
 // Send stream type and SETTINGS frame if WritePriorityUpdate() is called first.

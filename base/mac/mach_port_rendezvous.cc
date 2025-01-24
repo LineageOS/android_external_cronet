@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/341324165): Fix and remove.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/mac/mach_port_rendezvous.h"
 
 #include <mach/mig.h>
@@ -97,7 +102,6 @@ void MachRendezvousPort::Destroy() {
     default:
       NOTREACHED() << "Leaking port name " << name_ << " with disposition "
                    << disposition_;
-      return;
   }
   kern_return_t kr = mach_port_mod_refs(mach_task_self(), name_, right, -1);
   MACH_DCHECK(kr == KERN_SUCCESS, kr)

@@ -226,7 +226,10 @@ bool FieldTrial::FieldTrialEntry::GetParams(
 
 PickleIterator FieldTrial::FieldTrialEntry::GetPickleIterator() const {
   Pickle pickle = Pickle::WithUnownedBuffer(
-      span(GetPickledDataPtr(), checked_cast<size_t>(pickle_size)));
+      // TODO(crbug.com/40284755): FieldTrialEntry should be constructed with a
+      // span over the pickle memory.
+      UNSAFE_TODO(
+          span(GetPickledDataPtr(), checked_cast<size_t>(pickle_size))));
   return PickleIterator(pickle);
 }
 
@@ -334,6 +337,10 @@ FieldTrial* FieldTrial::CreateSimulatedFieldTrial(
     Probability total_probability,
     std::string_view default_group_name,
     double entropy_value) {
+  // `is_low_anonymity` is only used for differentiating which observers of the
+  // global `FieldTrialList` should be notified. As this field trial is assumed
+  // to never be registered with the global `FieldTrialList`, `is_low_anonymity`
+  // can be set to an arbitrary value here.
   return new FieldTrial(trial_name, total_probability, default_group_name,
                         entropy_value, /*is_low_anonymity=*/false,
                         /*is_overridden=*/false);
@@ -698,7 +705,7 @@ void FieldTrialList::CreateTrialsInChildProcess(const CommandLine& cmd_line) {
   global_->create_trials_in_child_process_called_ = true;
 
 #if BUILDFLAG(USE_BLINK)
-  // TODO(crbug.com/867558): Change to a CHECK.
+  // TODO(crbug.com/41403903): Change to a CHECK.
   if (cmd_line.HasSwitch(switches::kFieldTrialHandle)) {
     std::string switch_value =
         cmd_line.GetSwitchValueASCII(switches::kFieldTrialHandle);
@@ -714,7 +721,7 @@ void FieldTrialList::CreateTrialsInChildProcess(const CommandLine& cmd_line) {
 void FieldTrialList::ApplyFeatureOverridesInChildProcess(
     FeatureList* feature_list) {
   CHECK(global_->create_trials_in_child_process_called_);
-  // TODO(crbug.com/867558): Change to a CHECK.
+  // TODO(crbug.com/41403903): Change to a CHECK.
   if (global_->field_trial_allocator_) {
     feature_list->InitFromSharedMemory(global_->field_trial_allocator_.get());
   }
@@ -1096,7 +1103,7 @@ bool FieldTrialList::CreateTrialsFromSharedMemoryMapping(
     if (!entry->GetState(trial_name, group_name, is_overridden)) {
       return false;
     }
-    // TODO(crbug.com/1431156): Don't set is_low_anonymity=false, but instead
+    // TODO(crbug.com/40263398): Don't set is_low_anonymity=false, but instead
     // propagate the is_low_anonymity state to the child process.
     FieldTrial* trial = CreateFieldTrial(
         trial_name, group_name, /*is_low_anonymity=*/false, is_overridden);
@@ -1174,7 +1181,6 @@ void FieldTrialList::AddToAllocatorWhileLocked(
       total_size, FieldTrial::FieldTrialEntry::kPersistentTypeId);
   if (ref == FieldTrialAllocator::kReferenceNull) {
     NOTREACHED();
-    return;
   }
 
   FieldTrial::FieldTrialEntry* entry =

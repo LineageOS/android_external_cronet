@@ -20,12 +20,12 @@ def CheckCargoVet(input_api, output_api):
         input_api.PresubmitLocalPath(),
         '..', '..', 'tools', 'crates', 'run_cargo_vet.py')
     cmd_name = '//tools/crates/run_cargo_vet.py check'
+
     test_cmd = input_api.Command(
         name=cmd_name,
         cmd=[input_api.python3_executable, run_cargo_vet_path] + vet_args,
         kwargs={},
-        message=output_api.PresubmitPromptWarning)
+        message=output_api.PresubmitError)
     if input_api.verbose:
         print('Running ' + cmd_name)
     return input_api.RunTests([test_cmd])
-

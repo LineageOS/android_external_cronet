@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/test/cert_builder.h"
 
 #include <map>
@@ -21,7 +26,6 @@
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
 #include "crypto/ec_private_key.h"
-#include "crypto/openssl_util.h"
 #include "crypto/rsa_private_key.h"
 #include "crypto/sha2.h"
 #include "net/cert/asn1_util.h"
@@ -79,7 +83,7 @@ std::string EcdsaWithSha1() {
   return std::string(std::begin(kDer), std::end(kDer));
 }
 
-// Adds bytes (specified as a StringPiece) to the given CBB.
+// Adds bytes (specified as a std::string_view) to the given CBB.
 // The argument ordering follows the boringssl CBB_* api style.
 bool CBBAddBytes(CBB* cbb, std::string_view bytes) {
   return CBB_add_bytes(cbb, reinterpret_cast<const uint8_t*>(bytes.data()),
@@ -1084,7 +1088,6 @@ CertBuilder::CertBuilder(CRYPTO_BUFFER* orig_cert,
   if (!issuer_)
     issuer_ = this;
 
-  crypto::EnsureOpenSSLInit();
   if (orig_cert)
     InitFromCert(
         bssl::der::Input(x509_util::CryptoBufferAsStringPiece(orig_cert)));
@@ -1256,7 +1259,7 @@ void CertBuilder::BuildTBSCertificate(std::string_view signature_algorithm_tlv,
         ASSERT_TRUE(CBB_add_asn1_uint64(&version, 2));
         break;
       case bssl::CertificateVersion::V1:
-        NOTREACHED_NORETURN();
+        NOTREACHED();
     }
   }
   ASSERT_TRUE(CBB_add_asn1_uint64(&tbs_cert, GetSerialNumber()));

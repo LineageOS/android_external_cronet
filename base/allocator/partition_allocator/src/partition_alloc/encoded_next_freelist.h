@@ -8,19 +8,17 @@
 #include <cstddef>
 #include <cstdint>
 
-#include "build/build_config.h"
+#include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/freeslot_bitmap.h"
 #include "partition_alloc/partition_alloc-inl.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
-#include "partition_alloc/partition_alloc_base/immediate_crash.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_constants.h"
 
-#if !defined(ARCH_CPU_BIG_ENDIAN)
+#if !PA_BUILDFLAG(PA_ARCH_CPU_BIG_ENDIAN)
 #include "partition_alloc/reverse_bytes.h"
-#endif  // !defined(ARCH_CPU_BIG_ENDIAN)
+#endif
 
 namespace partition_alloc::internal {
 
@@ -50,7 +48,7 @@ class EncodedFreelistPtr {
   // encoding and decoding.
   PA_ALWAYS_INLINE static constexpr uintptr_t Transform(uintptr_t address) {
     // We use bswap on little endian as a fast transformation for two reasons:
-    // 1) On 64 bit architectures, the pointer is very unlikely to be a
+    // 1) On 64 bit architectures, the swapped pointer is very unlikely to be a
     //    canonical address. Therefore, if an object is freed and its vtable is
     //    used where the attacker doesn't get the chance to run allocations
     //    between the free and use, the vtable dereference is likely to fault.
@@ -58,7 +56,7 @@ class EncodedFreelistPtr {
     //    corrupt a freelist pointer, partial pointer overwrite attacks are
     //    thwarted.
     // For big endian, similar guarantees are arrived at with a negation.
-#if defined(ARCH_CPU_BIG_ENDIAN)
+#if PA_BUILDFLAG(PA_ARCH_CPU_BIG_ENDIAN)
     uintptr_t transformed = ~address;
 #else
     uintptr_t transformed = ReverseBytes(address);
@@ -178,16 +176,16 @@ class EncodedNextFreelistEntry {
     // SetNext() is either called on the freelist head, when provisioning new
     // slots, or when GetNext() has been called before, no need to pass the
     // size.
-#if BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON)
     // Regular freelists always point to an entry within the same super page.
     //
     // This is most likely a PartitionAlloc bug if this triggers.
-    if (PA_UNLIKELY(entry &&
-                    (SlotStartPtr2Addr(this) & kSuperPageBaseMask) !=
-                        (SlotStartPtr2Addr(entry) & kSuperPageBaseMask))) {
+    if (entry && (SlotStartPtr2Addr(this) & kSuperPageBaseMask) !=
+                     (SlotStartPtr2Addr(entry) & kSuperPageBaseMask))
+        [[unlikely]] {
       FreelistCorruptionDetected(0);
     }
-#endif  // BUILDFLAG(PA_DCHECK_IS_ON)
+#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON)
 
     encoded_next_ = EncodedFreelistPtr(entry);
 #if PA_CONFIG(HAS_FREELIST_SHADOW_ENTRY)
@@ -222,7 +220,7 @@ class EncodedNextFreelistEntry {
     }
 
     auto* ret = encoded_next_.Decode();
-    if (PA_UNLIKELY(!IsWellFormed<for_thread_cache>(this, ret))) {
+    if (!IsWellFormed<for_thread_cache>(this, ret)) [[unlikely]] {
       if constexpr (crash_on_corruption) {
         // Put the corrupted data on the stack, it may give us more information
         // about what kind of corruption that was.
@@ -254,9 +252,10 @@ class EncodedNextFreelistEntry {
     // Don't allow the freelist to be blindly followed to any location.
     // Checks following constraints:
     // - `here->shadow_` must match an inversion of `here->next_` (if present).
-    // - `next` cannot point inside the metadata area.
-    // - `here` and `next` must belong to the same superpage, unless this is in
-    //   the thread cache (they even always belong to the same slot span).
+    // - `next` mustn't point inside the super page metadata area.
+    // - Unless this is a thread-cache freelist, `here` and `next` must belong
+    //   to the same super page (as a matter of fact, they must belong to the
+    //   same slot span, but that'd be too expensive to check here).
     // - `next` is marked as free in the free slot bitmap (if present).
 
     const uintptr_t here_address = SlotStartPtr2Addr(here);
@@ -281,7 +280,7 @@ class EncodedNextFreelistEntry {
     const bool same_super_page = (here_address & kSuperPageBaseMask) ==
                                  (next_address & kSuperPageBaseMask);
 
-#if BUILDFLAG(USE_FREESLOT_BITMAP)
+#if PA_BUILDFLAG(USE_FREESLOT_BITMAP)
     bool marked_as_free_in_bitmap = !FreeSlotBitmapSlotIsUsed(next_address);
 #else
     constexpr bool marked_as_free_in_bitmap = true;

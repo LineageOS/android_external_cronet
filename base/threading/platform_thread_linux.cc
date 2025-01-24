@@ -56,31 +56,18 @@ FilePath ThreadTypeToCgroupDirectory(const FilePath& cgroup_filepath,
       return cgroup_filepath.Append(FILE_PATH_LITERAL("non-urgent"));
     case ThreadType::kDefault:
       return cgroup_filepath;
-    case ThreadType::kCompositing:
-#if BUILDFLAG(IS_CHROMEOS)
-      // On ChromeOS, kCompositing is also considered urgent.
-      return cgroup_filepath.Append(FILE_PATH_LITERAL("urgent"));
-#else
-      // TODO(1329208): Experiment with bringing IS_LINUX inline with
-      // IS_CHROMEOS.
-      return cgroup_filepath;
-#endif
     case ThreadType::kDisplayCritical:
     case ThreadType::kRealtimeAudio:
       return cgroup_filepath.Append(FILE_PATH_LITERAL("urgent"));
   }
   NOTREACHED();
-  return FilePath();
 }
 
 void SetThreadCgroup(PlatformThreadId thread_id,
                      const FilePath& cgroup_directory) {
   FilePath tasks_filepath = cgroup_directory.Append(FILE_PATH_LITERAL("tasks"));
   std::string tid = NumberToString(thread_id);
-  // TODO(crbug.com/1333521): Remove cast.
-  const int size = static_cast<int>(tid.size());
-  int bytes_written = WriteFile(tasks_filepath, tid.data(), size);
-  if (bytes_written != size) {
+  if (!WriteFile(tasks_filepath, as_byte_span(tid))) {
     DVLOG(1) << "Failed to add " << tid << " to " << tasks_filepath.value();
   }
 }
@@ -107,13 +94,6 @@ const ThreadPriorityToNiceValuePairForTest
     kThreadPriorityToNiceValueMapForTest[7] = {
         {ThreadPriorityForTest::kRealtimeAudio, -10},
         {ThreadPriorityForTest::kDisplay, -8},
-#if BUILDFLAG(IS_CHROMEOS)
-        {ThreadPriorityForTest::kCompositing, -8},
-#else
-        // TODO(1329208): Experiment with bringing IS_LINUX inline with
-        // IS_CHROMEOS.
-        {ThreadPriorityForTest::kCompositing, -1},
-#endif
         {ThreadPriorityForTest::kNormal, 0},
         {ThreadPriorityForTest::kResourceEfficient, 1},
         {ThreadPriorityForTest::kUtility, 2},
@@ -122,20 +102,12 @@ const ThreadPriorityToNiceValuePairForTest
 
 // These nice values are shared with ChromeOS platform code
 // (platform_thread_cros.cc) and have to be unique as ChromeOS has a unique
-// type -> nice value mapping. An exception is kCompositing and
-// kDisplayCritical where aliasing is OK as they have the same scheduler
-// attributes (cpusets, latency_sensitive etc) including nice value.
+// type -> nice value mapping.
 // The uniqueness of the nice value per-type helps to change and restore the
 // scheduling params of threads when their process toggles between FG and BG.
 const ThreadTypeToNiceValuePair kThreadTypeToNiceValueMap[7] = {
     {ThreadType::kBackground, 10},       {ThreadType::kUtility, 2},
     {ThreadType::kResourceEfficient, 1}, {ThreadType::kDefault, 0},
-#if BUILDFLAG(IS_CHROMEOS)
-    {ThreadType::kCompositing, -8},
-#else
-    // TODO(1329208): Experiment with bringing IS_LINUX inline with IS_CHROMEOS.
-    {ThreadType::kCompositing, -1},
-#endif
     {ThreadType::kDisplayCritical, -8},  {ThreadType::kRealtimeAudio, -10},
 };
 
@@ -153,7 +125,15 @@ bool CanSetThreadTypeToRealtimeAudio() {
 
 bool SetCurrentThreadTypeForPlatform(ThreadType thread_type,
                                      MessagePumpType pump_type_hint) {
-  PlatformThreadLinux::SetThreadType(PlatformThread::CurrentId(), thread_type);
+  const PlatformThreadId thread_id = PlatformThread::CurrentId();
+
+  if (g_thread_type_delegate &&
+      g_thread_type_delegate->HandleThreadTypeChange(thread_id, thread_type)) {
+    return true;
+  }
+
+  internal::SetThreadType(getpid(), thread_id, thread_type, IsViaIPC(false));
+
   return true;
 }
 
@@ -269,31 +249,21 @@ void PlatformThreadLinux::SetThreadType(ProcessId process_id,
                                         PlatformThreadId thread_id,
                                         ThreadType thread_type,
                                         IsViaIPC via_ipc) {
-  SetThreadTypeInternal(process_id, thread_id, thread_type, via_ipc);
+  internal::SetThreadType(process_id, thread_id, thread_type, via_ipc);
 }
 
-// static
-void PlatformThreadLinux::SetThreadType(PlatformThreadId thread_id,
-                                        ThreadType thread_type) {
-  if (g_thread_type_delegate &&
-      g_thread_type_delegate->HandleThreadTypeChange(thread_id, thread_type)) {
-    return;
-  }
-  SetThreadTypeInternal(getpid(), thread_id, thread_type, IsViaIPC(false));
-}
-
-// static
-void PlatformThreadLinux::SetThreadTypeInternal(ProcessId process_id,
-                                                PlatformThreadId thread_id,
-                                                ThreadType thread_type,
-                                                IsViaIPC via_ipc) {
-  SetThreadCgroupsForThreadType(thread_id, thread_type);
+namespace internal {
+void SetThreadTypeLinux(ProcessId process_id,
+                        PlatformThreadId thread_id,
+                        ThreadType thread_type,
+                        IsViaIPC via_ipc) {
+  PlatformThreadLinux::SetThreadCgroupsForThreadType(thread_id, thread_type);
 
   // Some scheduler syscalls require thread ID of 0 for current thread.
   // This prevents us from requiring to translate the NS TID to
   // global TID.
   PlatformThreadId syscall_tid = thread_id;
-  if (thread_id == PlatformThread::CurrentId()) {
+  if (thread_id == PlatformThreadLinux::CurrentId()) {
     syscall_tid = 0;
   }
 
@@ -306,11 +276,13 @@ void PlatformThreadLinux::SetThreadTypeInternal(ProcessId process_id,
     DPLOG(ERROR) << "Failed to set realtime priority for thread " << thread_id;
   }
 
-  const int nice_setting = internal::ThreadTypeToNiceValue(thread_type);
+  const int nice_setting = ThreadTypeToNiceValue(thread_type);
   if (setpriority(PRIO_PROCESS, static_cast<id_t>(syscall_tid), nice_setting)) {
     DVPLOG(1) << "Failed to set nice value of thread (" << thread_id << ") to "
               << nice_setting;
   }
 }
+
+}  // namespace internal
 
 }  // namespace base

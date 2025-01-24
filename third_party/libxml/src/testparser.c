@@ -7,6 +7,7 @@
 #include <libxml/parser.h>
 #include <libxml/xmlreader.h>
 #include <libxml/xmlwriter.h>
+#include <libxml/HTMLparser.h>
 
 #include <string.h>
 
@@ -54,6 +55,25 @@ testUnsupportedEncoding(void) {
         fprintf(stderr, "xmlReadDoc failed to raise correct error\n");
         err = 1;
     }
+
+    return err;
+}
+
+static int
+testNodeGetContent(void) {
+    xmlDocPtr doc;
+    xmlChar *content;
+    int err = 0;
+
+    doc = xmlReadDoc(BAD_CAST "<doc/>", NULL, NULL, 0);
+    xmlAddChild(doc->children, xmlNewReference(doc, BAD_CAST "lt"));
+    content = xmlNodeGetContent((xmlNodePtr) doc);
+    if (strcmp((char *) content, "<") != 0) {
+        fprintf(stderr, "xmlNodeGetContent failed\n");
+        err = 1;
+    }
+    xmlFree(content);
+    xmlFreeDoc(doc);
 
     return err;
 }
@@ -143,9 +163,107 @@ testHugeEncodedChunk(void) {
 
     return err;
 }
+
+#ifdef LIBXML_HTML_ENABLED
+static int
+testHtmlPushWithEncoding(void) {
+    htmlParserCtxtPtr ctxt;
+    htmlDocPtr doc;
+    htmlNodePtr node;
+    int err = 0;
+
+    ctxt = htmlCreatePushParserCtxt(NULL, NULL, NULL, 0, NULL,
+                                    XML_CHAR_ENCODING_UTF8);
+    htmlParseChunk(ctxt, "-\xC3\xA4-", 4, 1);
+
+    doc = ctxt->myDoc;
+    if (!xmlStrEqual(doc->encoding, BAD_CAST "UTF-8")) {
+        fprintf(stderr, "testHtmlPushWithEncoding failed\n");
+        err = 1;
+    }
+
+    node = xmlDocGetRootElement(doc)->children->children->children;
+    if (!xmlStrEqual(node->content, BAD_CAST "-\xC3\xA4-")) {
+        fprintf(stderr, "testHtmlPushWithEncoding failed\n");
+        err = 1;
+    }
+
+    xmlFreeDoc(doc);
+    htmlFreeParserCtxt(ctxt);
+    return err;
+}
+#endif
 #endif
 
-#if defined(LIBXML_READER_ENABLED) && defined(LIBXML_XINCLUDE_ENABLED)
+#ifdef LIBXML_READER_ENABLED
+static int
+testReaderEncoding(void) {
+    xmlBuffer *buf;
+    xmlTextReader *reader;
+    xmlChar *xml;
+    const xmlChar *encoding;
+    int err = 0;
+    int i;
+
+    buf = xmlBufferCreate();
+    xmlBufferCCat(buf, "<?xml version='1.0' encoding='ISO-8859-1'?>\n");
+    xmlBufferCCat(buf, "<doc>");
+    for (i = 0; i < 8192; i++)
+        xmlBufferCCat(buf, "x");
+    xmlBufferCCat(buf, "</doc>");
+    xml = xmlBufferDetach(buf);
+    xmlBufferFree(buf);
+
+    reader = xmlReaderForDoc(BAD_CAST xml, NULL, NULL, 0);
+    xmlTextReaderRead(reader);
+    encoding = xmlTextReaderConstEncoding(reader);
+
+    if (!xmlStrEqual(encoding, BAD_CAST "ISO-8859-1")) {
+        fprintf(stderr, "testReaderEncoding failed\n");
+        err = 1;
+    }
+
+    xmlFreeTextReader(reader);
+    xmlFree(xml);
+    return err;
+}
+
+static int
+testReaderContent(void) {
+    xmlTextReader *reader;
+    const xmlChar *xml = BAD_CAST "<d>x<e>y</e><f>z</f></d>";
+    xmlChar *string;
+    int err = 0;
+
+    reader = xmlReaderForDoc(xml, NULL, NULL, 0);
+    xmlTextReaderRead(reader);
+
+    string = xmlTextReaderReadOuterXml(reader);
+    if (!xmlStrEqual(string, xml)) {
+        fprintf(stderr, "xmlTextReaderReadOuterXml failed\n");
+        err = 1;
+    }
+    xmlFree(string);
+
+    string = xmlTextReaderReadInnerXml(reader);
+    if (!xmlStrEqual(string, BAD_CAST "x<e>y</e><f>z</f>")) {
+        fprintf(stderr, "xmlTextReaderReadInnerXml failed\n");
+        err = 1;
+    }
+    xmlFree(string);
+
+    string = xmlTextReaderReadString(reader);
+    if (!xmlStrEqual(string, BAD_CAST "xyz")) {
+        fprintf(stderr, "xmlTextReaderReadString failed\n");
+        err = 1;
+    }
+    xmlFree(string);
+
+    xmlFreeTextReader(reader);
+    return err;
+}
+
+#ifdef LIBXML_XINCLUDE_ENABLED
 typedef struct {
     char *message;
     int code;
@@ -223,6 +341,7 @@ testReaderXIncludeError(void) {
     return err;
 }
 #endif
+#endif
 
 #ifdef LIBXML_WRITER_ENABLED
 static int
@@ -273,15 +392,23 @@ main(void) {
 
     err |= testStandaloneWithEncoding();
     err |= testUnsupportedEncoding();
+    err |= testNodeGetContent();
 #ifdef LIBXML_SAX1_ENABLED
     err |= testBalancedChunk();
 #endif
 #ifdef LIBXML_PUSH_ENABLED
     err |= testHugePush();
     err |= testHugeEncodedChunk();
+#ifdef LIBXML_HTML_ENABLED
+    err |= testHtmlPushWithEncoding();
 #endif
-#if defined(LIBXML_READER_ENABLED) && defined(LIBXML_XINCLUDE_ENABLED)
+#endif
+#ifdef LIBXML_READER_ENABLED
+    err |= testReaderEncoding();
+    err |= testReaderContent();
+#ifdef LIBXML_XINCLUDE_ENABLED
     err |= testReaderXIncludeError();
+#endif
 #endif
 #ifdef LIBXML_WRITER_ENABLED
     err |= testWriterClose();

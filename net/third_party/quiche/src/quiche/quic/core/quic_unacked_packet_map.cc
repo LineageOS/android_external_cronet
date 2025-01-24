@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <limits>
 #include <type_traits>
+#include <utility>
 
 #include "absl/container/inlined_vector.h"
 #include "quiche/quic/core/quic_connection_stats.h"
@@ -132,6 +133,34 @@ QuicUnackedPacketMap::~QuicUnackedPacketMap() {
   for (QuicTransmissionInfo& transmission_info : unacked_packets_) {
     DeleteFrames(&(transmission_info.retransmittable_frames));
   }
+}
+
+const QuicTransmissionInfo& QuicUnackedPacketMap::AddDispatcherSentPacket(
+    const DispatcherSentPacket& packet) {
+  QuicPacketNumber packet_number = packet.packet_number;
+  QUICHE_DCHECK_EQ(least_unacked_, FirstSendingPacketNumber());
+  QUIC_BUG_IF(quic_unacked_map_dispatcher_packet_num_too_small,
+              largest_sent_packet_.IsInitialized() &&
+                  largest_sent_packet_ >= packet_number)
+      << "largest_sent_packet_: " << largest_sent_packet_
+      << ", packet_number: " << packet_number;
+  QUICHE_DCHECK_GE(packet_number, least_unacked_ + unacked_packets_.size());
+  while (least_unacked_ + unacked_packets_.size() < packet_number) {
+    unacked_packets_.push_back(QuicTransmissionInfo());
+    unacked_packets_.back().state = NEVER_SENT;
+  }
+
+  QuicTransmissionInfo& info =
+      unacked_packets_.emplace_back(ENCRYPTION_INITIAL, NOT_RETRANSMISSION,
+                                    packet.sent_time, packet.bytes_sent,
+                                    /*has_crypto_handshake=*/false,
+                                    /*has_ack_frequency=*/false, ECN_NOT_ECT);
+  QUICHE_DCHECK(!info.in_flight);
+  info.state = NOT_CONTRIBUTING_RTT;
+  info.largest_acked = packet.largest_acked;
+  largest_sent_largest_acked_.UpdateMax(packet.largest_acked);
+  largest_sent_packet_ = packet_number;
+  return info;
 }
 
 void QuicUnackedPacketMap::AddSentPacket(SerializedPacket* mutable_packet,

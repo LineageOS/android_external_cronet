@@ -122,7 +122,8 @@ java_library {
     static_libs: [
         "cronet_aml_net_android_net_test_support_provider_java__testing",
         "cronet_aml_net_android_net_java_test_support__testing",
-        "cronet_aml_net_android_net_tests_java__testing"
+        "cronet_aml_net_android_net_tests_java__testing",
+        "cronet_aml_net_android_dummy_spnego_authenticator_java__testing",
     ],
 }
 

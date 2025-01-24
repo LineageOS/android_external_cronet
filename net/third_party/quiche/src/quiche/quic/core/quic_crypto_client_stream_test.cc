@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/base/macros.h"
 #include "quiche/quic/core/crypto/aes_128_gcm_12_encrypter.h"
@@ -40,7 +41,7 @@ class QuicCryptoClientStreamTest : public QuicTest {
  public:
   QuicCryptoClientStreamTest()
       : supported_versions_(AllSupportedVersionsWithQuicCrypto()),
-        server_id_(kServerHostname, kServerPort, false),
+        server_id_(kServerHostname, kServerPort),
         crypto_config_(crypto_test_utils::ProofVerifierForTesting(),
                        std::make_unique<test::SimpleSessionCache>()),
         server_crypto_config_(

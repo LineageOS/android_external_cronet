@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "base/check.h"
+#include "base/types/fixed_array.h"
 #include "base/notreached.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -175,9 +176,9 @@ bool CodepageToUTF16(std::string_view encoded,
   size_t uchar_max_length = encoded.length() + 1;
 
   SetUpErrorHandlerForToUChars(on_error, converter, &status);
-  std::unique_ptr<char16_t[]> buffer(new char16_t[uchar_max_length]);
+  base::FixedArray<char16_t> buffer(uchar_max_length);
   int actual_size = ucnv_toUChars(
-      converter, buffer.get(), static_cast<int>(uchar_max_length),
+      converter, buffer.data(), static_cast<int>(uchar_max_length),
       encoded.data(), static_cast<int>(encoded.length()), &status);
   ucnv_close(converter);
   if (!U_SUCCESS(status)) {
@@ -185,7 +186,7 @@ bool CodepageToUTF16(std::string_view encoded,
     return false;
   }
 
-  utf16->assign(buffer.get(), actual_size);
+  utf16->assign(buffer.data(), actual_size);
   return true;
 }
 

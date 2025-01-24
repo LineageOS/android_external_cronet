@@ -4,12 +4,15 @@
 
 #include "quiche/quic/core/quic_stream.h"
 
+#include <algorithm>
 #include <limits>
 #include <optional>
 #include <string>
+#include <utility>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "quiche/quic/core/frames/quic_reset_stream_at_frame.h"
 #include "quiche/quic/core/quic_error_codes.h"
 #include "quiche/quic/core/quic_flow_controller.h"
 #include "quiche/quic/core/quic_session.h"
@@ -250,6 +253,26 @@ void PendingStream::OnRstStreamFrame(const QuicRstStreamFrame& frame) {
   }
 }
 
+void PendingStream::OnResetStreamAtFrame(const QuicResetStreamAtFrame& frame) {
+  if (frame.reliable_offset > sequencer()->close_offset()) {
+    OnUnrecoverableError(
+        QUIC_STREAM_MULTIPLE_OFFSET,
+        absl::StrCat(
+            "Stream ", id_,
+            " received reliable reset with offset: ", frame.reliable_offset,
+            " greater than the FIN offset: ", sequencer()->close_offset()));
+    return;
+  }
+  if (buffered_reset_stream_at_.has_value() &&
+      (frame.reliable_offset > buffered_reset_stream_at_->reliable_offset)) {
+    // Ignore a reliable reset that raises the reliable size. It might have
+    // arrived out of sequence.
+    return;
+  }
+  buffered_reset_stream_at_ = frame;
+  sequencer_.OnReliableReset(frame.reliable_offset);
+}
+
 void PendingStream::OnWindowUpdateFrame(const QuicWindowUpdateFrame& frame) {
   QUICHE_DCHECK(is_bidirectional_);
   flow_controller_.UpdateSendWindowOffset(frame.max_data);
@@ -300,6 +323,7 @@ QuicStream::QuicStream(PendingStream* pending, QuicSession* session,
           (session->GetClock()->ApproximateNow() - pending->creation_time())) {
   QUICHE_DCHECK(session->version().HasIetfQuicFrames());
   sequencer_.set_stream(this);
+  buffered_reset_stream_at_ = pending->buffered_reset_stream_at();
 }
 
 namespace {
@@ -343,7 +367,6 @@ QuicStream::QuicStream(QuicStreamId id, QuicSession* session,
       id_(id),
       session_(session),
       stream_delegate_(session),
-      priority_(QuicStreamPriority::Default(session->priority_type())),
       stream_bytes_read_(stream_bytes_read),
       stream_error_(QuicResetStreamError::NoError()),
       connection_error_(QUIC_NO_ERROR),
@@ -509,6 +532,12 @@ bool QuicStream::OnStopSending(QuicResetStreamError error) {
 
   stream_error_ = error;
   MaybeSendRstStream(error);
+  if (session()->enable_stop_sending_for_zombie_streams() &&
+      read_side_closed_ && write_side_closed_ && !IsWaitingForAcks()) {
+    QUIC_RELOADABLE_FLAG_COUNT_N(quic_deliver_stop_sending_to_zombie_streams, 3,
+                                 3);
+    session()->MaybeCloseZombieStream(id_);
+  }
   return true;
 }
 
@@ -562,15 +591,39 @@ void QuicStream::OnStreamReset(const QuicRstStreamFrame& frame) {
   CloseReadSide();
 }
 
-void QuicStream::OnConnectionClosed(QuicErrorCode error,
+void QuicStream::OnResetStreamAtFrame(const QuicResetStreamAtFrame& frame) {
+  if (frame.reliable_offset > sequencer()->close_offset()) {
+    OnUnrecoverableError(
+        QUIC_STREAM_MULTIPLE_OFFSET,
+        absl::StrCat(
+            "Stream ", id_,
+            " received reliable reset with offset: ", frame.reliable_offset,
+            " greater than the FIN offset: ", sequencer()->close_offset()));
+    return;
+  }
+  if (buffered_reset_stream_at_.has_value() &&
+      (frame.reliable_offset > buffered_reset_stream_at_->reliable_offset)) {
+    // Ignore a reliable reset that raises the reliable size. It might have
+    // arrived out of sequence.
+    return;
+  }
+  buffered_reset_stream_at_ = frame;
+  MaybeCloseStreamWithBufferedReset();
+  if (!rst_received_) {
+    sequencer_.OnReliableReset(frame.reliable_offset);
+  }
+}
+
+void QuicStream::OnConnectionClosed(const QuicConnectionCloseFrame& frame,
                                     ConnectionCloseSource /*source*/) {
   if (read_side_closed_ && write_side_closed_) {
     return;
   }
-  if (error != QUIC_NO_ERROR) {
+  auto error_code = frame.quic_error_code;
+  if (error_code != QUIC_NO_ERROR) {
     stream_error_ =
         QuicResetStreamError::FromInternal(QUIC_STREAM_CONNECTION_ERROR);
-    connection_error_ = error;
+    connection_error_ = error_code;
   }
 
   CloseWriteSide();
@@ -1021,6 +1074,7 @@ void QuicStream::AddBytesConsumed(QuicByteCount bytes) {
   if (stream_contributes_to_connection_flow_control_) {
     connection_flow_controller_->AddBytesConsumed(bytes);
   }
+  MaybeCloseStreamWithBufferedReset();
 }
 
 bool QuicStream::MaybeConfigSendWindowOffset(QuicStreamOffset new_offset,
@@ -1383,6 +1437,14 @@ bool QuicStream::HasDeadlinePassed() const {
   // TTL expired.
   QUIC_DVLOG(1) << "stream " << id() << " deadline has passed";
   return true;
+}
+
+void QuicStream::MaybeCloseStreamWithBufferedReset() {
+  if (buffered_reset_stream_at_.has_value() && !sequencer_.IsClosed() &&
+      NumBytesConsumed() >= buffered_reset_stream_at_->reliable_offset) {
+    OnStreamReset(buffered_reset_stream_at_->ToRstStream());
+    buffered_reset_stream_at_ = std::nullopt;
+  }
 }
 
 void QuicStream::OnDeadlinePassed() { Reset(QUIC_STREAM_TTL_EXPIRED); }

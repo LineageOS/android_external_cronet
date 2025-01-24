@@ -16,7 +16,6 @@
 #include "base/task/common/checked_lock.h"
 #include "base/task/task_features.h"
 #include "base/task/thread_pool/pooled_task_runner_delegate.h"
-#include "base/template_util.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "base/time/time_override.h"
@@ -404,7 +403,6 @@ TimeTicks JobTaskSource::GetDelayedSortKey() const {
 // However, the class still needs to provide an override.
 bool JobTaskSource::HasReadyTasks(TimeTicks now) const {
   NOTREACHED();
-  return true;
 }
 
 std::optional<Task> JobTaskSource::Clear(TaskSource::Transaction* transaction) {

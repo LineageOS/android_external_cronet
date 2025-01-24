@@ -190,9 +190,6 @@ class MessageT<Meta, std::tuple<Ins...>, std::tuple<Outs...>>
     Message* reply = SyncMessage::GenerateReply(msg);
     if (!ok) {
       NOTREACHED() << "Error deserializing message " << msg->type();
-      reply->set_reply_error();
-      sender->Send(reply);
-      return false;
     }
 
     ReplyParam reply_params;
@@ -214,9 +211,6 @@ class MessageT<Meta, std::tuple<Ins...>, std::tuple<Outs...>>
     Message* reply = SyncMessage::GenerateReply(msg);
     if (!ok) {
       NOTREACHED() << "Error deserializing message " << msg->type();
-      reply->set_reply_error();
-      obj->Send(reply);
-      return false;
     }
 
     std::tuple<Message&> t = std::tie(*reply);
@@ -236,9 +230,6 @@ class MessageT<Meta, std::tuple<Ins...>, std::tuple<Outs...>>
     Message* reply = SyncMessage::GenerateReply(msg);
     if (!ok) {
       NOTREACHED() << "Error deserializing message " << msg->type();
-      reply->set_reply_error();
-      obj->Send(reply);
-      return false;
     }
 
     std::tuple<Message&> t = std::tie(*reply);

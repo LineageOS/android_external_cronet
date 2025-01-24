@@ -196,7 +196,7 @@ bool ssl_client_cipher_list_contains_cipher(
 static bool negotiate_version(SSL_HANDSHAKE *hs, uint8_t *out_alert,
                               const SSL_CLIENT_HELLO *client_hello) {
   SSL *const ssl = hs->ssl;
-  assert(!ssl->s3->have_version);
+  assert(ssl->s3->version == 0);
   CBS supported_versions, versions;
   if (ssl_client_hello_get_extension(client_hello, &supported_versions,
                                      TLSEXT_TYPE_supported_versions)) {
@@ -228,8 +228,7 @@ static bool negotiate_version(SSL_HANDSHAKE *hs, uint8_t *out_alert,
       } else if (client_hello->version <= DTLS1_VERSION) {
         versions_len = 2;
       }
-      CBS_init(&versions, kDTLSVersions + sizeof(kDTLSVersions) - versions_len,
-               versions_len);
+      versions = MakeConstSpan(kDTLSVersions).last(versions_len);
     } else {
       if (client_hello->version >= TLS1_2_VERSION) {
         versions_len = 6;
@@ -238,19 +237,17 @@ static bool negotiate_version(SSL_HANDSHAKE *hs, uint8_t *out_alert,
       } else if (client_hello->version >= TLS1_VERSION) {
         versions_len = 2;
       }
-      CBS_init(&versions, kTLSVersions + sizeof(kTLSVersions) - versions_len,
-               versions_len);
+      versions = MakeConstSpan(kTLSVersions).last(versions_len);
     }
   }
 
-  if (!ssl_negotiate_version(hs, out_alert, &ssl->version, &versions)) {
+  if (!ssl_negotiate_version(hs, out_alert, &ssl->s3->version, &versions)) {
     return false;
   }
 
-  // At this point, the connection's version is known and |ssl->version| is
+  // At this point, the connection's version is known and |ssl->s3->version| is
   // fixed. Begin enforcing the record-layer version.
-  ssl->s3->have_version = true;
-  ssl->s3->aead_write_ctx->SetVersionIfNullCipher(ssl->version);
+  ssl->s3->aead_write_ctx->SetVersionIfNullCipher(ssl->s3->version);
 
   // Handle FALLBACK_SCSV.
   if (ssl_client_cipher_list_contains_cipher(client_hello,
@@ -615,6 +612,9 @@ static bool extract_sni(SSL_HANDSHAKE *hs, uint8_t *out_alert,
   if (!ssl_client_hello_get_extension(client_hello, &sni,
                                       TLSEXT_TYPE_server_name)) {
     // No SNI extension to parse.
+    //
+    // Clear state in case we previously extracted SNI from ClientHelloOuter.
+    ssl->s3->hostname.reset();
     return true;
   }
 
@@ -651,8 +651,6 @@ static bool extract_sni(SSL_HANDSHAKE *hs, uint8_t *out_alert,
     return false;
   }
   ssl->s3->hostname.reset(raw);
-
-  hs->should_ack_sni = true;
   return true;
 }
 
@@ -688,7 +686,10 @@ static enum ssl_hs_wait_t do_read_client_hello(SSL_HANDSHAKE *hs) {
   }
 
   uint8_t alert = SSL_AD_DECODE_ERROR;
-  if (!decrypt_ech(hs, &alert, &client_hello)) {
+  // We check for rejection status in case we've rewound the state machine after
+  // determining `ClientHelloInner` is invalid.
+  if (ssl->s3->ech_status != ssl_ech_rejected &&
+      !decrypt_ech(hs, &alert, &client_hello)) {
     ssl_send_alert(ssl, SSL3_AL_FATAL, alert);
     return ssl_hs_error;
   }
@@ -723,6 +724,13 @@ static enum ssl_hs_wait_t do_read_client_hello_after_ech(SSL_HANDSHAKE *hs) {
     switch (ssl->ctx->select_certificate_cb(&client_hello)) {
       case ssl_select_cert_retry:
         return ssl_hs_certificate_selection_pending;
+
+      case ssl_select_cert_disable_ech:
+        hs->ech_client_hello_buf.Reset();
+        hs->ech_keys = nullptr;
+        hs->state = state12_read_client_hello;
+        ssl->s3->ech_status = ssl_ech_rejected;
+        return ssl_hs_ok;
 
       case ssl_select_cert_error:
         // Connection rejected.
@@ -1077,7 +1085,7 @@ static enum ssl_hs_wait_t do_send_server_hello(SSL_HANDSHAKE *hs) {
   ScopedCBB cbb;
   CBB body, session_id_bytes;
   if (!ssl->method->init_message(ssl, cbb.get(), &body, SSL3_MT_SERVER_HELLO) ||
-      !CBB_add_u16(&body, ssl->version) ||
+      !CBB_add_u16(&body, ssl->s3->version) ||
       !CBB_add_bytes(&body, ssl->s3->server_random, SSL3_RANDOM_SIZE) ||
       !CBB_add_u8_length_prefixed(&body, &session_id_bytes) ||
       !CBB_add_bytes(&session_id_bytes, session_id.data(), session_id.size()) ||
@@ -1652,7 +1660,8 @@ static enum ssl_hs_wait_t do_read_client_certificate_verify(SSL_HANDSHAKE *hs) {
       return ssl_hs_error;
     }
     uint8_t alert = SSL_AD_DECODE_ERROR;
-    if (!tls12_check_peer_sigalg(hs, &alert, signature_algorithm)) {
+    if (!tls12_check_peer_sigalg(hs, &alert, signature_algorithm,
+                                 hs->peer_pubkey.get())) {
       ssl_send_alert(ssl, SSL3_AL_FATAL, alert);
       return ssl_hs_error;
     }

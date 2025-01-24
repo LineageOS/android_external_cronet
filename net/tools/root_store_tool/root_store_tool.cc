@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <inttypes.h>
 
 #include <iostream>
@@ -26,7 +31,6 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
-#include "crypto/openssl_util.h"
 #include "crypto/sha2.h"
 #include "net/cert/root_store_proto_full/root_store.pb.h"
 #include "third_party/boringssl/src/include/openssl/bio.h"
@@ -42,7 +46,7 @@ namespace {
 // `std::nullopt` if not found.
 std::optional<std::map<std::string, std::string>> DecodeCerts(
     std::string_view in) {
-  // TODO(https://crbug.com/1216547): net/cert/pem.h has a much nicer API, but
+  // TODO(crbug.com/40770548): net/cert/pem.h has a much nicer API, but
   // it would require some build refactoring to avoid a circular dependency.
   // This is assuming that the chrome trust store code goes in
   // net/cert/internal, which it may not.
@@ -271,7 +275,7 @@ bool WriteEvCppFile(const RootStore& root_store,
     // struct EVMetadata {
     //  static const size_t kMaxOIDsPerCA = 2;
     //  SHA256HashValue fingerprint;
-    //  const base::StringPiece policy_oids[kMaxOIDsPerCA];
+    //  const std::string_view policy_oids[kMaxOIDsPerCA];
     // };
     string_to_write += "    {\n";
     string_to_write += "        {{";
@@ -333,8 +337,6 @@ int main(int argc, char** argv) {
       logging::LOG_TO_SYSTEM_DEBUG_LOG | logging::LOG_TO_STDERR;
   logging::InitLogging(settings);
 
-  crypto::EnsureOpenSSLInit();
-
   base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
   base::FilePath proto_path = command_line.GetSwitchValuePath("write-proto");
   base::FilePath root_store_cpp_path =
@@ -363,7 +365,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  // TODO(https://crbug.com/1216547): Figure out how to use the serialized
+  // TODO(crbug.com/40770548): Figure out how to use the serialized
   // proto to support component update.
   // components/resources/ssl/ssl_error_assistant/push_proto.py
   // does it through a GCS bucket (I think) so that might be an option.

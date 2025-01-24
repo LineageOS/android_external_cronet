@@ -21,6 +21,7 @@
 #include "net/dns/host_resolver.h"
 #include "net/dns/host_resolver_manager.h"
 #include "net/dns/host_resolver_manager_job.h"
+#include "net/dns/public/resolve_error_info.h"
 #include "net/dns/resolve_context.h"
 #include "net/log/net_log_with_source.h"
 #include "url/scheme_host_port.h"
@@ -51,6 +52,8 @@ class HostResolverManager::ServiceEndpointRequestImpl
   const std::vector<ServiceEndpoint>& GetEndpointResults() override;
   const std::set<std::string>& GetDnsAliasResults() override;
   bool EndpointsCryptoReady() override;
+  ResolveErrorInfo GetResolveErrorInfo() override;
+  void ChangeRequestPriority(RequestPriority priority) override;
 
   // These should only be called from HostResolver::Job.
   void AssignJob(base::SafeRef<Job> job);
@@ -62,8 +65,8 @@ class HostResolverManager::ServiceEndpointRequestImpl
 
   const ResolveHostParameters& parameters() const { return parameters_; }
 
-  // TODO(crbug.com/41493696): Support setting priority.
   RequestPriority priority() const { return priority_; }
+  void set_priority(RequestPriority priority) { priority_ = priority; }
 
   HostCache* host_cache() const {
     return resolve_context_ ? resolve_context_->host_cache() : nullptr;
@@ -72,9 +75,27 @@ class HostResolverManager::ServiceEndpointRequestImpl
   base::WeakPtr<ServiceEndpointRequestImpl> GetWeakPtr();
 
  private:
+  enum class State {
+    kNone,
+    kCheckIPv6Reachability,
+    kCheckIPv6ReachabilityComplete,
+    kStartJob,
+  };
+
+  int DoLoop(int rv);
+  int DoCheckIPv6Reachability();
+  int DoCheckIPv6ReachabilityComplete(int rv);
+  int DoStartJob();
+
+  void OnIOComplete(int rv);
+
   void SetFinalizedResultFromLegacyResults(const HostCache::Entry& results);
 
   void LogCancelRequest();
+
+  ClientSocketFactory* GetClientSocketFactory();
+
+  State next_state_ = State::kNone;
 
   const HostResolver::Host host_;
   const NetworkAnonymizationKey network_anonymization_key_;

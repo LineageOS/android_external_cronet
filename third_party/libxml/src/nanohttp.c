@@ -103,6 +103,8 @@
 #define XML_NANO_HTTP_READ	2
 #define XML_NANO_HTTP_NONE	4
 
+#define __xmlIOErr(domain, code, extra) ((void) 0)
+
 typedef struct xmlNanoHTTPCtxt {
     char *protocol;	/* the protocol name */
     char *hostname;	/* the host name */
@@ -1219,8 +1221,10 @@ xmlNanoHTTPRead(void *ctx, void *dest, int len) {
     }
     if (ctxt->inptr - ctxt->inrptr < len)
         len = ctxt->inptr - ctxt->inrptr;
-    memcpy(dest, ctxt->inrptr, len);
-    ctxt->inrptr += len;
+    if (len > 0) {
+        memcpy(dest, ctxt->inrptr, len);
+        ctxt->inrptr += len;
+    }
     return(len);
 }
 
@@ -1388,7 +1392,7 @@ retry:
     }
 
     if ((ctxt->protocol == NULL) || (strcmp(ctxt->protocol, "http"))) {
-	__xmlIOErr(XML_FROM_HTTP, XML_HTTP_URL_SYNTAX, "Not a valid HTTP URI");
+	__xmlIOErr(XML_FROM_IO, XML_IO_UNSUPPORTED_PROTOCOL, ctxt->protocol);
         xmlNanoHTTPFreeCtxt(ctxt);
 	if (redirURL != NULL) xmlFree(redirURL);
         return(NULL);

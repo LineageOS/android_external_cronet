@@ -40,7 +40,6 @@ constexpr const char* ToCString(AsyncStatus async_status) {
   }
 
   NOTREACHED();
-  return "";
 }
 
 template <typename T>

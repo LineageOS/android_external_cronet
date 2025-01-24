@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/debug/stack_trace.h"
 
 #include <android/log.h>
@@ -76,8 +81,9 @@ bool EnableInProcessStackDumping() {
   return (sigaction(SIGPIPE, &action, NULL) == 0);
 }
 
-size_t CollectStackTrace(const void** trace, size_t count) {
-  StackCrawlState state(reinterpret_cast<uintptr_t*>(trace), count);
+size_t CollectStackTrace(span<const void*> trace) {
+  StackCrawlState state(reinterpret_cast<uintptr_t*>(trace.data()),
+                        trace.size());
   _Unwind_Backtrace(&TraceStackFrame, &state);
   return state.frame_count;
 }

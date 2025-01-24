@@ -23,6 +23,7 @@
 #include <utility>
 #include <vector>
 
+#include <gmock/gmock.h>
 #include <gtest/gtest.h>
 
 #include <openssl/aead.h>
@@ -60,6 +61,9 @@ OPENSSL_MSVC_PRAGMA(warning(pop))
 #endif
 
 
+using testing::ElementsAre;
+using testing::Key;
+
 BSSL_NAMESPACE_BEGIN
 
 namespace {
@@ -88,6 +92,7 @@ static const VersionParam kAllVersions[] = {
     {TLS1_3_VERSION, VersionParam::is_tls, "TLS1_3"},
     {DTLS1_VERSION, VersionParam::is_dtls, "DTLS1"},
     {DTLS1_2_VERSION, VersionParam::is_dtls, "DTLS1_2"},
+    {DTLS1_3_EXPERIMENTAL_VERSION, VersionParam::is_dtls, "DTLS1_3"},
 };
 
 struct ExpectedCipher {
@@ -484,6 +489,10 @@ static const CurveTest kCurveTests[] = {
     "P-256:X25519Kyber768Draft00",
     { SSL_GROUP_SECP256R1, SSL_GROUP_X25519_KYBER768_DRAFT00 },
   },
+  {
+    "P-256:X25519MLKEM768",
+    { SSL_GROUP_SECP256R1, SSL_GROUP_X25519_MLKEM768 },
+  },
 
   {
     "P-256:P-384:P-521:X25519",
@@ -624,6 +633,127 @@ TEST(GrowableArrayTest, GrowableArrayContainingGrowableArrays) {
     }
     count++;
   }
+}
+
+TEST(ReconstructSeqnumTest, Increment) {
+  // Test simple cases from the beginning of an epoch with both 8- and 16-bit
+  // wire sequence numbers.
+  EXPECT_EQ(reconstruct_seqnum(0, 0xff, 0), 0u);
+  EXPECT_EQ(reconstruct_seqnum(1, 0xff, 0), 1u);
+  EXPECT_EQ(reconstruct_seqnum(2, 0xff, 0), 2u);
+  EXPECT_EQ(reconstruct_seqnum(0, 0xffff, 0), 0u);
+  EXPECT_EQ(reconstruct_seqnum(1, 0xffff, 0), 1u);
+  EXPECT_EQ(reconstruct_seqnum(2, 0xffff, 0), 2u);
+
+  // When the max seen sequence number is 0, the numerically closest
+  // reconstructed sequence number could be negative. Sequence numbers are
+  // non-negative, so reconstruct_seqnum should instead return the closest
+  // non-negative number instead of returning a number congruent to that
+  // closest negative number mod 2^64.
+  EXPECT_EQ(reconstruct_seqnum(0xff, 0xff, 0), 0xffu);
+  EXPECT_EQ(reconstruct_seqnum(0xfe, 0xff, 0), 0xfeu);
+  EXPECT_EQ(reconstruct_seqnum(0xffff, 0xffff, 0), 0xffffu);
+  EXPECT_EQ(reconstruct_seqnum(0xfffe, 0xffff, 0), 0xfffeu);
+
+  // When the wire sequence number is less than the corresponding low bytes of
+  // the max seen sequence number, check that the next larger sequence number
+  // is reconstructed as its numerically closer than the corresponding sequence
+  // number that would keep the high order bits the same.
+  EXPECT_EQ(reconstruct_seqnum(0, 0xff, 0xff), 0x100u);
+  EXPECT_EQ(reconstruct_seqnum(1, 0xff, 0xff), 0x101u);
+  EXPECT_EQ(reconstruct_seqnum(2, 0xff, 0xff), 0x102u);
+  EXPECT_EQ(reconstruct_seqnum(0, 0xffff, 0xffff), 0x10000u);
+  EXPECT_EQ(reconstruct_seqnum(1, 0xffff, 0xffff), 0x10001u);
+  EXPECT_EQ(reconstruct_seqnum(2, 0xffff, 0xffff), 0x10002u);
+
+  // Test cases when the wire sequence number is close to the largest magnitude
+  // that can be represented in 8 or 16 bits.
+  EXPECT_EQ(reconstruct_seqnum(0xff, 0xff, 0x2f0), 0x2ffu);
+  EXPECT_EQ(reconstruct_seqnum(0xfe, 0xff, 0x2f0), 0x2feu);
+  EXPECT_EQ(reconstruct_seqnum(0xffff, 0xffff, 0x2f000), 0x2ffffu);
+  EXPECT_EQ(reconstruct_seqnum(0xfffe, 0xffff, 0x2f000), 0x2fffeu);
+
+  // Test that reconstruct_seqnum can return
+  // std::numeric_limits<uint64_t>::max().
+  EXPECT_EQ(reconstruct_seqnum(0xff, 0xff, 0xffffffffffffffff),
+            std::numeric_limits<uint64_t>::max());
+  EXPECT_EQ(reconstruct_seqnum(0xff, 0xff, 0xfffffffffffffffe),
+            std::numeric_limits<uint64_t>::max());
+  EXPECT_EQ(reconstruct_seqnum(0xffff, 0xffff, 0xffffffffffffffff),
+            std::numeric_limits<uint64_t>::max());
+  EXPECT_EQ(reconstruct_seqnum(0xffff, 0xffff, 0xfffffffffffffffe),
+            std::numeric_limits<uint64_t>::max());
+}
+
+TEST(ReconstructSeqnumTest, Decrement) {
+  // Test that the sequence number 0 can be reconstructed when the max
+  // seen sequence number is greater than 0.
+  EXPECT_EQ(reconstruct_seqnum(0, 0xff, 0x10), 0u);
+  EXPECT_EQ(reconstruct_seqnum(0, 0xffff, 0x1000), 0u);
+
+  // Test cases where the reconstructed sequence number is less than the max
+  // seen sequence number.
+  EXPECT_EQ(reconstruct_seqnum(0, 0xff, 0x210), 0x200u);
+  EXPECT_EQ(reconstruct_seqnum(2, 0xff, 0x210), 0x202u);
+  EXPECT_EQ(reconstruct_seqnum(0, 0xffff, 0x43210), 0x40000u);
+  EXPECT_EQ(reconstruct_seqnum(2, 0xffff, 0x43210), 0x40002u);
+
+  // Test when the wire sequence number is greater than the low bits of the
+  // max seen sequence number.
+  EXPECT_EQ(reconstruct_seqnum(0xff, 0xff, 0x200), 0x1ffu);
+  EXPECT_EQ(reconstruct_seqnum(0xfe, 0xff, 0x200), 0x1feu);
+  EXPECT_EQ(reconstruct_seqnum(0xffff, 0xffff, 0x20000), 0x1ffffu);
+  EXPECT_EQ(reconstruct_seqnum(0xfffe, 0xffff, 0x20000), 0x1fffeu);
+
+  // Test when the max seen sequence number is close to the uint64_t max value.
+  // In some cases, the closest numerical value in the integers will overflow
+  // a uint64_t. Instead of returning the closest value in Z_{2^64},
+  // reconstruct_seqnum should return the closest integer less than 2^64, even
+  // if there is a closer value greater than 2^64.
+  EXPECT_EQ(reconstruct_seqnum(0, 0xff, 0xffffffffffffffff),
+            0xffffffffffffff00u);
+  EXPECT_EQ(reconstruct_seqnum(0, 0xff, 0xfffffffffffffffe),
+            0xffffffffffffff00u);
+  EXPECT_EQ(reconstruct_seqnum(1, 0xff, 0xffffffffffffffff),
+            0xffffffffffffff01u);
+  EXPECT_EQ(reconstruct_seqnum(1, 0xff, 0xfffffffffffffffe),
+            0xffffffffffffff01u);
+  EXPECT_EQ(reconstruct_seqnum(0xfe, 0xff, 0xffffffffffffffff),
+            0xfffffffffffffffeu);
+  EXPECT_EQ(reconstruct_seqnum(0xfd, 0xff, 0xfffffffffffffffe),
+            0xfffffffffffffffdu);
+  EXPECT_EQ(reconstruct_seqnum(0, 0xffff, 0xffffffffffffffff),
+            0xffffffffffff0000u);
+  EXPECT_EQ(reconstruct_seqnum(0, 0xffff, 0xfffffffffffffffe),
+            0xffffffffffff0000u);
+  EXPECT_EQ(reconstruct_seqnum(1, 0xffff, 0xffffffffffffffff),
+            0xffffffffffff0001u);
+  EXPECT_EQ(reconstruct_seqnum(1, 0xffff, 0xfffffffffffffffe),
+            0xffffffffffff0001u);
+  EXPECT_EQ(reconstruct_seqnum(0xfffe, 0xffff, 0xffffffffffffffff),
+            0xfffffffffffffffeu);
+  EXPECT_EQ(reconstruct_seqnum(0xfffd, 0xffff, 0xfffffffffffffffe),
+            0xfffffffffffffffdu);
+}
+
+TEST(ReconstructSeqnumTest, Halfway) {
+  // Test wire sequence numbers that are close to halfway away from the max
+  // seen sequence number. The algorithm specifies that the output should be
+  // numerically closest to 1 plus the max seen (0x100 in the following test
+  // cases). With a max seen of 0x100 and a wire sequence of 0x81, the two
+  // closest values to 1+0x100 are 0x81 and 0x181, which are both the same
+  // amount away. The algorithm doesn't specify what to do on this edge case;
+  // our implementation chooses the larger value (0x181), on the assumption that
+  // it's more likely to be a new or larger sequence number rather than a replay
+  // or an out-of-order packet.
+  EXPECT_EQ(reconstruct_seqnum(0x80, 0xff, 0x100), 0x180u);
+  EXPECT_EQ(reconstruct_seqnum(0x81, 0xff, 0x100), 0x181u);
+  EXPECT_EQ(reconstruct_seqnum(0x82, 0xff, 0x100), 0x82u);
+
+  // Repeat these tests with 16-bit wire sequence numbers.
+  EXPECT_EQ(reconstruct_seqnum(0x8000, 0xffff, 0x10000), 0x18000u);
+  EXPECT_EQ(reconstruct_seqnum(0x8001, 0xffff, 0x10000), 0x18001u);
+  EXPECT_EQ(reconstruct_seqnum(0x8002, 0xffff, 0x10000), 0x8002u);
 }
 
 TEST(SSLTest, CipherRules) {
@@ -910,6 +1040,35 @@ static bool DecodeBase64(std::vector<uint8_t> *out, const char *in) {
   return true;
 }
 
+static bool DecodeLowerHex(std::vector<uint8_t> *out,
+                           bssl::Span<const char> in) {
+  if (in.size() % 2 != 0) {
+    return false;
+  }
+  out->resize(in.size() / 2);
+  for (size_t i = 0; i < out->size(); i++) {
+    char hi = in[2 * i], lo = in[2 * i + 1];
+    uint8_t b = 0;
+    if ('0' <= hi && hi <= '9') {
+      b |= hi - '0';
+    } else if ('a' <= hi && hi <= 'f') {
+      b |= hi - 'a' + 10;
+    } else {
+      return false;
+    }
+    b <<= 4;
+    if ('0' <= lo && lo <= '9') {
+      b |= lo - '0';
+    } else if ('a' <= lo && lo <= 'f') {
+      b |= lo - 'a' + 10;
+    } else {
+      return false;
+    }
+    (*out)[i] = b;
+  }
+  return true;
+}
+
 TEST(SSLTest, SessionEncoding) {
   for (const char *input_b64 : {
            kOpenSSLSession,
@@ -992,11 +1151,11 @@ static void ExpectDefaultVersion(uint16_t min_version, uint16_t max_version,
 }
 
 TEST(SSLTest, DefaultVersion) {
-  ExpectDefaultVersion(TLS1_VERSION, TLS1_3_VERSION, &TLS_method);
+  ExpectDefaultVersion(TLS1_2_VERSION, TLS1_3_VERSION, &TLS_method);
   ExpectDefaultVersion(TLS1_VERSION, TLS1_VERSION, &TLSv1_method);
   ExpectDefaultVersion(TLS1_1_VERSION, TLS1_1_VERSION, &TLSv1_1_method);
   ExpectDefaultVersion(TLS1_2_VERSION, TLS1_2_VERSION, &TLSv1_2_method);
-  ExpectDefaultVersion(DTLS1_VERSION, DTLS1_2_VERSION, &DTLS_method);
+  ExpectDefaultVersion(DTLS1_2_VERSION, DTLS1_2_VERSION, &DTLS_method);
   ExpectDefaultVersion(DTLS1_VERSION, DTLS1_VERSION, &DTLSv1_method);
   ExpectDefaultVersion(DTLS1_2_VERSION, DTLS1_2_VERSION, &DTLSv1_2_method);
 }
@@ -2784,11 +2943,19 @@ TEST_P(SSLVersionTest, SequenceNumber) {
   uint64_t server_write_seq = SSL_get_write_sequence(server_.get());
 
   if (is_dtls()) {
-    // Both client and server must be at epoch 1.
-    EXPECT_EQ(EpochFromSequence(client_read_seq), 1);
-    EXPECT_EQ(EpochFromSequence(client_write_seq), 1);
-    EXPECT_EQ(EpochFromSequence(server_read_seq), 1);
-    EXPECT_EQ(EpochFromSequence(server_write_seq), 1);
+    if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+      // Client and server write epochs should be at 3 (application data).
+      EXPECT_EQ(EpochFromSequence(client_write_seq), 3);
+      EXPECT_EQ(EpochFromSequence(server_write_seq), 3);
+      // TODO(crbug.com/42290608): The read sequences aren't checked because the
+      // SSL_get_read_sequence API needs to be reworked for DTLS 1.3.
+    } else {
+      // Both client and server must be at epoch 1.
+      EXPECT_EQ(EpochFromSequence(client_read_seq), 1);
+      EXPECT_EQ(EpochFromSequence(client_write_seq), 1);
+      EXPECT_EQ(EpochFromSequence(server_read_seq), 1);
+      EXPECT_EQ(EpochFromSequence(server_write_seq), 1);
+    }
 
     // The next record to be written should exceed the largest received.
     EXPECT_GT(client_write_seq, server_read_seq);
@@ -2803,6 +2970,14 @@ TEST_P(SSLVersionTest, SequenceNumber) {
   uint8_t byte = 0;
   EXPECT_EQ(SSL_write(client_.get(), &byte, 1), 1);
   EXPECT_EQ(SSL_read(server_.get(), &byte, 1), 1);
+
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/42290608): Write an appropriate test for incrementing both
+    // sequence number and epoch in the following test. The server read seq was
+    // in epoch 2, but after the write it's in epoch 3, so adding 1 doesn't work
+    // any more.
+    return;
+  }
 
   // The client write and server read sequence numbers should have
   // incremented.
@@ -3346,6 +3521,7 @@ TEST(SSLTest, ClientHello) {
     // Our default cipher list varies by CPU capabilities, so manually place the
     // ChaCha20 ciphers in front.
     const char *cipher_list = "CHACHA20:ALL";
+    ASSERT_TRUE(SSL_CTX_set_min_proto_version(ctx.get(), TLS1_VERSION));
     ASSERT_TRUE(SSL_CTX_set_max_proto_version(ctx.get(), t.max_version));
     ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(ctx.get(), cipher_list));
 
@@ -3457,6 +3633,11 @@ static int SwitchSessionIDContextSNI(SSL *ssl, int *out_alert, void *arg) {
 }
 
 TEST_P(SSLVersionTest, SessionIDContext) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   static const uint8_t kContext1[] = {1};
   static const uint8_t kContext2[] = {2};
 
@@ -3593,6 +3774,11 @@ static bool GetServerTicketTime(long *out, const SSL_SESSION *session) {
 }
 
 TEST_P(SSLVersionTest, SessionTimeout) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   for (bool server_test : {false, true}) {
     SCOPED_TRACE(server_test);
 
@@ -3729,6 +3915,11 @@ TEST_P(SSLVersionTest, DefaultTicketKeyInitialization) {
 }
 
 TEST_P(SSLVersionTest, DefaultTicketKeyRotation) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   static const time_t kStartTime = 1001;
   g_current_time.tv_sec = kStartTime;
 
@@ -3902,7 +4093,7 @@ TEST(SSLTest, SetVersion) {
   EXPECT_TRUE(SSL_CTX_set_max_proto_version(ctx.get(), 0));
   EXPECT_EQ(TLS1_3_VERSION, SSL_CTX_get_max_proto_version(ctx.get()));
   EXPECT_TRUE(SSL_CTX_set_min_proto_version(ctx.get(), 0));
-  EXPECT_EQ(TLS1_VERSION, SSL_CTX_get_min_proto_version(ctx.get()));
+  EXPECT_EQ(TLS1_2_VERSION, SSL_CTX_get_min_proto_version(ctx.get()));
 
   // SSL 3.0 is not available.
   EXPECT_FALSE(SSL_CTX_set_min_proto_version(ctx.get(), SSL3_VERSION));
@@ -3935,7 +4126,7 @@ TEST(SSLTest, SetVersion) {
   EXPECT_TRUE(SSL_CTX_set_max_proto_version(ctx.get(), 0));
   EXPECT_EQ(DTLS1_2_VERSION, SSL_CTX_get_max_proto_version(ctx.get()));
   EXPECT_TRUE(SSL_CTX_set_min_proto_version(ctx.get(), 0));
-  EXPECT_EQ(DTLS1_VERSION, SSL_CTX_get_min_proto_version(ctx.get()));
+  EXPECT_EQ(DTLS1_2_VERSION, SSL_CTX_get_min_proto_version(ctx.get()));
 }
 
 static const char *GetVersionName(uint16_t version) {
@@ -3952,14 +4143,23 @@ static const char *GetVersionName(uint16_t version) {
       return "DTLSv1";
     case DTLS1_2_VERSION:
       return "DTLSv1.2";
+    case DTLS1_3_EXPERIMENTAL_VERSION:
+      return "DTLSv1.3";
     default:
       return "???";
   }
 }
 
 TEST_P(SSLVersionTest, Version) {
-  ASSERT_TRUE(Connect());
+  ASSERT_TRUE(CreateClientAndServer(&client_, &server_, client_ctx_.get(),
+                                    server_ctx_.get()));
+  // Before the handshake, |SSL_version| reports some placeholder value.
+  const uint16_t placeholder = is_dtls() ? DTLS1_2_VERSION : TLS1_2_VERSION;
+  EXPECT_EQ(SSL_version(client_.get()), placeholder);
+  EXPECT_EQ(SSL_version(server_.get()), placeholder);
 
+  // After the handshake, |SSL_version| reports the version.
+  ASSERT_TRUE(CompleteHandshakes(client_.get(), server_.get()));
   EXPECT_EQ(SSL_version(client_.get()), version());
   EXPECT_EQ(SSL_version(server_.get()), version());
 
@@ -3975,6 +4175,12 @@ TEST_P(SSLVersionTest, Version) {
       SSL_SESSION_get_version(SSL_get_session(server_.get()));
   EXPECT_EQ(strcmp(version_name, client_name), 0);
   EXPECT_EQ(strcmp(version_name, server_name), 0);
+
+  // |SSL_clear| should reset the |SSL|s to the original state.
+  ASSERT_TRUE(SSL_clear(client_.get()));
+  ASSERT_TRUE(SSL_clear(server_.get()));
+  EXPECT_EQ(SSL_version(client_.get()), placeholder);
+  EXPECT_EQ(SSL_version(server_.get()), placeholder);
 }
 
 // Tests that that |SSL_get_pending_cipher| is available during the ALPN
@@ -4011,7 +4217,8 @@ TEST_P(SSLVersionTest, ALPNCipherAvailable) {
 TEST_P(SSLVersionTest, SSLClearSessionResumption) {
   // Skip this for TLS 1.3. TLS 1.3's ticket mechanism is incompatible with this
   // API pattern.
-  if (version() == TLS1_3_VERSION) {
+  if (version() == TLS1_3_VERSION ||
+      version() == DTLS1_3_EXPERIMENTAL_VERSION) {
     return;
   }
 
@@ -4328,6 +4535,13 @@ TEST_P(SSLVersionTest, SSLWriteRetry) {
 }
 
 TEST_P(SSLVersionTest, RecordCallback) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // The DTLS 1.3 record header is vastly different than the TLS or DTLS < 1.3
+    // header format. Instead of checking that the record header is formatted as
+    // expected here, the runner implementation in dtls.go is strict about what
+    // it accepts.
+    return;
+  }
   for (bool test_server : {true, false}) {
     SCOPED_TRACE(test_server);
     ASSERT_NO_FATAL_FAILURE(ResetContexts());
@@ -4356,11 +4570,12 @@ TEST_P(SSLVersionTest, RecordCallback) {
       uint16_t record_version, length;
       ASSERT_TRUE(CBS_get_u8(&cbs, &type));
       ASSERT_TRUE(CBS_get_u16(&cbs, &record_version));
-      EXPECT_EQ(record_version & 0xff00, version() & 0xff00);
+      EXPECT_EQ(record_version >> 8, is_dtls() ? 0xfe : 0x03);
       if (is_dtls()) {
         uint16_t epoch;
         ASSERT_TRUE(CBS_get_u16(&cbs, &epoch));
-        EXPECT_TRUE(epoch == 0 || epoch == 1) << "Invalid epoch: " << epoch;
+        uint16_t max_epoch = 1;
+        EXPECT_LE(epoch, max_epoch) << "Invalid epoch: " << epoch;
         ASSERT_TRUE(CBS_skip(&cbs, 6));
       }
       ASSERT_TRUE(CBS_get_u16(&cbs, &length));
@@ -4408,6 +4623,11 @@ TEST_P(SSLVersionTest, GetServerName) {
   bssl::UniquePtr<SSL_SESSION> session =
       CreateClientSession(client_ctx_.get(), server_ctx_.get(), config);
 
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   // If the client resumes a session with a different name, |SSL_get_servername|
   // must return the new name.
   ASSERT_TRUE(session);
@@ -4420,6 +4640,11 @@ TEST_P(SSLVersionTest, GetServerName) {
 
 // Test that session cache mode bits are honored in the client session callback.
 TEST_P(SSLVersionTest, ClientSessionCacheMode) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   SSL_CTX_set_session_cache_mode(client_ctx_.get(), SSL_SESS_CACHE_OFF);
   EXPECT_FALSE(CreateClientSession(client_ctx_.get(), server_ctx_.get()));
 
@@ -5301,17 +5526,52 @@ TEST(SSLTest, SelectNextProto) {
                                   (const uint8_t *)"\3ccc\2bb\1a", 9));
   EXPECT_EQ(Bytes("a"), Bytes(result, result_len));
 
-  // If there is no overlap, return the first local protocol.
+  // If there is no overlap, opportunistically select the first local protocol.
+  // ALPN callers should ignore this, but NPN callers may use this per
+  // draft-agl-tls-nextprotoneg-03, section 6.
   EXPECT_EQ(OPENSSL_NPN_NO_OVERLAP,
             SSL_select_next_proto(&result, &result_len,
                                   (const uint8_t *)"\1a\2bb\3ccc", 9,
                                   (const uint8_t *)"\1x\2yy\3zzz", 9));
   EXPECT_EQ(Bytes("x"), Bytes(result, result_len));
 
+  // The peer preference order may be empty in NPN. This should be treated as no
+  // overlap and continue to select an opportunistic protocol.
   EXPECT_EQ(OPENSSL_NPN_NO_OVERLAP,
             SSL_select_next_proto(&result, &result_len, nullptr, 0,
                                   (const uint8_t *)"\1x\2yy\3zzz", 9));
   EXPECT_EQ(Bytes("x"), Bytes(result, result_len));
+
+  // Although calling this function with no local protocols is a caller error,
+  // it should cleanly return an empty protocol.
+  EXPECT_EQ(
+      OPENSSL_NPN_NO_OVERLAP,
+      SSL_select_next_proto(&result, &result_len,
+                            (const uint8_t *)"\1a\2bb\3ccc", 9, nullptr, 0));
+  EXPECT_EQ(Bytes(""), Bytes(result, result_len));
+
+  // Syntax errors are similarly caller errors.
+  EXPECT_EQ(
+      OPENSSL_NPN_NO_OVERLAP,
+      SSL_select_next_proto(&result, &result_len, (const uint8_t *)"\4aaa", 4,
+                            (const uint8_t *)"\1a\2bb\3ccc", 9));
+  EXPECT_EQ(Bytes(""), Bytes(result, result_len));
+  EXPECT_EQ(OPENSSL_NPN_NO_OVERLAP,
+            SSL_select_next_proto(&result, &result_len,
+                                  (const uint8_t *)"\1a\2bb\3ccc", 9,
+                                  (const uint8_t *)"\4aaa", 4));
+  EXPECT_EQ(Bytes(""), Bytes(result, result_len));
+
+  // Protocols in protocol lists may not be empty.
+  EXPECT_EQ(OPENSSL_NPN_NO_OVERLAP,
+            SSL_select_next_proto(&result, &result_len,
+                                  (const uint8_t *)"\0\2bb\3ccc", 8,
+                                  (const uint8_t *)"\1a\2bb\3ccc", 9));
+  EXPECT_EQ(OPENSSL_NPN_NO_OVERLAP,
+            SSL_select_next_proto(&result, &result_len,
+                                  (const uint8_t *)"\1a\2bb\3ccc", 9,
+                                  (const uint8_t *)"\0\2bb\3ccc", 8));
+  EXPECT_EQ(Bytes(""), Bytes(result, result_len));
 }
 
 // The client should gracefully handle no suitable ciphers being enabled.
@@ -5323,6 +5583,7 @@ TEST(SSLTest, NoCiphersAvailable) {
   // version configuration.
   ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(
       ctx.get(), "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"));
+  ASSERT_TRUE(SSL_CTX_set_min_proto_version(ctx.get(), TLS1_1_VERSION));
   ASSERT_TRUE(SSL_CTX_set_max_proto_version(ctx.get(), TLS1_1_VERSION));
 
   bssl::UniquePtr<SSL> ssl(SSL_new(ctx.get()));
@@ -5343,6 +5604,11 @@ TEST(SSLTest, NoCiphersAvailable) {
 }
 
 TEST_P(SSLVersionTest, SessionVersion) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   SSL_CTX_set_session_cache_mode(client_ctx_.get(), SSL_SESS_CACHE_BOTH);
   SSL_CTX_set_session_cache_mode(server_ctx_.get(), SSL_SESS_CACHE_BOTH);
 
@@ -5995,6 +6261,11 @@ TEST_P(SSLVersionTest, VerifyBeforeCertRequest) {
 
 // Test that ticket-based sessions on the client get fake session IDs.
 TEST_P(SSLVersionTest, FakeIDsForTickets) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   SSL_CTX_set_session_cache_mode(client_ctx_.get(), SSL_SESS_CACHE_BOTH);
   SSL_CTX_set_session_cache_mode(server_ctx_.get(), SSL_SESS_CACHE_BOTH);
 
@@ -6016,7 +6287,8 @@ TEST_P(SSLVersionTest, SessionCacheThreads) {
   SSL_CTX_set_session_cache_mode(client_ctx_.get(), SSL_SESS_CACHE_BOTH);
   SSL_CTX_set_session_cache_mode(server_ctx_.get(), SSL_SESS_CACHE_BOTH);
 
-  if (version() == TLS1_3_VERSION) {
+  if (version() == TLS1_3_VERSION ||
+      version() == DTLS1_3_EXPERIMENTAL_VERSION) {
     // Our TLS 1.3 implementation does not support stateful resumption.
     ASSERT_FALSE(CreateClientSession(client_ctx_.get(), server_ctx_.get()));
     return;
@@ -6125,6 +6397,11 @@ TEST_P(SSLVersionTest, SessionCacheThreads) {
 }
 
 TEST_P(SSLVersionTest, SessionTicketThreads) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   for (bool renew_ticket : {false, true}) {
     SCOPED_TRACE(renew_ticket);
     ASSERT_NO_FATAL_FAILURE(ResetContexts());
@@ -6194,7 +6471,8 @@ TEST(SSLTest, GetCertificateThreads) {
 // performing stateful resumption will share an underlying SSL_SESSION object,
 // potentially across threads.
 TEST_P(SSLVersionTest, SessionPropertiesThreads) {
-  if (version() == TLS1_3_VERSION) {
+  if (version() == TLS1_3_VERSION ||
+      version() == DTLS1_3_EXPERIMENTAL_VERSION) {
     // Our TLS 1.3 implementation does not support stateful resumption.
     ASSERT_FALSE(CreateClientSession(client_ctx_.get(), server_ctx_.get()));
     return;
@@ -7789,6 +8067,11 @@ TEST_P(SSLVersionTest, DoubleSSLError) {
 }
 
 TEST_P(SSLVersionTest, SameKeyResume) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   uint8_t key[48];
   RAND_bytes(key, sizeof(key));
 
@@ -7826,6 +8109,11 @@ TEST_P(SSLVersionTest, SameKeyResume) {
 }
 
 TEST_P(SSLVersionTest, DifferentKeyNoResume) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   uint8_t key1[48], key2[48];
   RAND_bytes(key1, sizeof(key1));
   RAND_bytes(key2, sizeof(key2));
@@ -7864,6 +8152,11 @@ TEST_P(SSLVersionTest, DifferentKeyNoResume) {
 }
 
 TEST_P(SSLVersionTest, UnrelatedServerNoResume) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   bssl::UniquePtr<SSL_CTX> server_ctx2 = CreateContext();
   ASSERT_TRUE(server_ctx2);
   ASSERT_TRUE(UseCertAndKey(server_ctx2.get()));
@@ -7901,6 +8194,11 @@ Span<const uint8_t> SessionIDOf(const SSL* ssl) {
 }
 
 TEST_P(SSLVersionTest, TicketSessionIDsMatch) {
+  if (version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    // TODO(crbug.com/boringssl/715): Enable the rest of this test for DTLS 1.3
+    // once it supports NewSessionTickets.
+    return;
+  }
   // This checks that the session IDs at client and server match after a ticket
   // resumption. It's unclear whether this should be true, but Envoy depends
   // on it in their tests so this will give an early signal if we break it.
@@ -9330,6 +9628,186 @@ TEST_P(SSLVersionTest, NoCertOrKey) {
       }
     }
   }
+}
+
+TEST_P(SSLVersionTest, KeyLog) {
+  using KeyLog = std::map<std::string, std::vector<uint8_t>>;
+  KeyLog client_log, server_log;
+
+  SSL_CTX_set_app_data(client_ctx_.get(), &client_log);
+  SSL_CTX_set_app_data(server_ctx_.get(), &server_log);
+
+  auto keylog_callback = [](const SSL *ssl, const char *line) {
+    SSL_CTX *ctx = SSL_get_SSL_CTX(ssl);
+    KeyLog *log = static_cast<KeyLog *>(SSL_CTX_get_app_data(ctx));
+    ASSERT_TRUE(log);
+
+    const char *space1 = strchr(line, ' ');
+    ASSERT_TRUE(space1);
+    std::string name(line, space1 - line);
+    space1++;
+    const char *space2 = strchr(space1, ' ');
+    ASSERT_TRUE(space2);
+    bssl::Span<const char> client_random_hex(space1, space2 - space1);
+    space2++;
+    bssl::Span<const char> secret_hex(space2, strlen(space2));
+
+    std::vector<uint8_t> client_random, secret;
+    ASSERT_TRUE(DecodeLowerHex(&client_random, client_random_hex));
+    ASSERT_TRUE(DecodeLowerHex(&secret, secret_hex));
+
+    // The client_random field identifies the connection. Check it matches
+    // the connection.
+    uint8_t expected_random[SSL3_RANDOM_SIZE];
+    ASSERT_EQ(
+        sizeof(expected_random),
+        SSL_get_client_random(ssl, expected_random, sizeof(expected_random)));
+    ASSERT_EQ(Bytes(expected_random), Bytes(client_random));
+
+    ASSERT_EQ(log->count(name), 0u) << "duplicate name " << name;
+    log->emplace(std::move(name), std::move(secret));
+  };
+  SSL_CTX_set_keylog_callback(client_ctx_.get(), keylog_callback);
+  SSL_CTX_set_keylog_callback(server_ctx_.get(), keylog_callback);
+
+  // Connect and capture the various secrets.
+  ASSERT_TRUE(Connect());
+
+  // Check that we logged the secrets we expected to log.
+  if (version() == TLS1_3_VERSION ||
+      version() == DTLS1_3_EXPERIMENTAL_VERSION) {
+    EXPECT_THAT(client_log, ElementsAre(Key("CLIENT_HANDSHAKE_TRAFFIC_SECRET"),
+                                        Key("CLIENT_TRAFFIC_SECRET_0"),
+                                        Key("EXPORTER_SECRET"),
+                                        Key("SERVER_HANDSHAKE_TRAFFIC_SECRET"),
+                                        Key("SERVER_TRAFFIC_SECRET_0")));
+
+    // Ideally we'd check the other values, but those are harder to check
+    // without actually decrypting the records.
+    Span<const uint8_t> read_secret, write_secret;
+    ASSERT_TRUE(bssl::SSL_get_traffic_secrets(client_.get(), &read_secret,
+                                              &write_secret));
+    EXPECT_EQ(Bytes(read_secret), Bytes(client_log["SERVER_TRAFFIC_SECRET_0"]));
+    EXPECT_EQ(Bytes(write_secret),
+              Bytes(client_log["CLIENT_TRAFFIC_SECRET_0"]));
+  } else {
+    EXPECT_THAT(client_log, ElementsAre(Key("CLIENT_RANDOM")));
+
+    size_t len =
+        SSL_SESSION_get_master_key(SSL_get0_session(client_.get()), nullptr, 0);
+    std::vector<uint8_t> expected(len);
+    ASSERT_EQ(SSL_SESSION_get_master_key(SSL_get0_session(client_.get()),
+                                         expected.data(), expected.size()),
+              expected.size());
+    EXPECT_EQ(Bytes(expected), Bytes(client_log["CLIENT_RANDOM"]));
+  }
+
+  // The server should have logged the same secrets as the client.
+  EXPECT_EQ(client_log, server_log);
+}
+
+TEST_P(SSLVersionTest, GetIVs) {
+  std::vector<const char *> ciphers;
+  if (version() == TLS1_2_VERSION || version() == DTLS1_2_VERSION) {
+    // Try both CBC and AEAD ciphers.
+    ciphers = {"TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA",
+               "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256"};
+  } else {
+    // The defaults are fine to test. In 1.0 and 1.1, all remaining supported
+    // ciphers are CBC. In 1.3, all ciphers are AEADs.
+    ciphers = {"ALL"};
+  }
+
+  for (const char *cipher : ciphers) {
+    SCOPED_TRACE(cipher);
+
+    ASSERT_NO_FATAL_FAILURE(ResetContexts());
+    ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(client_ctx_.get(), cipher));
+    ASSERT_TRUE(SSL_CTX_set_strict_cipher_list(server_ctx_.get(), cipher));
+    ASSERT_TRUE(Connect());
+
+    const uint8_t *client_read_iv, *client_write_iv, *server_read_iv,
+        *server_write_iv;
+    size_t client_iv_len, server_iv_len;
+    bool client_ivs_ok = SSL_get_ivs(client_.get(), &client_read_iv,
+                                     &client_write_iv, &client_iv_len);
+    bool server_ivs_ok = SSL_get_ivs(server_.get(), &server_read_iv,
+                                     &server_write_iv, &server_iv_len);
+
+    // Only TLS 1.0 should support |SSL_get_ivs|. Other cases should cleanly
+    // fail this operation.
+    if (version() == TLS1_VERSION) {
+      ASSERT_TRUE(client_ivs_ok);
+      ASSERT_TRUE(server_ivs_ok);
+      EXPECT_EQ(Bytes(client_write_iv, client_iv_len),
+                Bytes(server_read_iv, server_iv_len));
+      EXPECT_EQ(Bytes(client_read_iv, client_iv_len),
+                Bytes(server_write_iv, server_iv_len));
+    } else {
+      EXPECT_FALSE(client_ivs_ok);
+      EXPECT_FALSE(server_ivs_ok);
+    }
+  }
+}
+
+TEST(SSLTest, EarlyDataVersionMismatch) {
+  bssl::UniquePtr<SSL_CTX> client_ctx(SSL_CTX_new(TLS_method()));
+  ASSERT_TRUE(client_ctx);
+  bssl::UniquePtr<SSL_CTX> server_ctx =
+      CreateContextWithTestCertificate(TLS_method());
+  ASSERT_TRUE(server_ctx);
+  SSL_CTX_set_early_data_enabled(client_ctx.get(), 1);
+  SSL_CTX_set_early_data_enabled(server_ctx.get(), 1);
+  SSL_CTX_set_session_cache_mode(client_ctx.get(), SSL_SESS_CACHE_BOTH);
+  SSL_CTX_set_session_cache_mode(server_ctx.get(), SSL_SESS_CACHE_BOTH);
+
+  bssl::UniquePtr<SSL_SESSION> session =
+      CreateClientSession(client_ctx.get(), server_ctx.get());
+  ASSERT_TRUE(session);
+  EXPECT_TRUE(SSL_SESSION_early_data_capable(session.get()));
+
+  // Turn off TLS 1.3 at the server.
+  SSL_CTX_set_max_proto_version(server_ctx.get(), TLS1_2_VERSION);
+  bssl::UniquePtr<SSL> client, server;
+  ASSERT_TRUE(CreateClientAndServer(&client, &server, client_ctx.get(),
+                                    server_ctx.get()));
+  SSL_set_session(client.get(), session.get());
+
+  // Send the ClientHello. The client should immediately treat the handshake as
+  // successful and offer early data.
+  EXPECT_EQ(1, SSL_do_handshake(client.get()));
+  EXPECT_TRUE(SSL_in_early_data(client.get()));
+
+  // In the early data state, we report the predicted version, so that callers
+  // see self-consistent connection properties.
+  EXPECT_EQ(SSL_version(client.get()), TLS1_3_VERSION);
+  EXPECT_NE(SSL_get0_peer_certificates(client.get()), nullptr);
+
+  // Read the ClientHello and send the ServerHello. The server will (implicitly
+  // by negotiating TLS 1.2) reject early data.
+  EXPECT_EQ(-1, SSL_do_handshake(server.get()));
+  EXPECT_EQ(SSL_ERROR_WANT_READ, SSL_get_error(server.get(), -1));
+
+  // Read the ServerHello. The client will now see the ServerHello and report a
+  // version mismatch. Unlike other 0-RTT rejections, this is fatal, because a
+  // TLS 1.2 server cannot recover from 0-RTT rejection.
+  EXPECT_EQ(-1, SSL_do_handshake(client.get()));
+  EXPECT_EQ(SSL_ERROR_SSL, SSL_get_error(client.get(), -1));
+  EXPECT_TRUE(ErrorEquals(ERR_get_error(), ERR_LIB_SSL,
+                          SSL_R_WRONG_VERSION_ON_EARLY_DATA));
+
+  // |SSL_version| should continue reporting self-consistent state until the
+  // caller calls |SSL_reset_early_data_reject|.
+  //
+  // TLS 1.3 to TLS 1.2 is not the most interesting version-related 0-RTT
+  // rejection because it is fatal to the connection anyway. Once there are two
+  // post-TLS-1.3 versions, or if we implement DTLS 1.3 0-RTT (where a DTLS 1.2
+  // server will skip over early data naturally), those will make for better
+  // tests. In particular, early_data accept is signaled in EncryptedExtensions,
+  // but the new version is learned at ServerHello. Though an implementation
+  // could already infer based on the version that early data will be rejected.
+  EXPECT_EQ(SSL_version(client.get()), TLS1_3_VERSION);
+  EXPECT_NE(SSL_get0_peer_certificates(client.get()), nullptr);
 }
 
 }  // namespace

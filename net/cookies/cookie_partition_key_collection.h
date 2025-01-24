@@ -42,6 +42,12 @@ class NET_EXPORT CookiePartitionKeyCollection {
     return CookiePartitionKeyCollection(true);
   }
 
+  // Builds a Collection that contains the same-site and cross-site
+  // partitionKeys associated with the `top_level_site`.
+  // `top_level_site` must be non-empty and valid.
+  static CookiePartitionKeyCollection MatchesSite(
+      const net::SchemefulSite& top_level_site);
+
   static CookiePartitionKeyCollection FromOptional(
       const std::optional<CookiePartitionKey>& opt_key) {
     return opt_key ? CookiePartitionKeyCollection(opt_key.value())
@@ -54,7 +60,7 @@ class NET_EXPORT CookiePartitionKeyCollection {
   // Returns an empty key collection, so no partitioned cookies will be returned
   // at callsites this is used.
   //
-  // TODO(crbug.com/1225444): Remove this method and update callsites to use
+  // TODO(crbug.com/40188414): Remove this method and update callsites to use
   // appropriate constructor.
   static CookiePartitionKeyCollection Todo() {
     return CookiePartitionKeyCollection();

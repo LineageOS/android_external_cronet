@@ -3,6 +3,6 @@
 name: "libxml"
 third_party {
   license_type: NOTICE
-  version: "c444c96e20253e5996f4209a123b96a6c273dac6"
+  version: "df40f64edfce1ee0a916b17ae1f6309cd212b319"
   homepage: "http://xmlsoft.org"
 }

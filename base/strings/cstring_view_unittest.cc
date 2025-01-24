@@ -11,6 +11,7 @@
 
 #include "base/containers/span.h"
 #include "base/debug/alias.h"
+#include "base/ranges/algorithm.h"
 #include "base/strings/strcat.h"
 #include "base/test/gtest_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -1053,6 +1054,28 @@ TEST(CStringViewTest, Example_CtorLiteral) {
   CHECK(s == "hello world");
   auto s2 = base::cstring_view("this works too");
   CHECK(s2 == "this works too");
+}
+
+TEST(CStringViewTest, CompatibleWithRanges) {
+  EXPECT_EQ(2, ranges::count(cstring_view("hello"), 'l'));
+}
+
+TEST(CStringViewTest, ConstructFromStringLiteralWithEmbeddedNul) {
+  const std::string s = "abc\0de";
+  constexpr std::string_view sv = "abc\0de";
+  constexpr base::cstring_view cv = "abc\0de";
+  EXPECT_EQ(s, std::string_view("abc"));
+  EXPECT_EQ(sv, std::string_view("abc"));
+  EXPECT_EQ(cv, std::string_view("abc"));
+
+  constexpr base::u16cstring_view cv16 = u"abc\0de";
+  EXPECT_EQ(cv16, std::u16string_view(u"abc"));
+  constexpr base::u32cstring_view cv32 = U"abc\0de";
+  EXPECT_EQ(cv32, std::u32string_view(U"abc"));
+#if BUILDFLAG(IS_WIN)
+  constexpr base::wcstring_view cvw = L"abc\0de";
+  EXPECT_EQ(cvw, std::wstring_view(L"abc"));
+#endif
 }
 
 }  // namespace

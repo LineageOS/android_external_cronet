@@ -12,12 +12,12 @@
 #ifndef PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_LIBC_SYMBOLS_H_
 #define PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_LIBC_SYMBOLS_H_
 
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
-#if BUILDFLAG(USE_ALLOCATOR_SHIM)
-#include "build/build_config.h"
+#if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
+#include "partition_alloc/build_config.h"
 
-#if BUILDFLAG(IS_APPLE)
+#if PA_BUILDFLAG(IS_APPLE)
 #include <malloc/malloc.h>
 #else
 #include <malloc.h>
@@ -92,6 +92,6 @@ SHIM_ALWAYS_EXPORT size_t malloc_usable_size(void* address) __THROW {
 
 }  // extern "C"
 
-#endif  // BUILDFLAG(USE_ALLOCATOR_SHIM)
+#endif  // PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 
 #endif  // PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_LIBC_SYMBOLS_H_

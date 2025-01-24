@@ -3,18 +3,11 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
-
 import json
 import os
-import sys
 from typing import Any, Dict, Set, Tuple
 import unittest
-
-if sys.version_info[0] == 2:
-  import mock
-else:
-  import unittest.mock as mock
+from unittest import mock
 
 from pyfakefs import fake_filesystem_unittest
 
@@ -23,10 +16,12 @@ from unexpected_passes_common import constants
 from unexpected_passes_common import data_types
 from unexpected_passes_common import unittest_utils
 
+# Protected access is allowed for unittests.
+# pylint: disable=protected-access
 
 class FakeFilesystemTestCaseWithFileCreation(fake_filesystem_unittest.TestCase):
   def CreateFile(self, *args, **kwargs):
-    # TODO(crbug.com/1156806): Remove this and just use fs.create_file() when
+    # TODO(crbug.com/40160566): Remove this and just use fs.create_file() when
     # Catapult is updated to a newer version of pyfakefs that is compatible with
     # Chromium's version.
     if hasattr(self.fs, 'create_file'):

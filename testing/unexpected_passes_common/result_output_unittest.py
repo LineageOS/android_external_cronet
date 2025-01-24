@@ -3,11 +3,7 @@
 # Use of this source code is governed by a BSD-style license that can be
 # found in the LICENSE file.
 
-from __future__ import print_function
-
-import collections
 import itertools
-import sys
 import tempfile
 from typing import Iterable, Set
 import unittest
@@ -23,6 +19,8 @@ from unexpected_passes_common import unittest_utils as uu
 
 from blinkpy.w3c import buganizer
 
+# Protected access is allowed for unittests.
+# pylint: disable=protected-access
 
 def CreateTextOutputPermutations(text: str, inputs: Iterable[str]) -> Set[str]:
   """Creates permutations of |text| filled with the contents of |inputs|.
@@ -79,7 +77,7 @@ class ConvertUnmatchedResultsToStringDictUnittest(unittest.TestCase):
                               'build_id')
         ],
     }
-    # TODO(crbug.com/1198237): Hard-code the tag string once only Python 3 is
+    # TODO(crbug.com/40177248): Hard-code the tag string once only Python 3 is
     # supported.
     expected_output = {
         'foo': {
@@ -144,7 +142,7 @@ class ConvertTestExpectationMapToStringDictUnittest(unittest.TestCase):
             }),
         }),
     })
-    # TODO(crbug.com/1198237): Remove the Python 2 version once we are fully
+    # TODO(crbug.com/40177248): Remove the Python 2 version once we are fully
     # switched to Python 3.
     if six.PY2:
       expected_output = {
@@ -320,7 +318,7 @@ class HtmlToFileUnittest(fake_filesystem_unittest.TestCase):
     result_output._RecursiveHtmlToFile(expectation_map, self._file_handle)
     self._file_handle.close()
     # pylint: disable=line-too-long
-    # TODO(crbug.com/1198237): Remove the Python 2 version once we've fully
+    # TODO(crbug.com/40177248): Remove the Python 2 version once we've fully
     # switched to Python 3.
     if six.PY2:
       expected_output = """\
@@ -462,7 +460,7 @@ class PrintToFileUnittest(fake_filesystem_unittest.TestCase):
     result_output.RecursivePrintToFile(expectation_map, 0, self._file_handle)
     self._file_handle.close()
 
-    # TODO(crbug.com/1198237): Keep the Python 3 version once we are fully
+    # TODO(crbug.com/40177248): Keep the Python 3 version once we are fully
     # switched.
     if six.PY2:
       expected_output = """\
@@ -860,6 +858,45 @@ class PostCommentsToOrphanedBugsUnittest(unittest.TestCase):
             break
         else:
           self.fail('Did not find expected log message')
+
+  def testGetIssueCommentsError(self):
+    """Tests behavior when GetIssueComments encounters an error."""
+    with mock.patch.object(self._buganizer_client,
+                           'GetIssueComments',
+                           side_effect=({
+                               'error': ':('
+                           }, [{
+                               'comment': 'Not matching'
+                           }])):
+      with self.assertLogs(level='ERROR') as log_manager:
+        result_output._PostCommentsToOrphanedBugs(
+            ['crbug.com/0', 'crbug.com/1'])
+        for message in log_manager.output:
+          if 'Failed to get comments from crbug.com/0: :(' in message:
+            break
+        else:
+          self.fail('Did not find expected log message')
+    self._buganizer_client.NewComment.assert_called_once_with(
+        'crbug.com/1', result_output.BUGANIZER_COMMENT)
+
+  def testGetIssueCommentsUnspecifiedError(self):
+    """Tests behavior when GetIssueComments encounters an unspecified error."""
+    with mock.patch.object(self._buganizer_client,
+                           'GetIssueComments',
+                           side_effect=({}, [{
+                               'comment': 'Not matching'
+                           }])):
+      with self.assertLogs(level='ERROR') as log_manager:
+        result_output._PostCommentsToOrphanedBugs(
+            ['crbug.com/0', 'crbug.com/1'])
+        for message in log_manager.output:
+          if ('Failed to get comments from crbug.com/0: error not provided'
+              in message):
+            break
+        else:
+          self.fail('Did not find expected log message')
+    self._buganizer_client.NewComment.assert_called_once_with(
+        'crbug.com/1', result_output.BUGANIZER_COMMENT)
 
 
 def _Dedent(s: str) -> str:

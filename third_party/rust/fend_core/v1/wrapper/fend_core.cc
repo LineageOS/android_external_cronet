@@ -7,18 +7,19 @@
 #include <optional>
 #include <string>
 
+#include "base/strings/string_view_rust.h"
 #include "third_party/rust/fend_core/v1/wrapper/fend_core_ffi_glue.rs.h"
-#include "base/strings/string_piece_rust.h"
 
 namespace fend_core {
 
-std::optional<std::string> evaluate(std::string_view query) {
+std::optional<std::string> evaluate(std::string_view query,
+                                    unsigned int timeout_in_ms) {
   rust::String rust_result;
-  if (evaluate_using_rust(base::StringPieceToRustSlice(query), rust_result)) {
+  if (evaluate_using_rust(base::StringViewToRustSlice(query), rust_result,
+                          timeout_in_ms)) {
     return std::string(rust_result);
-  } else {
-    return std::nullopt;
   }
+  return std::nullopt;
 }
 
-}  // namespace fend_core
+} // namespace fend_core

@@ -42,6 +42,11 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/cookies/cookie_monster.h"
 
 #include <functional>
@@ -732,9 +737,17 @@ void CookieMonster::GetCookieListWithOptions(
 
     if (!cookie_partition_key_collection.IsEmpty()) {
       if (cookie_partition_key_collection.ContainsAllKeys()) {
-        for (const auto& it : partitioned_cookies_) {
+        for (PartitionedCookieMap::iterator partition_it =
+                 partitioned_cookies_.begin();
+             partition_it != partitioned_cookies_.end();) {
+          // InternalDeletePartitionedCookie may invalidate |partition_it| if
+          // that cookie partition only has one cookie and it expires.
+          auto cur_partition_it = partition_it;
+          ++partition_it;
+
           std::vector<CanonicalCookie*> partitioned_cookie_ptrs =
-              FindPartitionedCookiesForRegistryControlledHost(it.first, url);
+              FindPartitionedCookiesForRegistryControlledHost(
+                  cur_partition_it->first, url);
           cookie_ptrs.insert(cookie_ptrs.end(), partitioned_cookie_ptrs.begin(),
                              partitioned_cookie_ptrs.end());
         }
@@ -939,9 +952,18 @@ void CookieMonster::OnLoaded(
     std::vector<std::unique_ptr<CanonicalCookie>> cookies) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
   StoreLoadedCookies(std::move(cookies));
+  base::TimeTicks now = base::TimeTicks::Now();
   base::UmaHistogramCustomTimes("Cookie.TimeBlockedOnLoad",
-                                base::TimeTicks::Now() - beginning_time,
-                                base::Milliseconds(1), base::Minutes(1), 50);
+                                now - beginning_time, base::Milliseconds(1),
+                                base::Minutes(1), 50);
+  base::TimeDelta blocked_due_to_global_op = base::Milliseconds(0);
+  if (time_start_block_load_all_.has_value()) {
+    blocked_due_to_global_op = now - *time_start_block_load_all_;
+  }
+
+  base::UmaHistogramCustomTimes("Cookie.TimeOpsBlockedDueToGlobalOp",
+                                blocked_due_to_global_op, base::Milliseconds(1),
+                                base::Minutes(1), 50);
 
   // Invoke the task queue of cookie request.
   InvokeQueue();
@@ -1200,9 +1222,9 @@ void CookieMonster::TrimDuplicateCookiesForKey(
     // duplicates.
     dupes.erase(dupes.begin());
 
-    // TODO(crbug.com/1225444) Include cookie partition key in this log
+    // TODO(crbug.com/40188414) Include cookie partition key in this log
     // statement as well if needed.
-    // TODO(crbug.com/1170548): Include source scheme and source port.
+    // TODO(crbug.com/40165805): Include source scheme and source port.
     LOG(ERROR) << base::StringPrintf(
         "Found %d duplicate cookies for key='%s', "
         "with {name='%s', domain='%s', path='%s'}",
@@ -1251,9 +1273,9 @@ void CookieMonster::TrimDuplicateCookiesForKey(
     // duplicates.
     dupes.erase(dupes.begin());
 
-    // TODO(crbug.com/1225444) Include cookie partition key in this log
+    // TODO(crbug.com/40188414) Include cookie partition key in this log
     // statement as well if needed.
-    // TODO(crbug.com/1170548): Include source scheme and source port.
+    // TODO(crbug.com/40165805): Include source scheme and source port.
     LOG(ERROR) << base::StringPrintf(
         "Found %d duplicate domain cookies for key='%s', "
         "with {name='%s', domain='%s', path='%s'}",
@@ -1687,8 +1709,8 @@ void CookieMonster::SetCanonicalCookie(
     SetCookiesCallback callback,
     std::optional<CookieAccessResult> cookie_access_result) {
   DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
-// TODO(crbug.com/1482799): Fix macos specific issue with CHECK_IS_TEST crashing
-// network service process.
+// TODO(crbug.com/40281870): Fix macos specific issue with CHECK_IS_TEST
+// crashing network service process.
 #if !BUILDFLAG(IS_MAC)
   // Only tests should be adding new cookies with source type kUnknown. If this
   // line causes a fatal track down the callsite and have it correctly set the
@@ -1782,8 +1804,9 @@ void CookieMonster::SetCanonicalCookie(
       // http:// URLs, but not cookies that are cleared by http:// URLs, to
       // understand if the former behavior can be deprecated for Secure
       // cookies.
-      // TODO(crbug.com/993120): Consider removing this histogram. The decision
-      // it was added to evaluate has been implemented and standardized.
+      // TODO(crbug.com/40640080): Consider removing this histogram. The
+      // decision it was added to evaluate has been implemented and
+      // standardized.
       CookieSource cookie_source_sample =
           (source_url.SchemeIsCryptographic()
                ? (cc->SecureAttribute()
@@ -2218,7 +2241,7 @@ size_t CookieMonster::GarbageCollectPartitionedCookies(
   if (NumBytesInCookieMapForKey(*cookie_partition_it->second.get(), key) >
           kPerPartitionDomainMaxCookieBytes ||
       cookie_partition_it->second->count(key) > kPerPartitionDomainMaxCookies) {
-    // TODO(crbug.com/1225444): Log garbage collection for partitioned cookies.
+    // TODO(crbug.com/40188414): Log garbage collection for partitioned cookies.
 
     CookieItVector non_expired_cookie_its;
     num_deleted += GarbageCollectExpiredPartitionedCookies(
@@ -2229,7 +2252,7 @@ size_t CookieMonster::GarbageCollectPartitionedCookies(
 
     if (bytes_used > kPerPartitionDomainMaxCookieBytes ||
         non_expired_cookie_its.size() > kPerPartitionDomainMaxCookies) {
-      // TODO(crbug.com/1225444): Log deep garbage collection for partitioned
+      // TODO(crbug.com/40188414): Log deep garbage collection for partitioned
       // cookies.
       std::sort(non_expired_cookie_its.begin(), non_expired_cookie_its.end(),
                 LRACookieSorter);
@@ -2247,7 +2270,7 @@ size_t CookieMonster::GarbageCollectPartitionedCookies(
     }
   }
 
-  // TODO(crbug.com/1225444): Enforce global limit on partitioned cookies.
+  // TODO(crbug.com/40188414): Enforce global limit on partitioned cookies.
 
   return num_deleted;
 }
@@ -2631,8 +2654,8 @@ bool CookieMonster::DoRecordPeriodicStats() {
                                max_n_cookies);
   base::UmaHistogramCounts100000("Cookie.CookieJarSize", n_bytes >> 10);
   base::UmaHistogramCounts100000(
-      "Cookie.AvgCookieJarSizePerKey",
-      (n_bytes >> 10) / std::max(num_keys_, static_cast<size_t>(1)));
+      "Cookie.AvgCookieJarSizePerKey2",
+      n_bytes / std::max(num_keys_, static_cast<size_t>(1)));
   base::UmaHistogramCounts100000("Cookie.MaxCookieJarSizePerKey",
                                  max_n_bytes >> 10);
 
@@ -2692,6 +2715,9 @@ void CookieMonster::DoCookieCallback(base::OnceClosure callback) {
   seen_global_task_ = true;
 
   if (!finished_fetching_all_cookies_ && store_.get()) {
+    if (tasks_pending_.empty()) {
+      time_start_block_load_all_ = base::TimeTicks::Now();
+    }
     tasks_pending_.push_back(std::move(callback));
     return;
   }
@@ -2760,9 +2786,7 @@ CookieMonster::IsCookieSentToSamePortThatSetIt(
 
   const std::string& destination_scheme = destination.scheme();
   bool destination_port_is_default =
-      url::DefaultPortForScheme(destination_scheme.c_str(),
-                                destination_scheme.length()) ==
-      destination_port;
+      url::DefaultPortForScheme(destination_scheme) == destination_port;
 
   // Since the source port has to be specified if we got to this point, that
   // means this is a newer cookie that therefore has its scheme set as well.
@@ -2774,8 +2798,7 @@ CookieMonster::IsCookieSentToSamePortThatSetIt(
                                // https/http, so it's ok that we use these.
 
   bool source_port_is_default =
-      url::DefaultPortForScheme(source_scheme_string.c_str(),
-                                source_scheme_string.length()) == source_port;
+      url::DefaultPortForScheme(source_scheme_string) == source_port;
 
   if (destination_port_is_default && source_port_is_default)
     return CookieSentToSamePort::kNoButDefault;

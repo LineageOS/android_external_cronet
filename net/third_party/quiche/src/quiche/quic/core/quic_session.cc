@@ -4,9 +4,16 @@
 
 #include "quiche/quic/core/quic_session.h"
 
+#include <algorithm>
 #include <cstdint>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <ostream>
+#include <sstream>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/memory/memory.h"
 #include "absl/strings/str_cat.h"
@@ -22,6 +29,7 @@
 #include "quiche/quic/core/quic_utils.h"
 #include "quiche/quic/core/quic_versions.h"
 #include "quiche/quic/core/quic_write_blocked_list.h"
+#include "quiche/quic/core/web_transport_write_blocked_list.h"
 #include "quiche/quic/platform/api/quic_bug_tracker.h"
 #include "quiche/quic/platform/api/quic_flag_utils.h"
 #include "quiche/quic/platform/api/quic_flags.h"
@@ -76,6 +84,18 @@ class StreamCountResetAlarmDelegate : public QuicAlarm::Delegate {
   QuicSession* session_;
 };
 
+std::unique_ptr<QuicWriteBlockedListInterface> CreateWriteBlockedList(
+    QuicPriorityType priority_type) {
+  switch (priority_type) {
+    case QuicPriorityType::kHttp:
+      return std::make_unique<QuicWriteBlockedList>();
+    case QuicPriorityType::kWebTransport:
+      return std::make_unique<WebTransportWriteBlockedList>();
+  }
+  QUICHE_NOTREACHED();
+  return nullptr;
+}
+
 }  // namespace
 
 #define ENDPOINT \
@@ -92,11 +112,12 @@ QuicSession::QuicSession(
     QuicConnection* connection, Visitor* owner, const QuicConfig& config,
     const ParsedQuicVersionVector& supported_versions,
     QuicStreamCount num_expected_unidirectional_static_streams,
-    std::unique_ptr<QuicDatagramQueue::Observer> datagram_observer)
+    std::unique_ptr<QuicDatagramQueue::Observer> datagram_observer,
+    QuicPriorityType priority_type)
     : connection_(connection),
       perspective_(connection->perspective()),
       visitor_(owner),
-      write_blocked_streams_(std::make_unique<QuicWriteBlockedList>()),
+      write_blocked_streams_(CreateWriteBlockedList(priority_type)),
       config_(config),
       stream_id_manager_(perspective(), connection->transport_version(),
                          kDefaultMaxStreamsPerConnection,
@@ -132,7 +153,8 @@ QuicSession::QuicSession(
       liveness_testing_in_progress_(false),
       stream_count_reset_alarm_(
           absl::WrapUnique<QuicAlarm>(connection->alarm_factory()->CreateAlarm(
-              new StreamCountResetAlarmDelegate(this)))) {
+              new StreamCountResetAlarmDelegate(this)))),
+      priority_type_(priority_type) {
   closed_streams_clean_up_alarm_ =
       absl::WrapUnique<QuicAlarm>(connection_->alarm_factory()->CreateAlarm(
           new ClosedStreamsCleanUpDelegate(this)));
@@ -349,7 +371,22 @@ void QuicSession::OnStopSendingFrame(const QuicStopSendingFrame& frame) {
     return;
   }
 
-  QuicStream* stream = GetOrCreateStream(stream_id);
+  QuicStream* stream = nullptr;
+  if (enable_stop_sending_for_zombie_streams_) {
+    stream = GetStream(stream_id);
+    if (stream != nullptr) {
+      if (stream->IsZombie()) {
+        QUIC_RELOADABLE_FLAG_COUNT_N(
+            quic_deliver_stop_sending_to_zombie_streams, 1, 3);
+      } else {
+        QUIC_RELOADABLE_FLAG_COUNT_N(
+            quic_deliver_stop_sending_to_zombie_streams, 2, 3);
+      }
+      stream->OnStopSending(frame.error());
+      return;
+    }
+  }
+  stream = GetOrCreateStream(stream_id);
   if (!stream) {
     // Errors are handled by GetOrCreateStream.
     return;
@@ -493,11 +530,11 @@ void QuicSession::OnConnectionClosed(const QuicConnectionCloseFrame& frame,
     source_ = source;
   }
 
-  GetMutableCryptoStream()->OnConnectionClosed(frame.quic_error_code, source);
+  GetMutableCryptoStream()->OnConnectionClosed(frame, source);
 
   PerformActionOnActiveStreams([this, frame, source](QuicStream* stream) {
     QuicStreamId id = stream->id();
-    stream->OnConnectionClosed(frame.quic_error_code, source);
+    stream->OnConnectionClosed(frame, source);
     auto it = stream_map_.find(id);
     if (it != stream_map_.end()) {
       QUIC_BUG_IF(quic_bug_12435_2, !it->second->IsZombie())
@@ -1759,6 +1796,12 @@ void QuicSession::OnTlsHandshakeComplete() {
       << ENDPOINT << "Handshake completes without parameter negotiation.";
   connection()->mutable_stats().handshake_completion_time =
       connection()->clock()->ApproximateNow();
+  if (connection()->ShouldFixTimeouts(config_)) {
+    QUIC_RELOADABLE_FLAG_COUNT_N(quic_fix_timeouts, 2, 2);
+    // Handshake complete, set handshake timeout to Infinite.
+    connection()->SetNetworkTimeouts(QuicTime::Delta::Infinite(),
+                                     config_.IdleNetworkTimeout());
+  }
   if (connection()->version().UsesTls() &&
       perspective_ == Perspective::IS_SERVER) {
     // Server sends HANDSHAKE_DONE to signal confirmation of the handshake
@@ -2486,13 +2529,13 @@ HandshakeState QuicSession::GetHandshakeState() const {
 }
 
 QuicByteCount QuicSession::GetFlowControlSendWindowSize(QuicStreamId id) {
-  QuicStream* stream = GetActiveStream(id);
-  if (stream == nullptr) {
+  auto it = stream_map_.find(id);
+  if (it == stream_map_.end()) {
     // No flow control for invalid or inactive stream ids. Returning uint64max
     // allows QuicPacketCreator to write as much data as possible.
     return std::numeric_limits<QuicByteCount>::max();
   }
-  return stream->CalculateSendWindowSize();
+  return it->second->CalculateSendWindowSize();
 }
 
 WriteStreamDataResult QuicSession::WriteStreamData(QuicStreamId id,

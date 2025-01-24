@@ -16,6 +16,7 @@
 #include "base/containers/circular_deque.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/time/time.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/idempotency.h"
@@ -26,8 +27,9 @@
 #include "net/http/http_response_info.h"
 #include "net/http/http_stream.h"
 #include "net/log/net_log_with_source.h"
+#include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "net/third_party/quiche/src/quiche/quic/core/http/quic_spdy_stream.h"
-#include "net/third_party/quiche/src/quiche/spdy/core/http2_header_block.h"
+#include "net/third_party/quiche/src/quiche/quic/core/quic_server_id.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 
 namespace quic {
@@ -57,7 +59,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
     // asynchronously when the headers arrive.
     // TODO(rch): Invoke |callback| when there is a stream or connection error
     // instead of calling OnClose() or OnError().
-    int ReadInitialHeaders(spdy::Http2HeaderBlock* header_block,
+    int ReadInitialHeaders(quiche::HttpHeaderBlock* header_block,
                            CompletionOnceCallback callback);
 
     // Reads at most |buffer_len| bytes of body into |buffer| and returns the
@@ -75,7 +77,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
     // the headers arrive.
     // TODO(rch): Invoke |callback| when there is a stream or connection error
     // instead of calling OnClose() or OnError().
-    int ReadTrailingHeaders(spdy::Http2HeaderBlock* header_block,
+    int ReadTrailingHeaders(quiche::HttpHeaderBlock* header_block,
                             CompletionOnceCallback callback);
 
     // Writes |header_block| to the peer. Closes the write side if |fin| is
@@ -84,7 +86,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
     // an error writing the headers, or the number of bytes written on
     // success. Will not return ERR_IO_PENDING.
     int WriteHeaders(
-        spdy::Http2HeaderBlock header_block,
+        quiche::HttpHeaderBlock header_block,
         bool fin,
         quiche::QuicheReferenceCountedPointer<quic::QuicAckListenerInterface>
             ack_notifier_delegate);
@@ -105,7 +107,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
 
     // Writes |packet| to server by constructing a UDP payload from
     // packet and sending the datagram on the stream.
-    int WriteConnectUdpPayload(absl::string_view packet);
+    int WriteConnectUdpPayload(std::string_view packet);
 
     // Reads at most |buf_len| bytes into |buf|. Returns the number of bytes
     // read.
@@ -203,11 +205,11 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
     // Callback to be invoked when ReadInitialHeaders completes asynchronously.
     CompletionOnceCallback read_headers_callback_;
     // Provided by the owner of this handle when ReadInitialHeaders is called.
-    raw_ptr<spdy::Http2HeaderBlock> read_headers_buffer_ = nullptr;
+    raw_ptr<quiche::HttpHeaderBlock> read_headers_buffer_ = nullptr;
 
     // Callback to be invoked when ReadBody completes asynchronously.
     CompletionOnceCallback read_body_callback_;
-    raw_ptr<IOBuffer, DanglingUntriaged> read_body_buffer_;
+    scoped_refptr<IOBuffer> read_body_buffer_;
     int read_body_buffer_len_ = 0;
 
     // Callback to be invoked when WriteStreamData or WritevStreamData completes
@@ -243,12 +245,14 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
   QuicChromiumClientStream(
       quic::QuicStreamId id,
       quic::QuicSpdyClientSessionBase* session,
+      quic::QuicServerId server_id,
       quic::StreamType type,
       const NetLogWithSource& net_log,
       const NetworkTrafficAnnotationTag& traffic_annotation);
   QuicChromiumClientStream(
       quic::PendingStream* pending,
       quic::QuicSpdyClientSessionBase* session,
+      quic::QuicServerId server_id,
       const NetLogWithSource& net_log,
       const NetworkTrafficAnnotationTag& traffic_annotation);
 
@@ -270,7 +274,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
   void OnClose() override;
   void OnCanWrite() override;
   size_t WriteHeaders(
-      spdy::Http2HeaderBlock header_block,
+      quiche::HttpHeaderBlock header_block,
       bool fin,
       quiche::QuicheReferenceCountedPointer<quic::QuicAckListenerInterface>
           ack_listener) override;
@@ -323,11 +327,11 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
   // True if this stream is the first data stream created on this session.
   bool IsFirstStream();
 
-  int DeliverEarlyHints(spdy::Http2HeaderBlock* header_block);
+  int DeliverEarlyHints(quiche::HttpHeaderBlock* header_block);
 
-  int DeliverInitialHeaders(spdy::Http2HeaderBlock* header_block);
+  int DeliverInitialHeaders(quiche::HttpHeaderBlock* header_block);
 
-  bool DeliverTrailingHeaders(spdy::Http2HeaderBlock* header_block,
+  bool DeliverTrailingHeaders(quiche::HttpHeaderBlock* header_block,
                               int* frame_len);
 
   static constexpr char kHttp3DatagramDroppedHistogram[] =
@@ -352,6 +356,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
   bool initial_headers_sent_ = false;
 
   raw_ptr<quic::QuicSpdyClientSessionBase> session_;
+  const quic::QuicServerId server_id_;
   quic::QuicTransportVersion quic_version_;
 
   // Set to false if this stream should not be migrated to a cellular network
@@ -364,7 +369,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
   // the handle.
   bool headers_delivered_ = false;
   // Stores the initial header until they are delivered to the handle.
-  spdy::Http2HeaderBlock initial_headers_;
+  quiche::HttpHeaderBlock initial_headers_;
   // Length of the HEADERS frame containing initial headers.
   size_t initial_headers_frame_len_ = 0;
 
@@ -372,14 +377,14 @@ class NET_EXPORT_PRIVATE QuicChromiumClientStream
   size_t trailing_headers_frame_len_ = 0;
 
   struct EarlyHints {
-    EarlyHints(spdy::Http2HeaderBlock headers, size_t frame_len)
+    EarlyHints(quiche::HttpHeaderBlock headers, size_t frame_len)
         : headers(std::move(headers)), frame_len(frame_len) {}
     EarlyHints(EarlyHints&& other) = default;
     EarlyHints& operator=(EarlyHints&& other) = default;
     EarlyHints(const EarlyHints& other) = delete;
     EarlyHints& operator=(const EarlyHints& other) = delete;
 
-    spdy::Http2HeaderBlock headers;
+    quiche::HttpHeaderBlock headers;
     size_t frame_len = 0;
   };
   base::circular_deque<EarlyHints> early_hints_;

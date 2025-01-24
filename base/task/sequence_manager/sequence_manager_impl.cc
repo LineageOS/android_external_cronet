@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/task/sequence_manager/sequence_manager_impl.h"
 
 #include <array>
@@ -40,7 +45,6 @@
 #include "base/time/tick_clock.h"
 #include "base/trace_event/base_tracing.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/base/attributes.h"
 
 namespace base {
 namespace sequence_manager {
@@ -52,7 +56,7 @@ BASE_FEATURE(kRecordSequenceManagerCrashKeys,
              "RecordSequenceManagerCrashKeys",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-ABSL_CONST_INIT thread_local internal::SequenceManagerImpl*
+constinit thread_local internal::SequenceManagerImpl*
     thread_local_sequence_manager = nullptr;
 
 class TracedBaseValue : public trace_event::ConvertableToTraceFormat {
@@ -305,7 +309,6 @@ void SequenceManagerImpl::InitializeFeatures() {
   g_record_crash_keys.store(
       FeatureList::IsEnabled(kRecordSequenceManagerCrashKeys),
       std::memory_order_relaxed);
-  TaskQueueSelector::InitializeFeatures();
 }
 
 void SequenceManagerImpl::BindToMessagePump(std::unique_ptr<MessagePump> pump) {
@@ -565,7 +568,7 @@ void SequenceManagerImpl::LogTaskDebugInfo(
       LOG(INFO) << "#" << static_cast<uint64_t>(task->enqueue_order()) << " "
                 << selected_work_queue->task_queue()->GetName()
                 << (task->cross_thread_ ? " Run crossthread " : " Run ")
-                << debug::StackTrace(task_trace.data(), length);
+                << debug::StackTrace(base::span(task_trace).first(length));
       break;
     }
 
@@ -622,12 +625,12 @@ SequenceManagerImpl::SelectNextTaskImpl(LazyNow& lazy_now,
       return std::nullopt;
 
     // If the head task was canceled, remove it and run the selector again.
-    if (UNLIKELY(work_queue->RemoveAllCanceledTasksFromFront()))
+    if (work_queue->RemoveAllCanceledTasksFromFront()) [[unlikely]] {
       continue;
+    }
 
-    if (UNLIKELY(work_queue->GetFrontTask()->nestable ==
-                     Nestable::kNonNestable &&
-                 main_thread_only().nesting_depth > 0)) {
+    if (work_queue->GetFrontTask()->nestable == Nestable::kNonNestable &&
+        main_thread_only().nesting_depth > 0) [[unlikely]] {
       // Defer non-nestable work. NOTE these tasks can be arbitrarily delayed so
       // the additional delay should not be a problem.
       // Note because we don't delete queues while nested, it's perfectly OK to
@@ -755,8 +758,8 @@ void SequenceManagerImpl::MaybeAddLeewayToTask(Task& task) const {
   }
 }
 
-// TODO(crbug/1267874): Rename once ExplicitHighResolutionTimerWin experiment is
-// shipped.
+// TODO(crbug.com/40204558): Rename once ExplicitHighResolutionTimerWin
+// experiment is shipped.
 bool SequenceManagerImpl::HasPendingHighResolutionTasks() {
   // Only consider high-res tasks in the |wake_up_queue| (ignore the
   // |non_waking_wake_up_queue|).
@@ -1057,7 +1060,7 @@ void SequenceManagerImpl::ReclaimMemory() {
   LazyNow lazy_now(main_thread_clock());
   for (auto it = main_thread_only().active_queues.begin();
        it != main_thread_only().active_queues.end();) {
-    auto* const queue = (*it++).get();
+    auto* const queue = *it++;
     ReclaimMemoryFromQueue(queue, &lazy_now);
   }
 }
@@ -1125,8 +1128,10 @@ bool SequenceManagerImpl::IsIdleForTesting() {
 }
 
 void SequenceManagerImpl::EnableMessagePumpTimeKeeperMetrics(
-    const char* thread_name) {
-  controller_->EnableMessagePumpTimeKeeperMetrics(thread_name);
+    const char* thread_name,
+    bool wall_time_based_metrics_enabled_for_testing) {
+  controller_->EnableMessagePumpTimeKeeperMetrics(
+      thread_name, wall_time_based_metrics_enabled_for_testing);
 }
 
 size_t SequenceManagerImpl::GetPendingTaskCountForTesting() const {

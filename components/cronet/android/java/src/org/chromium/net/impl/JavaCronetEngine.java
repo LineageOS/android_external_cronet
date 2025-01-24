@@ -8,14 +8,17 @@ import static android.os.Process.THREAD_PRIORITY_BACKGROUND;
 import static android.os.Process.THREAD_PRIORITY_MORE_FAVORABLE;
 
 import android.content.Context;
-import android.os.Build;
 import android.util.Log;
+
+import androidx.annotation.NonNull;
 
 import org.chromium.net.BidirectionalStream;
 import org.chromium.net.ExperimentalBidirectionalStream;
+import org.chromium.net.ExperimentalUrlRequest;
 import org.chromium.net.NetworkQualityRttListener;
 import org.chromium.net.NetworkQualityThroughputListener;
 import org.chromium.net.RequestFinishedInfo;
+import org.chromium.net.UploadDataProvider;
 import org.chromium.net.UrlRequest;
 import org.chromium.net.impl.CronetLogger.CronetSource;
 import org.chromium.net.impl.CronetLogger.CronetVersion;
@@ -26,6 +29,8 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandler;
 import java.net.URLStreamHandlerFactory;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -135,7 +140,7 @@ public final class JavaCronetEngine extends CronetEngineBase {
     }
 
     @Override
-    public UrlRequestBase createRequest(
+    public ExperimentalUrlRequest createRequest(
             String url,
             UrlRequest.Callback callback,
             Executor executor,
@@ -150,7 +155,14 @@ public final class JavaCronetEngine extends CronetEngineBase {
             int trafficStatsUid,
             RequestFinishedInfo.Listener requestFinishedListener,
             int idempotency,
-            long networkHandle) {
+            long networkHandle,
+            String method,
+            ArrayList<Map.Entry<String, String>> requestHeaders,
+            UploadDataProvider uploadDataProvider,
+            Executor uploadDataProviderExecutor,
+            byte[] sharedDictionaryHash,
+            ByteBuffer sharedDictionary,
+            @NonNull String sharedDictionaryId) {
         if (networkHandle != DEFAULT_NETWORK_HANDLE) {
             mNetworkHandle = networkHandle;
         }
@@ -166,7 +178,11 @@ public final class JavaCronetEngine extends CronetEngineBase {
                 trafficStatsTag,
                 trafficStatsUidSet,
                 trafficStatsUid,
-                mNetworkHandle);
+                mNetworkHandle,
+                method,
+                requestHeaders,
+                uploadDataProvider,
+                uploadDataProviderExecutor);
     }
 
     @Override
@@ -256,11 +272,6 @@ public final class JavaCronetEngine extends CronetEngineBase {
 
     @Override
     public void bindToNetwork(long networkHandle) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            throw new UnsupportedOperationException(
-                    "This multi-network Java implementation is available starting from Android"
-                            + " Pie");
-        }
         mNetworkHandle = networkHandle;
     }
 

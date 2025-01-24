@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/profiler/stack_sampling_profiler_test_util.h"
 
 #include <string_view>
@@ -129,8 +134,7 @@ NativeUnwinderAndroidMapDelegateForTesting* GetMapDelegateForTesting() {
 std::unique_ptr<NativeUnwinderAndroid> CreateNativeUnwinderAndroidForTesting(
     uintptr_t exclude_module_with_base_address) {
   return std::make_unique<NativeUnwinderAndroid>(
-      exclude_module_with_base_address, GetMapDelegateForTesting(),
-      /*is_java_name_hashing_enabled=*/false);
+      exclude_module_with_base_address, GetMapDelegateForTesting());
 }
 
 std::unique_ptr<Unwinder> CreateChromeUnwinderAndroidForTesting(
@@ -379,24 +383,6 @@ void ExpectStackContains(const std::vector<Frame>& stack,
       << FormatSampleForDiagnosticOutput(stack);
 }
 
-void ExpectStackContainsNames(const std::vector<Frame>& stack,
-                              const std::vector<std::string>& function_names) {
-  auto frame_it = stack.begin();
-  auto names_it = function_names.begin();
-  for (; frame_it != stack.end() && names_it != function_names.end();
-       ++frame_it) {
-    if (frame_it->function_name == *names_it) {
-      ++names_it;
-    }
-  }
-
-  EXPECT_EQ(names_it, function_names.end())
-      << "Function name in position " << names_it - function_names.begin()
-      << " - {" << *names_it << "} was not found in stack "
-      << "(or did not appear in the expected order):\n"
-      << FormatSampleForDiagnosticOutput(stack);
-}
-
 void ExpectStackDoesNotContain(
     const std::vector<Frame>& stack,
     const std::vector<FunctionAddressRange>& functions) {
@@ -432,7 +418,7 @@ NativeLibrary LoadTestLibrary(std::string_view library_name) {
   const auto load = [&](NativeLibrary* library) {
     FilePath library_path;
 #if BUILDFLAG(IS_FUCHSIA) || BUILDFLAG(IS_IOS)
-    // TODO(crbug.com/1262430): Find a solution that works across platforms.
+    // TODO(crbug.com/40799492): Find a solution that works across platforms.
     ASSERT_TRUE(PathService::Get(DIR_ASSETS, &library_path));
 #else
     // The module is next to the test module rather than with test data.

@@ -26,7 +26,7 @@ QuicSessionPool::DirectJob::DirectJob(
     QuicSessionPool* pool,
     quic::ParsedQuicVersion quic_version,
     HostResolver* host_resolver,
-    const QuicSessionAliasKey& key,
+    QuicSessionAliasKey key,
     std::unique_ptr<CryptoClientConfigHandle> client_config_handle,
     bool retry_on_alternate_network_before_handshake,
     RequestPriority priority,
@@ -36,7 +36,7 @@ QuicSessionPool::DirectJob::DirectJob(
     const NetLogWithSource& net_log)
     : QuicSessionPool::Job::Job(
           pool,
-          key,
+          std::move(key),
           std::move(client_config_handle),
           priority,
           NetLogWithSource::Make(
@@ -94,12 +94,9 @@ void QuicSessionPool::DirectJob::UpdatePriority(RequestPriority old_priority,
 
 void QuicSessionPool::DirectJob::PopulateNetErrorDetails(
     NetErrorDetails* details) const {
-  if (!session_attempt_ || !session_attempt_->session()) {
-    return;
+  if (session_attempt_) {
+    session_attempt_->PolulateNetErrorDetails(details);
   }
-  details->connection_info = QuicHttpStream::ConnectionInfoFromQuicVersion(
-      session_attempt_->session()->connection()->version());
-  details->quic_connection_error = session_attempt_->session()->error();
 }
 
 int QuicSessionPool::DirectJob::DoLoop(int rv) {
@@ -120,7 +117,7 @@ int QuicSessionPool::DirectJob::DoLoop(int rv) {
         rv = DoAttemptSession();
         break;
       default:
-        NOTREACHED() << "io_state_: " << io_state_;
+        NOTREACHED_IN_MIGRATION() << "io_state_: " << io_state_;
         break;
     }
   } while (io_state_ != STATE_NONE && rv != ERR_IO_PENDING);
@@ -177,7 +174,7 @@ int QuicSessionPool::DirectJob::DoResolveHostComplete(int rv) {
 }
 
 int QuicSessionPool::DirectJob::DoAttemptSession() {
-  // TODO(https://crbug.com/1416409): This logic only knows how to try one
+  // TODO(crbug.com/40256842): This logic only knows how to try one
   // endpoint result.
   bool svcb_optional =
       IsSvcbOptional(*resolve_host_request_->GetEndpointResults());
@@ -203,12 +200,14 @@ int QuicSessionPool::DirectJob::DoAttemptSession() {
       use_dns_aliases_ && resolve_host_request_->GetDnsAliasResults()
           ? *resolve_host_request_->GetDnsAliasResults()
           : std::set<std::string>();
-  session_attempt_ = std::make_unique<SessionAttempt>(
+  // Passing an empty `crypto_client_config_handle` is safe because this job
+  // already owns a handle.
+  session_attempt_ = std::make_unique<QuicSessionAttempt>(
       this, endpoint_result.ip_endpoints.front(), endpoint_result.metadata,
       std::move(quic_version_used), cert_verify_flags_,
       dns_resolution_start_time_, dns_resolution_end_time_,
       retry_on_alternate_network_before_handshake_, use_dns_aliases_,
-      std::move(dns_aliases));
+      std::move(dns_aliases), /*crypto_client_config_handle=*/nullptr);
 
   return session_attempt_->Start(
       base::BindOnce(&DirectJob::OnSessionAttemptComplete, GetWeakPtr()));
@@ -220,7 +219,8 @@ void QuicSessionPool::DirectJob::OnResolveHostComplete(int rv) {
   rv = DoLoop(rv);
 
   for (QuicSessionRequest* request : requests()) {
-    request->OnHostResolutionComplete(rv);
+    request->OnHostResolutionComplete(rv, dns_resolution_start_time_,
+                                      dns_resolution_end_time_);
   }
 
   if (rv != ERR_IO_PENDING && !callback_.is_null()) {

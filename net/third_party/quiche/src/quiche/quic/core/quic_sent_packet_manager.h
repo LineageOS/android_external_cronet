@@ -85,9 +85,6 @@ class QUICHE_EXPORT QuicSentPacketManager {
                                            QuicByteCount /*old_cwnd*/,
                                            QuicByteCount /*new_cwnd*/) {}
 
-    virtual void OnAdjustBurstSize(int /*old_burst_size*/,
-                                   int /*new_burst_size*/) {}
-
     virtual void OnOvershootingDetected() {}
 
     virtual void OnConfigProcessed(const SendParameters& /*parameters*/) {}
@@ -152,6 +149,20 @@ class QUICHE_EXPORT QuicSentPacketManager {
 
   void SetMaxPacingRate(QuicBandwidth max_pacing_rate) {
     pacing_sender_.set_max_pacing_rate(max_pacing_rate);
+  }
+
+  // Experimental, see b/364614652 for more context.
+  // This is only used by an experimental feature for bbr2_sender to support
+  // soft pacing based on application layer hints when there are signs of
+  // congestion.
+  void SetApplicationDrivenPacingRate(
+      QuicBandwidth application_driven_pacing_rate) {
+    pacing_sender_.set_application_driven_pacing_rate(
+        application_driven_pacing_rate);
+  }
+
+  QuicBandwidth ApplicationDrivenPacingRate() const {
+    return pacing_sender_.application_driven_pacing_rate();
   }
 
   // The delay to use for the send alarm. If zero, it essentially means
@@ -225,6 +236,11 @@ class QUICHE_EXPORT QuicSentPacketManager {
                     TransmissionType transmission_type,
                     HasRetransmittableData has_retransmittable_data,
                     bool measure_rtt, QuicEcnCodepoint ecn_codepoint);
+
+  // Informs the sent packet manager of a |packet| sent by the dispatcher. This
+  // should only be called before any packet is sent by the QuicConnection.
+  const QuicTransmissionInfo& AddDispatcherSentPacket(
+      const DispatcherSentPacket& packet);
 
   bool CanSendAckFrequency() const;
 

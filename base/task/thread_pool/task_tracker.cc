@@ -34,7 +34,6 @@
 #include "base/trace_event/base_tracing.h"
 #include "base/values.h"
 #include "build/build_config.h"
-#include "third_party/abseil-cpp/absl/base/attributes.h"
 
 namespace base {
 namespace internal {
@@ -127,7 +126,7 @@ auto EmitThreadPoolTraceEventMetadata(perfetto::EventContext& ctx,
 // posting back to a BLOCK_SHUTDOWN sequence is a coincidence rather than part
 // of a shutdown blocking series of tasks, this prevents racy DCHECKs in those
 // cases.
-ABSL_CONST_INIT thread_local int fizzle_block_shutdown_tasks_ref = 0;
+constinit thread_local int fizzle_block_shutdown_tasks_ref = 0;
 
 }  // namespace
 
@@ -243,7 +242,7 @@ void TaskTracker::StartShutdown() {
   DCHECK(!shutdown_event_);
   DCHECK(!state_->HasShutdownStarted());
 
-  shutdown_event_ = std::make_unique<WaitableEvent>();
+  shutdown_event_.emplace();
 
   const bool tasks_are_blocking_shutdown = state_->StartShutdown();
 
@@ -594,7 +593,6 @@ bool TaskTracker::BeforeRunTask(TaskShutdownBehavior shutdown_behavior) {
   }
 
   NOTREACHED();
-  return false;
 }
 
 void TaskTracker::AfterRunTask(TaskShutdownBehavior shutdown_behavior) {

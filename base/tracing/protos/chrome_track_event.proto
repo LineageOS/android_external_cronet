@@ -39,6 +39,7 @@ message BlinkTaskScope {
     TASK_SCOPE_SCHEDULER_POST_TASK = 6;
     TASK_SCOPE_REQUEST_IDLE_CALLBACK = 7;
     TASK_SCOPE_XML_HTTP_REQUEST = 8;
+    TASK_SCOPE_SOFT_NAVIGATION = 9;
   }
   optional TaskScopeType type = 1;
   optional int64 scope_task_id = 2;
@@ -126,7 +127,9 @@ message RenderFrameImplDeletion {
   optional uint64 frame_tree_node_id = 4;
 }
 
-// Matches content::ShouldSwapBrowsingInstance.
+// Corresponds to `content::ShouldSwapBrowsingInstance`.
+// Note that the enum values here are not equivalent to the content enum and
+// must be converted explicitly. See `ShouldSwapBrowsingInstanceToProto`.
 enum ShouldSwapBrowsingInstance {
   // Was used for all "no BrowsingInstance swap" scenarios, now broken down in
   // separate reasons.
@@ -162,6 +165,7 @@ enum ShouldSwapBrowsingInstance {
   SHOULD_SWAP_BROWSING_INSTANCE_NO_UNLOAD_HANDLER_EXISTS_ON_SAME_SITE_NAVIGATION =
       21;
   SHOULD_SWAP_BROWSING_INSTANCE_NO_NOT_PRIMARY_MAIN_FRAME = 22;
+  SHOULD_SWAP_BROWSING_INSTANCE_NO_INITIATOR_REQUESTED_NO_PROACTIVE_SWAP = 23;
 }
 
 message ShouldSwapBrowsingInstancesResult {
@@ -303,6 +307,9 @@ message RenderProcessHostCleanup {
   // Number of "pending reuse" references active in the RenderProcessHost,
   // recorded when Cleanup() was called.
   optional uint32 pending_reuse_ref_count = 5;
+  // Number of NavigationStateKeepAlive references active in the
+  // RenderProcessHost, recorded when Cleanup() was called.
+  optional uint32 navigation_state_keepalive_count = 6;
 }
 
 message ChildProcessLauncherPriority {
@@ -596,7 +603,7 @@ message ChromeThreadPoolTask {
   optional ShutdownBehavior shutdown_behavior = 4;
 }
 
-// TODO(crbug.com/1258495): Add more information.
+// TODO(crbug.com/40797026): Add more information.
 message BackForwardCacheCanStoreDocumentResult {
   enum BackForwardCacheNotRestoredReason {
     NOT_MAIN_FRAME = 1;
@@ -665,6 +672,11 @@ message BackForwardCacheCanStoreDocumentResult {
     HTTP_AUTH_REQUIRED = 57;
     COOKIE_FLUSHED = 58;
     BROADCAST_CHANNEL_ON_MESSAGE = 59;
+    WEBVIEW_SETTINGS_CHANGED = 60;
+    WEBVIEW_JAVASCRIPT_OBJECT_CHANGED = 61;
+    WEBVIEW_MESSAGE_LISTENER_INJECTED = 62;
+    WEBVIEW_SAFE_BROWSING_ALLOWLIST_CHANGED = 63;
+    WEBVIEW_DOCUMENT_START_JAVASCRIPT_CHANGED = 64;
   }
 
   optional BackForwardCacheNotRestoredReason
@@ -722,7 +734,7 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_WORKER_THREAD_TASK_QUEUE_COMPOSITOR = 48;
     TASK_TYPE_COMPOSITOR_THREAD_TASK_QUEUE_INPUT = 49;
 
-    // TODO(crbug.com/860545): Obsolete. Remove.
+    // TODO(crbug.com/40583778): Obsolete. Remove.
     TASK_TYPE_NETWORKING_WITH_URL_LOADER_ANNOTATION = 50;
 
     TASK_TYPE_WORKER_ANIMATION = 51;
@@ -756,8 +768,10 @@ message RendererMainThreadTaskExecution {
     TASK_TYPE_LOW_PRIORITY_SCRIPT_EXECUTION = 81;
     TASK_TYPE_STORAGE = 82;
     TASK_TYPE_NETWORKING_UNFREEZABLE_RENDER_BLOCKING_LOADING = 83;
-    TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_LOW_PRIORITY = 84;
+    TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_USER_VISIBLE = 84;
     TASK_TYPE_CLIPBOARD = 85;
+    TASK_TYPE_MACHINE_LEARNING = 86;
+    TASK_TYPE_MAIN_THREAD_TASK_QUEUE_V8_BEST_EFFORT = 87;
   }
 
   enum FrameType {
@@ -965,7 +979,8 @@ message SequenceManagerTask {
     UI_BEFORE_UNLOAD_BROWSER_RESPONSE_TQ = 54;
     IO_BEFORE_UNLOAD_BROWSER_RESPONSE_TQ = 55;
 
-    V8_LOW_PRIORITY_TQ = 56;
+    V8_USER_VISIBLE_TQ = 56;
+    V8_BEST_EFFORT_TQ = 57;
   }
 
   optional Priority priority = 1;
@@ -1384,8 +1399,9 @@ message ChromeGraphicsPipeline {
     STEP_RECEIVE_COMPOSITOR_FRAME = 5;
     STEP_RECEIVE_BEGIN_FRAME = 6;
     STEP_RECEIVE_BEGIN_FRAME_DISCARD = 7;
-    STEP_SEND_BEGIN_MAIN_FRAME = 8;
+    STEP_SEND_BEGIN_MAIN_FRAME = 8 [deprecated = true];
     STEP_SUBMIT_COMPOSITOR_FRAME = 9;
+    STEP_DRAW_AND_SWAP = 21;
     STEP_SURFACE_AGGREGATION = 10;
     STEP_SEND_BUFFER_SWAP = 11;
     STEP_BUFFER_SWAP_POST_SUBMIT = 12;
@@ -1435,13 +1451,21 @@ message ChromeGraphicsPipeline {
   }
   optional StepName step = 1;
   optional FrameSinkId frame_sink_id = 2;
+
+  // Id used to link `ChromeGraphicsPipeline`s corresponding to work done
+  // on creating and presenting one frame.
   optional int64 display_trace_id = 3;
+
   optional LocalSurfaceId local_surface_id = 4;
   optional int64 frame_sequence = 5;
   optional FrameSkippedReason frame_skipped_reason = 6;
 
   // Optional variable that can be set together with STEP_BACKEND*.
   optional int64 backend_frame_id = 7;
+
+  // `viz::BeginFrameAck.trace_id`s for frames aggregated at this step.
+  // Used with `STEP_SURFACE_AGGREGATION` only.
+  repeated int64 aggregated_frames_ids = 8;
 };
 
 message LibunwindstackUnwinder {
@@ -1527,6 +1551,7 @@ message StartUp {
     HOME_SCREEN_SHORTCUT = 16;
     SHARE_INTENT = 17;
     NFC = 18;
+    AUTH_TAB = 19;
   }
 
   optional int64 activity_id = 1;
@@ -1544,6 +1569,15 @@ message WebContentInteraction {
 
   optional Type type = 1;
   optional int64 total_duration_ms = 2;
+}
+
+message ScrollMetrics {
+  optional int64 frame_count = 1;
+  optional int64 vsync_count = 2;
+  optional int64 missed_vsync_max = 3;
+  optional int64 missed_vsync_sum = 4;
+  optional int64 delayed_frame_count = 5;
+  optional int64 predictor_janky_frame_count = 6;
 }
 
 // The EventForwarder is a subsystem in android that forwards events from Java
@@ -1600,7 +1634,7 @@ message ViewClassName {
 //
 // All non-delta-timestamps are absolute CLOCK_MONOTONIC timestamps.
 
-// Next id: 15
+// Next id: 16
 enum ChromeCompositorSchedulerActionV2 {
   CC_SCHEDULER_ACTION_V2_UNSPECIFIED = 0;
   CC_SCHEDULER_ACTION_V2_NONE = 1;
@@ -1611,6 +1645,7 @@ enum ChromeCompositorSchedulerActionV2 {
   CC_SCHEDULER_ACTION_V2_DRAW_IF_POSSIBLE = 5;
   CC_SCHEDULER_ACTION_V2_DRAW_FORCED = 6;
   CC_SCHEDULER_ACTION_V2_DRAW_ABORT = 7;
+  CC_SCHEDULER_ACTION_V2_UPDATE_DISPLAY_TREE = 15;
   CC_SCHEDULER_ACTION_V2_BEGIN_LAYER_TREE_FRAME_SINK_CREATION = 8;
   CC_SCHEDULER_ACTION_V2_PREPARE_TILES = 9;
   CC_SCHEDULER_ACTION_V2_INVALIDATE_LAYER_TREE_FRAME_SINK = 10;
@@ -1628,6 +1663,7 @@ message ChromeCompositorSchedulerStateV2 {
     DEADLINE_MODE_REGULAR = 3;
     DEADLINE_MODE_LATE = 4;
     DEADLINE_MODE_BLOCKED = 5;
+    DEADLINE_MODE_WAIT_FOR_SCROLL = 6;
   }
   optional ChromeCompositorStateMachineV2 state_machine = 1;
   optional bool observing_begin_frame_source = 2;
@@ -1689,7 +1725,7 @@ message ChromeCompositorStateMachineV2 {
   }
   optional MajorStateV2 major_state = 1;
 
-  // Next id: 47
+  // Next id: 48
   message MinorStateV2 {
     enum TreePriority {
       TREE_PRIORITY_UNSPECIFIED = 0;
@@ -1747,6 +1783,7 @@ message ChromeCompositorStateMachineV2 {
     optional bool processing_animation_worklets_for_active_tree = 44;
     optional bool processing_animation_worklets_for_pending_tree = 45;
     optional bool processing_paint_worklets_for_pending_tree = 46;
+    optional bool should_warm_up = 47;
 
     reserved 35;
   }
@@ -1835,9 +1872,325 @@ message CompositorTimingHistoryV2 {
   optional int64 draw_estimate_delta_us = 7;
 }
 
+message WebViewStartup {
+  optional bool from_ui_thread = 1;
+  // This enum must be kept in sync with WebViewChromiumAwInit.CallSite
+  enum CallSite {
+    GET_AW_TRACING_CONTROLLER = 0;
+    GET_AW_PROXY_CONTROLLER = 1;
+    WEBVIEW_INSTANCE = 2;
+    GET_STATICS = 3;
+    GET_DEFAULT_GEOLOCATION_PERMISSIONS = 4;
+    GET_DEFAULT_SERVICE_WORKER_CONTROLLER = 5;
+    GET_WEB_ICON_DATABASE = 6;
+    GET_DEFAULT_WEB_STORAGE = 7;
+    GET_DEFAULT_WEBVIEW_DATABASE = 8;
+    GET_TRACING_CONTROLLER = 9;
+  }
+  optional CallSite call_site = 2;
+}
+
+message AnimationFrameTimingInfo {
+  optional int64 blocking_duration_ms = 1;
+  optional int64 duration_ms = 2;
+  optional int64 num_scripts = 3;
+}
+
+message AnimationFrameScriptTimingInfo {
+  optional int64 style_duration_ms = 1;
+  optional int64 layout_duration_ms = 2;
+  optional int64 pause_duration_ms = 3;
+  optional string class_like_name = 4;
+  optional string property_like_name = 5;
+  optional string source_location_url = 6;
+  optional string source_location_function_name = 7;
+  optional int64 source_location_char_position = 8;
+  enum InvokerType {
+    UNDEFINED = 0;
+    CLASSIC_SCRIPT = 1;
+    MODULE_SCRIPT = 2;
+    USER_CALLBACK = 3;
+    EVENT_HANDLER = 4;
+    PROMISE_RESOLVE = 5;
+    PROMISE_REJECT = 6;
+  }
+  optional InvokerType invoker_type = 9;
+  enum ThirdPartyTechnology {
+    UNSPECIFIED = 0;
+    NONE = 1;
+    WORD_PRESS = 2;
+    GOOGLE_ANALYTICS = 3;
+    GOOGLE_FONT_API = 4;
+    GOOGLE_TAG_MANAGER = 5;
+    GOOGLE_MAPS = 6;
+    META_PIXEL = 7;
+    YOUTUBE = 8;
+    ADOBE_ANALYTICS = 9;
+    TIKTOK_PIXEL = 10;
+    HOTJAR = 11;
+    GOOGLE_ADSENSE = 12;
+    GOOGLE_PUBLISHER_TAG = 13;
+    GOOGLE_ADS_LIBRARIES = 14;
+    FUNDING_CHOICES = 15;
+    ELEMENTOR = 16;
+    SLIDER_REVOLUTION = 17;
+  }
+  optional ThirdPartyTechnology third_party_technology = 10;
+}
+
+message BeginFrameId {
+  optional uint64 source_id = 1;
+  optional uint64 sequence_number = 2;
+}
+
+message MainFramePipeline {
+  enum Step {
+    UNKNOWN = 0;
+    SEND_BEGIN_MAIN_FRAME = 1;
+    BEGIN_MAIN_FRAME = 2;
+    ABORTED_ON_MAIN = 3;
+    COMMIT_ON_MAIN = 4;
+    READY_TO_COMMIT_ON_IMPL = 5;
+    COMMIT_ON_IMPL = 6;
+    COMMIT_COMPLETE = 7;
+    READY_TO_ACTIVATE = 8;
+    ACTIVATE = 9;
+    DRAW = 10;
+    UPDATE_DISPLAY_TREE = 11;
+  }
+
+  // Id connecting the steps of the pipeline together.
+  optional uint64 main_frame_id = 1;
+  optional Step step = 2;
+
+  // Id for the BeginFrame, which triggered this main frame.
+  // Set for the SEND_BEGIN_MAIN_FRAME step.
+  optional BeginFrameId begin_frame_id = 3;
+
+  // If the step is ABORTED_ON_MAIN, this field will contain the reason.
+  enum AbortedOnMainReason {
+    ABORTED_MAIN_REASON_UNKNOWN = 0;
+    NOT_VISIBLE = 1;
+    DEFERRED_UPDATE = 2;
+    DEFERRED_COMMIT_ABORTED = 3;
+    NO_UPDATE = 4;
+  }
+  optional AbortedOnMainReason aborted_on_main_reason = 4;
+
+  // Id of the last begin frame id issued by renderer compositor by the time
+  // this main frame is drawn for the first time.
+  // The difference between `begin_frame_id` and
+  // `last_begin_frame_id_during_first_draw` can be used to reason about the
+  // main frame latency. Set for the first DRAW step.
+  optional BeginFrameId last_begin_frame_id_during_first_draw = 5;
+}
+
+message ChromeLatencyInfo2 {
+  optional int64 trace_id = 1;
+
+  // NEXT ID: 15
+  // All step are optional but the enum is ordered (not by number) below in the
+  // order we expect them to appear if they are emitted in trace in a blocking
+  // fashion.
+  enum Step {
+    STEP_UNSPECIFIED = 0;
+    // Emitted on the browser main thread.
+    STEP_SEND_INPUT_EVENT_UI = 3;
+    // Happens on the renderer's compositor.
+    STEP_HANDLE_INPUT_EVENT_IMPL = 5;
+    STEP_RESAMPLE_SCROLL_EVENTS = 14;
+    STEP_DID_HANDLE_INPUT_AND_OVERSCROLL = 8;
+    // Occurs on the Renderer's main thread.
+    STEP_HANDLE_INPUT_EVENT_MAIN = 4;
+    STEP_MAIN_THREAD_SCROLL_UPDATE = 2;
+    STEP_HANDLE_INPUT_EVENT_MAIN_COMMIT = 1;
+    // Could be emitted on both the renderer's main OR compositor.
+    STEP_HANDLED_INPUT_EVENT_MAIN_OR_IMPL = 9;
+    // Optionally sometimes HANDLED_INPUT_EVENT_MAIN_OR_IMPL will proxy to the
+    // renderer's compositor and this will be emitted.
+    STEP_HANDLED_INPUT_EVENT_IMPL = 10;
+    // Occurs on Browser Main.
+    STEP_TOUCH_EVENT_HANDLED = 12;
+    // Occurs on Browser Main.
+    STEP_GESTURE_EVENT_HANDLED = 13;
+    // Renderer's compositor.
+    STEP_SWAP_BUFFERS = 6;
+    // Happens on the VizCompositor in the GPU process.
+    STEP_DRAW_AND_SWAP = 7 [deprecated = true];
+    // Happens on the GPU main thread after the swap has completed.
+    STEP_FINISHED_SWAP_BUFFERS = 11 [deprecated = true];
+    // See above for NEXT ID, enum steps are not ordered by tag number.
+  };
+
+  optional Step step = 2;
+  optional int32 frame_tree_node_id = 3;
+
+  // This enum is a copy of LatencyComponentType enum in Chrome, located in
+  // ui/latency/latency_info.h, modulo added UNKNOWN value per protobuf
+  // practices.
+  enum LatencyComponentType {
+    COMPONENT_UNSPECIFIED = 0;
+    COMPONENT_INPUT_EVENT_LATENCY_BEGIN_RWH = 1;
+    COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_ORIGINAL = 2;
+    COMPONENT_INPUT_EVENT_LATENCY_FIRST_SCROLL_UPDATE_ORIGINAL = 3;
+    COMPONENT_INPUT_EVENT_LATENCY_ORIGINAL = 4;
+    COMPONENT_INPUT_EVENT_LATENCY_UI = 5;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERER_MAIN = 6;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERING_SCHEDULED_MAIN = 7;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERING_SCHEDULED_IMPL = 8;
+    COMPONENT_INPUT_EVENT_LATENCY_SCROLL_UPDATE_LAST_EVENT = 9;
+    COMPONENT_INPUT_EVENT_LATENCY_ACK_RWH = 10;
+    COMPONENT_INPUT_EVENT_LATENCY_RENDERER_SWAP = 11;
+    COMPONENT_DISPLAY_COMPOSITOR_RECEIVED_FRAME = 12;
+    COMPONENT_INPUT_EVENT_GPU_SWAP_BUFFER = 13;
+    COMPONENT_INPUT_EVENT_LATENCY_FRAME_SWAP = 14;
+  }
+
+  message ComponentInfo {
+    optional LatencyComponentType component_type = 1;
+
+    // Microsecond timestamp in CLOCK_MONOTONIC domain
+    optional uint64 time_us = 2;
+  };
+
+  repeated ComponentInfo component_info = 4;
+  optional bool is_coalesced = 5;
+  optional int64 gesture_scroll_id = 6;
+  optional int64 touch_id = 7;
+
+  // Must be kept in sync with blink::mojom::EventType.
+  // All values are incremented by one for consistency with other proto enums.
+  enum InputType {
+    UNDEFINED_EVENT = 0;
+    MOUSE_DOWN_EVENT = 1;
+    MOUSE_UP_EVENT = 2;
+    MOUSE_MOVE_EVENT = 3;
+    MOUSE_ENTER_EVENT = 4;
+    MOUSE_LEAVE_EVENT = 5;
+    CONTEXT_MENU_EVENT = 6;
+
+    MOUSE_WHEEL_EVENT = 7;
+
+    RAW_KEY_DOWN_EVENT = 8;
+    KEY_DOWN_EVENT = 9;
+    KEY_UP_EVENT = 10;
+    CHAR_EVENT = 11;
+
+    GESTURE_SCROLL_BEGIN_EVENT = 12;
+    GESTURE_SCROLL_END_EVENT = 13;
+    GESTURE_SCROLL_UPDATE_EVENT = 14;
+    GESTURE_FLING_START_EVENT = 15;
+    GESTURE_FLING_CANCEL_EVENT = 16;
+    GESTURE_PINCH_BEGIN_EVENT = 17;
+    GESTURE_PINCH_END_EVENT = 18;
+    GESTURE_PINCH_UPDATE_EVENT = 19;
+
+    GESTURE_BEGIN_EVENT = 20;
+
+    GESTURE_TAP_DOWN_EVENT = 21;
+    GESTURE_SHOW_PRESS_EVENT = 22;
+    GESTURE_TAP_EVENT = 23;
+    GESTURE_TAP_CANCEL_EVENT = 24;
+    GESTURE_SHORT_PRESS_EVENT = 25;
+    GESTURE_LONG_PRESS_EVENT = 26;
+    GESTURE_LONG_TAP_EVENT = 27;
+    GESTURE_TWO_FINGER_TAP_EVENT = 28;
+    GESTURE_TAP_UNCONFIRMED_EVENT = 29;
+
+    GESTURE_DOUBLE_TAP_EVENT = 30;
+    GESTURE_END_EVENT = 31;
+
+    TOUCH_START_EVENT = 32;
+    TOUCH_MOVE_EVENT = 33;
+    TOUCH_END_EVENT = 34;
+    TOUCH_CANCEL_EVENT = 35;
+    TOUCH_SCROLL_STARTED_EVENT = 36;
+
+    POINTER_DOWN_EVENT = 37;
+    POINTER_UP_EVENT = 38;
+    POINTER_MOVE_EVENT = 39;
+    POINTER_RAW_UPDATE_EVENT = 40;
+    POINTER_CANCEL_EVENT = 41;
+    POINTER_CAUSED_UA_ACTION_EVENT = 42;
+  }
+
+  // The type of input corresponding to this `ChromeLatencyInfo`.
+  optional InputType input_type = 8;
+
+  // Intended to mirror `blink::mojom::InputEventResultState`.
+  enum InputResultState {
+    UNKNOWN = 0;
+    CONSUMED = 1;
+    NOT_CONSUMED = 2;
+    NO_CONSUMER_EXISTS = 3;
+    IGNORED = 4;
+    SET_NON_BLOCKING = 5;
+    SET_NON_BLOCKING_DUE_TO_FLING = 6;
+  }
+
+  // If applicable, the result of handling the input corresponding to this
+  // `ChromeLatencyInfo`.
+  optional InputResultState input_result_state = 9;
+
+  // `trace_id` values corresponding to inputs that were coalesced/combined into
+  // the input for this `ChromeLatencyInfo`.
+  repeated int64 coalesced_trace_ids = 10;
+}
+
+message EventTiming {
+  optional bool cancelable = 1;
+  optional string frame = 2;
+  optional uint32 interaction_id = 3;
+  optional uint32 interaction_offset = 4;
+  optional int64 node_id = 5;
+  optional int64 key_code = 6;
+  optional int32 pointer_id = 7;
+  optional uint64 fallback_time_us = 8;
+  enum EventType {
+    UNDEFINED = 0;
+    AUX_CLICK_EVENT = 1;
+    CLICK_EVENT = 2;
+    CONTEXT_MENU_EVENT = 3;
+    DOUBLE_CLICK_EVENT = 4;
+    MOUSE_DOWN_EVENT = 5;
+    MOUSE_ENTER_EVENT = 6;
+    MOUSE_LEAVE_EVENT = 7;
+    MOUSE_OUT_EVENT = 9;
+    MOUSE_OVER_EVENT = 10;
+    MOUSE_UP_EVENT = 11;
+    POINTER_OVER_EVENT = 12;
+    POINTER_ENTER_EVENT = 13;
+    POINTER_DOWN_EVENT = 14;
+    POINTER_UP_EVENT = 15;
+    POINTER_CANCEL_EVENT = 16;
+    POINTER_OUT_EVENT = 17;
+    POINTER_LEAVE_EVENT = 18;
+    GOT_POINTER_CAPTURE_EVENT = 19;
+    LOST_POINTER_CAPTURE_EVENT = 20;
+    TOUCH_START_EVENT = 21;
+    TOUCH_END_EVENT = 22;
+    TOUCH_CANCEL_EVENT = 23;
+    KEY_DOWN_EVENT = 24;
+    KEY_PRESS_EVENT = 25;
+    KEY_UP_EVENT = 26;
+    BEFORE_INPUT_EVENT = 27;
+    INPUT_EVENT = 28;
+    COMPOSITION_START_EVENT = 29;
+    COMPOSITION_UPDATE_EVENT = 30;
+    COMPOSITION_END_EVENT = 31;
+    DRAG_START_EVENT = 32;
+    DRAG_END_EVENT = 33;
+    DRAG_ENTER_EVENT = 34;
+    DRAG_LEAVE_EVENT = 35;
+    DRAG_OVER_EVENT = 36;
+    DROP_EVENT = 37;
+  }
+  optional EventType type = 9;
+}
+
 message ChromeTrackEvent {
   // Extension range for Chrome: 1000-1999
-  // Next ID: 1063
+  // Next ID: 1070
   extend TrackEvent {
     optional ChromeAppState chrome_app_state = 1000;
 
@@ -1970,5 +2323,20 @@ message ChromeTrackEvent {
     optional ViewClassName view_class_name = 1061;
 
     optional ChromeCompositorSchedulerStateV2 cc_scheduler_state = 1062;
+
+    optional WebViewStartup webview_startup = 1063;
+
+    optional AnimationFrameTimingInfo animation_frame_timing_info = 1064;
+
+    optional AnimationFrameScriptTimingInfo animation_frame_script_timing_info =
+        1065;
+
+    optional ScrollMetrics scroll_metrics = 1066;
+
+    optional MainFramePipeline main_frame_pipeline = 1067;
+
+    optional ChromeLatencyInfo2 chrome_latency_info = 1068;
+
+    optional EventTiming event_timing = 1069;
   }
 }

@@ -2,8 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <functional>
 #include <memory>
+#include <queue>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/strings/string_view.h"
 #include "quiche/quic/core/io/quic_default_event_loop.h"
@@ -323,7 +327,7 @@ class QboneSessionTest : public QuicTestWithParam<ParsedQuicVersion> {
       client_peer_ = std::make_unique<QboneClientSession>(
           client_connection_, client_crypto_config_.get(),
           /*owner=*/nullptr, config, supported_versions_,
-          QuicServerId("test.example.com", 1234, false), client_writer_.get(),
+          QuicServerId("test.example.com", 1234), client_writer_.get(),
           client_handler_.get());
     }
 

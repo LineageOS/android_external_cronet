@@ -35,6 +35,19 @@ void PostDelayedIncGlobal() {
       base::BindRepeating(&IncGlobalCounter), base::Seconds(10));
 }
 
+class MockMetric : public PreFreezeBackgroundMemoryTrimmer::PreFreezeMetric {
+ public:
+  MockMetric() : PreFreezeBackgroundMemoryTrimmer::PreFreezeMetric("Mock") {
+    count_++;
+  }
+  std::optional<uint64_t> Measure() const override { return 0; }
+  static size_t count_;
+
+  ~MockMetric() override { count_--; }
+};
+
+size_t MockMetric::count_ = 0;
+
 }  // namespace
 
 class PreFreezeBackgroundMemoryTrimmerTest : public testing::Test {
@@ -44,7 +57,7 @@ class PreFreezeBackgroundMemoryTrimmerTest : public testing::Test {
   }
   void SetUp() override {
     PreFreezeBackgroundMemoryTrimmer::SetSupportsModernTrimForTesting(true);
-    PreFreezeBackgroundMemoryTrimmer::SetDidRegisterTasksForTesting(false);
+    PreFreezeBackgroundMemoryTrimmer::ClearMetricsForTesting();
     ResetGlobalCounter();
   }
 
@@ -57,6 +70,16 @@ class PreFreezeBackgroundMemoryTrimmerTest : public testing::Test {
   bool did_register_tasks() {
     return PreFreezeBackgroundMemoryTrimmer::Instance()
         .DidRegisterTasksForTesting();
+  }
+
+  size_t measurements_count() {
+    return PreFreezeBackgroundMemoryTrimmer::Instance()
+        .GetNumberOfKnownMetricsForTesting();
+  }
+
+  size_t values_before_count() {
+    return PreFreezeBackgroundMemoryTrimmer::Instance()
+        .GetNumberOfValuesBeforeForTesting();
   }
 
   test::TaskEnvironment task_environment_{
@@ -99,10 +122,64 @@ TEST_F(PreFreezeBackgroundMemoryTrimmerTest, PostTaskPreFreezeWithoutTrim) {
 
   task_environment_.FastForwardBy(base::Seconds(30));
 
-  PreFreezeBackgroundMemoryTrimmer::OnPreFreezeForTesting();
-
   ASSERT_EQ(pending_task_count(), 0u);
   EXPECT_EQ(s_counter, 1);
+}
+
+// TODO(thiabaud): Test that the histograms are recorded too.
+TEST_F(PreFreezeBackgroundMemoryTrimmerTest, RegisterMetric) {
+  ASSERT_EQ(measurements_count(), 0u);
+  ASSERT_EQ(MockMetric::count_, 0u);
+
+  {
+    MockMetric mock_metric;
+
+    PreFreezeBackgroundMemoryTrimmer::RegisterMemoryMetric(&mock_metric);
+
+    EXPECT_EQ(MockMetric::count_, 1u);
+    EXPECT_EQ(measurements_count(), 1u);
+
+    PreFreezeBackgroundMemoryTrimmer::UnregisterMemoryMetric(&mock_metric);
+
+    // Unregistering does not destroy the metric.
+    EXPECT_EQ(MockMetric::count_, 1u);
+    EXPECT_EQ(measurements_count(), 0u);
+  }
+
+  EXPECT_EQ(MockMetric::count_, 0u);
+  EXPECT_EQ(measurements_count(), 0u);
+}
+
+TEST_F(PreFreezeBackgroundMemoryTrimmerTest, UnregisterDuringPreFreeze) {
+  ASSERT_EQ(measurements_count(), 0u);
+  ASSERT_EQ(MockMetric::count_, 0u);
+
+  {
+    MockMetric mock_metric;
+
+    PreFreezeBackgroundMemoryTrimmer::RegisterMemoryMetric(&mock_metric);
+
+    EXPECT_EQ(MockMetric::count_, 1u);
+    EXPECT_EQ(measurements_count(), 1u);
+
+    // This posts a metrics task.
+    PreFreezeBackgroundMemoryTrimmer::OnPreFreezeForTesting();
+
+    EXPECT_EQ(measurements_count(), 1u);
+    EXPECT_EQ(values_before_count(), 1u);
+
+    PreFreezeBackgroundMemoryTrimmer::UnregisterMemoryMetric(&mock_metric);
+
+    // Unregistering does not destroy the metric, but does remove its value
+    // from |before_values_|.
+    EXPECT_EQ(MockMetric::count_, 1u);
+    EXPECT_EQ(measurements_count(), 0u);
+    EXPECT_EQ(values_before_count(), 0u);
+  }
+
+  EXPECT_EQ(MockMetric::count_, 0u);
+  EXPECT_EQ(measurements_count(), 0u);
+  EXPECT_EQ(values_before_count(), 0u);
 }
 
 TEST_F(PreFreezeBackgroundMemoryTrimmerTest, PostDelayedTaskSimple) {
@@ -238,6 +315,9 @@ TEST_F(PreFreezeBackgroundMemoryTrimmerTest, AddDuringPreFreeze) {
 
   ASSERT_EQ(pending_task_count(), 1u);
   EXPECT_EQ(s_counter, 0);
+
+  // Fast forward to run the metrics task.
+  task_environment_.FastForwardBy(base::Seconds(2));
 
   PreFreezeBackgroundMemoryTrimmer::OnPreFreezeForTesting();
 

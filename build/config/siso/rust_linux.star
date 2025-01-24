@@ -26,6 +26,7 @@ def __filegroups(ctx):
             "includes": [
                 "bin/rustc",
                 "lib/*.so",
+                "lib/libclang.so.*",
                 "lib/rustlib/src/rust/library/std/src/lib.rs",
                 "lib/rustlib/x86_64-unknown-linux-gnu/lib/*",
             ],
@@ -103,24 +104,33 @@ def __rust_bin_handler(ctx, cmd):
 
     ctx.actions.fix(inputs = cmd.inputs + inputs)
 
+def __rust_build_handler(ctx, cmd):
+    inputs = []
+    for i, arg in enumerate(cmd.args):
+        if arg == "--src-dir":
+            inputs.append(ctx.fs.canonpath(cmd.args[i + 1]))
+    ctx.actions.fix(inputs = cmd.inputs + inputs)
+
 __handlers = {
     "rust_bin_handler": __rust_bin_handler,
+    "rust_build_handler": __rust_build_handler,
 }
 
 def __step_config(ctx, step_config):
-    remote_run = True  # Turn this to False when you do file access trace.
     platform_ref = "large"  # Rust actions run faster on large workers.
     clang_inputs = [
         "build/linux/debian_bullseye_amd64-sysroot:rustlink",
         "third_party/llvm-build/Release+Asserts:rustlink",
     ]
+    rust_toolchain = [
+        # TODO(b/285225184): use precomputed subtree
+        "third_party/rust-toolchain:toolchain",
+    ]
     rust_inputs = [
         "build/action_helpers.py",
         "build/gn_helpers.py",
         "build/rust/rustc_wrapper.py",
-        # TODO(b/285225184): use precomputed subtree
-        "third_party/rust-toolchain:toolchain",
-    ]
+    ] + rust_toolchain
     rust_indirect_inputs = {
         "includes": [
             "*.h",
@@ -138,7 +148,7 @@ def __step_config(ctx, step_config):
             "indirect_inputs": rust_indirect_inputs,
             "handler": "rust_bin_handler",
             "deps": "none",  # disable gcc scandeps
-            "remote": remote_run,
+            "remote": True,
             # "canonicalize_dir": True,  # TODO(b/300352286)
             "timeout": "2m",
             "platform_ref": platform_ref,
@@ -149,7 +159,7 @@ def __step_config(ctx, step_config):
             "inputs": rust_inputs + clang_inputs,
             "indirect_inputs": rust_indirect_inputs,
             "deps": "none",  # disable gcc scandeps
-            "remote": remote_run,
+            "remote": True,
             # "canonicalize_dir": True,  # TODO(b/300352286)
             "timeout": "2m",
             "platform_ref": platform_ref,
@@ -161,7 +171,7 @@ def __step_config(ctx, step_config):
             "indirect_inputs": rust_indirect_inputs,
             "deps": "none",  # disable gcc scandeps
             # "canonicalize_dir": True,  # TODO(b/300352286)
-            "remote": remote_run,
+            "remote": True,
             "timeout": "2m",
             "platform_ref": platform_ref,
         },
@@ -171,7 +181,7 @@ def __step_config(ctx, step_config):
             "inputs": rust_inputs,
             "indirect_inputs": rust_indirect_inputs,
             "deps": "none",  # disable gcc scandeps
-            "remote": remote_run,
+            "remote": True,
             # "canonicalize_dir": True,  # TODO(b/300352286)
             "timeout": "2m",
             "platform_ref": platform_ref,
@@ -182,7 +192,7 @@ def __step_config(ctx, step_config):
             "inputs": rust_inputs,
             "indirect_inputs": rust_indirect_inputs,
             "deps": "none",  # disable gcc scandeps
-            "remote": remote_run,
+            "remote": True,
             # "canonicalize_dir": True,  # TODO(b/300352286)
             "timeout": "2m",
             "platform_ref": platform_ref,
@@ -191,16 +201,10 @@ def __step_config(ctx, step_config):
             "name": "rust/run_build_script",
             "command_prefix": "python3 ../../build/rust/run_build_script.py",
             "inputs": [
-                "build/action_helpers.py",
-                "build/gn_helpers.py",
                 "third_party/rust-toolchain:toolchain",
                 "third_party/rust:rustlib",
-                # XXX: -src-dir?
-                "third_party/rust-toolchain/lib/rustlib/src/rust/library/std",
-                "third_party/rust-toolchain/lib/rustlib/src/rust/vendor/libc-0.2.153",
-                "third_party/rust-toolchain/lib/rustlib/src/rust/vendor/memchr-2.5.0",
-                "third_party/rust-toolchain/lib/rustlib/src/rust/vendor/compiler_builtins-0.1.108",
             ],
+            "handler": "rust_build_handler",
             "remote": config.get(ctx, "cog"),
             "input_root_absolute_path": True,
             "timeout": "2m",
@@ -214,6 +218,15 @@ def __step_config(ctx, step_config):
             ],
             "remote": config.get(ctx, "cog"),
             "input_root_absolute_path": True,
+            "timeout": "2m",
+        },
+        {
+            # rust/bindgen fails remotely when *.d does not exist.
+            # TODO(b/356496947): need to run scandeps?
+            "name": "rust/bindgen",
+            "command_prefix": "python3 ../../build/rust/run_bindgen.py",
+            "inputs": rust_toolchain + clang_inputs,
+            "remote": False,
             "timeout": "2m",
         },
     ])

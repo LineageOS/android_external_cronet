@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "base/build_time.h"
@@ -21,7 +22,6 @@
 #include "base/metrics/histogram_samples.h"
 #include "base/metrics/histogram_snapshot_manager.h"
 #include "base/metrics/metrics_hashes.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/system/sys_info.h"
 #include "base/time/clock.h"
@@ -166,7 +166,7 @@ metrics::SystemProfileProto::OS::XdgSessionType ToProtoSessionType(
       return metrics::SystemProfileProto::OS::MIR;
   }
 
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return metrics::SystemProfileProto::OS::UNSET;
 }
 
@@ -198,7 +198,7 @@ metrics::SystemProfileProto::OS::XdgCurrentDesktop ToProtoCurrentDesktop(
       return metrics::SystemProfileProto::OS::LXQT;
   }
 
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return metrics::SystemProfileProto::OS::OTHER;
 }
 #endif  // BUILDFLAG(IS_LINUX)
@@ -216,7 +216,7 @@ uint64_t GetSessionHash() {
 namespace internal {
 
 SystemProfileProto::InstallerPackage ToInstallerPackage(
-    base::StringPiece installer_package_name) {
+    std::string_view installer_package_name) {
   if (installer_package_name.empty())
     return SystemProfileProto::INSTALLER_PACKAGE_NONE;
   if (installer_package_name == "com.android.vending")

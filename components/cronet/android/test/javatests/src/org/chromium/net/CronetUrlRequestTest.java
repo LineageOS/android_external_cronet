@@ -47,6 +47,7 @@ import org.chromium.net.test.FailurePhase;
 
 import java.io.IOException;
 import java.net.ConnectException;
+import java.net.ServerSocket;
 import java.nio.ByteBuffer;
 import java.util.AbstractMap;
 import java.util.ArrayList;
@@ -1371,6 +1372,124 @@ public class CronetUrlRequestTest {
 
     @Test
     @SmallTest
+    @IgnoreFor(
+            implementations = {CronetImplementation.AOSP_PLATFORM},
+            reason = "Platform does not support empty buffers yet.")
+    public void testUploadWithEmptyBuffersShouldFailUpload() throws Exception {
+        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+        UrlRequest.Builder builder =
+                mTestRule
+                        .getTestFramework()
+                        .getEngine()
+                        .newUrlRequestBuilder(
+                                NativeTestServer.getEchoBodyURL(),
+                                callback,
+                                callback.getExecutor());
+
+        TestUploadDataProvider dataProvider =
+                new TestUploadDataProvider(
+                        TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+        dataProvider.addRead("test".getBytes());
+        dataProvider.addRead("".getBytes());
+        dataProvider.addRead("test".getBytes());
+        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+        builder.addHeader("Content-Type", "useless/string");
+        builder.build().start();
+        callback.blockForDone();
+        dataProvider.assertClosed();
+        assertThat(dataProvider.getNumReadCalls()).isEqualTo(2);
+
+        assertThat(callback.mError)
+                .hasMessageThat()
+                .contains("Exception received from UploadDataProvider");
+        assertThat(callback.mError)
+                .hasCauseThat()
+                .hasMessageThat()
+                .contains("Bytes read can't be zero except for last chunk!");
+        assertThat(callback.getResponseInfo()).isNull();
+    }
+
+    @Test
+    @SmallTest
+    @IgnoreFor(
+            implementations = {CronetImplementation.AOSP_PLATFORM},
+            reason = "Platform does not support empty buffers yet.")
+    public void testUploadWithEmptyBuffersAsyncShouldFailUpload() throws Exception {
+        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+        UrlRequest.Builder builder =
+                mTestRule
+                        .getTestFramework()
+                        .getEngine()
+                        .newUrlRequestBuilder(
+                                NativeTestServer.getEchoBodyURL(),
+                                callback,
+                                callback.getExecutor());
+
+        TestUploadDataProvider dataProvider =
+                new TestUploadDataProvider(
+                        TestUploadDataProvider.SuccessCallbackMode.ASYNC, callback.getExecutor());
+        dataProvider.addRead("test".getBytes());
+        dataProvider.addRead("".getBytes());
+        dataProvider.addRead("test".getBytes());
+        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+        builder.addHeader("Content-Type", "useless/string");
+        builder.build().start();
+        callback.blockForDone();
+        dataProvider.assertClosed();
+
+        assertThat(dataProvider.getNumReadCalls()).isEqualTo(2);
+
+        assertThat(callback.mError)
+                .hasMessageThat()
+                .contains("Exception received from UploadDataProvider");
+        assertThat(callback.mError)
+                .hasCauseThat()
+                .hasMessageThat()
+                .contains("Bytes read can't be zero except for last chunk!");
+        assertThat(callback.getResponseInfo()).isNull();
+    }
+
+    @Test
+    @SmallTest
+    @IgnoreFor(
+            implementations = {CronetImplementation.AOSP_PLATFORM},
+            reason = "Platform does not support empty buffers yet.")
+    public void testUploadWithEmptyBuffersAtEndShouldSucceed() throws Exception {
+        TestUrlRequestCallback callback = new TestUrlRequestCallback();
+        UrlRequest.Builder builder =
+                mTestRule
+                        .getTestFramework()
+                        .getEngine()
+                        .newUrlRequestBuilder(
+                                NativeTestServer.getEchoBodyURL(),
+                                callback,
+                                callback.getExecutor());
+
+        TestUploadDataProvider dataProvider =
+                new TestUploadDataProvider(
+                        TestUploadDataProvider.SuccessCallbackMode.SYNC, callback.getExecutor());
+        dataProvider.addRead("test".getBytes());
+        dataProvider.addRead("test".getBytes());
+        dataProvider.addRead("".getBytes());
+        builder.setUploadDataProvider(dataProvider, callback.getExecutor());
+        builder.addHeader("Content-Type", "useless/string");
+        builder.build().start();
+        callback.blockForDone();
+        dataProvider.assertClosed();
+
+        assertThat(dataProvider.getUploadedLength()).isEqualTo(8);
+        // There are only 2 reads because the last read will never be executed
+        // because from the networking stack perspective, we read all the content
+        // after executing the second read.
+        assertThat(dataProvider.getNumReadCalls()).isEqualTo(2);
+        assertThat(dataProvider.getNumRewindCalls()).isEqualTo(0);
+
+        assertThat(callback.getResponseInfoWithChecks()).hasHttpStatusCodeThat().isEqualTo(200);
+        assertThat(callback.mResponseAsString).isEqualTo("testtest");
+    }
+
+    @Test
+    @SmallTest
     public void testUploadSync() throws Exception {
         TestUrlRequestCallback callback = new TestUrlRequestCallback();
         UrlRequest.Builder builder =
@@ -2200,7 +2319,7 @@ public class CronetUrlRequestTest {
 
     @Test
     @SmallTest
-    public void testFailures() throws Exception {
+    public void testThrowOrCancelInOnRedirect() {
         throwOrCancel(FailureType.CANCEL_SYNC, ResponseStep.ON_RECEIVED_REDIRECT, false, false);
         throwOrCancel(FailureType.CANCEL_ASYNC, ResponseStep.ON_RECEIVED_REDIRECT, false, false);
         throwOrCancel(
@@ -2209,7 +2328,11 @@ public class CronetUrlRequestTest {
                 false,
                 false);
         throwOrCancel(FailureType.THROW_SYNC, ResponseStep.ON_RECEIVED_REDIRECT, false, true);
+    }
 
+    @Test
+    @SmallTest
+    public void testThrowOrCancelInOnResponseStarted() {
         throwOrCancel(FailureType.CANCEL_SYNC, ResponseStep.ON_RESPONSE_STARTED, true, false);
         throwOrCancel(FailureType.CANCEL_ASYNC, ResponseStep.ON_RESPONSE_STARTED, true, false);
         throwOrCancel(
@@ -2218,7 +2341,11 @@ public class CronetUrlRequestTest {
                 true,
                 false);
         throwOrCancel(FailureType.THROW_SYNC, ResponseStep.ON_RESPONSE_STARTED, true, true);
+    }
 
+    @Test
+    @SmallTest
+    public void testThrowOrCancelInOnReadCompleted() {
         throwOrCancel(FailureType.CANCEL_SYNC, ResponseStep.ON_READ_COMPLETED, true, false);
         throwOrCancel(FailureType.CANCEL_ASYNC, ResponseStep.ON_READ_COMPLETED, true, false);
         throwOrCancel(
@@ -2227,6 +2354,30 @@ public class CronetUrlRequestTest {
                 true,
                 false);
         throwOrCancel(FailureType.THROW_SYNC, ResponseStep.ON_READ_COMPLETED, true, true);
+    }
+
+    @Test
+    @SmallTest
+    public void testCancelBeforeResponse() throws IOException {
+        // Use a hanging server to prevent race between getting a response and cancel().
+        // Cronet only records the responseInfo once onResponseStarted is called.
+        try (ServerSocket hangingServer = new ServerSocket(0)) {
+            String url = "http://localhost:" + hangingServer.getLocalPort();
+            TestUrlRequestCallback callback = new TestUrlRequestCallback();
+            UrlRequest.Builder builder =
+                    mTestRule
+                            .getTestFramework()
+                            .getEngine()
+                            .newUrlRequestBuilder(url, callback, callback.getExecutor());
+            UrlRequest urlRequest = builder.build();
+            urlRequest.start();
+            hangingServer.accept();
+            urlRequest.cancel();
+            callback.blockForDone();
+
+            assertResponseStepCanceled(callback);
+            assertThat(callback.getResponseInfo()).isNull();
+        }
     }
 
     @Test
@@ -2554,6 +2705,7 @@ public class CronetUrlRequestTest {
         QuicException quicException = (QuicException) callback.mError;
         // 1 is QUIC_INTERNAL_ERROR
         assertThat(quicException.getQuicDetailedErrorCode()).isEqualTo(1);
+        assertThat(quicException.getConnectionCloseSource()).isEqualTo(ConnectionCloseSource.SELF);
         assertThat(quicException.getErrorCode())
                 .isEqualTo(NetworkException.ERROR_QUIC_PROTOCOL_FAILED);
     }
@@ -2577,6 +2729,7 @@ public class CronetUrlRequestTest {
         // URLRequestFailedJob::PopulateNetErrorDetails for this test.
         final int quicErrorCode = 83;
         assertThat(quicException.getQuicDetailedErrorCode()).isEqualTo(quicErrorCode);
+        assertThat(quicException.getConnectionCloseSource()).isEqualTo(ConnectionCloseSource.SELF);
         assertThat(quicException.getErrorCode()).isEqualTo(NetworkException.ERROR_NETWORK_CHANGED);
     }
 
@@ -2780,7 +2933,6 @@ public class CronetUrlRequestTest {
     @Test
     @SmallTest
     @RequiresMinApi(9) // Tagging support added in API level 9: crrev.com/c/chromium/src/+/930086
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M) // crbug/1301957
     public void testTagging() throws Exception {
         if (!CronetTestUtil.nativeCanGetTaggedBytes()) {
             Log.i(TAG, "Skipping test - GetTaggedBytes unsupported.");
@@ -2911,7 +3063,6 @@ public class CronetUrlRequestTest {
     }
 
     @Test
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M)
     public void testBindToInvalidNetworkFails() {
         String url = NativeTestServer.getEchoMethodURL();
         ExperimentalCronetEngine cronetEngine = mTestRule.getTestFramework().getEngine();
@@ -2928,7 +3079,7 @@ public class CronetUrlRequestTest {
             // given a fake networkHandle.
             assertThrows(
                     IllegalArgumentException.class,
-                    () -> builder.bindToNetwork(-150 /* invalid network handle */));
+                    () -> builder.bindToNetwork(-150 /* invalid network handle */).build());
             return;
         }
 
@@ -2945,7 +3096,6 @@ public class CronetUrlRequestTest {
     }
 
     @Test
-    @RequiresMinAndroidApi(Build.VERSION_CODES.M)
     public void testBindToDefaultNetworkSucceeds() {
         String url = NativeTestServer.getEchoMethodURL();
         ConnectivityManagerDelegate delegate =
@@ -2967,10 +3117,6 @@ public class CronetUrlRequestTest {
     // object, it is an implicit expectation by our users that we should not break.
     // See b/328442628 for an example regression.
     @Test
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason =
-                    "b/324583507: Unignore when requests in callbacks are == to the user held one.")
     public void testCallbackMethod_onRedirect_receivesSameRequestObject() {
         AtomicReference<UrlRequest> callbackRequest = new AtomicReference<>();
         TestUrlRequestCallback callback =
@@ -2990,10 +3136,6 @@ public class CronetUrlRequestTest {
     // object, it is an implicit expectation by our users that we should not break.
     // See b/328442628 for an example regression.
     @Test
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason =
-                    "b/324583507: Unignore when requests in callbacks are == to the user held one.")
     public void testCallbackMethod_onResponseStarted_receivesSameRequestObject() {
         AtomicReference<UrlRequest> callbackRequest = new AtomicReference<>();
         TestUrlRequestCallback callback =
@@ -3012,10 +3154,6 @@ public class CronetUrlRequestTest {
     // object, it is an implicit expectation by our users that we should not break.
     // See b/328442628 for an example regression.
     @Test
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason =
-                    "b/324583507: Unignore when requests in callbacks are == to the user held one.")
     public void testCallbackMethod_onReadCompleted_receivesSameRequestObject() {
         AtomicReference<UrlRequest> callbackRequest = new AtomicReference<>();
         TestUrlRequestCallback callback =
@@ -3036,10 +3174,6 @@ public class CronetUrlRequestTest {
     // object, it is an implicit expectation by our users that we should not break.
     // See b/328442628 for an example regression.
     @Test
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason =
-                    "b/324583507: Unignore when requests in callbacks are == to the user held one.")
     public void testCallbackMethod_onSucceeded_receivesSameRequestObject() {
         AtomicReference<UrlRequest> callbackRequest = new AtomicReference<>();
         TestUrlRequestCallback callback =
@@ -3058,10 +3192,6 @@ public class CronetUrlRequestTest {
     // object, it is an implicit expectation by our users that we should not break.
     // See b/328442628 for an example regression.
     @Test
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason =
-                    "b/324583507: Unignore when requests in callbacks are == to the user held one.")
     public void testCallbackMethod_onCanceled_receivesSameRequestObject() {
         AtomicReference<UrlRequest> callbackRequest = new AtomicReference<>();
         TestUrlRequestCallback callback =
@@ -3081,10 +3211,6 @@ public class CronetUrlRequestTest {
     // object, it is an implicit expectation by our users that we should not break.
     // See b/328442628 for an example regression.
     @Test
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason =
-                    "b/324583507: Unignore when requests in callbacks are == to the user held one.")
     public void testCallbackMethod_onFailed_receivesSameRequestObject() {
         AtomicReference<UrlRequest> callbackRequest = new AtomicReference<>();
         TestUrlRequestCallback callback =
@@ -3118,10 +3244,6 @@ public class CronetUrlRequestTest {
     }
 
     @Test
-    @IgnoreFor(
-            implementations = {CronetImplementation.AOSP_PLATFORM},
-            reason =
-                    "b/324583507: Unignore when requests in callbacks are == to the user held one.")
     public void testCallback_twoRequestsFromOneBuilder_receivesCorrectRequestObject() {
         AtomicReference<UrlRequest> onResponseStartedRequest = new AtomicReference<>();
         AtomicReference<UrlRequest> onReadCompletedRequest = new AtomicReference<>();

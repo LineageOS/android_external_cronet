@@ -6,196 +6,230 @@ package org.chromium.base.test.transit;
 
 import androidx.annotation.Nullable;
 
-import java.util.Set;
+import org.chromium.base.supplier.Supplier;
+import org.chromium.base.test.transit.ConditionStatus.Status;
+
 import java.util.concurrent.Callable;
+import java.util.function.Function;
 
 /**
- * Represents a logical expression that has to be true to consider the Station active.
+ * Represents a logical expression that has to be true to consider the Station active and false to
+ * consider the Station exited.
+ *
+ * <p>The logical expression is passed in as a |checkFunction|.
  *
  * <p>LogicalElements should be declared by calling {@link
  * Elements.Builder#declareLogicalElement(LogicalElement)} passing in an instance created by one of
- * the factory methods here such as {@link #sharedUiThreadLogicalElement(String, Callable)}.
+ * the factory methods here such as {@link #uiThreadLogicalElement(String, Function, Supplier)}.
  *
  * <p>Generates ENTER and EXIT Conditions for the ConditionalState to ensure the LogicalElement is
  * in the right state.
+ *
+ * <p>LogicalElements that have no Exit condition should simply be enter Conditions, declared with
+ * {@link Elements.Builder#declareEnterCondition(Condition)}.
+ *
+ * @param <ParamT> type of parameter the |checkFunction| requires.
  */
-public class LogicalElement implements ElementInState {
+public class LogicalElement<ParamT> extends Element<Void> {
 
+    private static final ConditionWithResult<Void> CONDITION_WITH_NULL_RESULT =
+            new ConditionWithResult<>(/* isRunOnUiThread= */ false) {
+                @Override
+                public String buildDescription() {
+                    return "Supplier of null";
+                }
+
+                @Override
+                public boolean hasValue() {
+                    return true;
+                }
+
+                @Override
+                protected ConditionStatusWithResult<Void> resolveWithSuppliers() {
+                    return fulfilled().withResult(null);
+                }
+            };
     private final boolean mIsRunOnUiThread;
-    private final boolean mIsScoped;
     private final String mDescription;
-    private final String mId;
-    private final Condition mEnterCondition;
-    @Nullable private Condition mExitCondition;
+    private final Function<ParamT, ConditionStatus> mCheckFunction;
+    private final Supplier<ParamT> mParamSupplier;
 
     /**
-     * Create a shared-scope LogicalElement that runs the check on the UI Thread.
+     * Create a LogicalElement that runs the check on the UI Thread.
      *
-     * <p>Unscoped LogicalElements wait for the function to be true as an ENTER Condition. It also
-     * waits for the function to be false as an EXIT Condition when transitioning to a
-     * ConditionalState that does not declare the LogicalElement too.
+     * <p>LogicalElements wait for the function to be true as an ENTER Condition. They also wait for
+     * the function to be false as an EXIT Condition when transitioning to a ConditionalState that
+     * does not declare the same LogicalElement.
      */
-    public static LogicalElement sharedUiThreadLogicalElement(
-            String description, Callable<Boolean> checkFunction, String id) {
-        return new LogicalElement(
-                /* isRunOnUiThread= */ true, /* isScoped= */ true, description, checkFunction, id);
+    public static <T> LogicalElement<T> uiThreadLogicalElement(
+            String description,
+            Function<T, ConditionStatus> checkFunction,
+            Supplier<T> paramSupplier,
+            String id) {
+        return new LogicalElement<>(
+                /* isRunOnUiThread= */ true, description, checkFunction, paramSupplier, id);
     }
 
     /**
-     * Version of {@link #sharedUiThreadLogicalElement(String, Callable, String)} using the
+     * Version of {@link #uiThreadLogicalElement(String, Function, Supplier, String)} using the
      * |description| as |id|.
      */
-    public static LogicalElement sharedUiThreadLogicalElement(
-            String description, Callable<Boolean> checkFunction) {
-        return new LogicalElement(
+    public static <T> LogicalElement<T> uiThreadLogicalElement(
+            String description,
+            Function<T, ConditionStatus> checkFunction,
+            Supplier<T> paramSupplier) {
+        return new LogicalElement<>(
                 /* isRunOnUiThread= */ true,
-                /* isScoped= */ true,
                 description,
                 checkFunction,
+                paramSupplier,
                 /* id= */ null);
     }
 
     /**
-     * Create a shared-scope LogicalElement that runs the check on the Instrumentation Thread.
-     *
-     * <p>Unscoped LogicalElements wait for the function to be true as an ENTER Condition. It also
-     * waits for the function to be false as an EXIT Condition when transitioning to a
-     * ConditionalState that does not declare the LogicalElement too.
+     * Version of {@link #uiThreadLogicalElement(String, Function, Supplier)} when |checkFunction|
+     * has no dependencies.
      */
-    public static LogicalElement sharedInstrumentationThreadLogicalElement(
-            String description, Callable<Boolean> checkFunction, String id) {
-        return new LogicalElement(
-                /* isRunOnUiThread= */ false, /* isScoped= */ true, description, checkFunction, id);
-    }
-
-    /**
-     * Version of {@link #sharedInstrumentationThreadLogicalElement(String, Callable, String)} using
-     * the |description| as |id|.
-     */
-    public static LogicalElement sharedInstrumentationThreadLogicalElement(
-            String description, Callable<Boolean> checkFunction) {
-        return new LogicalElement(
-                /* isRunOnUiThread= */ false,
-                /* isScoped= */ true,
-                description,
-                checkFunction,
-                /* id= */ null);
-    }
-
-    /**
-     * Create an unscoped LogicalElement that runs the check on the UI Thread.
-     *
-     * <p>Unscoped LogicalElements wait for the function to be true as an ENTER Condition but do not
-     * generate an EXIT Condition.
-     */
-    public static LogicalElement unscopedUiThreadLogicalElement(
-            String description, Callable<Boolean> checkFunction, String id) {
-        return new LogicalElement(
-                /* isRunOnUiThread= */ true, /* isScoped= */ false, description, checkFunction, id);
-    }
-
-    /**
-     * Version of {@link #unscopedUiThreadLogicalElement(String, Callable, String)} using the
-     * |description| as |id|.
-     */
-    public static LogicalElement unscopedUiThreadLogicalElement(
-            String description, Callable<Boolean> checkFunction) {
-        return new LogicalElement(
+    public static LogicalElement<Void> uiThreadLogicalElement(
+            String description, Callable<ConditionStatus> checkCallable) {
+        return new LogicalElement<>(
                 /* isRunOnUiThread= */ true,
-                /* isScoped= */ false,
                 description,
-                checkFunction,
+                new CallableAsFunction(checkCallable),
+                CONDITION_WITH_NULL_RESULT,
                 /* id= */ null);
     }
 
     /**
-     * Create an unscoped LogicalElement that runs the check on the Instrumentation Thread.
+     * Create a LogicalElement that runs the check on the Instrumentation Thread.
      *
-     * <p>Unscoped LogicalElements wait for the function to be true as an ENTER Condition but do not
-     * generate an EXIT Condition.
+     * <p>LogicalElements wait for the function to be true as an ENTER Condition. They also wait for
+     * the function to be false as an EXIT Condition when transitioning to a ConditionalState that
+     * does not declare the same LogicalElement.
      */
-    public static LogicalElement unscopedInstrumentationThreadLogicalElement(
-            String description, Callable<Boolean> checkFunction, String id) {
-        return new LogicalElement(
-                /* isRunOnUiThread= */ false,
-                /* isScoped= */ false,
-                description,
-                checkFunction,
-                id);
+    public static <T> LogicalElement<T> instrumentationThreadLogicalElement(
+            String description,
+            Function<T, ConditionStatus> checkFunction,
+            Supplier<T> paramSupplier,
+            String id) {
+        return new LogicalElement<>(
+                /* isRunOnUiThread= */ false, description, checkFunction, paramSupplier, id);
     }
 
     /**
-     * Version of {@link #unscopedInstrumentationThreadLogicalElement(String, Callable, String)}
+     * Version of {@link #instrumentationThreadLogicalElement(String, Function, Supplier, String)}
      * using the |description| as |id|.
      */
-    public static LogicalElement unscopedInstrumentationThreadLogicalElement(
-            String description, Callable<Boolean> checkFunction) {
-        return new LogicalElement(
+    public static <T> LogicalElement<T> instrumentationThreadLogicalElement(
+            String description,
+            Function<T, ConditionStatus> checkFunction,
+            Supplier<T> paramSupplier) {
+        return new LogicalElement<>(
                 /* isRunOnUiThread= */ false,
-                /* isScoped= */ false,
                 description,
                 checkFunction,
+                paramSupplier,
+                /* id= */ null);
+    }
+
+    /**
+     * Version of {@link #instrumentationThreadLogicalElement(String, Function, Supplier)} when
+     * |checkFunction| has no dependencies.
+     */
+    public static LogicalElement<Void> instrumentationThreadLogicalElement(
+            String description, Callable<ConditionStatus> checkCallable) {
+        return new LogicalElement<>(
+                /* isRunOnUiThread= */ false,
+                description,
+                new CallableAsFunction(checkCallable),
+                CONDITION_WITH_NULL_RESULT,
                 /* id= */ null);
     }
 
     LogicalElement(
             boolean isRunOnUiThread,
-            boolean isScoped,
             String description,
-            Callable<Boolean> checkFunction,
+            Function<ParamT, ConditionStatus> checkFunction,
+            Supplier<ParamT> paramSupplier,
             @Nullable String id) {
+        super("LE/" + (id != null ? id : description));
         mIsRunOnUiThread = isRunOnUiThread;
-        mIsScoped = isScoped;
         mDescription = description;
-        mId = "LE/" + (id != null ? id : description);
+        mCheckFunction = checkFunction;
+        mParamSupplier = paramSupplier;
+    }
 
-        mEnterCondition =
-                new Condition(mIsRunOnUiThread) {
-                    @Override
-                    public ConditionStatus check() throws Exception {
-                        return whether(checkFunction.call());
-                    }
+    @Override
+    public ConditionWithResult<Void> createEnterCondition() {
+        return new EnterCondition(mIsRunOnUiThread);
+    }
 
-                    @Override
-                    public String buildDescription() {
-                        return "True: " + mDescription;
-                    }
-                };
+    @Override
+    public Condition createExitCondition() {
+        return new ExitCondition(mIsRunOnUiThread);
+    }
 
-        if (mIsScoped) {
-            mExitCondition =
-                    new Condition(mIsRunOnUiThread) {
-                        @Override
-                        public ConditionStatus check() throws Exception {
-                            return whether(!checkFunction.call());
-                        }
+    private class EnterCondition extends ConditionWithResult<Void> {
+        private EnterCondition(boolean isRunOnUiThread) {
+            super(isRunOnUiThread);
+            dependOnSupplier(mParamSupplier, "Param");
+        }
 
-                        @Override
-                        public String buildDescription() {
-                            return "False: " + mDescription;
-                        }
-                    };
-        } else {
-            mExitCondition = null;
+        @Override
+        protected ConditionStatusWithResult<Void> resolveWithSuppliers() {
+            return mCheckFunction.apply(mParamSupplier.get()).withoutResult();
+        }
+
+        @Override
+        public String buildDescription() {
+            return "True: " + mDescription;
         }
     }
 
-    @Override
-    public String getId() {
-        return mId;
+    private class ExitCondition extends Condition {
+        private ExitCondition(boolean isRunOnUiThread) {
+            super(isRunOnUiThread);
+            dependOnSupplier(mParamSupplier, "Param");
+        }
+
+        @Override
+        protected ConditionStatus checkWithSuppliers() {
+            ConditionStatus functionResult = mCheckFunction.apply(mParamSupplier.get());
+            return new ConditionStatus(
+                    invertStatus(functionResult.getStatus()), functionResult.getMessage());
+        }
+
+        @Override
+        public String buildDescription() {
+            return "False: " + mDescription;
+        }
     }
 
-    @Override
-    public Condition getEnterCondition() {
-        return mEnterCondition;
+    private @Status int invertStatus(@Status int status) {
+        return switch (status) {
+            case Status.NOT_FULFILLED -> Status.FULFILLED;
+            case Status.FULFILLED -> Status.NOT_FULFILLED;
+            case Status.ERROR -> Status.ERROR;
+            case Status.AWAITING -> Status.AWAITING;
+            default -> throw new IllegalStateException("Unexpected value: " + status);
+        };
     }
 
-    @Override
-    public @Nullable Condition getExitCondition(Set<String> destinationElementIds) {
-        if (mIsScoped && !destinationElementIds.contains(mId)) {
-            return mExitCondition;
-        } else {
-            return null;
+    private static class CallableAsFunction implements Function<Void, ConditionStatus> {
+
+        private final Callable<ConditionStatus> mCheckCallable;
+
+        private CallableAsFunction(Callable<ConditionStatus> checkCallable) {
+            mCheckCallable = checkCallable;
+        }
+
+        @Override
+        public ConditionStatus apply(Void voidParam) {
+            try {
+                return mCheckCallable.call();
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }

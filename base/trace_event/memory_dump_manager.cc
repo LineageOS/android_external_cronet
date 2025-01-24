@@ -8,6 +8,7 @@
 #include <stdio.h>
 
 #include <algorithm>
+#include <array>
 #include <memory>
 #include <tuple>
 #include <utility>
@@ -32,7 +33,7 @@
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/traced_value.h"
 #include "build/build_config.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 #include "third_party/abseil-cpp/absl/base/dynamic_annotations.h"
 
 #if BUILDFLAG(IS_ANDROID)
@@ -44,7 +45,7 @@
 
 #endif  // BUILDFLAG(IS_ANDROID)
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 #include "base/trace_event/address_space_dump_provider.h"
 #endif
 
@@ -137,7 +138,7 @@ void MemoryDumpManager::Initialize(
   RegisterDumpProvider(MallocDumpProvider::GetInstance(), "Malloc", nullptr);
 #endif
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   RegisterDumpProvider(AddressSpaceDumpProvider::GetInstance(),
                        "PartitionAlloc.AddressSpace", nullptr);
 #endif
@@ -457,11 +458,7 @@ void MemoryDumpManager::InvokeOnMemoryDump(MemoryDumpProviderInfo* mdpinfo,
   // A stack allocated string with dump provider name is useful to debug
   // crashes while invoking dump after a |dump_provider| is not unregistered
   // in safe way.
-  char provider_name_for_debugging[16];
-  strncpy(provider_name_for_debugging, mdpinfo->name,
-          sizeof(provider_name_for_debugging) - 1);
-  provider_name_for_debugging[sizeof(provider_name_for_debugging) - 1] = '\0';
-  base::debug::Alias(provider_name_for_debugging);
+  DEBUG_ALIAS_FOR_CSTR(provider_name_for_debugging, mdpinfo->name, 16);
 
   ABSL_ANNOTATE_BENIGN_RACE(&mdpinfo->disabled, "best-effort race detection");
   CHECK(!is_thread_bound ||

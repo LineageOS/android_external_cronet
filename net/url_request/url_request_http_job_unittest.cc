@@ -30,6 +30,7 @@
 #include "net/base/proxy_server.h"
 #include "net/base/proxy_string_util.h"
 #include "net/base/request_priority.h"
+#include "net/base/test_proxy_delegate.h"
 #include "net/cert/ct_policy_status.h"
 #include "net/cookies/canonical_cookie_test_helpers.h"
 #include "net/cookies/cookie_monster.h"
@@ -69,7 +70,7 @@
 #endif
 
 #if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
-#include "net/device_bound_sessions/device_bound_session_service.h"
+#include "net/device_bound_sessions/session_service.h"
 #include "net/device_bound_sessions/test_util.h"
 #endif
 
@@ -345,6 +346,57 @@ TEST_F(URLRequestHttpJobWithProxyTest,
   EXPECT_EQ(12, request->received_response_content_length());
   EXPECT_EQ(CountWriteBytes(writes), request->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), request->GetTotalReceivedBytes());
+}
+
+// Test that for direct requests that are marked as being for IP Protection, the
+// IP Protection-specific metrics get recorded as expected.
+TEST_F(URLRequestHttpJobWithProxyTest, IpProtectionDirectProxyMetricsRecorded) {
+  const auto kIpProtectionDirectChain =
+      ProxyChain::ForIpProtection(std::vector<ProxyServer>());
+
+  std::unique_ptr<ProxyResolutionService> proxy_resolution_service =
+      ConfiguredProxyResolutionService::CreateFixedForTest(
+          "https://not-used:70", TRAFFIC_ANNOTATION_FOR_TESTS);
+  auto proxy_delegate = std::make_unique<TestProxyDelegate>();
+  proxy_delegate->set_proxy_chain(kIpProtectionDirectChain);
+  proxy_resolution_service->SetProxyDelegate(proxy_delegate.get());
+
+  MockWrite writes[] = {MockWrite(kSimpleGetMockWrite)};
+
+  MockRead reads[] = {MockRead("HTTP/1.1 200 OK\r\n"
+                               "Content-Length: 12\r\n\r\n"),
+                      MockRead("Test Content")};
+
+  StaticSocketDataProvider socket_data(reads, writes);
+
+  URLRequestHttpJobWithProxy http_job_with_proxy(
+      std::move(proxy_resolution_service));
+  http_job_with_proxy.socket_factory_.AddSocketDataProvider(&socket_data);
+
+  TestDelegate delegate;
+  base::HistogramTester histogram_tester;
+  std::unique_ptr<URLRequest> request =
+      http_job_with_proxy.context_->CreateRequest(
+          GURL("http://www.example.com"), DEFAULT_PRIORITY, &delegate,
+          TRAFFIC_ANNOTATION_FOR_TESTS);
+
+  request->Start();
+  ASSERT_TRUE(request->is_pending());
+  delegate.RunUntilComplete();
+
+  EXPECT_THAT(delegate.request_status(), IsOk());
+  EXPECT_EQ(kIpProtectionDirectChain, request->proxy_chain());
+  EXPECT_EQ(12, request->received_response_content_length());
+  EXPECT_EQ(CountWriteBytes(writes), request->GetTotalSentBytes());
+  EXPECT_EQ(CountReadBytes(reads), request->GetTotalReceivedBytes());
+
+  histogram_tester.ExpectUniqueSample("Net.HttpJob.IpProtection.BytesSent",
+                                      std::size(kSimpleGetMockWrite),
+                                      /*expected_bucket_count=*/1);
+
+  histogram_tester.ExpectUniqueSample(
+      "Net.HttpJob.IpProtection.PrefilterBytesRead.Net",
+      /*sample=*/12, /*expected_bucket_count=*/1);
 }
 
 class URLRequestHttpJobTest : public TestWithTaskEnvironment {
@@ -1184,15 +1236,16 @@ class URLRequestHttpJobWithMockSocketsDeviceBoundSessionServiceTest
     auto context_builder = CreateTestURLRequestContextBuilder();
     context_builder->set_client_socket_factory_for_testing(&socket_factory_);
     context_builder->set_device_bound_session_service(
-        std::make_unique<testing::StrictMock<DeviceBoundSessionServiceMock>>());
+        std::make_unique<
+            testing::StrictMock<device_bound_sessions::SessionServiceMock>>());
     context_ = context_builder->Build();
     request_ = context_->CreateRequest(GURL("http://www.example.com"),
                                        DEFAULT_PRIORITY, &delegate_,
                                        TRAFFIC_ANNOTATION_FOR_TESTS);
   }
 
-  DeviceBoundSessionServiceMock& GetMockService() {
-    return *static_cast<DeviceBoundSessionServiceMock*>(
+  device_bound_sessions::SessionServiceMock& GetMockService() {
+    return *static_cast<device_bound_sessions::SessionServiceMock*>(
         context_->device_bound_session_service());
   }
 
@@ -1213,11 +1266,11 @@ TEST_F(URLRequestHttpJobWithMockSocketsDeviceBoundSessionServiceTest,
                 "Accept-Language: en-us,fr\r\n\r\n")};
 
   const MockRead reads[] = {
-      MockRead(
-          "HTTP/1.1 200 OK\r\n"
-          "Accept-Ranges: bytes\r\n"
-          "Sec-Session-Registration: \"new\";challenge=:Y29kZWQ=:;es256\r\n"
-          "Content-Length: 12\r\n\r\n"),
+      MockRead("HTTP/1.1 200 OK\r\n"
+               "Accept-Ranges: bytes\r\n"
+               "Sec-Session-Registration: (ES256);path=\"new\";"
+               "challenge=\"test\"\r\n"
+               "Content-Length: 12\r\n\r\n"),
       MockRead("Test Content")};
 
   StaticSocketDataProvider socket_data(reads, writes);
@@ -1249,6 +1302,33 @@ TEST_F(URLRequestHttpJobWithMockSocketsDeviceBoundSessionServiceTest,
 
   request_->Start();
   EXPECT_CALL(GetMockService(), RegisterBoundSession).Times(0);
+  delegate_.RunUntilComplete();
+  EXPECT_THAT(delegate_.request_status(), IsOk());
+}
+
+TEST_F(URLRequestHttpJobWithMockSocketsDeviceBoundSessionServiceTest,
+       ShouldProcessDeviceBoundSessionChallengeHeader) {
+  const MockWrite writes[] = {
+      MockWrite("GET / HTTP/1.1\r\n"
+                "Host: www.example.com\r\n"
+                "Connection: keep-alive\r\n"
+                "User-Agent: \r\n"
+                "Accept-Encoding: gzip, deflate\r\n"
+                "Accept-Language: en-us,fr\r\n\r\n")};
+
+  const MockRead reads[] = {
+      MockRead(
+          "HTTP/1.1 200 OK\r\n"
+          "Accept-Ranges: bytes\r\n"
+          "Sec-Session-Challenge: \"session_identifier\";challenge=\"test\"\r\n"
+          "Content-Length: 12\r\n\r\n"),
+      MockRead("Test Content")};
+
+  StaticSocketDataProvider socket_data(reads, writes);
+  socket_factory_.AddSocketDataProvider(&socket_data);
+
+  request_->Start();
+  EXPECT_CALL(GetMockService(), SetChallengeForBoundSession).Times(1);
   delegate_.RunUntilComplete();
   EXPECT_THAT(delegate_.request_status(), IsOk());
 }

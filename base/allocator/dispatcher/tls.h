@@ -25,7 +25,10 @@
 #include "base/base_export.h"
 #include "base/check.h"
 #include "base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_constants.h"
+
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC)
+#include "partition_alloc/partition_alloc_constants.h"  // nogncheck
+#endif
 
 #include <pthread.h>
 
@@ -244,7 +247,7 @@ struct ThreadLocalStorage {
 
     auto* slot = static_cast<SingleSlot*>(tls_system.GetThreadSpecificData());
 
-    if (UNLIKELY(slot == nullptr)) {
+    if (slot == nullptr) [[unlikely]] {
       slot = FindAndAllocateFreeSlot(root_.load(std::memory_order_relaxed));
 
       // We might be called in the course of handling a memory allocation. We do

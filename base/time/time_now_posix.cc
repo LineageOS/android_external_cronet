@@ -132,7 +132,6 @@ ThreadTicks ThreadTicksNowIgnoringOverride() {
   return ThreadTicks() + Microseconds(ClockNow(CLOCK_THREAD_CPUTIME_ID));
 #else
   NOTREACHED();
-  return ThreadTicks();
 #endif
 }
 }  // namespace subtle

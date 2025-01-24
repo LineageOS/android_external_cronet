@@ -20,9 +20,9 @@
 //     allocating via malloc() and freeing using __libc_free().
 //     See tcmalloc's libc_override_glibc.h for more context.
 
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
-#if BUILDFLAG(USE_ALLOCATOR_SHIM)
+#if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 #include <features.h>  // for __GLIBC__
 #include <malloc.h>
 #include <unistd.h>
@@ -41,6 +41,14 @@
 extern "C" {
 
 // 1) Re-define malloc_hook weak symbols.
+
+// This ".h" file is not a header, but a source file meant to be included only
+// once, exclusively from allocator_shim.cc. See the top-level check.
+//
+// A possible alternative: rename this file to .inc, at the expense of losing
+// syntax highlighting in text editors.
+//
+// NOLINTNEXTLINE(google-build-namespaces)
 namespace {
 
 void* GlibcMallocHook(size_t size, const void* caller) {
@@ -123,6 +131,6 @@ SHIM_ALWAYS_EXPORT int __posix_memalign(void** r, size_t a, size_t s) {
 shim by setting use_allocator_shim=false in GN args.
 #endif
 
-#endif  // BUILDFLAG(USE_ALLOCATOR_SHIM)
+#endif  // PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 
 #endif  // PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_GLIBC_WEAK_SYMBOLS_H_

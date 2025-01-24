@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "quiche/quic/core/crypto/crypto_handshake_message.h"
 #include "quiche/quic/core/crypto/crypto_protocol.h"
@@ -120,7 +121,7 @@ TEST_P(QuicConfigTest, ProcessClientHello) {
     return;
   }
   const uint32_t kTestMaxAckDelayMs =
-      static_cast<uint32_t>(kDefaultDelayedAckTimeMs + 1);
+      static_cast<uint32_t>(GetDefaultDelayedAckTimeMs() + 1);
   QuicConfig client_config;
   QuicTagVector cgst;
   cgst.push_back(kQBIC);
@@ -187,7 +188,7 @@ TEST_P(QuicConfigTest, ProcessServerHello) {
       0x50, 0x51, 0x52, 0x53, 0x54, 0x55, 0x56, 0x57,
       0x58, 0x59, 0x5a, 0x5b, 0x5c, 0x5d, 0x5e, 0x5f};
   const uint32_t kTestMaxAckDelayMs =
-      static_cast<uint32_t>(kDefaultDelayedAckTimeMs + 1);
+      static_cast<uint32_t>(GetDefaultDelayedAckTimeMs() + 1);
   QuicConfig server_config;
   QuicTagVector cgst;
   cgst.push_back(kQBIC);
@@ -617,6 +618,26 @@ TEST_P(QuicConfigTest, SupportsServerPreferredAddress) {
   config_.SetInitialReceivedConnectionOptions(copt);
   EXPECT_TRUE(config_.SupportsServerPreferredAddress(Perspective::IS_CLIENT));
   EXPECT_TRUE(config_.SupportsServerPreferredAddress(Perspective::IS_SERVER));
+}
+
+TEST_P(QuicConfigTest, AddConnectionOptionsToSend) {
+  QuicTagVector copt;
+  copt.push_back(kNOIP);
+  copt.push_back(kFPPE);
+  config_.AddConnectionOptionsToSend(copt);
+  ASSERT_TRUE(config_.HasSendConnectionOptions());
+  EXPECT_TRUE(quic::ContainsQuicTag(config_.SendConnectionOptions(), kNOIP));
+  EXPECT_TRUE(quic::ContainsQuicTag(config_.SendConnectionOptions(), kFPPE));
+
+  copt.clear();
+  copt.push_back(kSPAD);
+  copt.push_back(kSPA2);
+  config_.AddConnectionOptionsToSend(copt);
+  ASSERT_EQ(4, config_.SendConnectionOptions().size());
+  EXPECT_TRUE(quic::ContainsQuicTag(config_.SendConnectionOptions(), kNOIP));
+  EXPECT_TRUE(quic::ContainsQuicTag(config_.SendConnectionOptions(), kFPPE));
+  EXPECT_TRUE(quic::ContainsQuicTag(config_.SendConnectionOptions(), kSPAD));
+  EXPECT_TRUE(quic::ContainsQuicTag(config_.SendConnectionOptions(), kSPA2));
 }
 
 TEST_P(QuicConfigTest, ProcessTransportParametersServer) {

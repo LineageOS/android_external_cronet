@@ -5,11 +5,11 @@
 package org.chromium.net.impl;
 
 import org.chromium.net.ApiVersion;
-import android.os.Build;
 import android.os.ConditionVariable;
 import android.os.Process;
 import android.os.SystemClock;
 
+import androidx.annotation.NonNull;
 import androidx.annotation.VisibleForTesting;
 
 import org.jni_zero.CalledByNative;
@@ -23,11 +23,13 @@ import org.chromium.build.annotations.UsedByReflection;
 import org.chromium.net.BidirectionalStream;
 import org.chromium.net.EffectiveConnectionType;
 import org.chromium.net.ExperimentalBidirectionalStream;
+import org.chromium.net.ExperimentalUrlRequest;
 import org.chromium.net.NetworkQualityRttListener;
 import org.chromium.net.NetworkQualityThroughputListener;
 import org.chromium.net.RequestContextConfigOptions;
 import org.chromium.net.RequestFinishedInfo;
 import org.chromium.net.RttThroughputValues;
+import org.chromium.net.UploadDataProvider;
 import org.chromium.net.UrlRequest;
 import org.chromium.net.impl.CronetLogger.CronetVersion;
 import org.chromium.net.urlconnection.CronetHttpURLConnection;
@@ -37,6 +39,7 @@ import java.net.Proxy;
 import java.net.URL;
 import java.net.URLConnection;
 import java.net.URLStreamHandlerFactory;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -365,8 +368,16 @@ public class CronetUrlRequestContext extends CronetEngineBase {
         return urlRequestContextConfig;
     }
 
+    @VisibleForTesting
+    public static final String OVERRIDE_NETWORK_THREAD_PRIORITY_FLAG_NAME =
+            "Cronet_override_network_thread_priority";
+
     private static RequestContextConfigOptions createRequestContextConfigOptions(
             CronetEngineBuilderImpl engineBuilder) {
+        var networkThreadPriorityFlagValue =
+                CronetLibraryLoader.getHttpFlags()
+                        .flags()
+                        .get(OVERRIDE_NETWORK_THREAD_PRIORITY_FLAG_NAME);
         RequestContextConfigOptions.Builder resultBuilder =
                 RequestContextConfigOptions.newBuilder()
                         .setQuicEnabled(engineBuilder.quicEnabled())
@@ -381,7 +392,10 @@ public class CronetUrlRequestContext extends CronetEngineBase {
                         .setBypassPublicKeyPinningForLocalTrustAnchors(
                                 engineBuilder.publicKeyPinningBypassForLocalTrustAnchorsEnabled())
                         .setNetworkThreadPriority(
-                                engineBuilder.threadPriority(Process.THREAD_PRIORITY_BACKGROUND));
+                                networkThreadPriorityFlagValue != null
+                                        ? (int) networkThreadPriorityFlagValue.getIntValue()
+                                        : engineBuilder.threadPriority(
+                                                Process.THREAD_PRIORITY_BACKGROUND));
 
         if (engineBuilder.getUserAgent() != null) {
             resultBuilder.setUserAgent(engineBuilder.getUserAgent());
@@ -409,7 +423,7 @@ public class CronetUrlRequestContext extends CronetEngineBase {
     }
 
     @Override
-    public UrlRequestBase createRequest(
+    public ExperimentalUrlRequest createRequest(
             String url,
             UrlRequest.Callback callback,
             Executor executor,
@@ -424,7 +438,14 @@ public class CronetUrlRequestContext extends CronetEngineBase {
             int trafficStatsUid,
             RequestFinishedInfo.Listener requestFinishedListener,
             int idempotency,
-            long networkHandle) {
+            long networkHandle,
+            String method,
+            ArrayList<Map.Entry<String, String>> requestHeaders,
+            UploadDataProvider uploadDataProvider,
+            Executor uploadDataProviderExecutor,
+            byte[] sharedDictionaryHash,
+            ByteBuffer sharedDictionary,
+            @NonNull String sharedDictionaryId) {
         // if this request is not bound to network, use the network bound to the engine.
         if (networkHandle == DEFAULT_NETWORK_HANDLE) {
             networkHandle = mNetworkHandle;
@@ -447,7 +468,14 @@ public class CronetUrlRequestContext extends CronetEngineBase {
                     trafficStatsUid,
                     requestFinishedListener,
                     idempotency,
-                    networkHandle);
+                    networkHandle,
+                    method,
+                    requestHeaders,
+                    uploadDataProvider,
+                    uploadDataProviderExecutor,
+                    sharedDictionaryHash,
+                    sharedDictionary,
+                    sharedDictionaryId);
         }
     }
 
@@ -663,10 +691,6 @@ public class CronetUrlRequestContext extends CronetEngineBase {
 
     @Override
     public void bindToNetwork(long networkHandle) {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
-            throw new UnsupportedOperationException(
-                    "The multi-network API is available starting from Android Marshmallow");
-        }
         mNetworkHandle = networkHandle;
     }
 
@@ -785,12 +809,6 @@ public class CronetUrlRequestContext extends CronetEngineBase {
     public void removeRequestFinishedListener(RequestFinishedInfo.Listener listener) {
         synchronized (mFinishedListenerLock) {
             mFinishedListenerMap.remove(listener);
-        }
-    }
-
-    boolean hasRequestFinishedListener() {
-        synchronized (mFinishedListenerLock) {
-            return !mFinishedListenerMap.isEmpty();
         }
     }
 
@@ -949,14 +967,17 @@ public class CronetUrlRequestContext extends CronetEngineBase {
     }
 
     void reportRequestFinished(
-            final RequestFinishedInfo requestInfo, RefCountDelegate inflightCallbackCount) {
-        ArrayList<VersionSafeCallbacks.RequestFinishedInfoListener> currentListeners;
+            final RequestFinishedInfo requestInfo,
+            RefCountDelegate inflightCallbackCount,
+            VersionSafeCallbacks.RequestFinishedInfoListener extraRequestFinishedInfoListener) {
+        List<VersionSafeCallbacks.RequestFinishedInfoListener> currentListeners = new ArrayList<>();
         synchronized (mFinishedListenerLock) {
-            if (mFinishedListenerMap.isEmpty()) return;
-            currentListeners =
-                    new ArrayList<VersionSafeCallbacks.RequestFinishedInfoListener>(
-                            mFinishedListenerMap.values());
+            currentListeners.addAll(mFinishedListenerMap.values());
         }
+        if (extraRequestFinishedInfoListener != null) {
+            currentListeners.add(extraRequestFinishedInfoListener);
+        }
+
         for (final VersionSafeCallbacks.RequestFinishedInfoListener listener : currentListeners) {
             Runnable task =
                     new Runnable() {

@@ -2,8 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/socket/socket_test_util.h"
-#include "base/memory/raw_ptr.h"
 
 #include <inttypes.h>  // For SCNx64
 #include <stdint.h>
@@ -22,6 +26,7 @@
 #include "base/functional/callback_helpers.h"
 #include "base/location.h"
 #include "base/logging.h"
+#include "base/memory/raw_ptr.h"
 #include "base/rand_util.h"
 #include "base/ranges/algorithm.h"
 #include "base/run_loop.h"
@@ -31,6 +36,7 @@
 #include "net/base/address_family.h"
 #include "net/base/address_list.h"
 #include "net/base/auth.h"
+#include "net/base/completion_once_callback.h"
 #include "net/base/hex_utils.h"
 #include "net/base/ip_address.h"
 #include "net/base/load_timing_info.h"
@@ -136,6 +142,20 @@ void RunClosureIfNonNull(base::OnceClosure closure) {
 
 }  // namespace
 
+MockConnectCompleter::MockConnectCompleter() = default;
+
+MockConnectCompleter::~MockConnectCompleter() = default;
+
+void MockConnectCompleter::SetCallback(CompletionOnceCallback callback) {
+  CHECK(!callback_);
+  callback_ = std::move(callback);
+}
+
+void MockConnectCompleter::Complete(int result) {
+  CHECK(callback_);
+  std::move(callback_).Run(result);
+}
+
 MockConnect::MockConnect() : mode(ASYNC), result(OK) {
   peer_addr = IPEndPoint(IPAddress(192, 0, 2, 33), 0);
 }
@@ -155,6 +175,9 @@ MockConnect::MockConnect(IoMode io_mode,
       result(r),
       peer_addr(addr),
       first_attempt_fails(first_attempt_fails) {}
+
+MockConnect::MockConnect(MockConnectCompleter* completer)
+    : mode(ASYNC), result(OK), completer(completer) {}
 
 MockConnect::~MockConnect() = default;
 
@@ -390,6 +413,16 @@ void StaticSocketDataProvider::Reset() {
 
 SSLSocketDataProvider::SSLSocketDataProvider(IoMode mode, int result)
     : connect(mode, result),
+      expected_ssl_version_min(kDefaultSSLVersionMin),
+      expected_ssl_version_max(kDefaultSSLVersionMax) {
+  SSLConnectionStatusSetVersion(SSL_CONNECTION_VERSION_TLS1_3,
+                                &ssl_info.connection_status);
+  // Set to TLS_CHACHA20_POLY1305_SHA256
+  SSLConnectionStatusSetCipherSuite(0x1301, &ssl_info.connection_status);
+}
+
+SSLSocketDataProvider::SSLSocketDataProvider(MockConnectCompleter* completer)
+    : connect(completer),
       expected_ssl_version_min(kDefaultSSLVersionMin),
       expected_ssl_version_max(kDefaultSSLVersionMax) {
   SSLConnectionStatusSetVersion(SSL_CONNECTION_VERSION_TLS1_3,
@@ -996,7 +1029,8 @@ void MockClientSocket::RunCallback(CompletionOnceCallback callback,
 MockTCPClientSocket::MockTCPClientSocket(const AddressList& addresses,
                                          net::NetLog* net_log,
                                          SocketDataProvider* data)
-    : MockClientSocket(NetLogWithSource::Make(net_log, NetLogSourceType::NONE)),
+    : MockClientSocket(
+          NetLogWithSource::Make(net_log, NetLogSourceType::SOCKET)),
       addresses_(addresses),
       data_(data),
       read_data_(SYNCHRONOUS, ERR_UNEXPECTED) {
@@ -1150,6 +1184,11 @@ int MockTCPClientSocket::Connect(CompletionOnceCallback callback) {
   }
 
   peer_closed_connection_ = false;
+
+  if (data_->connect_data().completer) {
+    data_->connect_data().completer->SetCallback(std::move(callback));
+    return ERR_IO_PENDING;
+  }
 
   int result = data_->connect_data().result;
   IoMode mode = data_->connect_data().mode;
@@ -1392,6 +1431,10 @@ int MockSSLClientSocket::CancelReadIfReady() {
 int MockSSLClientSocket::Connect(CompletionOnceCallback callback) {
   DCHECK(stream_socket_->IsConnected());
   data_->is_connect_data_consumed = true;
+  if (data_->connect.completer) {
+    data_->connect.completer->SetCallback(std::move(callback));
+    return ERR_IO_PENDING;
+  }
   if (data_->connect.result == OK)
     connected_ = true;
   RunClosureIfNonNull(std::move(data_->connect_callback));
@@ -1558,7 +1601,8 @@ MockUDPClientSocket::MockUDPClientSocket(SocketDataProvider* data,
     : data_(data),
       read_data_(SYNCHRONOUS, ERR_UNEXPECTED),
       source_host_(IPAddress(192, 0, 2, 33)),
-      net_log_(NetLogWithSource::Make(net_log, NetLogSourceType::NONE)) {
+      net_log_(NetLogWithSource::Make(net_log,
+                                      NetLogSourceType::UDP_CLIENT_SOCKET)) {
   if (data_) {
     data_->Initialize(this);
     peer_addr_ = data->connect_data().peer_addr;
@@ -2042,7 +2086,7 @@ void MockTransportClientSocketPool::SetPriority(
       return;
     }
   }
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
 }
 
 void MockTransportClientSocketPool::CancelRequest(
@@ -2071,7 +2115,7 @@ WrappedStreamSocket::WrappedStreamSocket(
 WrappedStreamSocket::~WrappedStreamSocket() = default;
 
 int WrappedStreamSocket::Bind(const net::IPEndPoint& local_addr) {
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return ERR_FAILED;
 }
 

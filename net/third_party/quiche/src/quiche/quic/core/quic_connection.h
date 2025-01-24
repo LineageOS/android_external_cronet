@@ -38,6 +38,7 @@
 #include "quiche/quic/core/quic_alarm.h"
 #include "quiche/quic/core/quic_alarm_factory.h"
 #include "quiche/quic/core/quic_blocked_writer_interface.h"
+#include "quiche/quic/core/quic_connection_alarms.h"
 #include "quiche/quic/core/quic_connection_context.h"
 #include "quiche/quic/core/quic_connection_id.h"
 #include "quiche/quic/core/quic_connection_id_manager.h"
@@ -50,6 +51,7 @@
 #include "quiche/quic/core/quic_network_blackhole_detector.h"
 #include "quiche/quic/core/quic_one_block_arena.h"
 #include "quiche/quic/core/quic_packet_creator.h"
+#include "quiche/quic/core/quic_packet_number.h"
 #include "quiche/quic/core/quic_packet_writer.h"
 #include "quiche/quic/core/quic_packets.h"
 #include "quiche/quic/core/quic_path_validator.h"
@@ -467,6 +469,9 @@ class QUICHE_EXPORT QuicConnectionDebugVisitor
   // Called after an ClientHelloInner is received and decrypted as a server.
   virtual void OnEncryptedClientHelloReceived(
       absl::string_view /*client_hello*/) {}
+
+  // Called by QuicConnection::SetMultiPacketClientHello.
+  virtual void SetMultiPacketClientHello() {}
 };
 
 class QUICHE_EXPORT QuicConnectionHelperInterface {
@@ -492,7 +497,8 @@ class QUICHE_EXPORT QuicConnection
       public QuicIdleNetworkDetector::Delegate,
       public QuicPathValidator::SendDelegate,
       public QuicConnectionIdManagerVisitorInterface,
-      public QuicPingManager::Delegate {
+      public QuicPingManager::Delegate,
+      public QuicConnectionAlarmsDelegate {
  public:
   // Constructs a new QuicConnection for |connection_id| and
   // |initial_peer_address| using |writer| to write packets. |owns_writer|
@@ -530,6 +536,12 @@ class QUICHE_EXPORT QuicConnection
   // Sets connection parameters from the supplied |config|.
   void SetFromConfig(const QuicConfig& config);
 
+  // Indicates that packets in |dispatcher_sent_packets| have been sent by the
+  // QuicDispatcher on behalf of this connection. Must be called at most once
+  // before any packet is sent by this QuicConnection.
+  void AddDispatcherSentPackets(
+      absl::Span<const DispatcherSentPacket> dispatcher_sent_packets);
+
   // Apply |connection_options| for this connection. Unlike SetFromConfig, this
   // can happen at anytime in the life of a connection.
   // Note there is no guarantee that all options can be applied. Components will
@@ -552,6 +564,15 @@ class QUICHE_EXPORT QuicConnection
   // Called by the Session when a max pacing rate for the connection is needed.
   virtual void SetMaxPacingRate(QuicBandwidth max_pacing_rate);
 
+  // Called by the Session when an application driven pacing rate for the
+  // connection is needed.  Experimental, see b/364614652 for more context.
+  // This is only used by an experimental feature for bbr2_sender to support
+  // soft pacing based on application layer hints when there are signs of
+  // congestion.  application_driven_pacing_rat| is the bandwidth that is
+  // considered sufficient for the application's need.
+  virtual void SetApplicationDrivenPacingRate(
+      QuicBandwidth application_driven_pacing_rate);
+
   // Allows the client to adjust network parameters based on external
   // information.
   void AdjustNetworkParameters(
@@ -567,6 +588,9 @@ class QUICHE_EXPORT QuicConnection
 
   // Returns the max pacing rate for the connection.
   virtual QuicBandwidth MaxPacingRate() const;
+
+  // Returns the application driven pacing rate for the connection.
+  virtual QuicBandwidth ApplicationDrivenPacingRate() const;
 
   // Sends crypto handshake messages of length |write_length| to the peer in as
   // few packets as possible. Returns the number of bytes consumed from the
@@ -637,7 +661,7 @@ class QUICHE_EXPORT QuicConnection
   bool IsMsgTooBig(const QuicPacketWriter* writer, const WriteResult& result);
 
   // Called from the SendAlarmDelegate to initiate writing data.
-  virtual void OnSendAlarm();
+  void OnSendAlarm() override;
 
   // If the socket is not blocked, writes queued packets.
   void WriteIfNotBlocked();
@@ -801,7 +825,7 @@ class QUICHE_EXPORT QuicConnection
 
   // Probe the existing alternative path. Does not create a new alternative
   // path. This method is the callback for |multi_port_probing_alarm_|.
-  virtual void MaybeProbeMultiPortPath();
+  void MaybeProbeMultiPortPath() override;
 
   // Accessors
   void set_visitor(QuicConnectionVisitorInterface* visitor) {
@@ -873,12 +897,14 @@ class QUICHE_EXPORT QuicConnection
     return multi_port_stats_.get();
   }
 
+  void OnAckAlarm() override;
+
   // Sets up a packet with an QuicAckFrame and sends it out.
   void SendAck();
 
   // Called when an RTO fires.  Resets the retransmission alarm if there are
   // remaining unacked packets.
-  void OnRetransmissionTimeout();
+  void OnRetransmissionAlarm() override;
 
   // Mark all sent 0-RTT encrypted packets for retransmission. Called when new
   // 0-RTT or 1-RTT key is available in gQUIC, or when 0-RTT is rejected in IETF
@@ -928,7 +954,7 @@ class QUICHE_EXPORT QuicConnection
   void RemoveDecrypter(EncryptionLevel level);
 
   // Discard keys for the previous key phase.
-  void DiscardPreviousOneRttKeys();
+  void OnDiscardPreviousOneRttKeysAlarm() override;
 
   // Returns true if it is currently allowed to initiate a key update.
   bool IsKeyUpdateAllowed() const;
@@ -1022,7 +1048,7 @@ class QUICHE_EXPORT QuicConnection
   void DisableMtuDiscovery();
 
   // Sends an MTU discovery packet and updates the MTU discovery alarm.
-  void DiscoverMtu();
+  void OnMtuDiscoveryAlarm() override;
 
   // Sets the session notifier on the SentPacketManager.
   void SetSessionNotifier(SessionNotifierInterface* session_notifier);
@@ -1118,6 +1144,7 @@ class QUICHE_EXPORT QuicConnection
 
   // Attempts to process any queued undecryptable packets.
   void MaybeProcessUndecryptablePackets();
+  void OnProcessUndecryptablePacketsAlarm() override;
 
   // Queue a coalesced packet.
   void QueueCoalescedPacket(const QuicEncryptedPacket& packet);
@@ -1144,6 +1171,11 @@ class QUICHE_EXPORT QuicConnection
 
   // Returns the largest received packet number sent by peer.
   QuicPacketNumber GetLargestReceivedPacket() const;
+
+  // Called if the ClientHello of the connection spans multiple packets. Should
+  // only be called at the beginning of the connection, but after
+  // |debug_visitor_| is set. For debugging purpose only.
+  void SetMultiPacketClientHello();
 
   // Sets the original destination connection ID on the connection.
   // This is called by QuicDispatcher when it has replaced the connection ID.
@@ -1284,8 +1316,13 @@ class QUICHE_EXPORT QuicConnection
   // Log QUIC_BUG if there is pending frames for the stream with |id|.
   void QuicBugIfHasPendingFrames(QuicStreamId id) const;
 
-  QuicConnectionContext* context() { return &context_; }
+  QuicConnectionContext* context() override { return &context_; }
   const QuicConnectionContext* context() const { return &context_; }
+
+  void set_context_listener(
+      std::unique_ptr<QuicConnectionContextListener> listener) {
+    context_.listener.swap(listener);
+  }
 
   void set_tracer(std::unique_ptr<QuicConnectionTracer> tracer) {
     context_.tracer.swap(tracer);
@@ -1361,6 +1398,29 @@ class QUICHE_EXPORT QuicConnection
   bool quic_limit_new_streams_per_loop_2() const {
     return quic_limit_new_streams_per_loop_2_;
   }
+
+  void OnDiscardZeroRttDecryptionKeysAlarm() override;
+  void OnIdleDetectorAlarm() override;
+  void OnNetworkBlackholeDetectorAlarm() override;
+  void OnPingAlarm() override;
+
+  // Create a CONNECTION_CLOSE packet with a large packet number.
+  // If this method is called before handshake is confirmed, this method returns
+  // nullptr.
+  // This packet can be pre-generated and other processes can send it later to
+  // close the connection.
+  // For example, on Android, the system server stores this packet and sends it
+  // to the server when the app is frozen, loses network access due to the
+  // firewall, or crashes. This will stop servers sending packets to the
+  // device and wasting the device battery.
+  // Note that the generated packet uses the packet number larger than the
+  // current largest acked packet number by (1 << 31) + 1 but the server will
+  // ignore this packet after the connection uses this packet number.
+  std::unique_ptr<SerializedPacket>
+  SerializeLargePacketNumberConnectionClosePacket(
+      QuicErrorCode error, const std::string& error_details);
+
+  bool ShouldFixTimeouts(const QuicConfig& config) const;
 
  protected:
   // Calls cancel() on all the alarms owned by this connection.
@@ -2029,6 +2089,43 @@ class QUICHE_EXPORT QuicConnection
 
   bool PeerAddressChanged() const;
 
+  QuicAlarm& ack_alarm() { return alarms_.ack_alarm(); }
+  const QuicAlarm& ack_alarm() const { return alarms_.ack_alarm(); }
+  QuicAlarm& retransmission_alarm() { return alarms_.retransmission_alarm(); }
+  const QuicAlarm& retransmission_alarm() const {
+    return alarms_.retransmission_alarm();
+  }
+  QuicAlarm& send_alarm() { return alarms_.send_alarm(); }
+  const QuicAlarm& send_alarm() const { return alarms_.send_alarm(); }
+  QuicAlarm& mtu_discovery_alarm() { return alarms_.mtu_discovery_alarm(); }
+  const QuicAlarm& mtu_discovery_alarm() const {
+    return alarms_.mtu_discovery_alarm();
+  }
+  QuicAlarm& process_undecryptable_packets_alarm() {
+    return alarms_.process_undecryptable_packets_alarm();
+  }
+  const QuicAlarm& process_undecryptable_packets_alarm() const {
+    return alarms_.process_undecryptable_packets_alarm();
+  }
+  QuicAlarm& discard_previous_one_rtt_keys_alarm() {
+    return alarms_.discard_previous_one_rtt_keys_alarm();
+  }
+  const QuicAlarm& discard_previous_one_rtt_keys_alarm() const {
+    return alarms_.discard_previous_one_rtt_keys_alarm();
+  }
+  QuicAlarm& discard_zero_rtt_decryption_keys_alarm() {
+    return alarms_.discard_zero_rtt_decryption_keys_alarm();
+  }
+  const QuicAlarm& discard_zero_rtt_decryption_keys_alarm() const {
+    return alarms_.discard_zero_rtt_decryption_keys_alarm();
+  }
+  QuicAlarm& multi_port_probing_alarm() {
+    return alarms_.multi_port_probing_alarm();
+  }
+  const QuicAlarm& multi_port_probing_alarm() const {
+    return alarms_.multi_port_probing_alarm();
+  }
+
   QuicConnectionContext context_;
 
   QuicFramer framer_;
@@ -2156,27 +2253,9 @@ class QUICHE_EXPORT QuicConnection
   // Arena to store class implementations within the QuicConnection.
   QuicConnectionArena arena_;
 
-  // An alarm that fires when an ACK should be sent to the peer.
-  QuicArenaScopedPtr<QuicAlarm> ack_alarm_;
-  // An alarm that fires when a packet needs to be retransmitted.
-  QuicArenaScopedPtr<QuicAlarm> retransmission_alarm_;
-  // An alarm that is scheduled when the SentPacketManager requires a delay
-  // before sending packets and fires when the packet may be sent.
-  QuicArenaScopedPtr<QuicAlarm> send_alarm_;
-  // An alarm that fires when an MTU probe should be sent.
-  QuicArenaScopedPtr<QuicAlarm> mtu_discovery_alarm_;
-  // An alarm that fires to process undecryptable packets when new decyrption
-  // keys are available.
-  QuicArenaScopedPtr<QuicAlarm> process_undecryptable_packets_alarm_;
-  // An alarm that fires to discard keys for the previous key phase some time
-  // after a key update has completed.
-  QuicArenaScopedPtr<QuicAlarm> discard_previous_one_rtt_keys_alarm_;
-  // An alarm that fires to discard 0-RTT decryption keys some time after the
-  // first 1-RTT packet has been decrypted. Only used on server connections with
-  // TLS handshaker.
-  QuicArenaScopedPtr<QuicAlarm> discard_zero_rtt_decryption_keys_alarm_;
-  // An alarm that fires to keep probing the multi-port path.
-  QuicArenaScopedPtr<QuicAlarm> multi_port_probing_alarm_;
+  // Alarms used by the connection.
+  QuicConnectionAlarms alarms_;
+
   // Neither visitor is owned by this class.
   QuicConnectionVisitorInterface* visitor_;
   QuicConnectionDebugVisitor* debug_visitor_;
@@ -2443,6 +2522,8 @@ class QUICHE_EXPORT QuicConnection
 
   const bool quic_test_peer_addr_change_after_normalize_ =
       GetQuicReloadableFlag(quic_test_peer_addr_change_after_normalize);
+
+  const bool quic_fix_timeouts_ = GetQuicReloadableFlag(quic_fix_timeouts);
 };
 
 }  // namespace quic

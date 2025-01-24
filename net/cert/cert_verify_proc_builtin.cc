@@ -13,8 +13,9 @@
 #include "base/feature_list.h"
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
-#include "base/metrics/histogram_functions.h"
+#include "base/time/time.h"
 #include "base/values.h"
+#include "components/network_time/time_tracker/time_tracker.h"
 #include "crypto/sha2.h"
 #include "net/base/features.h"
 #include "net/base/ip_address.h"
@@ -25,6 +26,7 @@
 #include "net/cert/cert_verify_proc.h"
 #include "net/cert/cert_verify_result.h"
 #include "net/cert/ct_policy_enforcer.h"
+#include "net/cert/ct_policy_status.h"
 #include "net/cert/ct_verifier.h"
 #include "net/cert/ev_root_ca_metadata.h"
 #include "net/cert/internal/cert_issuer_source_aia.h"
@@ -44,6 +46,7 @@
 #include "third_party/boringssl/src/pki/parsed_certificate.h"
 #include "third_party/boringssl/src/pki/path_builder.h"
 #include "third_party/boringssl/src/pki/simple_path_builder_delegate.h"
+#include "third_party/boringssl/src/pki/trust_store.h"
 #include "third_party/boringssl/src/pki/trust_store_collection.h"
 #include "third_party/boringssl/src/pki/trust_store_in_memory.h"
 
@@ -125,7 +128,7 @@ base::Value::Dict NetLogPathBuilderResultPath(
   dict.Set("is_valid", result_path.IsValid());
   dict.Set("last_cert_trust", result_path.last_cert_trust.ToDebugString());
   dict.Set("certificates", PEMCertValueList(result_path.certs));
-  // TODO(crbug.com/634484): netlog user_constrained_policy_set.
+  // TODO(crbug.com/40479281): netlog user_constrained_policy_set.
   std::string errors_string =
       result_path.errors.ToDebugString(result_path.certs);
   if (!errors_string.empty())
@@ -136,7 +139,7 @@ base::Value::Dict NetLogPathBuilderResultPath(
 base::Value::Dict NetLogPathBuilderResult(
     const bssl::CertPathBuilder::Result& result) {
   base::Value::Dict dict;
-  // TODO(crbug.com/634484): include debug data (or just have things netlog it
+  // TODO(crbug.com/40479281): include debug data (or just have things netlog it
   // directly).
   dict.Set("has_valid_path", result.HasValidPath());
   dict.Set("best_result_index", static_cast<int>(result.best_result_index));
@@ -223,11 +226,17 @@ class CertVerifyProcTrustStore {
       const bssl::ParsedCertificate* cert) const {
     return system_trust_store_->GetChromeRootConstraints(cert);
   }
+
+  bool IsNonChromeRootStoreTrustAnchor(
+      const bssl::ParsedCertificate* trust_anchor) const {
+    return IsAdditionalTrustAnchor(trust_anchor) ||
+           system_trust_store_->IsLocallyTrustedRoot(trust_anchor);
+  }
 #endif
 
   bool IsAdditionalTrustAnchor(
       const bssl::ParsedCertificate* trust_anchor) const {
-    return additional_trust_store_->Contains(trust_anchor);
+    return additional_trust_store_->GetTrust(trust_anchor).IsTrustAnchor();
   }
 
  private:
@@ -287,8 +296,9 @@ class PathBuilderDelegateImpl : public bssl::SimplePathBuilderDelegate {
       std::string_view stapled_leaf_ocsp_response,
       std::string_view sct_list_from_tls_extension,
       const EVRootCAMetadata* ev_metadata,
-      bool* checked_revocation_for_some_path,
       base::TimeTicks deadline,
+      base::Time current_time,
+      bool* checked_revocation_for_some_path,
       const NetLogWithSource& net_log)
       : bssl::SimplePathBuilderDelegate(1024, digest_policy),
         crl_set_(crl_set),
@@ -302,8 +312,9 @@ class PathBuilderDelegateImpl : public bssl::SimplePathBuilderDelegate {
         stapled_leaf_ocsp_response_(stapled_leaf_ocsp_response),
         sct_list_from_tls_extension_(sct_list_from_tls_extension),
         ev_metadata_(ev_metadata),
-        checked_revocation_for_some_path_(checked_revocation_for_some_path),
         deadline_(deadline),
+        current_time_(current_time),
+        checked_revocation_for_some_path_(checked_revocation_for_some_path),
         net_log_(net_log) {}
 
   // This is called for each built chain, including ones which failed. It is
@@ -336,8 +347,8 @@ class PathBuilderDelegateImpl : public bssl::SimplePathBuilderDelegate {
     auto cert_for_ct_verify = X509Certificate::CreateFromBuffer(
         bssl::UpRef(path->certs[0]->cert_buffer()), std::move(intermediates));
     ct_verifier_->Verify(cert_for_ct_verify.get(), stapled_leaf_ocsp_response_,
-                         sct_list_from_tls_extension_, &delegate_data->scts,
-                         *net_log_);
+                         sct_list_from_tls_extension_, current_time_,
+                         &delegate_data->scts, *net_log_);
 
     // Check any extra constraints that might exist outside of the certificates.
     CheckExtraConstraints(path->certs, &path->errors);
@@ -392,8 +403,8 @@ class PathBuilderDelegateImpl : public bssl::SimplePathBuilderDelegate {
     // respective certificates, so |errors->ContainsHighSeverityErrors()| will
     // reflect the revocation status of the chain after this call.
     CheckValidatedChainRevocation(path->certs, policy, deadline_,
-                                  stapled_leaf_ocsp_response_, net_fetcher_,
-                                  &path->errors,
+                                  stapled_leaf_ocsp_response_, current_time_,
+                                  net_fetcher_, &path->errors,
                                   &delegate_data->stapled_ocsp_verify_result);
 
     ct::SCTList verified_scts;
@@ -403,7 +414,7 @@ class PathBuilderDelegateImpl : public bssl::SimplePathBuilderDelegate {
       }
     }
     delegate_data->ct_policy_compliance = ct_policy_enforcer_->CheckCompliance(
-        cert_for_ct_verify.get(), verified_scts, *net_log_);
+        cert_for_ct_verify.get(), verified_scts, current_time_, *net_log_);
   }
 
 #if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
@@ -481,6 +492,13 @@ class PathBuilderDelegateImpl : public bssl::SimplePathBuilderDelegate {
   }
 
   void CheckChromeRootConstraints(bssl::CertPathBuilderResultPath* path) {
+    // If the root is trusted locally, do not enforce CRS constraints, even if
+    // some exist.
+    if (trust_store_->IsNonChromeRootStoreTrustAnchor(
+            path->certs.back().get())) {
+      return;
+    }
+
     if (base::span<const ChromeRootCertConstraints> constraints =
             trust_store_->GetChromeRootConstraints(path->certs.back().get());
         !constraints.empty()) {
@@ -530,10 +548,8 @@ class PathBuilderDelegateImpl : public bssl::SimplePathBuilderDelegate {
 
       if (!cert_with_constraints.permitted_cidrs.empty()) {
         for (const auto& cidr : cert_with_constraints.permitted_cidrs) {
-          bssl::der::Input ip(cidr.ip.bytes().data(), cidr.ip.bytes().size());
-          bssl::der::Input mask(cidr.mask.bytes().data(),
-                                cidr.mask.bytes().size());
-          permitted_names.ip_address_ranges.emplace_back(ip, mask);
+          permitted_names.ip_address_ranges.emplace_back(cidr.ip.bytes(),
+                                                         cidr.mask.bytes());
         }
         permitted_names.present_name_types |=
             bssl::GeneralNameTypes::GENERAL_NAME_IP_ADDRESS;
@@ -650,8 +666,9 @@ class PathBuilderDelegateImpl : public bssl::SimplePathBuilderDelegate {
   const std::string_view stapled_leaf_ocsp_response_;
   const std::string_view sct_list_from_tls_extension_;
   raw_ptr<const EVRootCAMetadata> ev_metadata_;
-  raw_ptr<bool> checked_revocation_for_some_path_;
   base::TimeTicks deadline_;
+  base::Time current_time_;
+  raw_ptr<bool> checked_revocation_for_some_path_;
   raw_ref<const NetLogWithSource> net_log_;
 };
 
@@ -670,7 +687,8 @@ class CertVerifyProcBuiltin : public CertVerifyProc {
                         std::unique_ptr<CTVerifier> ct_verifier,
                         scoped_refptr<CTPolicyEnforcer> ct_policy_enforcer,
                         std::unique_ptr<SystemTrustStore> system_trust_store,
-                        const CertVerifyProc::InstanceParams& instance_params);
+                        const CertVerifyProc::InstanceParams& instance_params,
+                        std::optional<network_time::TimeTracker> time_tracker);
 
  protected:
   ~CertVerifyProcBuiltin() override;
@@ -682,8 +700,7 @@ class CertVerifyProcBuiltin : public CertVerifyProc {
                      const std::string& sct_list,
                      int flags,
                      CertVerifyResult* verify_result,
-                     const NetLogWithSource& net_log,
-                     std::optional<base::Time> time_now) override;
+                     const NetLogWithSource& net_log) override;
 
   const scoped_refptr<CertNetFetcher> net_fetcher_;
   const std::unique_ptr<CTVerifier> ct_verifier_;
@@ -692,6 +709,7 @@ class CertVerifyProcBuiltin : public CertVerifyProc {
   std::vector<net::CertVerifyProc::CertificateWithConstraints>
       additional_constraints_;
   bssl::TrustStoreInMemory additional_trust_store_;
+  const std::optional<network_time::TimeTracker> time_tracker_;
 };
 
 CertVerifyProcBuiltin::CertVerifyProcBuiltin(
@@ -700,12 +718,14 @@ CertVerifyProcBuiltin::CertVerifyProcBuiltin(
     std::unique_ptr<CTVerifier> ct_verifier,
     scoped_refptr<CTPolicyEnforcer> ct_policy_enforcer,
     std::unique_ptr<SystemTrustStore> system_trust_store,
-    const CertVerifyProc::InstanceParams& instance_params)
+    const CertVerifyProc::InstanceParams& instance_params,
+    std::optional<network_time::TimeTracker> time_tracker)
     : CertVerifyProc(std::move(crl_set)),
       net_fetcher_(std::move(net_fetcher)),
       ct_verifier_(std::move(ct_verifier)),
       ct_policy_enforcer_(std::move(ct_policy_enforcer)),
-      system_trust_store_(std::move(system_trust_store)) {
+      system_trust_store_(std::move(system_trust_store)),
+      time_tracker_(std::move(time_tracker)) {
   DCHECK(system_trust_store_);
 
   NetLogWithSource net_log =
@@ -714,7 +734,7 @@ CertVerifyProcBuiltin::CertVerifyProcBuiltin(
 
   for (const auto& spki : instance_params.additional_distrusted_spkis) {
     additional_trust_store_.AddDistrustedCertificateBySPKI(
-        std::string(spki.begin(), spki.end()));
+        std::string(base::as_string_view(spki)));
     net_log.AddEvent(NetLogEventType::CERT_VERIFY_PROC_ADDITIONAL_CERT, [&] {
       base::Value::Dict results;
       results.Set("spki", NetLogBinaryValue(base::make_span(spki)));
@@ -802,7 +822,7 @@ void AddIntermediatesToIssuerSource(X509Certificate* x509_cert,
     bssl::CertErrors errors;
     std::shared_ptr<const bssl::ParsedCertificate> cert =
         ParseCertificateFromBuffer(intermediate.get(), &errors);
-    // TODO(crbug.com/634484): this duplicates the logging of the input chain
+    // TODO(crbug.com/40479281): this duplicates the logging of the input chain
     // maybe should only log if there is a parse error/warning?
     net_log.AddEvent(NetLogEventType::CERT_VERIFY_PROC_INPUT_CERT, [&] {
       return NetLogCertParams(intermediate.get(), errors);
@@ -932,6 +952,7 @@ bssl::CertPathBuilder::Result TryBuildPath(
     const std::vector<net::CertVerifyProc::CertificateWithConstraints>&
         additional_constraints,
     const bssl::der::GeneralizedTime& der_verification_time,
+    base::Time current_time,
     base::TimeTicks deadline,
     VerificationType verification_type,
     bssl::SimplePathBuilderDelegate::DigestPolicy digest_policy,
@@ -951,7 +972,7 @@ bssl::CertPathBuilder::Result TryBuildPath(
 
   if (verification_type == VerificationType::kEV) {
     GetEVPolicyOids(ev_metadata, target.get(), &user_initial_policy_set);
-    // TODO(crbug.com/634484): netlog user_initial_policy_set.
+    // TODO(crbug.com/40479281): netlog user_initial_policy_set.
   } else {
     user_initial_policy_set = {bssl::der::Input(bssl::kAnyPolicyOid)};
   }
@@ -959,7 +980,8 @@ bssl::CertPathBuilder::Result TryBuildPath(
   PathBuilderDelegateImpl path_builder_delegate(
       crl_set, ct_verifier, ct_policy_enforcer, net_fetcher, verification_type,
       digest_policy, flags, trust_store, additional_constraints, ocsp_response,
-      sct_list, ev_metadata, checked_revocation, deadline, net_log);
+      sct_list, ev_metadata, deadline, current_time, checked_revocation,
+      net_log);
 
   std::optional<CertIssuerSourceAia> aia_cert_issuer_source;
 
@@ -976,13 +998,13 @@ bssl::CertPathBuilder::Result TryBuildPath(
   path_builder.AddCertIssuerSource(intermediates);
 
   // Allow the path builder to discover intermediates through AIA fetching.
-  // TODO(crbug.com/634484): hook up netlog to AIA.
+  // TODO(crbug.com/40479281): hook up netlog to AIA.
   if (!(flags & CertVerifyProc::VERIFY_DISABLE_NETWORK_FETCHES)) {
     if (net_fetcher) {
       aia_cert_issuer_source.emplace(net_fetcher);
       path_builder.AddCertIssuerSource(&aia_cert_issuer_source.value());
     } else {
-      LOG(ERROR) << "No net_fetcher for performing AIA chasing.";
+      VLOG(1) << "No net_fetcher for performing AIA chasing.";
     }
   }
 
@@ -1002,7 +1024,7 @@ int AssignVerifyResult(X509Certificate* input_cert,
       result.GetBestPathPossiblyInvalid();
 
   if (!best_path_possibly_invalid) {
-    // TODO(crbug.com/634443): What errors to communicate? Maybe the path
+    // TODO(crbug.com/41267838): What errors to communicate? Maybe the path
     // builder should always return some partial path (even if just containing
     // the target), then there is a bssl::CertErrors to test.
     verify_result->cert_status |= CERT_STATUS_AUTHORITY_INVALID;
@@ -1048,8 +1070,8 @@ int AssignVerifyResult(X509Certificate* input_cert,
   CHECK(path_is_valid || IsCertStatusError(verify_result->cert_status));
 
   if (!path_is_valid) {
-    LOG(ERROR) << "CertVerifyProcBuiltin for " << hostname << " failed:\n"
-               << partial_path.errors.ToDebugString(partial_path.certs);
+    VLOG(1) << "CertVerifyProcBuiltin for " << hostname << " failed:\n"
+            << partial_path.errors.ToDebugString(partial_path.certs);
   }
 
   const PathBuilderDelegateDataImpl* delegate_data =
@@ -1080,10 +1102,15 @@ bool CanTryAgainWithWeakerDigestPolicy(
 // Returns true if retrying with the system time as the verification time might
 // successfully build a path, based on the earlier failed |result|.
 bool CanTryAgainWithSystemTime(const bssl::CertPathBuilder::Result& result) {
+  // TODO(crbug.com/363034686): Retries should also be triggered for CT
+  // failures.
   return result.AnyPathContainsError(
              bssl::cert_errors::kValidityFailedNotAfter) ||
          result.AnyPathContainsError(
-             bssl::cert_errors::kValidityFailedNotBefore);
+             bssl::cert_errors::kValidityFailedNotBefore) ||
+         result.AnyPathContainsError(bssl::cert_errors::kCertificateRevoked) ||
+         result.AnyPathContainsError(
+             bssl::cert_errors::kUnableToCheckRevocation);
 }
 
 int CertVerifyProcBuiltin::VerifyInternal(X509Certificate* input_cert,
@@ -1092,8 +1119,7 @@ int CertVerifyProcBuiltin::VerifyInternal(X509Certificate* input_cert,
                                           const std::string& sct_list,
                                           int flags,
                                           CertVerifyResult* verify_result,
-                                          const NetLogWithSource& net_log,
-                                          std::optional<base::Time> time_now) {
+                                          const NetLogWithSource& net_log) {
   base::TimeTicks deadline = base::TimeTicks::Now() + kMaxVerificationTime;
   bssl::der::GeneralizedTime der_verification_system_time;
   bssl::der::GeneralizedTime der_verification_custom_time;
@@ -1104,12 +1130,17 @@ int CertVerifyProcBuiltin::VerifyInternal(X509Certificate* input_cert,
     verify_result->cert_status |= CERT_STATUS_AUTHORITY_INVALID;
     return ERR_CERT_AUTHORITY_INVALID;
   }
-  if (time_now.has_value()) {
-    if (!EncodeTimeAsGeneralizedTime(time_now.value(),
+  bool custom_time_available = false;
+  base::Time custom_time;
+  if (time_tracker_.has_value()) {
+    custom_time_available = time_tracker_->GetTime(
+        base::Time::Now(), base::TimeTicks::Now(), &custom_time, nullptr);
+    if (custom_time_available &&
+        !EncodeTimeAsGeneralizedTime(custom_time,
                                      &der_verification_custom_time)) {
       // This shouldn't be possible, but if it somehow happens, just use system
       // time.
-      der_verification_custom_time = der_verification_system_time;
+      custom_time_available = false;
     }
   }
 #if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
@@ -1123,7 +1154,7 @@ int CertVerifyProcBuiltin::VerifyInternal(X509Certificate* input_cert,
   }
 #endif
 
-  // TODO(crbug.com/1477317): Netlog extra configuration information stored
+  // TODO(crbug.com/40928765): Netlog extra configuration information stored
   // inside CertVerifyProcBuiltin (e.g. certs in additional_trust_store and
   // system trust store)
 
@@ -1133,7 +1164,7 @@ int CertVerifyProcBuiltin::VerifyInternal(X509Certificate* input_cert,
     bssl::CertErrors parsing_errors;
     target =
         ParseCertificateFromBuffer(input_cert->cert_buffer(), &parsing_errors);
-    // TODO(crbug.com/634484): this duplicates the logging of the input chain
+    // TODO(crbug.com/40479281): this duplicates the logging of the input chain
     // maybe should only log if there is a parse error/warning?
     net_log.AddEvent(NetLogEventType::CERT_VERIFY_PROC_TARGET_CERT, [&] {
       return NetLogCertParams(input_cert->cert_buffer(), parsing_errors);
@@ -1169,10 +1200,10 @@ int CertVerifyProcBuiltin::VerifyInternal(X509Certificate* input_cert,
   // First try EV validation. Can skip this if the leaf certificate has no
   // chance of verifying as EV (lacks an EV policy).
   if (IsEVCandidate(ev_metadata, target.get()))
-    attempts.emplace_back(VerificationType::kEV, !time_now.has_value());
+    attempts.emplace_back(VerificationType::kEV, !custom_time_available);
 
   // Next try DV validation.
-  attempts.emplace_back(VerificationType::kDV, !time_now.has_value());
+  attempts.emplace_back(VerificationType::kDV, !custom_time_available);
 
   bssl::CertPathBuilder::Result result;
   VerificationType verification_type = VerificationType::kDV;
@@ -1188,6 +1219,12 @@ int CertVerifyProcBuiltin::VerifyInternal(X509Certificate* input_cert,
           base::Value::Dict results;
           if (verification_type == VerificationType::kEV)
             results.Set("is_ev_attempt", true);
+          results.Set("is_network_time_attempt", !cur_attempt.use_system_time);
+          if (!cur_attempt.use_system_time) {
+            results.Set(
+                "network_time_value",
+                NetLogNumberValue(custom_time.InMillisecondsSinceUnixEpoch()));
+          }
           results.Set("digest_policy",
                       static_cast<int>(cur_attempt.digest_policy));
           return results;
@@ -1204,13 +1241,11 @@ int CertVerifyProcBuiltin::VerifyInternal(X509Certificate* input_cert,
         target, &intermediates, &trust_store, additional_constraints_,
         cur_attempt.use_system_time ? der_verification_system_time
                                     : der_verification_custom_time,
-        deadline, cur_attempt.verification_type, cur_attempt.digest_policy,
-        flags, ocsp_response, sct_list, crl_set(), ct_verifier_.get(),
+        cur_attempt.use_system_time ? base::Time::Now() : custom_time, deadline,
+        cur_attempt.verification_type, cur_attempt.digest_policy, flags,
+        ocsp_response, sct_list, crl_set(), ct_verifier_.get(),
         ct_policy_enforcer_.get(), net_fetcher_.get(), ev_metadata,
         &checked_revocation_for_some_path, net_log);
-
-    base::UmaHistogramCounts10000("Net.CertVerifier.PathBuilderIterationCount",
-                                  result.iteration_count);
 
     net_log.EndEvent(NetLogEventType::CERT_VERIFY_PROC_PATH_BUILD_ATTEMPT,
                      [&] { return NetLogPathBuilderResult(result); });
@@ -1267,11 +1302,12 @@ scoped_refptr<CertVerifyProc> CreateCertVerifyProcBuiltin(
     std::unique_ptr<CTVerifier> ct_verifier,
     scoped_refptr<CTPolicyEnforcer> ct_policy_enforcer,
     std::unique_ptr<SystemTrustStore> system_trust_store,
-    const CertVerifyProc::InstanceParams& instance_params) {
+    const CertVerifyProc::InstanceParams& instance_params,
+    std::optional<network_time::TimeTracker> time_tracker) {
   return base::MakeRefCounted<CertVerifyProcBuiltin>(
       std::move(net_fetcher), std::move(crl_set), std::move(ct_verifier),
       std::move(ct_policy_enforcer), std::move(system_trust_store),
-      instance_params);
+      instance_params, std::move(time_tracker));
 }
 
 base::TimeDelta GetCertVerifyProcBuiltinTimeLimitForTesting() {

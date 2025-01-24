@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/values.h"
 
 #include <stddef.h>
@@ -12,6 +17,7 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -19,7 +25,6 @@
 #include "base/bits.h"
 #include "base/containers/adapters.h"
 #include "base/containers/contains.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/gtest_util.h"
 #include "build/build_config.h"
@@ -136,7 +141,7 @@ TEST(ValuesTest, ConstructStringFromConstCharPtr) {
 
 TEST(ValuesTest, ConstructStringFromStringPiece) {
   std::string str = "foobar";
-  Value value{StringPiece(str)};
+  Value value{std::string_view(str)};
   EXPECT_EQ(Value::Type::STRING, value.type());
   EXPECT_THAT(value.GetIfString(), testing::Pointee(std::string("foobar")));
   EXPECT_EQ("foobar", value.GetString());
@@ -160,7 +165,7 @@ TEST(ValuesTest, ConstructStringFromConstChar16Ptr) {
 
 TEST(ValuesTest, ConstructStringFromStringPiece16) {
   std::u16string str = u"foobar";
-  Value value{StringPiece16(str)};
+  Value value{std::u16string_view(str)};
   EXPECT_EQ(Value::Type::STRING, value.type());
   EXPECT_THAT(value.GetIfString(), testing::Pointee(std::string("foobar")));
   EXPECT_EQ("foobar", value.GetString());
@@ -486,7 +491,7 @@ TEST(ValuesTest, Append) {
   list.Append(str.c_str());
   EXPECT_TRUE(list.back().is_string());
 
-  list.Append(StringPiece(str));
+  list.Append(std::string_view(str));
   EXPECT_TRUE(list.back().is_string());
 
   list.Append(std::move(str));
@@ -496,7 +501,7 @@ TEST(ValuesTest, Append) {
   list.Append(str16.c_str());
   EXPECT_TRUE(list.back().is_string());
 
-  list.Append(base::StringPiece16(str16));
+  list.Append(std::u16string_view(str16));
   EXPECT_TRUE(list.back().is_string());
 
   list.Append(Value());
@@ -967,6 +972,24 @@ TEST(ValuesTest, MutableFindStringKey) {
   EXPECT_EQ(expected_value, value);
 }
 
+TEST(ValuesTest, MutableFindBlobKey) {
+  Value::BlobStorage original_blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
+  Value::Dict dict;
+  dict.Set("blob", std::move(original_blob));
+
+  Value::BlobStorage new_blob = {0x0, 0x3, 0x0};
+  *(dict.FindBlob("blob")) = new_blob;
+
+  Value::Dict expected_dict;
+  expected_dict.Set("blob", std::move(new_blob));
+
+  EXPECT_EQ(expected_dict, dict);
+
+  Value value(std::move(dict));
+  Value expected_value(std::move(expected_dict));
+  EXPECT_EQ(expected_value, value);
+}
+
 TEST(ValuesTest, FindDictKey) {
   Value::Dict dict;
   dict.Set("null", Value());
@@ -1042,8 +1065,8 @@ TEST(ValuesTest, SetKey) {
   dict.Set("dict", Value::Dict());
 
   Value::Dict dict2;
-  dict2.Set(StringPiece("null"), Value(Value::Type::NONE));
-  dict2.Set(StringPiece("bool"), Value(Value::Type::BOOLEAN));
+  dict2.Set(std::string_view("null"), Value(Value::Type::NONE));
+  dict2.Set(std::string_view("bool"), Value(Value::Type::BOOLEAN));
   dict2.Set(std::string("int"), Value(Value::Type::INTEGER));
   dict2.Set(std::string("double"), Value(Value::Type::DOUBLE));
   dict2.Set(std::string("string"), Value(Value::Type::STRING));
@@ -1300,7 +1323,7 @@ TEST(ValuesTest, SetStringPath) {
   ASSERT_TRUE(found->is_string());
   EXPECT_EQ("bonjour monde", found->GetString());
 
-  ASSERT_TRUE(root.SetByDottedPath("foo.bar", StringPiece("rah rah")));
+  ASSERT_TRUE(root.SetByDottedPath("foo.bar", std::string_view("rah rah")));
   ASSERT_TRUE(root.SetByDottedPath("foo.bar", std::string("temp string")));
   ASSERT_TRUE(root.SetByDottedPath("foo.bar", u"temp string"));
 
@@ -1638,6 +1661,22 @@ TEST(ValuesTest, TakeString) {
 TEST(ValuesTest, PopulateAfterTakeString) {
   Value value("foo");
   std::string taken = std::move(value).TakeString();
+
+  value = Value(false);
+  EXPECT_EQ(value, Value(false));
+}
+
+TEST(ValuesTest, TakeBlob) {
+  Value::BlobStorage original_blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
+  Value value(original_blob);
+  Value::BlobStorage taken = std::move(value).TakeBlob();
+  EXPECT_EQ(taken, original_blob);
+}
+
+TEST(ValuesTest, PopulateAfterTakeBlob) {
+  Value::BlobStorage original_blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
+  Value value(original_blob);
+  Value::BlobStorage taken = std::move(value).TakeBlob();
 
   value = Value(false);
   EXPECT_EQ(value, Value(false));
@@ -2112,6 +2151,29 @@ TEST(ValuesTest, MutableGetString) {
   EXPECT_EQ("new_value", value.GetString());
 }
 
+TEST(ValuesTest, MutableFindBlobPath) {
+  Value::BlobStorage original_blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
+  Value::Dict dict;
+  dict.SetByDottedPath("foo.bar", std::move(original_blob));
+
+  Value::BlobStorage new_blob = {0x0, 0x3, 0x0};
+  *(dict.FindBlobByDottedPath("foo.bar")) = new_blob;
+
+  Value::Dict expected_dict;
+  expected_dict.SetByDottedPath("foo.bar", std::move(new_blob));
+
+  EXPECT_EQ(expected_dict, dict);
+}
+
+TEST(ValuesTest, MutableGetBlob) {
+  Value::BlobStorage original_blob = {0xF, 0x0, 0x0, 0xB, 0xA, 0x2};
+  Value value(std::move(original_blob));
+
+  Value::BlobStorage new_blob = {0x0, 0x3, 0x0};
+  value.GetBlob() = new_blob;
+  EXPECT_EQ(new_blob, value.GetBlob());
+}
+
 #if BUILDFLAG(ENABLE_BASE_TRACING)
 TEST(ValuesTest, TracingSupport) {
   EXPECT_EQ(perfetto::TracedValueToString(Value(false)), "false");
@@ -2153,17 +2215,20 @@ TEST(ValueViewTest, BasicConstruction) {
                                v.data_view_for_test()));
   }
   {
-    ValueView v = StringPiece("hello world");
-    EXPECT_EQ("hello world", absl::get<StringPiece>(v.data_view_for_test()));
+    ValueView v = std::string_view("hello world");
+    EXPECT_EQ("hello world",
+              absl::get<std::string_view>(v.data_view_for_test()));
   }
   {
     ValueView v = "hello world";
-    EXPECT_EQ("hello world", absl::get<StringPiece>(v.data_view_for_test()));
+    EXPECT_EQ("hello world",
+              absl::get<std::string_view>(v.data_view_for_test()));
   }
   {
     std::string str = "hello world";
     ValueView v = str;
-    EXPECT_EQ("hello world", absl::get<StringPiece>(v.data_view_for_test()));
+    EXPECT_EQ("hello world",
+              absl::get<std::string_view>(v.data_view_for_test()));
   }
   {
     Value::Dict dict;
@@ -2202,7 +2267,8 @@ TEST(ValueViewTest, ValueConstruction) {
   {
     Value val("hello world");
     ValueView v = val;
-    EXPECT_EQ("hello world", absl::get<StringPiece>(v.data_view_for_test()));
+    EXPECT_EQ("hello world",
+              absl::get<std::string_view>(v.data_view_for_test()));
   }
   {
     Value::Dict dict;

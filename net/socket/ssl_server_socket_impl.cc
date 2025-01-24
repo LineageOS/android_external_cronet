@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/socket/ssl_server_socket_impl.h"
 
 #include <memory>
@@ -167,7 +172,7 @@ class SSLServerContextImpl::SocketImpl : public SSLServerSocket,
   [[nodiscard]] int Init();
   void ExtractClientCert();
 
-  raw_ptr<SSLServerContextImpl, DanglingUntriaged> context_;
+  raw_ptr<SSLServerContextImpl> context_;
 
   NetLogWithSource net_log_;
 
@@ -578,6 +583,8 @@ bool SSLServerContextImpl::SocketImpl::GetSSLInfo(SSLInfo* ssl_info) {
   ssl_info->handshake_type = SSL_session_reused(ssl_.get())
                                  ? SSLInfo::HANDSHAKE_RESUME
                                  : SSLInfo::HANDSHAKE_FULL;
+  ssl_info->peer_signature_algorithm =
+      SSL_get_peer_signature_algorithm(ssl_.get());
 
   return true;
 }
@@ -938,7 +945,6 @@ SSLServerContextImpl::SSLServerContextImpl(
 }
 
 void SSLServerContextImpl::Init() {
-  crypto::EnsureOpenSSLInit();
   ssl_ctx_.reset(SSL_CTX_new(TLS_with_buffers_method()));
   SSL_CTX_set_session_cache_mode(ssl_ctx_.get(), SSL_SESS_CACHE_SERVER);
   uint8_t session_ctx_id = 0;
@@ -1015,14 +1021,23 @@ void SSLServerContextImpl::Init() {
   }
 
   if (ssl_server_config_.client_cert_type !=
-          SSLServerConfig::ClientCertType::NO_CLIENT_CERT &&
-      !ssl_server_config_.cert_authorities.empty()) {
-    bssl::UniquePtr<STACK_OF(CRYPTO_BUFFER)> stack(sk_CRYPTO_BUFFER_new_null());
-    for (const auto& authority : ssl_server_config_.cert_authorities) {
-      sk_CRYPTO_BUFFER_push(stack.get(),
-                            x509_util::CreateCryptoBuffer(authority).release());
+      SSLServerConfig::ClientCertType::NO_CLIENT_CERT) {
+    if (!ssl_server_config_.cert_authorities.empty()) {
+      bssl::UniquePtr<STACK_OF(CRYPTO_BUFFER)> stack(
+          sk_CRYPTO_BUFFER_new_null());
+      for (const auto& authority : ssl_server_config_.cert_authorities) {
+        sk_CRYPTO_BUFFER_push(
+            stack.get(), x509_util::CreateCryptoBuffer(authority).release());
+      }
+      SSL_CTX_set0_client_CAs(ssl_ctx_.get(), stack.release());
     }
-    SSL_CTX_set0_client_CAs(ssl_ctx_.get(), stack.release());
+
+    if (!ssl_server_config_.client_cert_signature_algorithms.empty()) {
+      CHECK(SSL_CTX_set_verify_algorithm_prefs(
+          ssl_ctx_.get(),
+          ssl_server_config_.client_cert_signature_algorithms.data(),
+          ssl_server_config_.client_cert_signature_algorithms.size()));
+    }
   }
 
   SSL_CTX_set_alpn_select_cb(ssl_ctx_.get(), &SocketImpl::ALPNSelectCallback,

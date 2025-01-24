@@ -81,9 +81,23 @@ config_template = "vet_config.toml.hbs"
 [resolve]
 root = "chromium"
 # These crates are dependencies in some configurations, but we don't use them.
-# TODO(danakj): Can we figure out the wasi and winapi ones automatically?
-# minimal-lexical is unsound see https://crrev.com/c/4977110 for more info. It is a dependency of nom, but not actually used
-remove_crates = ['cc', 'link-cplusplus', 'wasi', 'winapi-i686-pc-windows-gnu', 'winapi-x86_64-pc-windows-gnu', 'minimal-lexical']
+remove_crates = [
+    # C/C++ dependencies must be explicitly writting in GN rules somehow.
+    'cc',
+    'link-cplusplus',
+    'shlex',
+    # minimal-lexical is unsound see https://crrev.com/c/4977110 for more info.
+    # It is a dependency of nom, but not actually used.
+    'minimal-lexical',
+    # Windows targets that we do not ever target.
+    'windows_aarch64_gnullvm',
+    'windows_i686_gnu',
+    'windows_i686_gnullvm',
+    'windows_x86_64_gnu',
+    'windows_x86_64_gnullvm',
+    # Behind a feature that we do not enable.
+    'wasi'
+]
 
 [crate.anyhow]
 group = 'test'
@@ -113,12 +127,23 @@ remove_build_rs = true
 shipped = false
 bin_targets = ["cxxbridge"]
 
+[crate.flate2]
+ban_features = [
+    # `any_zlib` feature is banned because Chromium does not use the `zlib`
+    # backend (and because this backend's extensive `unsafe` usage hasn't been
+    # audited).
+    'any_zlib',
+]
+
 [crate.hex]
 group = 'test'
 
 [crate.hex-literal]
 group = 'test'
 extra_input_roots = ['../README.md']
+
+[crate.itertools]
+group = 'test'
 
 [crate.libc]
 ban_features = [
@@ -132,6 +157,9 @@ group = 'test'
 
 [crate.nom]
 remove_deps = ['minimal-lexical']
+
+[crate.png]
+extra_kv = { allow_unstable_features = 'portable_simd' }
 
 [crate.prost]
 extra_input_roots = ['../README.md']
@@ -169,6 +197,9 @@ shipped = false
 [crate.serde_json]
 group = 'test'
 
+[crate.skrifa]
+extra_src_roots = ['../generated']
+
 [crate.small_ctor]
 group = 'test'
 
@@ -178,6 +209,18 @@ license_files = ['LICENSE-APACHE', 'LICENSE-UNICODE']
 [crate.unicode-linebreak]
 allow_first_party_usage = false
 build_script_outputs = [ "tables.rs" ]
+
+[crate.windows-sys]
+extra_kv = { visibility = [ '//build/rust/tests/windows_sys_test' ] }
+
+[crate.windows_aarch64_msvc]
+native_libs_roots = [ '../lib' ]
+
+[crate.windows_i686_msvc]
+native_libs_roots = [ '../lib' ]
+
+[crate.windows_x86_64_msvc]
+native_libs_roots = [ '../lib' ]
 
 [crate.wycheproof]
 group = 'test'

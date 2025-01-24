@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/synchronization/waitable_event.h"
 
 #include <mach/mach.h>
@@ -59,7 +64,7 @@ void WaitableEvent::SignalImpl() {
   MACH_CHECK(kr == KERN_SUCCESS || kr == MACH_SEND_TIMED_OUT, kr) << "mach_msg";
 }
 
-bool WaitableEvent::IsSignaled() {
+bool WaitableEvent::IsSignaled() const {
   return PeekPort(receive_right_->Name(), policy_ == ResetPolicy::AUTOMATIC);
 }
 
@@ -213,7 +218,6 @@ size_t WaitableEvent::WaitManyImpl(WaitableEvent** raw_waitables,
     }
 
     NOTREACHED();
-    return 0;
   }
 }
 

@@ -127,7 +127,7 @@ LoadState SSLConnectJob::GetLoadState() const {
     case STATE_SSL_CONNECT_COMPLETE:
       return LOAD_STATE_SSL_HANDSHAKE;
     default:
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
       return LOAD_STATE_IDLE;
   }
 }
@@ -228,7 +228,7 @@ int SSLConnectJob::DoLoop(int result) {
         rv = DoSSLConnectComplete(rv);
         break;
       default:
-        NOTREACHED() << "bad state";
+        NOTREACHED_IN_MIGRATION() << "bad state";
         rv = ERR_FAILED;
         break;
     }
@@ -397,7 +397,7 @@ int SSLConnectJob::DoSSLConnectComplete(int result) {
   // effect of disabling SHA-1 from the effect of having a single automatic
   // retry on a potentially unreliably network connection.
   //
-  // TODO(https://crbug.com/658905): Remove this now redundant retry.
+  // TODO(crbug.com/40085786): Remove this now redundant retry.
   if (disable_legacy_crypto_with_fallback_ &&
       (result == ERR_CONNECTION_CLOSED || result == ERR_CONNECTION_RESET ||
        result == ERR_SSL_PROTOCOL_ERROR ||
@@ -526,7 +526,7 @@ SSLConnectJob::State SSLConnectJob::GetInitialState(
     case SSLSocketParams::SOCKS_PROXY:
       return STATE_SOCKS_CONNECT;
   }
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return STATE_NONE;
 }
 

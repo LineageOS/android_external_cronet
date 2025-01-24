@@ -7,6 +7,7 @@
 #ifndef BASE_PROCESS_LAUNCH_H_
 #define BASE_PROCESS_LAUNCH_H_
 
+#include <limits.h>
 #include <stddef.h>
 
 #include <string>
@@ -36,7 +37,36 @@
 #include "base/posix/file_descriptor_shuffle.h"
 #endif
 
+#if BUILDFLAG(IS_ANDROID)
+#include "base/android/binder.h"
+#endif
+
 namespace base {
+
+#if BUILDFLAG(IS_POSIX)
+// Some code (e.g. the sandbox) relies on PTHREAD_STACK_MIN
+// being async-signal-safe, which is no longer guaranteed by POSIX
+// (it may call sysconf, which is not safe).
+// To work around this, use a hardcoded value unless it's already
+// defined as a constant.
+
+// These constants are borrowed from glibc’s (arch)/bits/pthread_stack_min.h.
+#if defined(ARCH_CPU_ARM64)
+#define PTHREAD_STACK_MIN_CONST \
+  (__builtin_constant_p(PTHREAD_STACK_MIN) ? PTHREAD_STACK_MIN : 131072)
+#else
+#define PTHREAD_STACK_MIN_CONST \
+  (__builtin_constant_p(PTHREAD_STACK_MIN) ? PTHREAD_STACK_MIN : 16384)
+#endif  // defined(ARCH_CPU_ARM64)
+
+static_assert(__builtin_constant_p(PTHREAD_STACK_MIN_CONST),
+              "must be constant");
+
+// Make sure our hardcoded value is large enough to accommodate the
+// actual minimum stack size. This function will run a one-time CHECK
+// and so should be called at some point, preferably during startup.
+BASE_EXPORT void CheckPThreadStackMinIsSafe();
+#endif  // BUILDFLAG(IS_POSIX)
 
 #if BUILDFLAG(IS_APPLE)
 class MachRendezvousPort;
@@ -188,6 +218,13 @@ struct BASE_EXPORT LaunchOptions {
   // propagate FDs into the child process.
   FileHandleMappingVector fds_to_remap;
 #endif  // BUILDFLAG(IS_WIN)
+
+#if BUILDFLAG(IS_ANDROID)
+  // Set of strong IBinder references to be passed to the child process. These
+  // make their way to ChildProcessServiceDelegate.onConnectionSetup (Java)
+  // within the new child process.
+  std::vector<android::BinderRef> binders;
+#endif
 
 #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
   // Set/unset environment variables. These are applied on top of the parent
@@ -405,7 +442,7 @@ BASE_EXPORT bool GetAppOutputWithExitCode(const CommandLine& cl,
 // A Windows-specific version of GetAppOutput that takes a command line string
 // instead of a CommandLine object. Useful for situations where you need to
 // control the command line arguments directly.
-BASE_EXPORT bool GetAppOutput(CommandLine::StringPieceType cl,
+BASE_EXPORT bool GetAppOutput(CommandLine::StringViewType cl,
                               std::string* output);
 #elif BUILDFLAG(IS_POSIX) || BUILDFLAG(IS_FUCHSIA)
 // A POSIX-specific version of GetAppOutput that takes an argv array

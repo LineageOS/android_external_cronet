@@ -56,6 +56,8 @@ const char kUseDnsHttpsSvcbSecureExtraTimePercent[] =
     "secure_extra_time_percent";
 const char kUseDnsHttpsSvcbSecureExtraTimeMin[] = "secure_extra_time_min";
 
+// An implementation of HostResolver::{ResolveHost,Probe}Request that always
+// fails immediately.
 class FailingRequestImpl : public HostResolver::ResolveHostRequest,
                            public HostResolver::ProbeRequest {
  public:
@@ -96,6 +98,43 @@ class FailingRequestImpl : public HostResolver::ResolveHostRequest,
     static const std::optional<HostCache::EntryStaleness> nullopt_result;
     return nullopt_result;
   }
+
+ private:
+  const int error_;
+};
+
+// Similar to FailingRequestImpl, but for ServiceEndpointRequest.
+class FailingServiceEndpointRequestImpl
+    : public HostResolver::ServiceEndpointRequest {
+ public:
+  explicit FailingServiceEndpointRequestImpl(int error) : error_(error) {}
+
+  FailingServiceEndpointRequestImpl(const FailingServiceEndpointRequestImpl&) =
+      delete;
+  FailingServiceEndpointRequestImpl& operator=(
+      const FailingServiceEndpointRequestImpl&) = delete;
+
+  ~FailingServiceEndpointRequestImpl() override = default;
+
+  int Start(Delegate* delegate) override { return error_; }
+
+  const std::vector<ServiceEndpoint>& GetEndpointResults() override {
+    static const base::NoDestructor<std::vector<ServiceEndpoint>> kEmptyResult;
+    return *kEmptyResult.get();
+  }
+
+  const std::set<std::string>& GetDnsAliasResults() override {
+    static const base::NoDestructor<std::set<std::string>> kEmptyResult;
+    return *kEmptyResult.get();
+  }
+
+  bool EndpointsCryptoReady() override { return false; }
+
+  ResolveErrorInfo GetResolveErrorInfo() override {
+    return ResolveErrorInfo(error_);
+  }
+
+  void ChangeRequestPriority(RequestPriority priority) override {}
 
  private:
   const int error_;
@@ -261,7 +300,7 @@ HostResolver::ManagerOptions::~ManagerOptions() = default;
 
 const std::vector<bool>*
 HostResolver::ResolveHostRequest::GetExperimentalResultsForTesting() const {
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return nullptr;
 }
 
@@ -284,16 +323,13 @@ std::unique_ptr<HostResolver> HostResolver::Factory::CreateStandaloneResolver(
 
 HostResolver::ResolveHostParameters::ResolveHostParameters() = default;
 
-HostResolver::ResolveHostParameters::ResolveHostParameters(
-    const ResolveHostParameters& other) = default;
-
 HostResolver::~HostResolver() = default;
 
 std::unique_ptr<HostResolver::ProbeRequest>
 HostResolver::CreateDohProbeRequest() {
   // Should be overridden in any HostResolver implementation where this method
   // may be called.
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return nullptr;
 }
 
@@ -302,7 +338,7 @@ std::unique_ptr<HostResolver::MdnsListener> HostResolver::CreateMdnsListener(
     DnsQueryType query_type) {
   // Should be overridden in any HostResolver implementation where this method
   // may be called.
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return nullptr;
 }
 
@@ -317,20 +353,20 @@ base::Value::Dict HostResolver::GetDnsConfigAsValue() const {
 void HostResolver::SetRequestContext(URLRequestContext* request_context) {
   // Should be overridden in any HostResolver implementation where this method
   // may be called.
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
 }
 
 HostResolverManager* HostResolver::GetManagerForTesting() {
   // Should be overridden in any HostResolver implementation where this method
   // may be called.
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return nullptr;
 }
 
 const URLRequestContext* HostResolver::GetContextForTesting() const {
   // Should be overridden in any HostResolver implementation where this method
   // may be called.
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return nullptr;
 }
 
@@ -486,7 +522,7 @@ HostResolverFlags HostResolver::ParametersToHostResolverFlags(
 
 // static
 int HostResolver::SquashErrorCode(int error) {
-  // TODO(crbug.com/1043281): Consider squashing ERR_INTERNET_DISCONNECTED.
+  // TODO(crbug.com/40668952): Consider squashing ERR_INTERNET_DISCONNECTED.
   if (error == OK || error == ERR_IO_PENDING ||
       error == ERR_INTERNET_DISCONNECTED || error == ERR_NAME_NOT_RESOLVED ||
       error == ERR_DNS_NAME_HTTPS_ONLY) {
@@ -516,29 +552,11 @@ AddressList HostResolver::EndpointResultToAddressList(
 }
 
 // static
-bool HostResolver::AllProtocolEndpointsHaveEch(
-    base::span<const HostResolverEndpointResult> endpoints) {
-  bool has_svcb = false;
-  for (const auto& endpoint : endpoints) {
-    if (!endpoint.metadata.supported_protocol_alpns.empty()) {
-      has_svcb = true;
-      if (endpoint.metadata.ech_config_list.empty()) {
-        return false;  // There is a non-ECH SVCB/HTTPS route.
-      }
-    }
-  }
-  // Either there were no SVCB/HTTPS records (should be SVCB-optional), or there
-  // were and all supported ECH (should be SVCB-reliant).
-  return has_svcb;
-}
-
-// static
 bool HostResolver::MayUseNAT64ForIPv4Literal(HostResolverFlags flags,
                                              HostResolverSource source,
                                              const IPAddress& ip_address) {
   return !(flags & HOST_RESOLVER_DEFAULT_FAMILY_SET_DUE_TO_NO_IPV6) &&
          ip_address.IsValid() && ip_address.IsIPv4() &&
-         base::FeatureList::IsEnabled(features::kUseNAT64ForIPv4Literal) &&
          (source != HostResolverSource::LOCAL_ONLY);
 }
 
@@ -554,6 +572,12 @@ HostResolver::CreateFailingRequest(int error) {
 std::unique_ptr<HostResolver::ProbeRequest>
 HostResolver::CreateFailingProbeRequest(int error) {
   return std::make_unique<FailingRequestImpl>(error);
+}
+
+// static
+std::unique_ptr<HostResolver::ServiceEndpointRequest>
+HostResolver::CreateFailingServiceEndpointRequest(int error) {
+  return std::make_unique<FailingServiceEndpointRequestImpl>(error);
 }
 
 }  // namespace net

@@ -7,11 +7,11 @@
 
 #include <cstdint>
 
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/oom.h"
 #include "partition_alloc/page_allocator.h"
 #include "partition_alloc/page_allocator_internal.h"
 #include "partition_alloc/partition_alloc_base/notreached.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_check.h"
 
 namespace partition_alloc::internal {
@@ -28,7 +28,7 @@ bool IsOutOfMemory(DWORD error) {
     case ERROR_COMMITMENT_MINIMUM:
     // Page file is too small.
     case ERROR_COMMITMENT_LIMIT:
-#if BUILDFLAG(HAS_64_BIT_POINTERS)
+#if PA_BUILDFLAG(HAS_64_BIT_POINTERS)
     // Not enough memory resources are available to process this command.
     //
     // It is not entirely clear whether this error pertains to out of address
@@ -236,6 +236,10 @@ void DiscardSystemPagesInternal(uintptr_t address, size_t length) {
   if (ret) {
     PA_CHECK(VirtualAllocWithRetry(ptr, length, MEM_RESET, PAGE_READWRITE));
   }
+}
+
+bool SealSystemPagesInternal(uintptr_t address, size_t length) {
+  return false;
 }
 
 }  // namespace partition_alloc::internal

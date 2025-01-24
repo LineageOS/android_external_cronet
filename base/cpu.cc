@@ -11,6 +11,8 @@
 #include <string_view>
 #include <utility>
 
+#include "base/containers/span.h"
+#include "base/containers/span_writer.h"
 #include "base/memory/protected_memory.h"
 #include "build/build_config.h"
 
@@ -101,23 +103,35 @@ namespace {
 
 #if defined(__pic__) && defined(__i386__)
 
+// Requests extended feature information via |ecx|.
+void __cpuidex(int cpu_info[4], int eax, int ecx) {
+  // SAFETY: `cpu_info` has length 4 and therefore all accesses below are valid.
+  UNSAFE_BUFFERS(
+      __asm__ volatile("mov %%ebx, %%edi\n"
+                       "cpuid\n"
+                       "xchg %%edi, %%ebx\n"
+                       : "=a"(cpu_info[0]), "=D"(cpu_info[1]),
+                         "=c"(cpu_info[2]), "=d"(cpu_info[3])
+                       : "a"(eax), "c"(ecx)));
+}
+
 void __cpuid(int cpu_info[4], int info_type) {
-  __asm__ volatile(
-      "mov %%ebx, %%edi\n"
-      "cpuid\n"
-      "xchg %%edi, %%ebx\n"
-      : "=a"(cpu_info[0]), "=D"(cpu_info[1]), "=c"(cpu_info[2]),
-        "=d"(cpu_info[3])
-      : "a"(info_type), "c"(0));
+  __cpuidex(cpu_info, info_type, /*ecx=*/0);
 }
 
 #else
 
+// Requests extended feature information via |ecx|.
+void __cpuidex(int cpu_info[4], int eax, int ecx) {
+  // SAFETY: `cpu_info` has length 4 and therefore all accesses below are valid.
+  UNSAFE_BUFFERS(__asm__ volatile("cpuid\n"
+                                  : "=a"(cpu_info[0]), "=b"(cpu_info[1]),
+                                    "=c"(cpu_info[2]), "=d"(cpu_info[3])
+                                  : "a"(eax), "c"(ecx)));
+}
+
 void __cpuid(int cpu_info[4], int info_type) {
-  __asm__ volatile("cpuid\n"
-                   : "=a"(cpu_info[0]), "=b"(cpu_info[1]), "=c"(cpu_info[2]),
-                     "=d"(cpu_info[3])
-                   : "a"(info_type), "c"(0));
+  __cpuidex(cpu_info, info_type, /*ecx=*/0);
 }
 
 #endif
@@ -172,7 +186,8 @@ const ProcCpuInfo& ParseProcCpu() {
 
     StringPairs pairs;
     if (!SplitStringIntoKeyValuePairs(cpuinfo, ':', '\n', &pairs)) {
-      NOTREACHED();
+      // TODO(crbug.com/368077955): This still hits and needs to be diagnosed.
+      DUMP_WILL_BE_NOTREACHED() << cpuinfo;
       return info;
     }
 
@@ -206,7 +221,7 @@ const ProcCpuInfo& ParseProcCpu() {
 #endif  // defined(ARCH_CPU_ARM_FAMILY) && (BUILDFLAG(IS_ANDROID) ||
         // BUILDFLAG(IS_LINUX) || BUILDFLAG(IS_CHROMEOS))
 
-DEFINE_PROTECTED_DATA base::ProtectedMemory<CPU, true> g_cpu_instance;
+DEFINE_PROTECTED_DATA base::ProtectedMemory<CPU> g_cpu_instance;
 
 }  // namespace
 
@@ -220,19 +235,26 @@ void CPU::Initialize(bool require_branding) {
   // not in linear order. The code below arranges the information
   // in a human readable form. The human readable order is CPUInfo[1] |
   // CPUInfo[3] | CPUInfo[2]. CPUInfo[2] and CPUInfo[3] are swapped
-  // before using memcpy() to copy these three array elements to |cpu_string|.
+  // before copying these three array elements to |cpu_vendor_|.
   __cpuid(cpu_info, 0);
   int num_ids = cpu_info[0];
   std::swap(cpu_info[2], cpu_info[3]);
-  memcpy(cpu_vendor_, &cpu_info[1], kVendorNameSize);
-  cpu_vendor_[kVendorNameSize] = '\0';
+  {
+    SpanWriter writer{span(cpu_vendor_)};
+    writer.Write(as_chars(span(cpu_info)).last<kVendorNameSize>());
+    writer.Write('\0');
+  }
 
   // Interpret CPU feature information.
   if (num_ids > 0) {
     int cpu_info7[4] = {0};
+    int cpu_einfo7[4] = {0};
     __cpuid(cpu_info, 1);
     if (num_ids >= 7) {
       __cpuid(cpu_info7, 7);
+      if (cpu_info7[0] >= 1) {
+        __cpuidex(cpu_einfo7, 7, 1);
+      }
     }
     signature_ = cpu_info[0];
     stepping_ = cpu_info[0] & 0xf;
@@ -276,7 +298,16 @@ void CPU::Initialize(bool require_branding) {
         (xgetbv(0) & 6) == 6 /* XSAVE enabled by kernel */;
     has_aesni_ = (cpu_info[2] & 0x02000000) != 0;
     has_fma3_ = (cpu_info[2] & 0x00001000) != 0;
-    has_avx2_ = has_avx_ && (cpu_info7[1] & 0x00000020) != 0;
+    if (has_avx_) {
+      has_avx2_ = (cpu_info7[1] & 0x00000020) != 0;
+      has_avx_vnni_ = (cpu_einfo7[0] & 0x00000010) != 0;
+      // Check AVX-512 state, bits 5-7.
+      if ((xgetbv(0) & 0xe0) == 0xe0) {
+        has_avx512_f_ = (cpu_info7[1] & 0x00010000) != 0;
+        has_avx512_bw_ = (cpu_info7[1] & 0x40000000) != 0;
+        has_avx512_vnni_ = (cpu_info7[2] & 0x00000800) != 0;
+      }
+    }
 
     has_pku_ = (cpu_info7[2] & 0x00000010) != 0;
   }
@@ -293,14 +324,13 @@ void CPU::Initialize(bool require_branding) {
                 "cpu_brand_ has wrong size");
 
   if (max_parameter >= kParameterEnd) {
-    size_t i = 0;
+    SpanWriter writer{span(cpu_brand_)};
     for (uint32_t parameter = kParameterStart; parameter <= kParameterEnd;
          ++parameter) {
       __cpuid(cpu_info, static_cast<int>(parameter));
-      memcpy(&cpu_brand_[i], cpu_info, sizeof(cpu_info));
-      i += sizeof(cpu_info);
+      writer.Write(as_chars(span(cpu_info)));
     }
-    cpu_brand_[i] = '\0';
+    writer.Write('\0');
   }
 
   static constexpr uint32_t kParameterContainingNonStopTimeStampCounter =
@@ -333,10 +363,9 @@ void CPU::Initialize(bool require_branding) {
     const ProcCpuInfo& info = ParseProcCpu();
 
     // Ensure the brand can be stored in the internal array.
-    CHECK_LE(info.brand.size(), kBrandNameSize);
-
-    const size_t chars_copied = info.brand.copy(cpu_brand_, kBrandNameSize);
-    cpu_brand_[chars_copied] = '\0';
+    SpanWriter writer{span(cpu_brand_)};
+    writer.Write(span(info.brand));
+    writer.Write('\0');
 
     implementer_ = info.implementer;
     part_number_ = info.part_number;
@@ -359,6 +388,10 @@ void CPU::Initialize(bool require_branding) {
 
 #if defined(ARCH_CPU_X86_FAMILY)
 CPU::IntelMicroArchitecture CPU::GetIntelMicroArchitecture() const {
+  if (has_avx512_vnni()) return AVX512_VNNI;
+  if (has_avx512_bw()) return AVX512BW;
+  if (has_avx512_f()) return AVX512F;
+  if (has_avx_vnni()) return AVX_VNNI;
   if (has_avx2()) return AVX2;
   if (has_fma3()) return FMA3;
   if (has_avx()) return AVX;

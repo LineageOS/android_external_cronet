@@ -2,18 +2,25 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <algorithm>
-#include <iterator>
-#include <memory>
-#include <string>
-#include <utility>
-#include <vector>
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "crypto/unexportable_key.h"
 
 #import <CoreFoundation/CoreFoundation.h>
 #import <CryptoTokenKit/CryptoTokenKit.h>
 #import <Foundation/Foundation.h>
 #include <LocalAuthentication/LocalAuthentication.h>
 #import <Security/Security.h>
+
+#include <algorithm>
+#include <iterator>
+#include <memory>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include "base/apple/bridging.h"
 #include "base/apple/foundation_util.h"
@@ -25,11 +32,11 @@
 #include "base/memory/scoped_policy.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/strings/sys_string_conversions.h"
+#include "base/threading/scoped_blocking_call.h"
 #include "crypto/apple_keychain_util.h"
 #include "crypto/apple_keychain_v2.h"
 #include "crypto/features.h"
 #include "crypto/signature_verifier.h"
-#include "crypto/unexportable_key.h"
 #include "crypto/unexportable_key_mac.h"
 #include "third_party/boringssl/src/include/openssl/bn.h"
 #include "third_party/boringssl/src/include/openssl/bytestring.h"
@@ -154,6 +161,8 @@ class UnexportableSigningKeyMac : public UnexportableSigningKey {
     return CFDataToVec(signature.get());
   }
 
+  bool IsHardwareBacked() const override { return true; }
+
   SecKeyRef GetSecKeyRef() const override { return key_.get(); }
 
  private:
@@ -216,6 +225,18 @@ UnexportableKeyProviderMac::GenerateSigningKeySlowly(
   SecAccessControlCreateFlags control_flags = kSecAccessControlPrivateKeyUsage;
   switch (access_control_) {
     case UnexportableKeyProvider::Config::AccessControl::kUserPresence:
+      // kSecAccessControlUserPresence is documented[1] (at the time of
+      // writing) to be "equivalent to specifying kSecAccessControlBiometryAny,
+      // kSecAccessControlOr, and kSecAccessControlDevicePasscode". This is
+      // incorrect because includingkSecAccessControlBiometryAny causes key
+      // creation to fail if biometrics are supported but not enrolled. It also
+      // appears to support Apple Watch confirmation, but this isn't documented
+      // (and kSecAccessControlWatch is deprecated as of macOS 15).
+      //
+      // Reported as FB14040169.
+      //
+      // [1] https://developer.apple.com/documentation/security/
+      //     secaccesscontrolcreateflags/ksecaccesscontroluserpresence
       control_flags |= kSecAccessControlUserPresence;
       break;
     case UnexportableKeyProvider::Config::AccessControl::kNone:
@@ -227,6 +248,7 @@ UnexportableKeyProviderMac::GenerateSigningKeySlowly(
           kCFAllocatorDefault, kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
           control_flags,
           /*error=*/nil));
+  CHECK(access);
 
   NSMutableDictionary* key_attributes =
       [NSMutableDictionary dictionaryWithDictionary:@{
@@ -304,8 +326,10 @@ UnexportableKeyProviderMac::FromWrappedSigningKeySlowly(
                                                      key_attributes);
 }
 
-bool UnexportableKeyProviderMac::DeleteSigningKey(
+bool UnexportableKeyProviderMac::DeleteSigningKeySlowly(
     base::span<const uint8_t> wrapped_key) {
+  base::ScopedBlockingCall scoped_blocking_call(FROM_HERE,
+                                                base::BlockingType::WILL_BLOCK);
   NSDictionary* query = @{
     CFToNSPtrCast(kSecClass) : CFToNSPtrCast(kSecClassKey),
     CFToNSPtrCast(kSecAttrKeyType) :
@@ -336,9 +360,6 @@ std::unique_ptr<UnexportableKeyProviderMac> GetUnexportableKeyProviderMac(
 #if !BUILDFLAG(IS_IOS)
   if (!ExecutableHasKeychainAccessGroupEntitlement(
           config.keychain_access_group)) {
-    LOG(ERROR) << "Unexportable keys unavailable because keychain-access-group "
-                  "entitlement missing or incorrect. Expected value: "
-               << config.keychain_access_group;
     return nullptr;
   }
 #endif  // !BUILDFLAG(IS_IOS)

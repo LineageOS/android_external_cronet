@@ -51,15 +51,20 @@ class StringBuilder:
       return self._param_list_generator()
 
     self('(')
-    punctuation_size = 2 * len(values) # punctuation: ", ()"
-    single_line_size = sum(len(v) for v in values) + punctuation_size
-    if self._cur_line_length() + single_line_size < _TARGET_LINE_LENGTH:
-      self(', '.join(values))
-    else:
-      self('\n')
-      with self.indent(4):
-        self(',\n'.join(values))
+    if values:
+      punctuation_size = 2 * len(values) # punctuation: ", ()"
+      single_line_size = sum(len(v) for v in values) + punctuation_size
+      if self._cur_line_length() + single_line_size < _TARGET_LINE_LENGTH:
+        self(', '.join(values))
+      else:
+        self('\n')
+        with self.indent(4):
+          self(',\n'.join(values))
     self(')')
+
+  def line(self, value=None):
+    self(value)
+    self('\n')
 
   @contextlib.contextmanager
   def statement(self):
@@ -67,11 +72,26 @@ class StringBuilder:
     self(';\n')
 
   @contextlib.contextmanager
-  def block(self):
-    self(' {\n')
-    with self.indent(2):
+  def namespace(self, namespace_name):
+    if namespace_name is None:
       yield
-    self('}\n')
+      return
+    value = f' {namespace_name}' if namespace_name else ''
+    self(f'namespace{value} {{\n\n')
+    yield
+    self(f'\n}}  // namespace{value}\n')
+
+  @contextlib.contextmanager
+  def block(self, *, indent=2, after=None):
+    self(' {\n')
+    with self.indent(indent):
+      yield
+    if after:
+      self('}')
+      self(after)
+      self('\n')
+    else:
+      self('}\n')
 
   @contextlib.contextmanager
   def indent(self, amount):
@@ -113,3 +133,13 @@ def add_to_zip_hermetic(zip_file, zip_path, data=None):
   zipinfo.external_attr = 0o644 << 16
   zipinfo.date_time = (2001, 1, 1, 0, 0, 0)
   zip_file.writestr(zipinfo, data, zipfile.ZIP_STORED)
+
+
+def should_rename_package(package_name, filter_list_string):
+  # If the filter list is empty, all packages should be renamed.
+  if not filter_list_string:
+    return True
+
+  return any(
+      package_name.startswith(pkg_prefix)
+      for pkg_prefix in filter_list_string.split(':'))

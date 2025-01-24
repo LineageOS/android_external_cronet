@@ -31,7 +31,7 @@ using ServerConfigID = std::string;
 // "QNZR", "B2HI", "H2PR", "FIFO", "LIFO", "RRWS", "QNSP", "B2CL", "CHSP",
 // "BPTE", "ACKD", "AKD2", "AKD4", "MAD1", "MAD4", "MAD5", "ACD0", "ACKQ",
 // "TLPR", "CCS\0", "PDP4", "NCHP", "NBPE", "2RTO", "3RTO", "4RTO", "6RTO",
-// "PDP1", "PDP2", "PDP3", "PDP5", "QLVE", "RVCM"
+// "PDP1", "PDP2", "PDP3", "PDP5", "QLVE", "RVCM", "BBPD"
 
 // clang-format off
 const QuicTag kCHLO = TAG('C', 'H', 'L', 'O');   // Client hello
@@ -125,7 +125,6 @@ const QuicTag kBBQ9 = TAG('B', 'B', 'Q', '9');   // Reduce bw_lo by
                                                  // bw_lo * bytes_lost/cwnd
 const QuicTag kBBQ0 = TAG('B', 'B', 'Q', '0');   // Increase bytes_acked in
                                                  // PROBE_UP when app limited.
-const QuicTag kBBPD = TAG('B', 'B', 'P', 'D');   // Use 0.91 PROBE_DOWN gain.
 const QuicTag kBBHI = TAG('B', 'B', 'H', 'I');   // Increase inflight_hi in
                                                  // PROBE_UP if ever inflight_hi
                                                  // limited in round
@@ -284,6 +283,9 @@ const QuicTag kSPA2 = TAG('S', 'P', 'A', '2');   // Start validating server
                                                  // preferred address once it is
                                                  // received. Send all coalesced
                                                  // packets to both addresses.
+const QuicTag kEVMB = TAG('E', 'V', 'M', 'B');
+
+const QuicTag kCRNT = TAG('C', 'R', 'N', 'T');
 
 // Optional support of truncated Connection IDs.  If sent by a peer, the value
 // is the minimum number of bytes allowed for the connection ID sent to the
@@ -298,6 +300,7 @@ const QuicTag kNCMR = TAG('N', 'C', 'M', 'R');   // Do not attempt connection
 
 // Allows disabling defer_send_in_response_to_packets in QuicConnection.
 const QuicTag kDFER = TAG('D', 'F', 'E', 'R');   // Do not defer sending.
+const QuicTag kCDFR = TAG('C', 'D', 'F', 'R');   // Defer sending on client.
 
 // Pacing options.
 const QuicTag kNPCO = TAG('N', 'P', 'C', 'O');  // No pacing offload.
@@ -360,6 +363,9 @@ const QuicTag kMTUL = TAG('M', 'T', 'U', 'L');  // Low-target MTU discovery.
 
 const QuicTag kNSLC = TAG('N', 'S', 'L', 'C');  // Always send connection close
                                                 // for idle timeout.
+
+// Enable application-driven pacing experiment.
+const QuicTag kADP0 = TAG('A', 'D', 'P', '0');  // Enable App-Driven Pacing.
 
 // Proof types (i.e. certificate types)
 // NOTE: although it would be silly to do so, specifying both kX509 and kX59R
@@ -440,6 +446,11 @@ const QuicTag kGWCH = TAG('G', 'W', 'C', 'H');
 const QuicTag kYTCH = TAG('Y', 'T', 'C', 'H');
 const QuicTag kACH0 = TAG('A', 'C', 'H', '0');
 
+// Client sends these connection options to express the intention of skipping IP
+// matching when trying to send a request on active sessions.
+const QuicTag kNOIP = TAG('N', 'O', 'I', 'P');
+const QuicTag kNIPA = TAG('N', 'I', 'P', 'A');  // Aggressively skip IP matching
+
 // Rejection tags
 const QuicTag kRREJ = TAG('R', 'R', 'E', 'J');   // Reasons for server sending
 
@@ -481,6 +492,11 @@ constexpr QuicTag kBSUS = TAG('B', 'S', 'U', 'S');  // Blocks server connection
                                                     // until the SETTINGS frame
                                                     // is received.
 
+// Enable Failed Path Probe experiment
+const QuicTag kFPPE = TAG('F', 'P', 'P', 'E');
+
+// Fix timeouts experiment.
+const QuicTag kFTOE = TAG('F', 'T', 'O', 'E');
 // clang-format on
 
 // These tags have a special form so that they appear either at the beginning

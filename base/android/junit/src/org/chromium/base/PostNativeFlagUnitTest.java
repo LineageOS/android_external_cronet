@@ -13,7 +13,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-import org.chromium.base.cached_flags.PostNativeFlag;
 import org.chromium.base.test.BaseRobolectricTestRunner;
 import org.chromium.base.test.util.BaseFlagTestRule;
 
@@ -32,9 +31,9 @@ public class PostNativeFlagUnitTest {
     public void testNativeNotInitialized_throwAssertionError() {
         PostNativeFlag featureA = new PostNativeFlag(BaseFlagTestRule.FEATURE_MAP, FEATURE_A);
 
-        // Disable test feature short circuit so it goes through the same code
+        // Disable test feature short circuit so the test goes through the same code
         // path as prod chrome.
-        FeatureList.setTestFeatures(null);
+        FeatureList.setDisableNativeForTesting(false);
 
         featureA.isEnabled();
     }

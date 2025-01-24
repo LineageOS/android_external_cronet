@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/base/macros.h"
 #include "absl/memory/memory.h"
@@ -820,8 +822,7 @@ bool QuicCryptoClientConfig::PopulateFromCanonicalConfig(
     return false;
   }
 
-  QuicServerId suffix_server_id(canonical_suffixes_[i], server_id.port(),
-                                server_id.privacy_mode_enabled());
+  QuicServerId suffix_server_id(canonical_suffixes_[i], server_id.port());
   auto it = canonical_server_map_.lower_bound(suffix_server_id);
   if (it == canonical_server_map_.end() || it->first != suffix_server_id) {
     // This is the first host we've seen which matches the suffix, so make it

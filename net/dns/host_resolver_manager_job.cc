@@ -15,6 +15,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/not_fatal_until.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "net/base/address_family.h"
@@ -33,6 +34,7 @@
 #include "net/dns/host_resolver_manager_service_endpoint_request_impl.h"
 #include "net/dns/host_resolver_mdns_task.h"
 #include "net/dns/host_resolver_nat64_task.h"
+#include "net/dns/host_resolver_system_task.h"
 #include "net/dns/public/dns_query_type.h"
 #include "net/dns/public/secure_dns_mode.h"
 #include "net/log/net_log_with_source.h"
@@ -172,6 +174,11 @@ HostResolverManager::Job::Job(
   net_log_.BeginEvent(NetLogEventType::HOST_RESOLVER_MANAGER_JOB, [&] {
     return NetLogJobCreationParams(source_net_log.source());
   });
+
+  if (base::FeatureList::IsEnabled(features::kHappyEyeballsV3)) {
+    dns_task_results_manager_ = std::make_unique<DnsTaskResultsManager>(
+        this, key_.host, key_.query_types, net_log_);
+  }
 }
 
 HostResolverManager::Job::~Job() {
@@ -229,7 +236,7 @@ void HostResolverManager::Job::AddRequest(RequestImpl* request) {
   // HostCache. Since the ResolveContext is part of the JobKey, any request
   // added to any existing Job should share the same HostCache.
   DCHECK_EQ(host_cache_, request->host_cache());
-  // TODO(crbug.com/1206799): Check equality of whole host once Jobs are
+  // TODO(crbug.com/40181080): Check equality of whole host once Jobs are
   // separated by scheme/port.
   DCHECK_EQ(key_.host.GetHostnameWithoutBrackets(),
             request->request_host().GetHostnameWithoutBrackets());
@@ -298,6 +305,15 @@ void HostResolverManager::Job::CancelServiceEndpointRequest(
     CompleteRequestsWithError(ERR_DNS_REQUEST_CANCELLED,
                               /*task_type=*/std::nullopt);
   }
+}
+
+void HostResolverManager::Job::ChangeServiceEndpointRequestPriority(
+    ServiceEndpointRequestImpl* request,
+    RequestPriority priority) {
+  priority_tracker_.Remove(request->priority());
+  request->set_priority(priority);
+  priority_tracker_.Add(request->priority());
+  UpdatePriority();
 }
 
 void HostResolverManager::Job::Abort() {
@@ -370,7 +386,7 @@ bool HostResolverManager::Job::ServeFromHosts() {
 
 void HostResolverManager::Job::OnAddedToJobMap(JobMap::iterator iterator) {
   DCHECK(!self_iterator_);
-  DCHECK(iterator != resolver_->jobs_.end());
+  CHECK(iterator != resolver_->jobs_.end(), base::NotFatalUntil::M130);
   self_iterator_ = iterator;
 }
 
@@ -460,7 +476,7 @@ void HostResolverManager::Job::RunNextTask() {
     case TaskType::HOSTS:
       // These task types should have been handled synchronously in
       // ResolveLocally() prior to Job creation.
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
       break;
   }
 }
@@ -535,7 +551,7 @@ void HostResolverManager::Job::ReduceByOneJobSlot() {
     }
     --num_occupied_job_slots_;
   } else {
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
   }
 }
 
@@ -600,11 +616,17 @@ void HostResolverManager::Job::StartSystemTask() {
   DCHECK_EQ(1, num_occupied_job_slots_);
   DCHECK(HasAddressType(key_.query_types));
 
+  std::optional<HostResolverSystemTask::CacheParams> cache_params;
+  if (key_.resolve_context->host_resolver_cache()) {
+    cache_params.emplace(*key_.resolve_context->host_resolver_cache(),
+                         key_.network_anonymization_key);
+  }
+
   system_task_ = HostResolverSystemTask::Create(
       std::string(key_.host.GetHostnameWithoutBrackets()),
       HostResolver::DnsQueryTypeSetToAddressFamily(key_.query_types),
       key_.flags, resolver_->host_resolver_system_params_, net_log_,
-      key_.GetTargetNetwork());
+      key_.GetTargetNetwork(), std::move(cache_params));
 
   // Start() could be called from within Resolve(), hence it must NOT directly
   // call OnSystemTaskComplete, for example, on synchronous failure.
@@ -679,12 +701,6 @@ void HostResolverManager::Job::StartDnsTask(bool secure) {
   DCHECK_EQ(secure, !dispatched_);
   DCHECK_EQ(dispatched_ ? 1 : 0, num_occupied_job_slots_);
   DCHECK(!resolver_->ShouldForceSystemResolverDueToTestOverride());
-
-  CHECK(!dns_task_results_manager_);
-  if (base::FeatureList::IsEnabled(features::kUseServiceEndpointRequest)) {
-    dns_task_results_manager_ = std::make_unique<DnsTaskResultsManager>(
-        this, key_.host, key_.query_types, net_log_);
-  }
 
   // Need to create the task even if we're going to post a failure instead of
   // running it, as a "started" job needs a task to be properly cleaned up.
@@ -882,7 +898,7 @@ void HostResolverManager::Job::StartMdnsTask() {
 
 void HostResolverManager::Job::OnMdnsTaskComplete() {
   DCHECK(mdns_task_);
-  // TODO(crbug.com/846423): Consider adding MDNS-specific logging.
+  // TODO(crbug.com/40577881): Consider adding MDNS-specific logging.
 
   HostCache::Entry results = mdns_task_->GetResults();
 
@@ -891,7 +907,7 @@ void HostResolverManager::Job::OnMdnsTaskComplete() {
     return;
   }
   // MDNS uses a separate cache, so skip saving result to cache.
-  // TODO(crbug.com/926300): Consider merging caches.
+  // TODO(crbug.com/40611558): Consider merging caches.
   CompleteRequestsWithoutCache(results, std::nullopt /* stale_info */,
                                TaskType::MDNS);
 }
@@ -1067,7 +1083,7 @@ void HostResolverManager::Job::CompleteRequests(
     }
   }
 
-  // TODO(crbug.com/1200908): Call StartBootstrapFollowup() if any of the
+  // TODO(crbug.com/40178456): Call StartBootstrapFollowup() if any of the
   // requests have the Bootstrap policy.  Note: A naive implementation could
   // cause an infinite loop if the bootstrap result has TTL=0.
 }

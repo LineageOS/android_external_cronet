@@ -26,7 +26,7 @@
 #include "base/threading/thread_id_name_manager.h"
 #include "base/threading/thread_restrictions.h"
 #include "build/build_config.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
 #if !BUILDFLAG(IS_APPLE) && !BUILDFLAG(IS_FUCHSIA) && !BUILDFLAG(IS_NACL)
 #include "base/posix/can_lower_nice_to.h"
@@ -45,8 +45,8 @@
 #include <sys/resource.h>
 #endif
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
-#include "partition_alloc/stack/stack.h"
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#include "partition_alloc/stack/stack.h"  // nogncheck
 #endif
 
 namespace base {
@@ -77,7 +77,7 @@ void* ThreadFunc(void* params) {
     if (!thread_params->joinable)
       base::DisallowSingleton();
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
     partition_alloc::internal::StackTopRegistry::Get().NotifyThreadCreated();
 #endif
 
@@ -104,7 +104,7 @@ void* ThreadFunc(void* params) {
       PlatformThread::CurrentHandle().platform_handle(),
       PlatformThread::CurrentId());
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   partition_alloc::internal::StackTopRegistry::Get().NotifyThreadDestroyed();
 #endif
 

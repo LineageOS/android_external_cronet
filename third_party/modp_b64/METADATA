@@ -3,8 +3,10 @@
 name: "modp base64 decoder"
 third_party {
   license_type: NOTICE
+  version: "2.0.0"
   identifier {
     value: "https://github.com/client9/stringencoders"
     type: "Git"
+    version: "2.0.0"
   }
 }

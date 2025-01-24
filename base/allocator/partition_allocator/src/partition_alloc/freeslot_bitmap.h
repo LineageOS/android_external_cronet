@@ -9,13 +9,13 @@
 #include <cstdint>
 #include <utility>
 
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/freeslot_bitmap_constants.h"
 #include "partition_alloc/partition_alloc_base/bits.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_constants.h"
 
-#if BUILDFLAG(USE_FREESLOT_BITMAP)
+#if PA_BUILDFLAG(USE_FREESLOT_BITMAP)
 
 namespace partition_alloc::internal {
 
@@ -92,7 +92,7 @@ PA_ALWAYS_INLINE void FreeSlotBitmapReset(uintptr_t begin_addr,
     *cell &= ~CellWithAOne(bit_index);
   }
 
-#if BUILDFLAG(PA_DCHECK_IS_ON)
+#if PA_BUILDFLAG(DCHECKS_ARE_ON)
   // Checks if the cells that are meant to contain only unset bits are really 0.
   auto [begin_cell, begin_bit_index] =
       GetFreeSlotBitmapCellPtrAndBitIndex(begin_addr);
@@ -131,11 +131,11 @@ PA_ALWAYS_INLINE void FreeSlotBitmapReset(uintptr_t begin_addr,
   for (FreeSlotBitmapCellType* cell = begin_cell; cell < end_cell; ++cell) {
     PA_DCHECK(*cell == 0u);
   }
-#endif  // BUILDFLAG(PA_DCHECK_IS_ON)
+#endif  // PA_BUILDFLAG(DCHECKS_ARE_ON)
 }
 
 }  // namespace partition_alloc::internal
 
-#endif  // BUILDFLAG(USE_FREESLOT_BITMAP)
+#endif  // PA_BUILDFLAG(USE_FREESLOT_BITMAP)
 
 #endif  // PARTITION_ALLOC_FREESLOT_BITMAP_H_

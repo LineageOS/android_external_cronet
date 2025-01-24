@@ -167,9 +167,7 @@ class Worker : public Listener, public Sender {
     Send(reply_msg);
   }
 
-  virtual void OnNestedTestMsg(Message* reply_msg) {
-    NOTREACHED();
-  }
+  virtual void OnNestedTestMsg(Message* reply_msg) { NOTREACHED(); }
 
   virtual SyncChannel* CreateChannel() {
     std::unique_ptr<SyncChannel> channel = SyncChannel::Create(
@@ -696,9 +694,8 @@ class MultipleClient1 : public Worker {
   }
 
  private:
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #overlapping
-  RAW_PTR_EXCLUSION WaitableEvent *client1_msg_received_, *client1_can_reply_;
+  raw_ptr<WaitableEvent> client1_msg_received_;
+  raw_ptr<WaitableEvent> client1_can_reply_;
 };
 
 class MultipleServer2 : public Worker {
@@ -729,9 +726,8 @@ class MultipleClient2 : public Worker {
   }
 
  private:
-  // This field is not a raw_ptr<> because it was filtered by the rewriter for:
-  // #overlapping
-  RAW_PTR_EXCLUSION WaitableEvent *client1_msg_received_, *client1_can_reply_;
+  raw_ptr<WaitableEvent> client1_msg_received_;
+  raw_ptr<WaitableEvent> client1_can_reply_;
 };
 
 void Multiple() {

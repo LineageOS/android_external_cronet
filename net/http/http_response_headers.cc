@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <string_view>
 #include <utility>
 
@@ -34,6 +35,7 @@
 #include "net/http/http_log_util.h"
 #include "net/http/http_status_code.h"
 #include "net/http/http_util.h"
+#include "net/http/structured_headers.h"
 #include "net/log/net_log_capture_mode.h"
 #include "net/log/net_log_values.h"
 
@@ -110,6 +112,8 @@ const char* const kNonUpdatedHeaderPrefixes[] = {
   "x-webkit-"
 };
 
+constexpr char kActivateStorageAccessHeader[] = "activate-storage-access";
+
 bool ShouldUpdateHeader(std::string_view name) {
   for (const auto* header : kNonUpdatedHeaders) {
     if (base::EqualsCaseInsensitiveASCII(name, header))
@@ -153,7 +157,7 @@ int ParseStatus(std::string_view status, std::string& append_to) {
   if (first_non_digit == status.begin()) {
     DVLOG(1) << "missing response status number; assuming 200";
     append_to.append(" 200");
-    return net::HTTP_OK;
+    return HTTP_OK;
   }
 
   append_to.push_back(' ');
@@ -231,23 +235,30 @@ HttpResponseHeaders::HttpResponseHeaders(const std::string& raw_input)
     : response_code_(-1) {
   Parse(raw_input);
 
-  // The most important thing to do with this histogram is find out
-  // the existence of unusual HTTP status codes.  As it happens
-  // right now, there aren't double-constructions of response headers
-  // using this constructor, so our counts should also be accurate,
+  // As it happens right now, there aren't double-constructions of response
+  // headers using this constructor, so our counts should also be accurate,
   // without instantiating the histogram in two places.  It is also
   // important that this histogram not collect data in the other
   // constructor, which rebuilds an histogram from a pickle, since
   // that would actually create a double call between the original
   // HttpResponseHeader that was serialized, and initialization of the
   // new object from that pickle.
-  UMA_HISTOGRAM_CUSTOM_ENUMERATION(
-      "Net.HttpResponseCode",
-      HttpUtil::MapStatusCodeForHistogram(response_code_),
-      // Note the third argument is only
-      // evaluated once, see macro
-      // definition for details.
-      HttpUtil::GetStatusCodesForHistogram());
+  if (base::FeatureList::IsEnabled(features::kOptimizeParsingDataUrls)) {
+    std::optional<HttpStatusCode> status_code =
+        TryToGetHttpStatusCode(response_code_);
+    if (status_code.has_value()) {
+      UMA_HISTOGRAM_ENUMERATION("Net.HttpResponseCode2", status_code.value(),
+                                net::HttpStatusCode::HTTP_STATUS_CODE_MAX);
+    }
+  } else {
+    UMA_HISTOGRAM_CUSTOM_ENUMERATION(
+        "Net.HttpResponseCode",
+        HttpUtil::MapStatusCodeForHistogram(response_code_),
+        // Note the third argument is only
+        // evaluated once, see macro
+        // definition for details.
+        HttpUtil::GetStatusCodesForHistogram());
+  }
 }
 
 HttpResponseHeaders::HttpResponseHeaders(base::PickleIterator* iter)
@@ -327,7 +338,7 @@ HttpResponseHeaders::HttpResponseHeaders(
     raw_headers_.push_back('\0');
     // The HTTP/2 standard disallows header values starting or ending with
     // whitespace (RFC 9113 8.2.1). Hopefully the same is also true of HTTP/3.
-    // TODO(https://crbug.com/1485670): Validate that our implementations
+    // TODO(crbug.com/40282642): Validate that our implementations
     // actually enforce this constraint and change this TrimLWS() to a DCHECK.
     HttpUtil::TrimLWS(&values_begin, &values_end);
     AddHeader(name_begin, name_end, values_begin, values_end,
@@ -354,6 +365,23 @@ scoped_refptr<HttpResponseHeaders> HttpResponseHeaders::TryToCreate(
 
   return base::MakeRefCounted<HttpResponseHeaders>(
       HttpUtil::AssembleRawHeaders(headers));
+}
+
+scoped_refptr<HttpResponseHeaders> HttpResponseHeaders::TryToCreateForDataURL(
+    std::string_view content_type) {
+  // Reject strings with nulls.
+  if (HasEmbeddedNulls(content_type) ||
+      content_type.size() > std::numeric_limits<int>::max()) {
+    return nullptr;
+  }
+
+  constexpr char kStatusLineAndHeaderName[] = "HTTP/1.1 200 OK\0Content-Type:";
+  std::string raw_headers =
+      base::StrCat({std::string_view(kStatusLineAndHeaderName,
+                                     sizeof(kStatusLineAndHeaderName) - 1),
+                    content_type, std::string_view("\0\0", 2)});
+
+  return base::MakeRefCounted<HttpResponseHeaders>(raw_headers);
 }
 
 void HttpResponseHeaders::Persist(base::Pickle* pickle,
@@ -416,8 +444,8 @@ void HttpResponseHeaders::Persist(base::Pickle* pickle,
 }
 
 void HttpResponseHeaders::Update(const HttpResponseHeaders& new_headers) {
-  DCHECK(new_headers.response_code() == net::HTTP_NOT_MODIFIED ||
-         new_headers.response_code() == net::HTTP_PARTIAL_CONTENT);
+  DCHECK(new_headers.response_code() == HTTP_NOT_MODIFIED ||
+         new_headers.response_code() == HTTP_PARTIAL_CONTENT);
 
   // Copy up to the null byte.  This just copies the status line.
   std::string new_raw_headers(raw_headers_.c_str());
@@ -608,7 +636,7 @@ void HttpResponseHeaders::UpdateWithNewRange(const HttpByteRange& byte_range,
 
 void HttpResponseHeaders::Parse(const std::string& raw_input) {
   raw_headers_.reserve(raw_input.size());
-  // TODO(https://crbug.com/1470137): Call reserve() on `parsed_` with an
+  // TODO(crbug.com/40277776): Call reserve() on `parsed_` with an
   // appropriate value.
 
   // ParseStatusLine adds a normalized status line to raw_headers_
@@ -859,7 +887,7 @@ void HttpResponseHeaders::ParseStatusLine(
   if (p == line_end) {
     DVLOG(1) << "missing response status; assuming 200 OK";
     raw_headers_.append(" 200 OK");
-    response_code_ = net::HTTP_OK;
+    response_code_ = HTTP_OK;
     return;
   }
 
@@ -881,9 +909,8 @@ size_t HttpResponseHeaders::FindHeader(size_t from,
   return std::string::npos;
 }
 
-bool HttpResponseHeaders::GetCacheControlDirective(
-    std::string_view directive,
-    base::TimeDelta* result) const {
+std::optional<base::TimeDelta> HttpResponseHeaders::GetCacheControlDirective(
+    std::string_view directive) const {
   static constexpr std::string_view name("cache-control");
   std::string value;
 
@@ -919,11 +946,10 @@ bool HttpResponseHeaders::GetCacheControlDirective(
     // string. For the overflow case we use
     // base::TimeDelta::FiniteMax().InSeconds().
     seconds = std::min(seconds, base::TimeDelta::FiniteMax().InSeconds());
-    *result = base::Seconds(seconds);
-    return true;
+    return base::Seconds(seconds);
   }
 
-  return false;
+  return std::nullopt;
 }
 
 void HttpResponseHeaders::AddHeader(std::string::const_iterator name_begin,
@@ -1093,15 +1119,42 @@ bool HttpResponseHeaders::IsRedirect(std::string* location) const {
   return true;
 }
 
+bool HttpResponseHeaders::HasStorageAccessRetryHeader(
+    const std::string* expected_origin) const {
+  size_t iter = 0;
+  std::string header_value;
+  while (EnumerateHeader(&iter, kActivateStorageAccessHeader, &header_value)) {
+    const std::optional<structured_headers::ParameterizedItem> item =
+        structured_headers::ParseItem(header_value);
+    if (!item || !item->item.is_token() || item->item.GetString() != "retry") {
+      continue;
+    }
+    if (base::ranges::any_of(
+            item->params, [&](const auto& key_and_value) -> bool {
+              const auto [key, value] = key_and_value;
+              if (key != "allowed-origin") {
+                return false;
+              }
+              if (value.is_token() && value.GetString() == "*") {
+                return true;
+              }
+              return expected_origin && value.is_string() &&
+                     value.GetString() == *expected_origin;
+            })) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // static
 bool HttpResponseHeaders::IsRedirectResponseCode(int response_code) {
   // Users probably want to see 300 (multiple choice) pages, so we don't count
   // them as redirects that need to be followed.
-  return (response_code == net::HTTP_MOVED_PERMANENTLY ||
-          response_code == net::HTTP_FOUND ||
-          response_code == net::HTTP_SEE_OTHER ||
-          response_code == net::HTTP_TEMPORARY_REDIRECT ||
-          response_code == net::HTTP_PERMANENT_REDIRECT);
+  return (response_code == HTTP_MOVED_PERMANENTLY ||
+          response_code == HTTP_FOUND || response_code == HTTP_SEE_OTHER ||
+          response_code == HTTP_TEMPORARY_REDIRECT ||
+          response_code == HTTP_PERMANENT_REDIRECT);
 }
 
 // From RFC 2616 section 13.2.4:
@@ -1176,28 +1229,30 @@ HttpResponseHeaders::GetFreshnessLifetimes(const Time& response_time) const {
   // Cache-Control directive must_revalidate overrides stale-while-revalidate.
   bool must_revalidate = HasHeaderValue("cache-control", "must-revalidate");
 
-  if (must_revalidate || !GetStaleWhileRevalidateValue(&lifetimes.staleness)) {
-    DCHECK_EQ(base::TimeDelta(), lifetimes.staleness);
-  }
+  lifetimes.staleness =
+      must_revalidate
+          ? base::TimeDelta()
+          : GetStaleWhileRevalidateValue().value_or(base::TimeDelta());
 
   // NOTE: "Cache-Control: max-age" overrides Expires, so we only check the
   // Expires header after checking for max-age in GetFreshnessLifetimes.  This
   // is important since "Expires: <date in the past>" means not fresh, but
   // it should not trump a max-age value.
-  if (GetMaxAgeValue(&lifetimes.freshness))
+  std::optional<base::TimeDelta> max_age_value = GetMaxAgeValue();
+  if (max_age_value) {
+    lifetimes.freshness = max_age_value.value();
     return lifetimes;
+  }
 
   // If there is no Date header, then assume that the server response was
   // generated at the time when we received the response.
-  Time date_value;
-  if (!GetDateValue(&date_value))
-    date_value = response_time;
+  Time date_value = GetDateValue().value_or(response_time);
 
-  Time expires_value;
-  if (GetExpiresValue(&expires_value)) {
+  std::optional<Time> expires_value = GetExpiresValue();
+  if (expires_value) {
     // The expires value can be a date in the past!
     if (expires_value > date_value) {
-      lifetimes.freshness = expires_value - date_value;
+      lifetimes.freshness = expires_value.value() - date_value;
       return lifetimes;
     }
 
@@ -1229,26 +1284,26 @@ HttpResponseHeaders::GetFreshnessLifetimes(const Time& response_time) const {
   // https://datatracker.ietf.org/doc/draft-reschke-http-status-308/ is an
   // experimental RFC that adds 308 permanent redirect as well, for which "any
   // future references ... SHOULD use one of the returned URIs."
-  if ((response_code_ == net::HTTP_OK ||
-       response_code_ == net::HTTP_NON_AUTHORITATIVE_INFORMATION ||
-       response_code_ == net::HTTP_PARTIAL_CONTENT) &&
+  if ((response_code_ == HTTP_OK ||
+       response_code_ == HTTP_NON_AUTHORITATIVE_INFORMATION ||
+       response_code_ == HTTP_PARTIAL_CONTENT) &&
       !must_revalidate) {
     // TODO(darin): Implement a smarter heuristic.
-    Time last_modified_value;
-    if (GetLastModifiedValue(&last_modified_value)) {
+    std::optional<Time> last_modified_value = GetLastModifiedValue();
+    if (last_modified_value) {
       // The last-modified value can be a date in the future!
-      if (last_modified_value <= date_value) {
-        lifetimes.freshness = (date_value - last_modified_value) / 10;
+      if (last_modified_value.value() <= date_value) {
+        lifetimes.freshness = (date_value - last_modified_value.value()) / 10;
         return lifetimes;
       }
     }
   }
 
   // These responses are implicitly fresh (unless otherwise overruled):
-  if (response_code_ == net::HTTP_MULTIPLE_CHOICES ||
-      response_code_ == net::HTTP_MOVED_PERMANENTLY ||
-      response_code_ == net::HTTP_PERMANENT_REDIRECT ||
-      response_code_ == net::HTTP_GONE) {
+  if (response_code_ == HTTP_MULTIPLE_CHOICES ||
+      response_code_ == HTTP_MOVED_PERMANENTLY ||
+      response_code_ == HTTP_PERMANENT_REDIRECT ||
+      response_code_ == HTTP_GONE) {
     lifetimes.freshness = base::TimeDelta::Max();
     lifetimes.staleness = base::TimeDelta();  // It should never be stale.
     return lifetimes;
@@ -1310,14 +1365,10 @@ base::TimeDelta HttpResponseHeaders::GetCurrentAge(
     const Time& current_time) const {
   // If there is no Date header, then assume that the server response was
   // generated at the time when we received the response.
-  Time date_value;
-  if (!GetDateValue(&date_value))
-    date_value = response_time;
+  Time date_value = GetDateValue().value_or(response_time);
 
-  // If there is no Age header, then assume age is zero.  GetAgeValue does not
-  // modify its out param if the value does not exist.
-  base::TimeDelta age_value;
-  GetAgeValue(&age_value);
+  // If there is no Age header, then assume age is zero.
+  base::TimeDelta age_value = GetAgeValue().value_or(base::TimeDelta());
 
   base::TimeDelta apparent_age =
       std::max(base::TimeDelta(), response_time - date_value);
@@ -1331,14 +1382,14 @@ base::TimeDelta HttpResponseHeaders::GetCurrentAge(
   return current_age;
 }
 
-bool HttpResponseHeaders::GetMaxAgeValue(base::TimeDelta* result) const {
-  return GetCacheControlDirective("max-age", result);
+std::optional<base::TimeDelta> HttpResponseHeaders::GetMaxAgeValue() const {
+  return GetCacheControlDirective("max-age");
 }
 
-bool HttpResponseHeaders::GetAgeValue(base::TimeDelta* result) const {
+std::optional<base::TimeDelta> HttpResponseHeaders::GetAgeValue() const {
   std::string value;
   if (!EnumerateHeader(nullptr, "Age", &value))
-    return false;
+    return std::nullopt;
 
   // Parse the delta-seconds as 1*DIGIT.
   uint32_t seconds;
@@ -1350,36 +1401,35 @@ bool HttpResponseHeaders::GetAgeValue(base::TimeDelta* result) const {
       // caches should transmit values that overflow.
       seconds = std::numeric_limits<decltype(seconds)>::max();
     } else {
-      return false;
+      return std::nullopt;
     }
   }
 
-  *result = base::Seconds(seconds);
-  return true;
+  return base::Seconds(seconds);
 }
 
-bool HttpResponseHeaders::GetDateValue(Time* result) const {
-  return GetTimeValuedHeader("Date", result);
+std::optional<Time> HttpResponseHeaders::GetDateValue() const {
+  return GetTimeValuedHeader("Date");
 }
 
-bool HttpResponseHeaders::GetLastModifiedValue(Time* result) const {
-  return GetTimeValuedHeader("Last-Modified", result);
+std::optional<Time> HttpResponseHeaders::GetLastModifiedValue() const {
+  return GetTimeValuedHeader("Last-Modified");
 }
 
-bool HttpResponseHeaders::GetExpiresValue(Time* result) const {
-  return GetTimeValuedHeader("Expires", result);
+std::optional<Time> HttpResponseHeaders::GetExpiresValue() const {
+  return GetTimeValuedHeader("Expires");
 }
 
-bool HttpResponseHeaders::GetStaleWhileRevalidateValue(
-    base::TimeDelta* result) const {
-  return GetCacheControlDirective("stale-while-revalidate", result);
+std::optional<base::TimeDelta>
+HttpResponseHeaders::GetStaleWhileRevalidateValue() const {
+  return GetCacheControlDirective("stale-while-revalidate");
 }
 
-bool HttpResponseHeaders::GetTimeValuedHeader(const std::string& name,
-                                              Time* result) const {
+std::optional<Time> HttpResponseHeaders::GetTimeValuedHeader(
+    const std::string& name) const {
   std::string value;
   if (!EnumerateHeader(nullptr, name, &value))
-    return false;
+    return std::nullopt;
 
   // In case of parsing the Expires header value, an invalid string 0 should be
   // treated as expired according to the RFC 9111 section 5.3 as below:
@@ -1389,8 +1439,7 @@ bool HttpResponseHeaders::GetTimeValuedHeader(const std::string& name,
   if (base::FeatureList::IsEnabled(
           features::kTreatHTTPExpiresHeaderValueZeroAsExpired) &&
       name == "Expires" && value == "0") {
-    *result = Time::Min();
-    return true;
+    return Time::Min();
   }
 
   // When parsing HTTP dates it's beneficial to default to GMT because:
@@ -1400,11 +1449,14 @@ bool HttpResponseHeaders::GetTimeValuedHeader(const std::string& name,
   //    (crbug.com/135131) this better matches our cookie expiration
   //    time parser which ignores timezone specifiers and assumes GMT.
   // 4. This is exactly what Firefox does.
-  // TODO(pauljensen): The ideal solution would be to return false if the
-  // timezone could not be understood so as to avoid makeing other calculations
+  // TODO(pauljensen): The ideal solution would be to return std::nullopt if the
+  // timezone could not be understood so as to avoid making other calculations
   // based on an incorrect time.  This would require modifying the time
   // library or duplicating the code. (http://crbug.com/158327)
-  return Time::FromUTCString(value.c_str(), result);
+  Time result;
+  return Time::FromUTCString(value.c_str(), &result)
+             ? std::make_optional(result)
+             : std::nullopt;
 }
 
 // We accept the first value of "close" or "keep-alive" in a Connection or

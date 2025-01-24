@@ -19,12 +19,13 @@
 #include "base/memory/raw_ptr.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/numerics/safe_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/task/task_features.h"
 #include "base/trace_event/base_tracing.h"
 #include "base/tracing_buildflags.h"
 
 #if BUILDFLAG(ENABLE_BASE_TRACING)
-#include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_message_pump.pbzero.h"
+#include "third_party/perfetto/protos/perfetto/trace/track_event/chrome_message_pump.pbzero.h"  // nogncheck
 #endif  // BUILDFLAG(ENABLE_BASE_TRACING)
 
 namespace base {
@@ -95,7 +96,9 @@ void MessagePumpWin::Quit() {
 MessagePumpForUI::MessagePumpForUI() {
   bool succeeded = message_window_.Create(
       BindRepeating(&MessagePumpForUI::MessageCallback, Unretained(this)));
-  CHECK(succeeded);
+  CHECK(succeeded) << "Failed to create message-only Window with error"
+                   << StringPrintf("0x%08x",
+                                   static_cast<unsigned int>(::GetLastError()));
 }
 
 MessagePumpForUI::~MessagePumpForUI() = default;
@@ -271,7 +274,7 @@ void MessagePumpForUI::DoRunLoop() {
     if (more_work_is_plausible)
       continue;
 
-    more_work_is_plausible = run_state_->delegate->DoIdleWork();
+    run_state_->delegate->DoIdleWork();
     // DoIdleWork() shouldn't end up in native nested loops, nor should it
     // permit native nested loops, and thus shouldn't have any chance of
     // reinstalling a native timer.
@@ -280,9 +283,6 @@ void MessagePumpForUI::DoRunLoop() {
     if (run_state_->should_quit) {
       break;
     }
-
-    if (more_work_is_plausible)
-      continue;
 
     WaitForWork(next_work_info);
   }
@@ -670,7 +670,7 @@ bool MessagePumpForUI::ProcessPumpReplacementMessage() {
     // again and repost WM_QUIT+ScheduleWork() again, etc.). Not leaving a
     // kMsgHaveWork message behind however is also problematic as unwinding
     // multiple layers of nested ::GetMessage() loops can result in starving
-    // application tasks. TODO(https://crbug.com/890016) : Fix this.
+    // application tasks. TODO(crbug.com/40595757) : Fix this.
 
     // The return value is mostly irrelevant but return true like we would after
     // processing a QuitClosure() task.
@@ -803,12 +803,9 @@ void MessagePumpForIO::DoRunLoop() {
     if (more_work_is_plausible)
       continue;
 
-    more_work_is_plausible = run_state_->delegate->DoIdleWork();
+    run_state_->delegate->DoIdleWork();
     if (run_state_->should_quit)
       break;
-
-    if (more_work_is_plausible)
-      continue;
 
     run_state_->delegate->BeforeWait();
     WaitForWork(next_work_info);
@@ -864,15 +861,25 @@ bool MessagePumpForIO::WaitForIOCompletion(DWORD timeout) {
 bool MessagePumpForIO::GetIOItem(DWORD timeout, IOItem* item) {
   DCHECK_CALLED_ON_VALID_THREAD(bound_thread_);
 
-  memset(item, 0, sizeof(*item));
   ULONG_PTR key = reinterpret_cast<ULONG_PTR>(nullptr);
   OVERLAPPED* overlapped = nullptr;
+
+  // Clear the value for the number of bytes transferred in case extracting the
+  // packet doesn't populate it.
+  item->bytes_transfered = 0;
   if (!::GetQueuedCompletionStatus(port_.get(), &item->bytes_transfered, &key,
                                    &overlapped, timeout)) {
     if (!overlapped)
       return false;  // Nothing in the queue.
-    item->error = GetLastError();
-    item->bytes_transfered = 0;
+    // A completion packet for a failed operation was processed. The Windows
+    // last error code pertains to the operation that failed.
+    item->error = ::GetLastError();
+    // The packet may have contained a value for the number of bytes
+    // transferred, so pass along whatever value was populated from it.
+  } else {
+    // The packet corresponded to an operation that succeeded, so clear out
+    // the error value so that the handler sees the operation as a success.
+    item->error = ERROR_SUCCESS;
   }
 
   item->handler = reinterpret_cast<IOHandler*>(key);

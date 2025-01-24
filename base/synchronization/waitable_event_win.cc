@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/synchronization/waitable_event.h"
 
 #include <windows.h>
@@ -57,7 +62,7 @@ void WaitableEvent::SignalImpl() {
   SetEvent(handle_.get());
 }
 
-bool WaitableEvent::IsSignaled() {
+bool WaitableEvent::IsSignaled() const {
   DWORD result = WaitForSingleObject(handle_.get(), 0);
   if (result != WAIT_OBJECT_0 && result != WAIT_TIMEOUT) {
     ReportInvalidWaitableEventResult(result);

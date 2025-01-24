@@ -105,7 +105,6 @@ GENERIC_MAPPING GetGenericMappingForType(SecurityObjectType object_type) {
       break;
     case SecurityObjectType::kKernel:
       NOTREACHED();
-      break;
   }
   return generic_mapping;
 }

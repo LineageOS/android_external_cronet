@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 // The rules for parsing content-types were borrowed from Firefox:
 // http://lxr.mozilla.org/mozilla/source/netwerk/base/src/nsURLHelper.cpp#834
 
@@ -83,6 +88,16 @@ std::string GetBaseLanguageCode(const std::string& language_code) {
 }  // namespace
 
 // HttpUtil -------------------------------------------------------------------
+
+std::string HttpUtil::GenerateRequestLine(std::string_view method,
+                                          GURL url,
+                                          bool is_for_get_to_http_proxy) {
+  static constexpr char kSuffix[] = " HTTP/1.1\r\n";
+  const std::string path = is_for_get_to_http_proxy
+                               ? HttpUtil::SpecForRequest(url)
+                               : url.PathForRequest();
+  return base::StrCat({method, " ", path, kSuffix});
+}
 
 // static
 std::string HttpUtil::SpecForRequest(const GURL& url) {
@@ -270,8 +285,7 @@ bool HttpUtil::ParseRetryAfterHeader(const std::string& retry_after_string,
   base::Time time;
   base::TimeDelta interval;
 
-  if (net::ParseUint32(retry_after_string, ParseIntFormat::NON_NEGATIVE,
-                       &seconds)) {
+  if (ParseUint32(retry_after_string, ParseIntFormat::NON_NEGATIVE, &seconds)) {
     interval = base::Seconds(seconds);
   } else if (base::Time::FromUTCString(retry_after_string.c_str(), &time)) {
     interval = time - now;
@@ -374,24 +388,22 @@ bool HttpUtil::IsSafeHeader(std::string_view name, std::string_view value) {
       return false;
   }
 
-  if (base::FeatureList::IsEnabled(features::kBlockNewForbiddenHeaders)) {
-    bool is_forbidden_header_fields_with_forbidden_method = false;
-    for (const char* field : kForbiddenHeaderFieldsWithForbiddenMethod) {
-      if (base::EqualsCaseInsensitiveASCII(name, field)) {
-        is_forbidden_header_fields_with_forbidden_method = true;
-        break;
-      }
+  bool is_forbidden_header_fields_with_forbidden_method = false;
+  for (const char* field : kForbiddenHeaderFieldsWithForbiddenMethod) {
+    if (base::EqualsCaseInsensitiveASCII(name, field)) {
+      is_forbidden_header_fields_with_forbidden_method = true;
+      break;
     }
-    if (is_forbidden_header_fields_with_forbidden_method) {
-      std::string value_string(value);
-      ValuesIterator method_iterator(value_string.begin(), value_string.end(),
-                                     ',');
-      while (method_iterator.GetNext()) {
-        std::string_view method = method_iterator.value_piece();
-        for (const char* forbidden_method : kForbiddenMethods) {
-          if (base::EqualsCaseInsensitiveASCII(method, forbidden_method))
-            return false;
-        }
+  }
+  if (is_forbidden_header_fields_with_forbidden_method) {
+    std::string value_string(value);
+    ValuesIterator method_iterator(value_string.begin(), value_string.end(),
+                                   ',');
+    while (method_iterator.GetNext()) {
+      std::string_view method = method_iterator.value_piece();
+      for (const char* forbidden_method : kForbiddenMethods) {
+        if (base::EqualsCaseInsensitiveASCII(method, forbidden_method))
+          return false;
       }
     }
   }
@@ -431,7 +443,7 @@ bool HttpUtil::IsNonCoalescingHeader(std::string_view name) {
       // one.
       "strict-transport-security"};
 
-  for (const std::string_view& header : kNonCoalescingHeaders) {
+  for (std::string_view header : kNonCoalescingHeaders) {
     if (base::EqualsCaseInsensitiveASCII(name, header)) {
       return true;
     }
@@ -563,15 +575,15 @@ std::string HttpUtil::Quote(std::string_view str) {
 // some slop at the start. If the "http" string could not be found
 // then returns std::string::npos.
 // static
-size_t HttpUtil::LocateStartOfStatusLine(const char* buf, size_t buf_len) {
+size_t HttpUtil::LocateStartOfStatusLine(base::span<const uint8_t> buf) {
   const size_t slop = 4;
   const size_t http_len = 4;
 
-  if (buf_len >= http_len) {
-    size_t i_max = std::min(buf_len - http_len, slop);
+  if (buf.size() >= http_len) {
+    size_t i_max = std::min(buf.size() - http_len, slop);
     for (size_t i = 0; i <= i_max; ++i) {
-      if (base::EqualsCaseInsensitiveASCII(std::string_view(buf + i, http_len),
-                                           "http")) {
+      if (base::EqualsCaseInsensitiveASCII(
+              base::as_string_view(buf.subspan(i, http_len)), "http")) {
         return i;
       }
     }
@@ -579,8 +591,7 @@ size_t HttpUtil::LocateStartOfStatusLine(const char* buf, size_t buf_len) {
   return std::string::npos;  // Not found
 }
 
-static size_t LocateEndOfHeadersHelper(const char* buf,
-                                       size_t buf_len,
+static size_t LocateEndOfHeadersHelper(base::span<const uint8_t> buf,
                                        size_t i,
                                        bool accept_empty_header_list) {
   char last_c = '\0';
@@ -592,7 +603,7 @@ static size_t LocateEndOfHeadersHelper(const char* buf,
     was_lf = true;
   }
 
-  for (; i < buf_len; ++i) {
+  for (; i < buf.size(); ++i) {
     char c = buf[i];
     if (c == '\n') {
       if (was_lf)
@@ -606,14 +617,13 @@ static size_t LocateEndOfHeadersHelper(const char* buf,
   return std::string::npos;
 }
 
-size_t HttpUtil::LocateEndOfAdditionalHeaders(const char* buf,
-                                              size_t buf_len,
+size_t HttpUtil::LocateEndOfAdditionalHeaders(base::span<const uint8_t> buf,
                                               size_t i) {
-  return LocateEndOfHeadersHelper(buf, buf_len, i, true);
+  return LocateEndOfHeadersHelper(buf, i, true);
 }
 
-size_t HttpUtil::LocateEndOfHeaders(const char* buf, size_t buf_len, size_t i) {
-  return LocateEndOfHeadersHelper(buf, buf_len, i, false);
+size_t HttpUtil::LocateEndOfHeaders(base::span<const uint8_t> buf, size_t i) {
+  return LocateEndOfHeadersHelper(buf, i, false);
 }
 
 // In order for a line to be continuable, it must specify a
@@ -666,7 +676,7 @@ std::string HttpUtil::AssembleRawHeaders(std::string_view input) {
   // Skip any leading slop, since the consumers of this output
   // (HttpResponseHeaders) don't deal with it.
   size_t status_begin_offset =
-      LocateStartOfStatusLine(input.data(), input.size());
+      LocateStartOfStatusLine(base::as_byte_span(input));
   if (status_begin_offset != std::string::npos)
     input.remove_prefix(status_begin_offset);
 

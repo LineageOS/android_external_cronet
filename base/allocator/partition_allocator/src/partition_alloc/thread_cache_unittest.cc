@@ -8,13 +8,13 @@
 #include <atomic>
 #include <vector>
 
-#include "build/build_config.h"
+#include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/extended_api.h"
 #include "partition_alloc/internal_allocator.h"
 #include "partition_alloc/partition_address_space.h"
 #include "partition_alloc/partition_alloc_base/thread_annotations.h"
 #include "partition_alloc/partition_alloc_base/threading/platform_thread_for_testing.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_for_testing.h"
 #include "partition_alloc/partition_freelist_entry.h"
@@ -86,9 +86,9 @@ std::unique_ptr<PartitionAllocatorForTesting> CreateAllocator(
     internal::PartitionFreelistEncoding encoding =
         internal::PartitionFreelistEncoding::kEncodedFreeList) {
   PartitionOptions opts;
-#if !BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if !PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   opts.thread_cache = PartitionOptions::kEnabled;
-#endif  // BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   opts.star_scan_quarantine = PartitionOptions::kAllowed;
   opts.use_pool_offset_freelists =
       (encoding == internal::PartitionFreelistEncoding::kPoolOffsetFreeList)
@@ -400,7 +400,7 @@ size_t FillThreadCacheAndReturnIndex(PartitionRoot* root,
   return bucket_index;
 }
 
-// TODO(1151236): To remove callback from PartitionAlloc's DEPS,
+// TODO(crbug.com/40158212): To remove callback from PartitionAlloc's DEPS,
 // rewrite the tests without BindLambdaForTesting and RepeatingClosure.
 // However this makes a little annoying to add more tests using their
 // own threads. Need to support an easier way to implement tests using
@@ -537,9 +537,9 @@ TEST_P(PartitionAllocThreadCacheTest, ThreadCacheRegistry) {
   auto* parent_thread_tcache = root()->thread_cache_for_testing();
   ASSERT_TRUE(parent_thread_tcache);
 
-#if !(BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_ANDROID) ||   \
-      BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)) && \
-    BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if !(PA_BUILDFLAG(IS_APPLE) || PA_BUILDFLAG(IS_ANDROID) ||   \
+      PA_BUILDFLAG(IS_CHROMEOS) || PA_BUILDFLAG(IS_LINUX)) && \
+    PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   // iOS and MacOS 15 create worker threads internally(start_wqthread).
   // So thread caches are created for the worker threads, because the threads
   // allocate memory for initialization (_dispatch_calloc is invoked).
@@ -565,9 +565,9 @@ TEST_P(PartitionAllocThreadCacheTest, ThreadCacheRegistry) {
                                                    &thread_handle);
   internal::base::PlatformThreadForTesting::Join(thread_handle);
 
-#if !(BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_ANDROID) ||   \
-      BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_LINUX)) && \
-    BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if !(PA_BUILDFLAG(IS_APPLE) || PA_BUILDFLAG(IS_ANDROID) ||   \
+      PA_BUILDFLAG(IS_CHROMEOS) || PA_BUILDFLAG(IS_LINUX)) && \
+    PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   internal::ScopedGuard lock(ThreadCacheRegistry::GetLock());
   EXPECT_EQ(parent_thread_tcache->prev_for_testing(), nullptr);
   EXPECT_EQ(parent_thread_tcache->next_for_testing(), nullptr);
@@ -674,9 +674,9 @@ class ThreadDelegateForMultipleThreadCachesAccounting
 
 TEST_P(PartitionAllocThreadCacheTest, MultipleThreadCachesAccounting) {
   ThreadCacheStats wqthread_stats{0};
-#if (BUILDFLAG(IS_APPLE) || BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_CHROMEOS) || \
-     BUILDFLAG(IS_LINUX)) &&                                                   \
-    BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if (PA_BUILDFLAG(IS_APPLE) || PA_BUILDFLAG(IS_ANDROID) ||   \
+     PA_BUILDFLAG(IS_CHROMEOS) || PA_BUILDFLAG(IS_LINUX)) && \
+    PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   {
     // iOS and MacOS 15 create worker threads internally(start_wqthread).
     // So thread caches are created for the worker threads, because the threads
@@ -714,8 +714,8 @@ TEST_P(PartitionAllocThreadCacheTest, MultipleThreadCachesAccounting) {
 
 #endif  // PA_CONFIG(THREAD_CACHE_ENABLE_STATISTICS)
 
-// TODO(https://crbug.com/1287799): Flaky on IOS.
-#if BUILDFLAG(IS_IOS)
+// TODO(crbug.com/40816487): Flaky on IOS.
+#if PA_BUILDFLAG(IS_IOS)
 #define MAYBE_PurgeAll DISABLED_PurgeAll
 #else
 #define MAYBE_PurgeAll PurgeAll
@@ -965,8 +965,8 @@ TEST_P(PartitionAllocThreadCacheTest,
   internal::base::PlatformThreadForTesting::Join(thread_handle_2);
 }
 
-// TODO(https://crbug.com/1287799): Flaky on IOS.
-#if BUILDFLAG(IS_IOS)
+// TODO(crbug.com/40816487): Flaky on IOS.
+#if PA_BUILDFLAG(IS_IOS)
 #define MAYBE_DynamicCountPerBucket DISABLED_DynamicCountPerBucket
 #else
 #define MAYBE_DynamicCountPerBucket DynamicCountPerBucket
@@ -1038,8 +1038,8 @@ TEST_P(PartitionAllocThreadCacheTest, DynamicCountPerBucketClamping) {
   }
 }
 
-// TODO(https://crbug.com/1287799): Flaky on IOS.
-#if BUILDFLAG(IS_IOS)
+// TODO(crbug.com/40816487): Flaky on IOS.
+#if PA_BUILDFLAG(IS_IOS)
 #define MAYBE_DynamicCountPerBucketMultipleThreads \
   DISABLED_DynamicCountPerBucketMultipleThreads
 #else
@@ -1202,13 +1202,13 @@ TEST_P(PartitionAllocThreadCacheTest, ClearFromTail) {
     uint8_t count = 0;
     auto* head = tcache->bucket_for_testing(index).freelist_head;
     while (head) {
-#if BUILDFLAG(USE_FREELIST_POOL_OFFSETS)
+#if PA_BUILDFLAG(USE_FREELIST_DISPATCHER)
       head = freelist_dispatcher->GetNextForThreadCacheTrue(
           head, tcache->bucket_for_testing(index).slot_size);
 #else
       head = freelist_dispatcher->GetNextForThreadCache<true>(
           head, tcache->bucket_for_testing(index).slot_size);
-#endif  // USE_FREELIST_POOL_OFFSETS
+#endif  // PA_BUILDFLAG(USE_FREELIST_DISPATCHER)
       count++;
     }
     return count;
@@ -1230,8 +1230,8 @@ TEST_P(PartitionAllocThreadCacheTest, ClearFromTail) {
                          tcache->bucket_for_testing(index).freelist_head));
 }
 
-// TODO(https://crbug.com/1287799): Flaky on IOS.
-#if BUILDFLAG(IS_IOS)
+// TODO(crbug.com/40816487): Flaky on IOS.
+#if PA_BUILDFLAG(IS_IOS)
 #define MAYBE_Bookkeeping DISABLED_Bookkeeping
 #else
 #define MAYBE_Bookkeeping Bookkeeping
@@ -1313,11 +1313,11 @@ TEST_P(PartitionAllocThreadCacheTest, TryPurgeMultipleCorrupted) {
   auto* curr = medium_bucket->active_slot_spans_head->get_freelist_head();
   const internal::PartitionFreelistDispatcher* freelist_dispatcher =
       root()->get_freelist_dispatcher();
-#if BUILDFLAG(USE_FREELIST_POOL_OFFSETS)
+#if PA_BUILDFLAG(USE_FREELIST_DISPATCHER)
   curr = freelist_dispatcher->GetNextForThreadCacheTrue(curr, kMediumSize);
 #else
   curr = freelist_dispatcher->GetNextForThreadCache<true>(curr, kMediumSize);
-#endif  // USE_FREELIST_POOL_OFFSETS
+#endif  // PA_BUILDFLAG(USE_FREELIST_DISPATCHER)
   freelist_dispatcher->CorruptNextForTesting(curr, 0x12345678);
   tcache->TryPurge();
   freelist_dispatcher->SetNext(curr, nullptr);

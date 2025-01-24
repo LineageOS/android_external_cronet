@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/http/http_auth_gssapi_posix.h"
 
 #include <limits>
@@ -479,8 +484,9 @@ bool GSSAPISharedLibrary::BindMethods(base::NativeLibrary lib,
   ok &=
       BindMethod(lib, name, "gss_wrap_size_limit", &wrap_size_limit_, net_log);
 
-  if (LIKELY(ok))
+  if (ok) [[likely]] {
     return true;
+  }
 
   delete_sec_context_ = nullptr;
   display_name_ = nullptr;
@@ -684,12 +690,12 @@ void HttpAuthGSSAPI::SetDelegation(DelegationType delegation_type) {
 HttpAuth::AuthorizationResult HttpAuthGSSAPI::ParseChallenge(
     HttpAuthChallengeTokenizer* tok) {
   if (scoped_sec_context_.get() == GSS_C_NO_CONTEXT) {
-    return net::ParseFirstRoundChallenge(HttpAuth::AUTH_SCHEME_NEGOTIATE, tok);
+    return ParseFirstRoundChallenge(HttpAuth::AUTH_SCHEME_NEGOTIATE, tok);
   }
   std::string encoded_auth_token;
-  return net::ParseLaterRoundChallenge(HttpAuth::AUTH_SCHEME_NEGOTIATE, tok,
-                                       &encoded_auth_token,
-                                       &decoded_server_auth_token_);
+  return ParseLaterRoundChallenge(HttpAuth::AUTH_SCHEME_NEGOTIATE, tok,
+                                  &encoded_auth_token,
+                                  &decoded_server_auth_token_);
 }
 
 int HttpAuthGSSAPI::GenerateAuthToken(const AuthCredentials* credentials,

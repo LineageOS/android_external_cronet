@@ -9,7 +9,7 @@
 #ifndef PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_APPLE_DEFAULT_ZONE_H_
 #define PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_APPLE_DEFAULT_ZONE_H_
 
-#if !BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if !PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 #error This header must be included iff PartitionAlloc-Everywhere is enabled.
 #endif
 
@@ -17,10 +17,10 @@
 #include <cstring>
 #include <tuple>
 
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/apple/mach_logging.h"
 #include "partition_alloc/partition_alloc_base/bits.h"
 #include "partition_alloc/partition_alloc_base/logging.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_check.h"
 #include "partition_alloc/partition_alloc_constants.h"
 #include "partition_alloc/partition_root.h"
@@ -28,6 +28,13 @@
 
 namespace allocator_shim {
 
+// This ".h" file is not a header, but a source file meant to be included only
+// once, exclusively from allocator_shim.cc. See the top-level check.
+//
+// A possible alternative: rename this file to .inc, at the expense of losing
+// syntax highlighting in text editors.
+//
+// NOLINTNEXTLINE(google-build-namespaces)
 namespace {
 
 // malloc_introspection_t's callback functions for our own zone
@@ -319,6 +326,14 @@ void InitializeZone() {
 #endif
 }
 
+// This ".h" file is not a header, but a source file meant to be included only
+// once, exclusively from allocator_shim_win_static.cc or
+// allocator_shim_win_component.cc. See the top-level check.
+//
+// A possible alternative: rename this file to .inc, at the expense of losing
+// syntax highlighting in text editors.
+//
+// NOLINTNEXTLINE(google-build-namespaces)
 namespace {
 static std::atomic<bool> g_initialization_is_done;
 }

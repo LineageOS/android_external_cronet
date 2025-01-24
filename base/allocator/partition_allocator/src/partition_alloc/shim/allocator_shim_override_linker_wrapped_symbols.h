@@ -15,9 +15,9 @@
 // -wrap linker flags (e.g., libchrome.so) will be rewritten to the
 // linker as references to __wrap_malloc, __wrap_free, which are defined here.
 
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
-#if BUILDFLAG(USE_ALLOCATOR_SHIM)
+#if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 #include <algorithm>
 #include <cstring>
 
@@ -63,7 +63,7 @@ SHIM_ALWAYS_EXPORT size_t __wrap_malloc_usable_size(void* address) {
   return ShimGetSizeEstimate(address, nullptr);
 }
 
-const size_t kPathMaxSize = 8192;
+inline constexpr size_t kPathMaxSize = 8192;
 static_assert(kPathMaxSize >= PATH_MAX, "");
 
 extern char* __wrap_strdup(const char* str);
@@ -119,7 +119,7 @@ SHIM_ALWAYS_EXPORT char* __wrap_getcwd(char* buffer, size_t size) {
   if (!size) {
     size = kPathMaxSize;
   }
-  char local_buffer[size];
+  char local_buffer[kPathMaxSize];
   if (!__real_getcwd(local_buffer, size)) {
     return nullptr;
   }
@@ -178,6 +178,6 @@ SHIM_ALWAYS_EXPORT int __wrap_asprintf(char** strp, const char* fmt, ...) {
 
 }  // extern "C"
 
-#endif  // BUILDFLAG(USE_ALLOCATOR_SHIM)
+#endif  // PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
 
 #endif  // PARTITION_ALLOC_SHIM_ALLOCATOR_SHIM_OVERRIDE_LINKER_WRAPPED_SYMBOLS_H_

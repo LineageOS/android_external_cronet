@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <stdint.h>
 
 #include <memory>
@@ -78,7 +83,7 @@ using testing::Field;
 #include "base/win/scoped_handle.h"
 #endif
 
-// TODO(crbug.com/949811): Fix memory leaks in tests and re-enable on LSAN.
+// TODO(crbug.com/41451310): Fix memory leaks in tests and re-enable on LSAN.
 #ifdef LEAK_SANITIZER
 #define MAYBE_BlockFileOpenOrCreateEntry DISABLED_BlockFileOpenOrCreateEntry
 #define MAYBE_NonEmptyCorruptSimpleCacheDoesNotRecover \
@@ -124,8 +129,8 @@ std::unique_ptr<disk_cache::BackendImpl> CreateExistingEntryCache(
 #if BUILDFLAG(IS_FUCHSIA)
 // Load tests with large numbers of file descriptors perform poorly on
 // virtualized test execution environments.
-// TODO(807882): Remove this workaround when virtualized test performance
-// improves.
+// TODO(crbug.com/40560856): Remove this workaround when virtualized test
+// performance improves.
 const int kLargeNumEntries = 100;
 #else
 const int kLargeNumEntries = 512;
@@ -4088,8 +4093,8 @@ TEST_F(DiskCacheBackendTest, SimpleCacheOpenBadFile) {
 
   disk_cache::SimpleFileHeader header;
   header.initial_magic_number = UINT64_C(0xbadf00d);
-  EXPECT_TRUE(base::WriteFile(entry_file1_path,
-                              base::as_bytes(base::make_span(&header, 1u))));
+  EXPECT_TRUE(
+      base::WriteFile(entry_file1_path, base::byte_span_from_ref(header)));
   ASSERT_THAT(OpenEntry(key, &entry), IsError(net::ERR_FAILED));
 }
 

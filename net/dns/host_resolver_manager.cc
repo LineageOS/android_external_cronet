@@ -41,6 +41,7 @@
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/no_destructor.h"
+#include "base/not_fatal_until.h"
 #include "base/numerics/safe_conversions.h"
 #include "base/observer_list.h"
 #include "base/ranges/algorithm.h"
@@ -217,14 +218,14 @@ PrioritizedDispatcher::Limits GetDispatcherLimits(
   std::vector<std::string_view> group_parts = base::SplitStringPiece(
       group, ":", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
   if (group_parts.size() != NUM_PRIORITIES + 1) {
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
     return limits;
   }
 
   std::vector<size_t> parsed(group_parts.size());
   for (size_t i = 0; i < group_parts.size(); ++i) {
     if (!base::StringToSizeT(group_parts[i], &parsed[i])) {
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
       return limits;
     }
   }
@@ -238,7 +239,7 @@ PrioritizedDispatcher::Limits GetDispatcherLimits(
   // There must be some unreserved slots available for the all priorities.
   if (total_reserved_slots > total_jobs ||
       (total_reserved_slots == total_jobs && parsed[MINIMUM_PRIORITY] == 0)) {
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
     return limits;
   }
 
@@ -282,6 +283,40 @@ int GetPortForGloballyReachableCheck() {
   return features::kAlternativePortForGloballyReachableCheck.Get();
 }
 
+// These values are persisted to logs. Entries should not be renumbered and
+// numeric values should never be reused.
+//
+// LINT.IfChange(DnsClientCapability)
+enum class DnsClientCapability {
+  kSecureDisabledInsecureDisabled = 0,
+  kSecureDisabledInsecureEnabled = 1,
+  kSecureEnabledInsecureDisabled = 2,
+  kSecureEnabledInsecureEnabled = 3,
+  kMaxValue = kSecureEnabledInsecureEnabled,
+};
+// LINT.ThenChange(/tools/metrics/histograms/metadata/net/enums.xml:DnsClientCapability)
+
+void RecordDnsClientCapabilityMetrics(const DnsClient* dns_client) {
+  if (!dns_client) {
+    return;
+  }
+  DnsClientCapability capability;
+  if (dns_client->CanUseSecureDnsTransactions()) {
+    if (dns_client->CanUseInsecureDnsTransactions()) {
+      capability = DnsClientCapability::kSecureEnabledInsecureEnabled;
+    } else {
+      capability = DnsClientCapability::kSecureEnabledInsecureDisabled;
+    }
+  } else {
+    if (dns_client->CanUseInsecureDnsTransactions()) {
+      capability = DnsClientCapability::kSecureDisabledInsecureEnabled;
+    } else {
+      capability = DnsClientCapability::kSecureDisabledInsecureDisabled;
+    }
+  }
+  base::UmaHistogramEnumeration("Net.DNS.DnsConfig.DnsClientCapability",
+                                capability);
+}
 }  // namespace
 
 //-----------------------------------------------------------------------------
@@ -843,7 +878,7 @@ HostCache::Entry HostResolverManager::ResolveLocally(
             NetLogEventType::HOST_RESOLVER_MANAGER_CACHE_HIT,
             [&] { return NetLogResults(resolved.value()); });
 
-        // TODO(crbug.com/1200908): Call StartBootstrapFollowup() if the Secure
+        // TODO(crbug.com/40178456): Call StartBootstrapFollowup() if the Secure
         // DNS Policy is kBootstrap and the result is not secure.  Note: A naive
         // implementation could cause an infinite loop if |resolved| always
         // expires or is evicted before the followup runs.
@@ -869,7 +904,7 @@ HostCache::Entry HostResolverManager::ResolveLocally(
         return resolved.value();
       }
     } else {
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
     }
   }
 
@@ -1127,7 +1162,7 @@ void HostResolverManager::CacheResult(HostCache* cache,
 
 std::unique_ptr<HostResolverManager::Job> HostResolverManager::RemoveJob(
     JobMap::iterator job_it) {
-  DCHECK(job_it != jobs_.end());
+  CHECK(job_it != jobs_.end(), base::NotFatalUntil::M130);
   DCHECK(job_it->second);
   DCHECK_EQ(1u, jobs_.count(job_it->first));
 
@@ -1237,7 +1272,7 @@ void HostResolverManager::PushDnsTasks(bool system_task_allowed,
         out_tasks->push_back(TaskType::DNS);
       break;
     default:
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
       break;
   }
 
@@ -1287,6 +1322,10 @@ void HostResolverManager::CreateTaskSequence(
 
   switch (job_key.source) {
     case HostResolverSource::ANY:
+      // Records DnsClient capability metrics, only when `source` is ANY. This
+      // is to avoid the metrics being skewed by mechanical requests of other
+      // source types.
+      RecordDnsClientCapabilityMetrics(dns_client_.get());
       // Force address queries with canonname to use HostResolverSystemTask to
       // counter poor CNAME support in DnsTask. See https://crbug.com/872665
       //
@@ -1558,7 +1597,7 @@ void HostResolverManager::AbortInsecureDnsTasks(int error, bool fallback_only) {
   dispatcher_->SetLimits(limits);
 }
 
-// TODO(crbug.com/995984): Consider removing this and its usage.
+// TODO(crbug.com/40641277): Consider removing this and its usage.
 void HostResolverManager::TryServingAllJobsFromHosts() {
   if (!dns_client_ || !dns_client_->GetEffectiveConfig())
     return;
@@ -1678,7 +1717,7 @@ int HostResolverManager::GetOrCreateMdnsClient(MDnsClient** out_client) {
   return rv;
 #else
   // Should not request MDNS resoltuion unless MDNS is enabled.
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
   return ERR_UNEXPECTED;
 #endif
 }

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/dns/dns_test_util.h"
 
 #include <cstdint>
@@ -439,9 +444,7 @@ MockDnsClientRule::MockDnsClientRule(const std::string& prefix,
 MockDnsClientRule::MockDnsClientRule(MockDnsClientRule&& rule) = default;
 
 // A DnsTransaction which uses MockDnsClientRuleList to determine the response.
-class MockDnsTransactionFactory::MockTransaction
-    : public DnsTransaction,
-      public base::SupportsWeakPtr<MockTransaction> {
+class MockDnsTransactionFactory::MockTransaction final : public DnsTransaction {
  public:
   MockTransaction(const MockDnsClientRuleList& rules,
                   std::string hostname,
@@ -545,7 +548,8 @@ class MockDnsTransactionFactory::MockTransaction
       return;
     // Using WeakPtr to cleanly cancel when transaction is destroyed.
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-        FROM_HERE, base::BindOnce(&MockTransaction::Finish, AsWeakPtr()));
+        FROM_HERE, base::BindOnce(&MockTransaction::Finish,
+                                  weak_ptr_factory_.GetWeakPtr()));
   }
 
   void FinishDelayedTransaction() {
@@ -555,6 +559,10 @@ class MockDnsTransactionFactory::MockTransaction
   }
 
   bool delayed() const { return delayed_; }
+
+  base::WeakPtr<MockTransaction> AsWeakPtr() {
+    return weak_ptr_factory_.GetWeakPtr();
+  }
 
  private:
   void SetResponse(const MockDnsClientRule::Result* result) {
@@ -624,6 +632,7 @@ class MockDnsTransactionFactory::MockTransaction
   ResponseCallback callback_;
   bool started_ = false;
   bool delayed_ = false;
+  base::WeakPtrFactory<MockTransaction> weak_ptr_factory_{this};
 };
 
 class MockDnsTransactionFactory::MockDohProbeRunner : public DnsProbeRunner {
@@ -643,7 +652,7 @@ class MockDnsTransactionFactory::MockDohProbeRunner : public DnsProbeRunner {
 
   base::TimeDelta GetDelayUntilNextProbeForTest(
       size_t doh_server_index) const override {
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
     return base::TimeDelta();
   }
 
@@ -824,7 +833,7 @@ DnsConfigOverrides MockDnsClient::GetConfigOverridesForTesting() const {
 
 void MockDnsClient::SetTransactionFactoryForTesting(
     std::unique_ptr<DnsTransactionFactory> factory) {
-  NOTREACHED();
+  NOTREACHED_IN_MIGRATION();
 }
 
 void MockDnsClient::SetAddressSorterForTesting(

@@ -421,18 +421,18 @@ static size_t
 htmlBufNodeDumpFormat(xmlBufPtr buf, xmlDocPtr doc, xmlNodePtr cur,
 	           int format) {
     size_t use;
-    int ret;
+    size_t ret;
     xmlOutputBufferPtr outbuf;
 
     if (cur == NULL) {
-	return (-1);
+	return ((size_t) -1);
     }
     if (buf == NULL) {
-	return (-1);
+	return ((size_t) -1);
     }
     outbuf = (xmlOutputBufferPtr) xmlMalloc(sizeof(xmlOutputBuffer));
     if (outbuf == NULL)
-	return (-1);
+	return ((size_t) -1);
     memset(outbuf, 0, sizeof(xmlOutputBuffer));
     outbuf->buffer = buf;
     outbuf->encoder = NULL;
@@ -443,8 +443,11 @@ htmlBufNodeDumpFormat(xmlBufPtr buf, xmlDocPtr doc, xmlNodePtr cur,
 
     use = xmlBufUse(buf);
     htmlNodeDumpFormatOutput(outbuf, doc, cur, NULL, format);
+    if (outbuf->error)
+        ret = (size_t) -1;
+    else
+        ret = xmlBufUse(buf) - use;
     xmlFree(outbuf);
-    ret = xmlBufUse(buf) - use;
     return (ret);
 }
 
@@ -472,6 +475,7 @@ htmlNodeDump(xmlBufferPtr buf, xmlDocPtr doc, xmlNodePtr cur) {
     if (buffer == NULL)
         return(-1);
 
+    xmlBufSetAllocationScheme(buffer, XML_BUFFER_ALLOC_DOUBLEIT);
     ret = htmlBufNodeDumpFormat(buffer, doc, cur, 1);
 
     xmlBufBackToBuffer(buffer);
@@ -509,7 +513,10 @@ htmlNodeDumpFileFormat(FILE *out, xmlDocPtr doc,
      */
     handler = htmlFindOutputEncoder(encoding);
     buf = xmlOutputBufferCreateFile(out, handler);
-    if (buf == NULL) return(0);
+    if (buf == NULL) {
+        xmlCharEncCloseFunc(handler);
+        return(0);
+    }
 
     htmlNodeDumpFormatOutput(buf, doc, cur, NULL, format);
 
@@ -551,32 +558,34 @@ htmlDocDumpMemoryFormat(xmlDocPtr cur, xmlChar**mem, int *size, int format) {
 
     if ((mem == NULL) || (size == NULL))
         return;
-    if (cur == NULL) {
-	*mem = NULL;
-	*size = 0;
+    *mem = NULL;
+    *size = 0;
+    if (cur == NULL)
 	return;
-    }
 
     encoding = (const char *) htmlGetMetaEncoding(cur);
     handler = htmlFindOutputEncoder(encoding);
     buf = xmlAllocOutputBufferInternal(handler);
     if (buf == NULL) {
-	*mem = NULL;
-	*size = 0;
+        xmlCharEncCloseFunc(handler);
 	return;
     }
 
     htmlDocContentDumpFormatOutput(buf, cur, NULL, format);
 
     xmlOutputBufferFlush(buf);
-    if (buf->conv != NULL) {
-	*size = xmlBufUse(buf->conv);
-	*mem = xmlStrndup(xmlBufContent(buf->conv), *size);
-    } else {
-	*size = xmlBufUse(buf->buffer);
-	*mem = xmlStrndup(xmlBufContent(buf->buffer), *size);
+
+    if (!buf->error) {
+        if (buf->conv != NULL) {
+            *size = xmlBufUse(buf->conv);
+            *mem = xmlStrndup(xmlBufContent(buf->conv), *size);
+        } else {
+            *size = xmlBufUse(buf->buffer);
+            *mem = xmlStrndup(xmlBufContent(buf->buffer), *size);
+        }
     }
-    (void)xmlOutputBufferClose(buf);
+
+    xmlOutputBufferClose(buf);
 }
 
 /**
@@ -623,15 +632,15 @@ htmlDtdDumpOutput(xmlOutputBufferPtr buf, xmlDocPtr doc,
     xmlOutputBufferWriteString(buf, (const char *)cur->name);
     if (cur->ExternalID != NULL) {
 	xmlOutputBufferWriteString(buf, " PUBLIC ");
-	xmlBufWriteQuotedString(buf->buffer, cur->ExternalID);
+	xmlOutputBufferWriteQuotedString(buf, cur->ExternalID);
 	if (cur->SystemID != NULL) {
 	    xmlOutputBufferWriteString(buf, " ");
-	    xmlBufWriteQuotedString(buf->buffer, cur->SystemID);
+	    xmlOutputBufferWriteQuotedString(buf, cur->SystemID);
 	}
     } else if (cur->SystemID != NULL &&
 	       xmlStrcmp(cur->SystemID, BAD_CAST "about:legacy-compat")) {
 	xmlOutputBufferWriteString(buf, " SYSTEM ");
-	xmlBufWriteQuotedString(buf->buffer, cur->SystemID);
+	xmlOutputBufferWriteQuotedString(buf, cur->SystemID);
     }
     xmlOutputBufferWriteString(buf, ">\n");
 }
@@ -691,13 +700,13 @@ htmlAttrDumpOutput(xmlOutputBufferPtr buf, xmlDocPtr doc, xmlAttrPtr cur) {
 		escaped = xmlURIEscapeStr(tmp,
                         BAD_CAST "\"#$%&+,/:;<=>?@[\\]^`{|}");
 		if (escaped != NULL) {
-		    xmlBufWriteQuotedString(buf->buffer, escaped);
+		    xmlOutputBufferWriteQuotedString(buf, escaped);
 		    xmlFree(escaped);
 		} else {
                     buf->error = XML_ERR_NO_MEMORY;
 		}
 	    } else {
-		xmlBufWriteQuotedString(buf->buffer, value);
+		xmlOutputBufferWriteQuotedString(buf, value);
 	    }
 	    xmlFree(value);
 	} else  {
@@ -1025,7 +1034,10 @@ htmlDocDump(FILE *f, xmlDocPtr cur) {
     encoding = (const char *) htmlGetMetaEncoding(cur);
     handler = htmlFindOutputEncoder(encoding);
     buf = xmlOutputBufferCreateFile(f, handler);
-    if (buf == NULL) return(-1);
+    if (buf == NULL) {
+        xmlCharEncCloseFunc(handler);
+        return(-1);
+    }
     htmlDocContentDumpOutput(buf, cur, NULL);
 
     ret = xmlOutputBufferClose(buf);
@@ -1056,7 +1068,10 @@ htmlSaveFile(const char *filename, xmlDocPtr cur) {
     encoding = (const char *) htmlGetMetaEncoding(cur);
     handler = htmlFindOutputEncoder(encoding);
     buf = xmlOutputBufferCreateFilename(filename, handler, cur->compression);
-    if (buf == NULL) return(0);
+    if (buf == NULL) {
+        xmlCharEncCloseFunc(handler);
+        return(0);
+    }
 
     htmlDocContentDumpOutput(buf, cur, NULL);
 
@@ -1097,7 +1112,10 @@ htmlSaveFileFormat(const char *filename, xmlDocPtr cur,
      * save the content to a temp buffer.
      */
     buf = xmlOutputBufferCreateFilename(filename, handler, 0);
-    if (buf == NULL) return(0);
+    if (buf == NULL) {
+        xmlCharEncCloseFunc(handler);
+        return(0);
+    }
 
     htmlDocContentDumpFormatOutput(buf, cur, encoding, format);
 

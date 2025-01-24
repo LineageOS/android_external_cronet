@@ -28,6 +28,7 @@
 #include "base/logging.h"
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
+#include "base/not_fatal_until.h"
 #include "base/path_service.h"
 #include "base/strings/stringprintf.h"
 #include "base/task/sequenced_task_runner.h"
@@ -419,7 +420,7 @@ class ChromeOSTokenManager {
   void CloseChromeOSUserForTesting(const std::string& username_hash) {
     DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
     auto i = chromeos_user_map_.find(username_hash);
-    DCHECK(i != chromeos_user_map_.end());
+    CHECK(i != chromeos_user_map_.end(), base::NotFatalUntil::M130);
     chromeos_user_map_.erase(i);
   }
 
@@ -617,7 +618,7 @@ namespace {
 void PrintDirectoryInfo(const base::FilePath& path) {
   base::stat_wrapper_t file_stat;
 
-  if (base::File::Stat(path.value().c_str(), &file_stat) == -1) {
+  if (base::File::Stat(path, &file_stat) == -1) {
     base::File::Error error_code = base::File::OSErrorToFileError(errno);
     LOG(ERROR) << "Failed to collect directory info, error: " << error_code;
   }

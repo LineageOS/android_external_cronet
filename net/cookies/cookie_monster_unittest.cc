@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/cookies/cookie_monster.h"
 
 #include <stdint.h>
@@ -477,7 +482,7 @@ class CookieMonsterTestBase : public CookieStoreTest<T> {
       case 'H':
         return COOKIE_PRIORITY_HIGH;
     }
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
     return COOKIE_PRIORITY_DEFAULT;
   }
 
@@ -2491,6 +2496,31 @@ TEST_F(CookieMonsterTest, DeleteExpiredPartitionedCookiesAfterTimeElapsed) {
   EXPECT_EQ("__Host-A", cookies[0].Name());
 }
 
+// This test is for verifying the fix of https://crbug.com/353034832.
+TEST_F(CookieMonsterTest, ExpireSinglePartitionedCookie) {
+  auto cm = std::make_unique<CookieMonster>(
+      /*store=*/nullptr, net::NetLog::Get());
+  auto cookie_partition_key =
+      CookiePartitionKey::FromURLForTesting(GURL("https://toplevelsite.com"));
+
+  // Set a cookie with a Max-Age. Since we only parse integers for this
+  // attribute, 1 second is the minimum allowable time.
+  ASSERT_TRUE(SetCookie(cm.get(), https_www_bar_.url(),
+                        "__Host-A=1; secure; path=/; partitioned; max-age=1",
+                        cookie_partition_key));
+  CookieList cookies =
+      GetAllCookiesForURL(cm.get(), https_www_bar_.url(),
+                          CookiePartitionKeyCollection(cookie_partition_key));
+  ASSERT_EQ(1u, cookies.size());
+
+  // Sleep for entire Max-Age of the cookie.
+  base::PlatformThread::Sleep(base::Seconds(1));
+
+  cookies = GetAllCookiesForURL(cm.get(), https_www_bar_.url(),
+                                CookiePartitionKeyCollection::ContainsAll());
+  EXPECT_EQ(0u, cookies.size());
+}
+
 TEST_F(CookieMonsterTest, DeleteExpiredAfterTimeElapsed_GetAllCookies) {
   auto cm = std::make_unique<CookieMonster>(
       /*store=*/nullptr, net::NetLog::Get());
@@ -2860,7 +2890,7 @@ TEST_F(CookieMonsterTest, GetKey) {
 }
 
 // Test that cookies transfer from/to the backing store correctly.
-// TODO(crbug.com/1225444): Include partitioned cookies in this test when we
+// TODO(crbug.com/40188414): Include partitioned cookies in this test when we
 // start saving them in the persistent store.
 TEST_F(CookieMonsterTest, BackingStoreCommunication) {
   // Store details for cookies transforming through the backing store interface.
@@ -3814,7 +3844,7 @@ TEST_F(CookieMonsterTest, CookieJarSizeHistograms) {
     histogram_tester.ExpectUniqueSample("Cookie.CookieJarSize",
                                         /*sample=*/0,
                                         /*expected_bucket_count=*/1);
-    histogram_tester.ExpectUniqueSample("Cookie.AvgCookieJarSizePerKey",
+    histogram_tester.ExpectUniqueSample("Cookie.AvgCookieJarSizePerKey2",
                                         /*sample=*/0,
                                         /*expected_bucket_count=*/1);
     histogram_tester.ExpectUniqueSample("Cookie.MaxCookieJarSizePerKey",
@@ -3846,8 +3876,9 @@ TEST_F(CookieMonsterTest, CookieJarSizeHistograms) {
     histogram_tester.ExpectUniqueSample("Cookie.CookieJarSize",
                                         /*sample=*/2,
                                         /*expected_bucket_count=*/1);
-    histogram_tester.ExpectUniqueSample("Cookie.AvgCookieJarSizePerKey",
-                                        /*sample=*/2,
+    // Recorded in bytes.
+    histogram_tester.ExpectUniqueSample("Cookie.AvgCookieJarSizePerKey2",
+                                        /*sample=*/2049,
                                         /*expected_bucket_count=*/1);
     histogram_tester.ExpectUniqueSample("Cookie.MaxCookieJarSizePerKey",
                                         /*sample=*/2,
@@ -3864,8 +3895,9 @@ TEST_F(CookieMonsterTest, CookieJarSizeHistograms) {
     histogram_tester.ExpectUniqueSample("Cookie.CookieJarSize",
                                         /*sample=*/2,
                                         /*expected_bucket_count=*/1);
-    histogram_tester.ExpectUniqueSample("Cookie.AvgCookieJarSizePerKey",
-                                        /*sample=*/2,
+    // Recorded in bytes.
+    histogram_tester.ExpectUniqueSample("Cookie.AvgCookieJarSizePerKey2",
+                                        /*sample=*/2049,
                                         /*expected_bucket_count=*/1);
     histogram_tester.ExpectUniqueSample("Cookie.MaxCookieJarSizePerKey",
                                         /*sample=*/2,
@@ -3881,8 +3913,9 @@ TEST_F(CookieMonsterTest, CookieJarSizeHistograms) {
     histogram_tester.ExpectUniqueSample("Cookie.CookieJarSize",
                                         /*sample=*/6,
                                         /*expected_bucket_count=*/1);
-    histogram_tester.ExpectUniqueSample("Cookie.AvgCookieJarSizePerKey",
-                                        /*sample=*/3,
+    // Recorded in bytes.
+    histogram_tester.ExpectUniqueSample("Cookie.AvgCookieJarSizePerKey2",
+                                        /*sample=*/3073,
                                         /*expected_bucket_count=*/1);
     histogram_tester.ExpectUniqueSample("Cookie.MaxCookieJarSizePerKey",
                                         /*sample=*/4,
@@ -5513,11 +5546,11 @@ TEST_F(CookieMonsterTest, RejectCreatedSameSiteCookieOnSet) {
 
   CookieInclusionStatus status;
   // Cookie can be created successfully; SameSite is not checked on Creation.
-  auto cookie = CanonicalCookie::CreateForTesting(
-      url, cookie_line, base::Time::Now(),
-      /*server_time=*/std::nullopt,
-      /*cookie_partition_key=*/std::nullopt,
-      /*block_truncated=*/true, CookieSourceType::kUnknown, &status);
+  auto cookie =
+      CanonicalCookie::CreateForTesting(url, cookie_line, base::Time::Now(),
+                                        /*server_time=*/std::nullopt,
+                                        /*cookie_partition_key=*/std::nullopt,
+                                        CookieSourceType::kUnknown, &status);
   ASSERT_TRUE(cookie != nullptr);
   ASSERT_TRUE(status.IsInclude());
 
@@ -5540,8 +5573,8 @@ TEST_F(CookieMonsterTest, RejectCreatedSecureCookieOnSet) {
   // on Create.
   auto cookie = CanonicalCookie::CreateForTesting(
       http_url, cookie_line, base::Time::Now(), /*server_time=*/std::nullopt,
-      /*cookie_partition_key=*/std::nullopt, /*block_truncated=*/true,
-      CookieSourceType::kUnknown, &status);
+      /*cookie_partition_key=*/std::nullopt, CookieSourceType::kUnknown,
+      &status);
 
   ASSERT_TRUE(cookie != nullptr);
   ASSERT_TRUE(status.IsInclude());
@@ -5563,11 +5596,11 @@ TEST_F(CookieMonsterTest, RejectCreatedHttpOnlyCookieOnSet) {
   CookieMonster cm(nullptr, nullptr);
   CookieInclusionStatus status;
   // Cookie can be created successfully; HttpOnly is not checked on Create.
-  auto cookie = CanonicalCookie::CreateForTesting(
-      url, cookie_line, base::Time::Now(),
-      /*server_time=*/std::nullopt,
-      /*cookie_partition_key=*/std::nullopt,
-      /*block_truncated=*/true, CookieSourceType::kUnknown, &status);
+  auto cookie =
+      CanonicalCookie::CreateForTesting(url, cookie_line, base::Time::Now(),
+                                        /*server_time=*/std::nullopt,
+                                        /*cookie_partition_key=*/std::nullopt,
+                                        CookieSourceType::kUnknown, &status);
 
   ASSERT_TRUE(cookie != nullptr);
   ASSERT_TRUE(status.IsInclude());

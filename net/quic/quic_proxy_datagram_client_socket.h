@@ -8,6 +8,7 @@
 #include <stdint.h>
 
 #include <queue>
+#include <string_view>
 
 #include "net/base/ip_endpoint.h"
 #include "net/base/net_export.h"
@@ -18,6 +19,7 @@
 #include "net/socket/datagram_client_socket.h"
 #include "net/socket/udp_socket.h"
 #include "net/spdy/spdy_http_utils.h"
+#include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "url/scheme_host_port.h"
 
@@ -110,7 +112,7 @@ class NET_EXPORT_PRIVATE QuicProxyDatagramClientSocket
 
   // Http3DatagramVisitor implementation.
   void OnHttp3Datagram(quic::QuicStreamId stream_id,
-                       absl::string_view payload) override;
+                       std::string_view payload) override;
   void OnUnknownCapsule(quic::QuicStreamId stream_id,
                         const quiche::UnknownCapsule& capsule) override;
 
@@ -140,7 +142,7 @@ class NET_EXPORT_PRIVATE QuicProxyDatagramClientSocket
 
   // Callback for stream_->ReadInitialHeaders()
   void OnReadResponseHeadersComplete(int result);
-  int ProcessResponseHeaders(const spdy::Http2HeaderBlock& headers);
+  int ProcessResponseHeaders(const quiche::HttpHeaderBlock& headers);
 
   int DoLoop(int last_io_result);
   int DoSendRequest();
@@ -180,7 +182,7 @@ class NET_EXPORT_PRIVATE QuicProxyDatagramClientSocket
   HttpRequestInfo request_;
   HttpResponseInfo response_;
 
-  spdy::Http2HeaderBlock response_header_block_;
+  quiche::HttpHeaderBlock response_header_block_;
 
   // Local address of socket.
   IPEndPoint local_address_;

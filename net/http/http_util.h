@@ -14,6 +14,7 @@
 #include <vector>
 
 #include "base/compiler_specific.h"
+#include "base/containers/span.h"
 #include "base/strings/string_tokenizer.h"
 #include "base/strings/string_util.h"
 #include "base/time/time.h"
@@ -33,6 +34,11 @@ class HttpResponseHeaders;
 
 class NET_EXPORT HttpUtil {
  public:
+  // Generates a request line that is used for text-based HTTP messaging.
+  static std::string GenerateRequestLine(std::string_view method,
+                                         GURL url,
+                                         bool is_for_get_to_http_proxy);
+
   // Returns the absolute URL, to be used for the http request. This url is
   // made up of the protocol, host, [port], path, [query]. Everything else
   // is stripped (username, password, reference).
@@ -172,7 +178,7 @@ class NET_EXPORT HttpUtil {
   // Returns the start of the status line, or std::string::npos if no status
   // line was found. This allows for 4 bytes of junk to precede the status line
   // (which is what Mozilla does too).
-  static size_t LocateStartOfStatusLine(const char* buf, size_t buf_len);
+  static size_t LocateStartOfStatusLine(base::span<const uint8_t> buf);
 
   // Returns index beyond the end-of-headers marker or std::string::npos if not
   // found.  RFC 2616 defines the end-of-headers marker as a double CRLF;
@@ -181,16 +187,13 @@ class NET_EXPORT HttpUtil {
   // pattern LF[CR]LF as end-of-headers (just like Mozilla). The first line of
   // |buf| is considered the status line, even if empty. The parameter |i| is
   // the offset within |buf| to begin searching from.
-  static size_t LocateEndOfHeaders(const char* buf,
-                                   size_t buf_len,
-                                   size_t i = 0);
+  static size_t LocateEndOfHeaders(base::span<const uint8_t> buf, size_t i = 0);
 
   // Same as |LocateEndOfHeaders|, but does not expect a status line, so can be
   // used on multi-part responses or HTTP/1.x trailers.  As a result, if |buf|
   // starts with a single [CR]LF,  it is considered an empty header list, as
   // opposed to an empty status line above a header list.
-  static size_t LocateEndOfAdditionalHeaders(const char* buf,
-                                             size_t buf_len,
+  static size_t LocateEndOfAdditionalHeaders(base::span<const uint8_t> buf,
                                              size_t i = 0);
 
   // Assemble "raw headers" in the format required by HttpResponseHeaders.
@@ -201,7 +204,7 @@ class NET_EXPORT HttpUtil {
   // within the headers themselves, it will be stripped. This is a workaround to
   // avoid later code from incorrectly interpreting it as a line terminator.
   //
-  // TODO(crbug.com/671799): Should remove or internalize this to
+  // TODO(crbug.com/40496844): Should remove or internalize this to
   //                         HttpResponseHeaders.
   static std::string AssembleRawHeaders(std::string_view buf);
 

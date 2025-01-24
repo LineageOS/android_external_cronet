@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/test/embedded_test_server/http_request.h"
 
 #include <algorithm>
@@ -122,7 +127,7 @@ HttpRequestParser::ParseResult HttpRequestParser::ParseHeaders() {
       } else {
         GURL url(header_line_tokens[1]);
         CHECK(url.is_valid());
-        // TODO(crbug.com/1375303): This should retain the entire URL.
+        // TODO(crbug.com/40242862): This should retain the entire URL.
         http_request_->relative_url = url.PathForRequest();
       }
     }
@@ -172,8 +177,8 @@ HttpRequestParser::ParseResult HttpRequestParser::ParseHeaders() {
       LOG(WARNING) << "Malformed Content-Length header's value.";
     }
   } else if (http_request_->headers.count("Transfer-Encoding") > 0) {
-    if (base::CompareCaseInsensitiveASCII(
-            http_request_->headers["Transfer-Encoding"], "chunked") == 0) {
+    if (base::EqualsCaseInsensitiveASCII(
+            http_request_->headers["Transfer-Encoding"], "chunked")) {
       http_request_->has_content = true;
       chunked_decoder_ = std::make_unique<HttpChunkedDecoder>();
       state_ = STATE_CONTENT;

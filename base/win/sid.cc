@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/win/sid.h"
 
 // clang-format off
@@ -24,7 +29,6 @@
 #include "base/win/scoped_handle.h"
 #include "base/win/scoped_localalloc.h"
 #include "base/win/windows_version.h"
-#include "third_party/boringssl/src/include/openssl/crypto.h"
 #include "third_party/boringssl/src/include/openssl/sha.h"
 
 namespace base::win {
@@ -126,7 +130,6 @@ Sid Sid::FromNamedCapability(const std::wstring& capability_name) {
   if (known_cap != known_capabilities->end()) {
     return FromKnownCapability(known_cap->second);
   }
-  CRYPTO_library_init();
   static_assert((SHA256_DIGEST_LENGTH / sizeof(DWORD)) ==
                 SECURITY_APP_PACKAGE_RID_COUNT);
   DWORD rids[(SHA256_DIGEST_LENGTH / sizeof(DWORD)) + 2];
@@ -227,7 +230,7 @@ std::optional<Sid> Sid::FromPSID(PSID sid) {
 
 Sid Sid::GenerateRandomSid() {
   DWORD sub_authorities[4] = {};
-  RandBytes(&sub_authorities, sizeof(sub_authorities));
+  RandBytes(as_writable_byte_span(sub_authorities));
   return FromSubAuthorities(SECURITY_NULL_SID_AUTHORITY,
                             std::size(sub_authorities), sub_authorities);
 }

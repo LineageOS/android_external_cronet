@@ -142,7 +142,8 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // Partitioned cookie garbage collection thresholds.
   static const size_t kPerPartitionDomainMaxCookieBytes;
   static const size_t kPerPartitionDomainMaxCookies;
-  // TODO(crbug.com/1225444): Add global limit to number of partitioned cookies.
+  // TODO(crbug.com/40188414): Add global limit to number of partitioned
+  // cookies.
 
   // Quota for cookies with {low, medium, high} priorities within a domain.
   static const size_t kDomainCookiesQuotaLow;
@@ -769,6 +770,10 @@ class NET_EXPORT CookieMonster : public CookieStore {
   // code has a consistent view of the CookieStore, rather than out of concern
   // for typical use.
   bool seen_global_task_ = false;
+
+  // If a global cookie operation is seen during the loading, record when it
+  // happens, to help measure how much extra blocking it introduced.
+  std::optional<base::TimeTicks> time_start_block_load_all_;
 
   NetLogWithSource net_log_;
 

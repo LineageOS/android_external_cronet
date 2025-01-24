@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Base class for states with conditions for entering and exiting them.
+ * Base class representing a state with conditions for entering and exiting.
  *
  * <p>Conditions include the existence of {@link Elements}, e.g. Views.
  *
@@ -34,7 +34,7 @@ import java.util.List;
  *
  * <p>Once FINISHED, the ConditionalState does not change state anymore.
  *
- * <p>This is the base class for {@link TransitStation} and {@link StationFacility}.
+ * <p>This is the base class for {@link Station} and {@link Facility}.
  */
 public abstract class ConditionalState {
     @Phase private int mLifecyclePhase = Phase.NEW;
@@ -60,9 +60,9 @@ public abstract class ConditionalState {
     /**
      * Declare the {@link Elements} that define this ConditionalState, such as Views.
      *
-     * <p>Transit-layer {@link TransitStation}s and {@link StationFacility}s should override this
-     * and use the |elements| param to declare what elements need to be waited for for the state to
-     * be considered active.
+     * <p>Transit-layer {@link Station}s and {@link Facility}s should override this and use the
+     * |elements| param to declare what elements need to be waited for for the state to be
+     * considered active.
      *
      * @param elements use the #declare___() methods to describe the Elements that define the state.
      */
@@ -75,47 +75,53 @@ public abstract class ConditionalState {
 
     private void initElements() {
         if (mElements == null) {
-            Elements.Builder builder = Elements.newBuilder();
+            mElements = new Elements();
+            Elements.Builder builder = mElements.newBuilder();
             declareElements(builder);
-            mElements = builder.build();
+            builder.consolidate();
         }
     }
 
     void setStateTransitioningTo() {
         assertInPhase(Phase.NEW);
         mLifecyclePhase = Phase.TRANSITIONING_TO;
-        onStartMonitoringTransitionTo();
+        onTransitionToStarted();
     }
 
-    /** Hook to setup observers for the transition into the ConditionalState. */
-    protected void onStartMonitoringTransitionTo() {}
+    /** Hook to run code before a transition to the ConditionalState. */
+    protected void onTransitionToStarted() {}
 
     void setStateActive() {
         assertInPhase(Phase.TRANSITIONING_TO);
         mLifecyclePhase = Phase.ACTIVE;
-        onStopMonitoringTransitionTo();
+        onTransitionToFinished();
     }
 
-    /** Hook to cleanup observers for the transition into the ConditionalState. */
-    protected void onStopMonitoringTransitionTo() {}
+    /** Hook to run code after a transition to the ConditionalState. */
+    protected void onTransitionToFinished() {}
 
     void setStateTransitioningFrom() {
         assertInPhase(Phase.ACTIVE);
         mLifecyclePhase = Phase.TRANSITIONING_FROM;
-        onStartMonitoringTransitionFrom();
+        onTransitionFromStarted();
     }
 
-    /** Hook to setup observers for the transition from the ConditionalState. */
-    protected void onStartMonitoringTransitionFrom() {}
+    /** Hook to run code before a transition from the ConditionalState. */
+    protected void onTransitionFromStarted() {}
 
     void setStateFinished() {
         assertInPhase(Phase.TRANSITIONING_FROM);
         mLifecyclePhase = Phase.FINISHED;
-        onStopMonitoringTransitionFrom();
+        onTransitionFromFinished();
     }
 
-    /** Hook to cleanup observers for the transition from the ConditionalState. */
-    protected void onStopMonitoringTransitionFrom() {}
+    /** Hook to run code after a transition from the ConditionalState. */
+    protected void onTransitionFromFinished() {}
+
+    /**
+     * @return the name of the State for use in debugging/error messages.
+     */
+    public abstract String getName();
 
     /**
      * @return the lifecycle {@link Phase} this ConditionalState is in.
@@ -140,14 +146,14 @@ public abstract class ConditionalState {
 
         List<Condition> enterConditions = new ArrayList<>();
         Elements elements = getElements();
-        for (ElementInState element : elements.getElementsInState()) {
+        for (Element<?> element : elements.getElements()) {
             Condition enterCondition = element.getEnterCondition();
             if (enterCondition != null) {
                 enterConditions.add(enterCondition);
             }
         }
 
-        ConditionChecker.check(enterConditions);
+        ConditionChecker.check(getName(), enterConditions);
     }
 
     /**
@@ -185,6 +191,21 @@ public abstract class ConditionalState {
             default:
                 throw new IllegalArgumentException(
                         "No short string representation for phase " + phase);
+        }
+    }
+
+    /** Should be used only by {@link EntryPointSentinelStation}. */
+    void setStateActiveWithoutTransition() {
+        mLifecyclePhase = Phase.ACTIVE;
+    }
+
+    protected void assertSuppliersCanBeUsed() {
+        int phase = getPhase();
+        if (phase != Phase.ACTIVE && phase != Phase.TRANSITIONING_FROM) {
+            fail(
+                    String.format(
+                            "%s should have been ACTIVE or TRANSITIONING_FROM, but was %s",
+                            this, phaseToString(phase)));
         }
     }
 }

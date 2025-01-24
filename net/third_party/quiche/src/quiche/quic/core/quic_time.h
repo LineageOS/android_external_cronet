@@ -66,7 +66,7 @@ class QUICHE_EXPORT QuicTimeDelta {
   constexpr int64_t ToMicroseconds() const { return time_offset_; }
 
   // Converts the time offset to an Abseil duration.
-  constexpr absl::Duration ToAbsl() {
+  constexpr absl::Duration ToAbsl() const {
     if (ABSL_PREDICT_FALSE(IsInfinite())) {
       return absl::InfiniteDuration();
     }
@@ -78,6 +78,11 @@ class QUICHE_EXPORT QuicTimeDelta {
   constexpr bool IsInfinite() const { return time_offset_ == kInfiniteTimeUs; }
 
   std::string ToDebuggingValue() const;
+
+  template <typename Sink>
+  friend void AbslStringify(Sink& sink, QuicTimeDelta delta) {
+    sink.Append(delta.ToDebuggingValue());
+  }
 
  private:
   friend inline bool operator==(QuicTimeDelta lhs, QuicTimeDelta rhs);

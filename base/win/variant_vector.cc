@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/win/variant_vector.h"
 
 #include <optional>
@@ -166,7 +171,6 @@ VARIANT VariantVector::ReleaseAsSafearrayVariant() {
     // outside the typemask like VT_ARRAY or VT_BYREF.
     default:
       NOTREACHED();
-      break;
   }
 
   // CreateAndPopulateSafearray handles resetting |this| to VT_EMPTY because it
@@ -309,8 +313,6 @@ int VariantVector::Compare(SAFEARRAY* safearray, bool ignore_case) const {
     // outside the typemask like VT_ARRAY or VT_BYREF.
     default:
       NOTREACHED();
-      compare_result = 1;
-      break;
   }
 
   scoped_safearray.Release();

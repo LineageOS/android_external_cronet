@@ -21,6 +21,7 @@
 #include "net/base/features.h"
 #include "net/base/mock_network_change_notifier.h"
 #include "net/base/net_error_details.h"
+#include "net/base/privacy_mode.h"
 #include "net/base/session_usage.h"
 #include "net/base/test_proxy_delegate.h"
 #include "net/cert/mock_cert_verifier.h"
@@ -136,6 +137,7 @@ class QuicSessionPoolTestBase : public WithTaskEnvironment {
 
   bool HasActiveSession(
       const url::SchemeHostPort& scheme_host_port,
+      PrivacyMode privacy_mode = PRIVACY_MODE_DISABLED,
       const NetworkAnonymizationKey& network_anonymization_key =
           NetworkAnonymizationKey(),
       const ProxyChain& proxy_chain = ProxyChain::Direct(),
@@ -150,6 +152,7 @@ class QuicSessionPoolTestBase : public WithTaskEnvironment {
       const url::SchemeHostPort& scheme_host_port);
   QuicChromiumClientSession* GetActiveSession(
       const url::SchemeHostPort& scheme_host_port,
+      PrivacyMode privacy_mode = PRIVACY_MODE_DISABLED,
       const NetworkAnonymizationKey& network_anonymization_key =
           NetworkAnonymizationKey(),
       const ProxyChain& proxy_chain = ProxyChain::Direct(),
@@ -180,11 +183,27 @@ class QuicSessionPoolTestBase : public WithTaskEnvironment {
       std::string authority,
       std::string path,
       bool fin);
+  std::unique_ptr<quic::QuicEncryptedPacket> ConstructConnectUdpRequestPacket(
+      QuicTestPacketMaker& packet_maker,
+      uint64_t packet_number,
+      quic::QuicStreamId stream_id,
+      std::string authority,
+      std::string path,
+      bool fin);
+  std::string ConstructClientH3DatagramFrame(
+      uint64_t quarter_stream_id,
+      uint64_t context_id,
+      std::unique_ptr<quic::QuicEncryptedPacket> inner);
   std::unique_ptr<quic::QuicEncryptedPacket> ConstructClientH3DatagramPacket(
       uint64_t packet_number,
       uint64_t quarter_stream_id,
       uint64_t context_id,
       std::unique_ptr<quic::QuicEncryptedPacket> inner);
+  std::unique_ptr<quic::QuicEncryptedPacket> ConstructOkResponsePacket(
+      QuicTestPacketMaker& packet_maker,
+      uint64_t packet_number,
+      quic::QuicStreamId stream_id,
+      bool fin);
   std::unique_ptr<quic::QuicEncryptedPacket> ConstructOkResponsePacket(
       uint64_t packet_number,
       quic::QuicStreamId stream_id,
@@ -192,9 +211,18 @@ class QuicSessionPoolTestBase : public WithTaskEnvironment {
   std::unique_ptr<quic::QuicReceivedPacket> ConstructInitialSettingsPacket();
   std::unique_ptr<quic::QuicReceivedPacket> ConstructInitialSettingsPacket(
       uint64_t packet_number);
+  std::unique_ptr<quic::QuicReceivedPacket> ConstructInitialSettingsPacket(
+      QuicTestPacketMaker& packet_maker,
+      uint64_t packet_number);
   std::unique_ptr<quic::QuicEncryptedPacket> ConstructServerSettingsPacket(
       uint64_t packet_number);
 
+  std::unique_ptr<quic::QuicEncryptedPacket> ConstructAckPacket(
+      test::QuicTestPacketMaker& packet_maker,
+      uint64_t packet_number,
+      uint64_t packet_num_received,
+      uint64_t smallest_received,
+      uint64_t largest_received);
   std::string ConstructDataHeader(size_t body_len);
 
   std::unique_ptr<quic::QuicEncryptedPacket> ConstructServerDataPacket(
@@ -202,6 +230,11 @@ class QuicSessionPoolTestBase : public WithTaskEnvironment {
       quic::QuicStreamId stream_id,
       bool fin,
       std::string_view data);
+
+  std::string ConstructH3Datagram(
+      uint64_t stream_id,
+      uint64_t context_id,
+      std::unique_ptr<quic::QuicEncryptedPacket> packet);
 
   quic::QuicStreamId GetNthClientInitiatedBidirectionalStreamId(int n) const;
   quic::QuicStreamId GetQpackDecoderStreamId() const;

@@ -58,7 +58,7 @@ DohProviderEntry::List GetDohProviderEntriesFromNameservers(
       // corresponding DoH provider (since the client will be included in the
       // experiment if the provider feature flag is checked).
       if (base::Contains(entry->ip_addresses, server.address()) &&
-          base::FeatureList::IsEnabled(entry->feature) &&
+          base::FeatureList::IsEnabled(entry->feature.get()) &&
           !base::Contains(entries, entry)) {
         entries.push_back(entry);
       }
@@ -121,7 +121,7 @@ std::string CreateNamePointer(uint16_t offset) {
 uint16_t DnsQueryTypeToQtype(DnsQueryType dns_query_type) {
   switch (dns_query_type) {
     case DnsQueryType::UNSPECIFIED:
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
       return 0;
     case DnsQueryType::A:
       return dns_protocol::kTypeA;
@@ -147,7 +147,7 @@ DnsQueryType AddressFamilyToDnsQueryType(AddressFamily address_family) {
     case ADDRESS_FAMILY_IPV6:
       return DnsQueryType::AAAA;
     default:
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
       return DnsQueryType::UNSPECIFIED;
   }
 }
@@ -166,7 +166,7 @@ std::vector<DnsOverHttpsServerConfig> GetDohUpgradeServersFromDotHostname(
     // provider (since the client will be included in the experiment if the
     // provider feature flag is checked).
     if (base::Contains(entry->dns_over_tls_hostnames, dot_server) &&
-        base::FeatureList::IsEnabled(entry->feature)) {
+        base::FeatureList::IsEnabled(entry->feature.get())) {
       doh_servers.push_back(entry->doh_server_config);
     }
   }

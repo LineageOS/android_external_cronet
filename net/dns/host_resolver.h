@@ -13,12 +13,14 @@
 #include <set>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <vector>
 
 #include "base/containers/span.h"
 #include "base/values.h"
 #include "net/base/address_family.h"
 #include "net/base/completion_once_callback.h"
+#include "net/base/connection_endpoint_metadata.h"
 #include "net/base/host_port_pair.h"
 #include "net/base/network_anonymization_key.h"
 #include "net/base/network_handle.h"
@@ -45,6 +47,11 @@ struct DnsConfigOverrides;
 class HostResolverManager;
 class NetLog;
 class URLRequestContext;
+
+template <typename T>
+concept HasConnectionEndpointMetadata = requires(T t) {
+  { t.metadata } -> std::same_as<ConnectionEndpointMetadata&>;
+};
 
 // This class represents the task of resolving hostnames (or IP address
 // literal) to an AddressList object (or other DNS-style results).
@@ -87,10 +94,10 @@ class NET_EXPORT HostResolver {
   // Handler for an individual host resolution request. Created by
   // HostResolver::CreateRequest().
   //
-  // TODO(crbug.com/1290920): Most result retrieval here follows a pattern where
-  // it may return null or empty for requests where that result type is not
-  // available. Clean this up to always return empty for such cases and remove
-  // nullability from the return types.
+  // TODO(crbug.com/40212535): Most result retrieval here follows a pattern
+  // where it may return null or empty for requests where that result type is
+  // not available. Clean this up to always return empty for such cases and
+  // remove nullability from the return types.
   class ResolveHostRequest {
    public:
     // Destruction cancels the request if running asynchronously, causing the
@@ -120,7 +127,7 @@ class NET_EXPORT HostResolver {
     // returning a result other than |ERR_IO_PENDING|. May return nullptr or
     // empty for non-address requests.
     //
-    // TODO(crbug.com/1264933): Remove and replace all usage with
+    // TODO(crbug.com/40203587): Remove and replace all usage with
     // GetEndpointResults().
     virtual const AddressList* GetAddressResults() const = 0;
 
@@ -243,6 +250,14 @@ class NET_EXPORT HostResolver {
     // `IsSvcbResolutionCompleted()` when Chrome supports HTTPS follow-up
     // queries.
     virtual bool EndpointsCryptoReady() = 0;
+
+    // Returns the error info of this request. This can be changed over time
+    // while resolution is still ongoing. In general, should be called only
+    // after resolution completed.
+    virtual ResolveErrorInfo GetResolveErrorInfo() = 0;
+
+    // Change the priority of this request.
+    virtual void ChangeRequestPriority(RequestPriority priority) = 0;
   };
 
   // Handler for an activation of probes controlled by a HostResolver. Created
@@ -352,7 +367,6 @@ class NET_EXPORT HostResolver {
   // default.
   struct NET_EXPORT ResolveHostParameters {
     ResolveHostParameters();
-    ResolveHostParameters(const ResolveHostParameters& other);
 
     // Requested DNS query type. If UNSPECIFIED, the resolver will select a set
     // of queries automatically. It will select A, AAAA, or both as the address
@@ -392,11 +406,11 @@ class NET_EXPORT HostResolver {
     // the system resolver, e.g. non-address requests or requests specifying a
     // non-`SYSTEM` `source`.
     //
-    // TODO(crbug.com/1282281): Consider allowing the built-in resolver to still
-    // be used with this parameter. Would then function as a request to just
-    // keep the single final name from the alias chain instead of all aliases,
-    // and also skip the canonicalization unless that canonicalization is found
-    // to be fine for usage.
+    // TODO(crbug.com/40209534): Consider allowing the built-in resolver to
+    // still be used with this parameter. Would then function as a request to
+    // just keep the single final name from the alias chain instead of all
+    // aliases, and also skip the canonicalization unless that canonicalization
+    // is found to be fine for usage.
     bool include_canonical_name = false;
 
     // Hint to the resolver that resolution is only being requested for loopback
@@ -482,7 +496,7 @@ class NET_EXPORT HostResolver {
       std::optional<ResolveHostParameters> optional_parameters) = 0;
 
   // Create requests when scheme is unknown or non-standard.
-  // TODO(crbug.com/1206799): Rename to discourage use when scheme is known.
+  // TODO(crbug.com/40181080): Rename to discourage use when scheme is known.
   virtual std::unique_ptr<ResolveHostRequest> CreateRequest(
       const HostPortPair& host,
       const NetworkAnonymizationKey& network_anonymization_key,
@@ -573,7 +587,7 @@ class NET_EXPORT HostResolver {
   // Builds an AddressList from the first non-protocol endpoint found in
   // `endpoints`.
   //
-  // TODO(crbug.com/1264933): Delete once `AddressList` usage is fully replaced
+  // TODO(crbug.com/40203587): Delete once `AddressList` usage is fully replaced
   // in `HostResolver` and results.
   static AddressList EndpointResultToAddressList(
       base::span<const HostResolverEndpointResult> endpoints,
@@ -581,9 +595,24 @@ class NET_EXPORT HostResolver {
 
   // Returns whether there is at least one protocol endpoint in `endpoints`, and
   // all such endpoints have ECH parameters. This can be used to implement the
-  // guidance in section 10.1 of draft-ietf-dnsop-svcb-https-11.
-  static bool AllProtocolEndpointsHaveEch(
-      base::span<const HostResolverEndpointResult> endpoints);
+  // guidance in section 3 of RFC9460.
+  template <typename T>
+  static bool AllProtocolEndpointsHaveEch(base::span<const T> endpoints)
+    requires HasConnectionEndpointMetadata<T>
+  {
+    bool has_svcb = false;
+    for (const auto& endpoint : endpoints) {
+      if (!endpoint.metadata.supported_protocol_alpns.empty()) {
+        has_svcb = true;
+        if (endpoint.metadata.ech_config_list.empty()) {
+          return false;  // There is a non-ECH SVCB/HTTPS route.
+        }
+      }
+    }
+    // Either there were no SVCB/HTTPS records (should be SVCB-optional), or
+    // there were and all supported ECH (should be SVCB-reliant).
+    return has_svcb;
+  }
 
   // Returns true if NAT64 can be used in place of an IPv4 address during host
   // resolution.
@@ -598,6 +627,8 @@ class NET_EXPORT HostResolver {
   // immediately on start.
   static std::unique_ptr<ResolveHostRequest> CreateFailingRequest(int error);
   static std::unique_ptr<ProbeRequest> CreateFailingProbeRequest(int error);
+  static std::unique_ptr<ServiceEndpointRequest>
+  CreateFailingServiceEndpointRequest(int error);
 };
 
 }  // namespace net

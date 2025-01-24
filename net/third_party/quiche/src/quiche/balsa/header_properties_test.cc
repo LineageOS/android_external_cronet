@@ -100,5 +100,22 @@ TEST(HeaderPropertiesTest, HasInvalidHeaderChars) {
   EXPECT_FALSE(HasInvalidHeaderChars("\x42 is a nice character"));
 }
 
+TEST(HeaderPropertiesTest, HasInvalidPathChar) {
+  EXPECT_FALSE(HasInvalidPathChar(""));
+  EXPECT_FALSE(HasInvalidPathChar("/"));
+  EXPECT_FALSE(HasInvalidPathChar("invalid_path/but/valid/chars"));
+  EXPECT_FALSE(HasInvalidPathChar("/path/with?query;fragment"));
+  EXPECT_FALSE(HasInvalidPathChar("/path2.fun/my_site-root/!&$=,+*()/wow"));
+  // Surprise! []{}^| are seen in requests on the internet.
+  EXPECT_FALSE(HasInvalidPathChar("/square[brackets]surprisingly/allowed"));
+  EXPECT_FALSE(HasInvalidPathChar("/curly{braces}surprisingly/allowed"));
+  EXPECT_FALSE(HasInvalidPathChar("/caret^pipe|surprisingly/allowed"));
+
+  EXPECT_TRUE(HasInvalidPathChar("/path with spaces"));
+  EXPECT_TRUE(HasInvalidPathChar("/path\rwith\tother\nwhitespace"));
+  EXPECT_TRUE(HasInvalidPathChar("/backtick`"));
+  EXPECT_TRUE(HasInvalidPathChar("/angle<brackets>also/bad"));
+}
+
 }  // namespace
 }  // namespace quiche::header_properties::test

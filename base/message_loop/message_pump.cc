@@ -76,7 +76,6 @@ std::unique_ptr<MessagePump> MessagePump::Create(MessagePumpType type) {
       // Currently NaCl and AIX don't have a UI MessagePump.
       // TODO(abarth): Figure out if we need this.
       NOTREACHED();
-      return nullptr;
 #elif BUILDFLAG(IS_ANDROID)
       {
         auto message_pump = std::make_unique<MessagePumpAndroid>();
@@ -102,7 +101,6 @@ std::unique_ptr<MessagePump> MessagePump::Create(MessagePumpType type) {
 
     case MessagePumpType::CUSTOM:
       NOTREACHED();
-      return nullptr;
 
     case MessagePumpType::DEFAULT:
 #if BUILDFLAG(IS_IOS)
@@ -121,6 +119,8 @@ void MessagePump::InitializeFeatures() {
   g_explicit_high_resolution_timer_win =
       FeatureList::IsEnabled(kExplicitHighResolutionTimerWin);
   MessagePumpWin::InitializeFeatures();
+#elif BUILDFLAG(IS_ANDROID)
+  MessagePumpAndroid::InitializeFeatures();
 #endif
 }
 

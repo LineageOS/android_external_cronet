@@ -31,6 +31,7 @@
 #include "net/test/gtest_util.h"
 #include "net/test/test_data_directory.h"
 #include "net/test/test_with_task_environment.h"
+#include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/qpack/qpack_test_utils.h"
 #include "net/third_party/quiche/src/quiche/quic/test_tools/quic_test_utils.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
@@ -56,12 +57,12 @@ class QuicProxyClientSocketTest : public QuicProxyClientSocketTestBase {
   void InitializeClientSocket() override {
     sock_ = std::make_unique<QuicProxyClientSocket>(
         std::move(stream_handle_), std::move(session_handle_),
-        // TODO(crbug.com/1206799) Construct `ProxyChain` with plain
+        // TODO(crbug.com/40181080) Construct `ProxyChain` with plain
         // `proxy_endpoint_` once it supports `url::SchemeHostPort`.
         ProxyChain(ProxyServer::SCHEME_HTTPS,
                    HostPortPair::FromSchemeHostPort(proxy_endpoint_)),
         /*proxy_chain_index=*/0, user_agent_,
-        // TODO(crbug.com/1206799) Construct `QuicProxyClientSocket` with plain
+        // TODO(crbug.com/40181080) Construct `QuicProxyClientSocket` with plain
         // `proxy_endpoint_` once it supports `url::SchemeHostPort`.
         HostPortPair::FromSchemeHostPort(destination_endpoint_),
         NetLogWithSource::Make(NetLogSourceType::NONE),
@@ -75,7 +76,7 @@ class QuicProxyClientSocketTest : public QuicProxyClientSocketTestBase {
   }
 
   void PopulateConnectRequestIR(
-      spdy::Http2HeaderBlock* block,
+      quiche::HttpHeaderBlock* block,
       std::optional<const HttpRequestHeaders> extra_headers) override {
     (*block)[":method"] = "CONNECT";
     (*block)[":authority"] =
@@ -192,10 +193,10 @@ TEST_P(QuicProxyClientSocketTest, ConnectSendsCorrectRequest) {
 }
 
 TEST_P(QuicProxyClientSocketTest, ProxyDelegateExtraHeaders) {
-  // TODO(https://crbug.com/1491092): Add a version of this test for multi-hop.
+  // TODO(crbug.com/40284947): Add a version of this test for multi-hop.
   proxy_delegate_ = std::make_unique<TestProxyDelegate>();
   proxy_delegate_->set_extra_header_name(kTestHeaderName);
-  // TODO(crbug.com/1206799) Construct `proxy_chain` with plain
+  // TODO(crbug.com/40181080) Construct `proxy_chain` with plain
   // `proxy_endpoint_` once it supports `url::SchemeHostPort`.
   ProxyChain proxy_chain(ProxyServer::SCHEME_HTTPS,
                          HostPortPair::FromSchemeHostPort(proxy_endpoint_));

@@ -29,9 +29,9 @@
 #include "base/win/scoped_handle.h"
 #include "base/win/windows_version.h"
 #include "build/build_config.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 #include "partition_alloc/stack/stack.h"
 #endif
 
@@ -44,10 +44,6 @@ BASE_FEATURE(kAboveNormalCompositingBrowserWin,
              "AboveNormalCompositingBrowserWin",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
-BASE_FEATURE(kBackgroundThreadNormalMemoryPriorityWin,
-             "BackgroundThreadNormalMemoryPriorityWin",
-             base::FEATURE_DISABLED_BY_DEFAULT);
-
 namespace {
 
 // Flag used to set thread priority to |THREAD_PRIORITY_LOWEST| for
@@ -56,9 +52,6 @@ std::atomic<bool> g_use_thread_priority_lowest{false};
 // Flag used to map Compositing ThreadType |THREAD_PRIORITY_ABOVE_NORMAL| on the
 // UI thread for |kAboveNormalCompositingBrowserWin| Feature.
 std::atomic<bool> g_above_normal_compositing_browser{true};
-// Flag used to set thread memory priority to |MEMORY_PRIORITY_NORMAL| on
-// background threads for |kThreadNormalMemoryPriorityWin| Feature.
-std::atomic<bool> g_background_thread_normal_memory_priority_win{false};
 
 // These values are sometimes returned by ::GetThreadPriority().
 constexpr int kWinDisplayPriority1 = 5;
@@ -122,7 +115,7 @@ DWORD __stdcall ThreadFunc(void* params) {
                                 FALSE,
                                 DUPLICATE_SAME_ACCESS);
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   partition_alloc::internal::StackTopRegistry::Get().NotifyThreadCreated();
 #endif
 
@@ -142,7 +135,7 @@ DWORD __stdcall ThreadFunc(void* params) {
                                                    PlatformThread::CurrentId());
   }
 
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   partition_alloc::internal::StackTopRegistry::Get().NotifyThreadDestroyed();
 #endif
 
@@ -378,10 +371,10 @@ namespace {
 
 void SetCurrentThreadPriority(ThreadType thread_type,
                               MessagePumpType pump_type_hint) {
-  if (thread_type == ThreadType::kCompositing &&
+  if (thread_type == ThreadType::kDisplayCritical &&
       pump_type_hint == MessagePumpType::UI &&
       !g_above_normal_compositing_browser) {
-    // Ignore kCompositing thread type for UI thread as Windows has a
+    // Ignore kDisplayCritical thread type for UI thread as Windows has a
     // priority boost mechanism. See
     // https://docs.microsoft.com/en-us/windows/win32/procthread/priority-boosts
     return;
@@ -421,7 +414,6 @@ void SetCurrentThreadPriority(ThreadType thread_type,
     case ThreadType::kDefault:
       desired_priority = THREAD_PRIORITY_NORMAL;
       break;
-    case ThreadType::kCompositing:
     case ThreadType::kDisplayCritical:
       desired_priority = THREAD_PRIORITY_ABOVE_NORMAL;
       break;
@@ -436,8 +428,7 @@ void SetCurrentThreadPriority(ThreadType thread_type,
   DPLOG_IF(ERROR, !cpu_priority_success)
       << "Failed to set thread priority to " << desired_priority;
 
-  if (g_background_thread_normal_memory_priority_win &&
-      desired_priority == THREAD_MODE_BACKGROUND_BEGIN) {
+  if (desired_priority == THREAD_MODE_BACKGROUND_BEGIN) {
     // Override the memory priority.
     MEMORY_PRIORITY_INFORMATION memory_priority{.MemoryPriority =
                                                     MEMORY_PRIORITY_NORMAL};
@@ -473,7 +464,6 @@ void SetCurrentThreadQualityOfService(ThreadType thread_type) {
       desire_ecoqos = true;
       break;
     case ThreadType::kDefault:
-    case ThreadType::kCompositing:
     case ThreadType::kDisplayCritical:
     case ThreadType::kRealtimeAudio:
       desire_ecoqos = false;
@@ -564,7 +554,6 @@ ThreadPriorityForTest PlatformThread::GetCurrentThreadPriorityForTest() {
   }
 
   NOTREACHED() << "::GetThreadPriority returned " << priority << ".";
-  return ThreadPriorityForTest::kNormal;
 }
 
 void InitializePlatformThreadFeatures() {
@@ -573,9 +562,6 @@ void InitializePlatformThreadFeatures() {
       std::memory_order_relaxed);
   g_above_normal_compositing_browser.store(
       FeatureList::IsEnabled(kAboveNormalCompositingBrowserWin),
-      std::memory_order_relaxed);
-  g_background_thread_normal_memory_priority_win.store(
-      FeatureList::IsEnabled(kBackgroundThreadNormalMemoryPriorityWin),
       std::memory_order_relaxed);
 }
 

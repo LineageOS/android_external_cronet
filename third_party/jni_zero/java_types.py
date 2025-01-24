@@ -7,6 +7,7 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
+import common
 import java_lang_classes
 
 _CPP_TYPE_BY_JAVA_TYPE = {
@@ -61,7 +62,7 @@ class JavaClass:
   """Represents a reference type."""
   _fqn: str
   # This is only meaningful if make_prefix have been called on the original class.
-  _class_without_prefix: 'JavaClass' = None
+  _prefix: str = None
 
   def __post_init__(self):
     assert '.' not in self._fqn, f'{self._fqn} should have / and $, but not .'
@@ -98,16 +99,14 @@ class JavaClass:
     return self._fqn.replace('/', '.').replace('$', '.')
 
   @property
-  def prefix(self):
-    if self._class_without_prefix == None:
-      return ""
-    full_name_with_dots_without_prefix = self._class_without_prefix.full_name_with_dots
-    index = self.full_name_with_dots.find(full_name_with_dots_without_prefix)
-    return self.full_name_with_dots[:index-1] if index > 0 else ""
+  def prefix_with_dots(self):
+    return self._prefix.replace('/', '.') if self._prefix else self._prefix
 
   @property
   def class_without_prefix(self):
-    return self._class_without_prefix if self._class_without_prefix else self
+    if not self._prefix:
+      return self
+    return JavaClass(self._fqn[len(self._prefix) + 1:])
 
   @property
   def outer_class_name(self):
@@ -127,14 +126,17 @@ class JavaClass:
     type_resolver = type_resolver or _EMPTY_TYPE_RESOLVER
     return type_resolver.contextualize(self)
 
+  def to_cpp(self):
+    return common.escape_class_name(self.full_name_with_slashes)
+
   def as_type(self):
     return JavaType(java_class=self)
 
-  def make_prefixed(self, prefix=None):
+  def make_prefixed(self, prefix):
     if not prefix:
       return self
     prefix = prefix.replace('.', '/')
-    return JavaClass(f'{prefix}/{self._fqn}', self)
+    return JavaClass(f'{prefix}/{self._fqn}', prefix)
 
   def make_nested(self, name):
     return JavaClass(f'{self._fqn}${name}')
@@ -146,8 +148,8 @@ class JavaType:
   array_dimensions: int = 0
   primitive_name: Optional[str] = None
   java_class: Optional[JavaClass] = None
-  annotations: Dict[str, Optional[str]] = \
-      dataclasses.field(default_factory=dict, compare=False)
+  converted_type: Optional[str] = dataclasses.field(default=None, compare=False)
+  nullable: bool = True
 
   @staticmethod
   def from_descriptor(descriptor):
@@ -171,9 +173,9 @@ class JavaType:
   # Cannot use dataclass(order=True) because some fields are None.
   def __lt__(self, other):
     if self.primitive_name and not other.primitive_name:
-      return -1
+      return True
     if other.primitive_name and not self.primitive_name:
-      return 1
+      return False
     lhs = (self.array_dimensions, self.primitive_name or self.java_class)
     rhs = (other.array_dimensions, other.primitive_name or other.java_class)
     return lhs < rhs
@@ -190,6 +192,9 @@ class JavaType:
   def is_object_array(self):
     return self.array_dimensions > 1 or (self.primitive_name is None
                                          and self.array_dimensions > 0)
+
+  def is_collection(self):
+    return not self.is_array() and self.java_class in COLLECTION_CLASSES
 
   def is_void(self):
     return self.primitive_name == 'void'
@@ -237,30 +242,7 @@ class JavaType:
 
   def to_proxy(self):
     """Converts to types used over JNI boundary."""
-    # All object array types of become jobjectArray in native, but need to be
-    # passed as the original type on the java side.
-    if self.non_array_full_name_with_slashes in _CPP_TYPE_BY_JAVA_TYPE:
-      return self
-
-    # All other types should just be passed as Objects or Object arrays.
-    return dataclasses.replace(self, java_class=OBJECT_CLASS)
-
-  def converted_type(self):
-    """Returns a C datatype listed in the JniType annotation for this type."""
-    ret = self.annotations.get('JniType', None)
-    # Allow "std::vector" as shorthand for:
-    #     std::vector<jni_zero::ScopedJavaLocalRef<jobject>>
-    if ret == 'std::vector':
-      if self.is_object_array():
-        ret += '<jni_zero::ScopedJavaLocalRef<jobject>>'
-      elif self.is_array():
-        cpp_type = _CPP_TYPE_BY_JAVA_TYPE[self.non_array_full_name_with_slashes]
-        ret += f'<{cpp_type}>'
-      else:
-        # TODO(agrieve): This should be checked at parse time.
-        raise Exception(
-            'Found non-templatized @JniType("std::vector") on non-array type')
-    return ret
+    return self if self.is_primitive() else OBJECT
 
 
 @dataclasses.dataclass(frozen=True)
@@ -273,6 +255,14 @@ class JavaParam:
     """Converts to types used over JNI boundary."""
     return JavaParam(self.java_type.to_proxy(), self.name)
 
+  def cpp_name(self):
+    if self.name in ('env', 'jcaller'):
+      return f'_{self.name}'
+    return self.name
+
+  def to_java_declaration(self, type_resolver=None):
+    return '%s %s' % (self.java_type.to_java(type_resolver), self.name)
+
 
 class JavaParamList(tuple):
   """Represents a parameter list."""
@@ -281,8 +271,8 @@ class JavaParamList(tuple):
     return JavaParamList(p.to_proxy() for p in self)
 
   def to_java_declaration(self, type_resolver=None):
-    return ', '.join('%s %s' % (p.java_type.to_java(type_resolver), p.name)
-                     for p in self)
+    return ', '.join(
+        p.to_java_declaration(type_resolver=type_resolver) for p in self)
 
   def to_call_str(self):
     return ', '.join(p.name for p in self)
@@ -343,6 +333,13 @@ class JavaSignature:
     param_list = self.param_list.to_proxy()
     return JavaSignature.from_params(return_type, param_list)
 
+  def with_params_reordered(self):
+    return JavaSignature.from_params(
+        self.return_type,
+        JavaParamList(
+            tuple(sorted(self.param_list,
+                         key=lambda x: x.java_type.to_proxy()))))
+
 
 class TypeResolver:
   """Converts type names to fully qualified names."""
@@ -369,8 +366,9 @@ class TypeResolver:
 
   def resolve(self, name):
     """Return a JavaClass for the given type name."""
-    assert name not in PRIMITIVES
-    assert ' ' not in name
+    assert name not in PRIMITIVES, 'Name: ' + name
+    assert ' ' not in name, 'Name: ' + name
+    assert name != '', 'Cannot resolve empty string'
 
     if '/' in name:
       # Coming from javap, use the fully qualified name directly.
@@ -410,15 +408,30 @@ class TypeResolver:
       return JavaClass(f'java/lang/{name}')
 
     # Type not found, falling back to same package as this class.
-    ret = JavaClass(f'{self.java_class.class_without_prefix.package_with_slashes}/{name}')
-    return ret if self.java_class.prefix == "" else ret.make_prefixed(self.java_class.prefix)
+    # Set the same prefix with this class.
+    ret = JavaClass(
+        f'{self.java_class.class_without_prefix.package_with_slashes}/{name}')
+    return ret.make_prefixed(self.java_class.prefix_with_dots)
 
 
 CLASS_CLASS = JavaClass('java/lang/Class')
 OBJECT_CLASS = JavaClass('java/lang/Object')
 STRING_CLASS = JavaClass('java/lang/String')
-_EMPTY_TYPE_RESOLVER = TypeResolver(OBJECT_CLASS)
+_LIST_CLASS = JavaClass('java/util/List')
+
+# Collection and types that extend it (for use with toArray()).
+# More can be added here if the need arises.
+COLLECTION_CLASSES = (
+    _LIST_CLASS,
+    JavaClass('java/util/Collection'),
+    JavaClass('java/util/Set'),
+)
+
+OBJECT = JavaType(java_class=OBJECT_CLASS)
 CLASS = JavaType(java_class=CLASS_CLASS)
-LONG = JavaType(primitive_name='long')
+LIST = JavaType(java_class=_LIST_CLASS)
+INT = JavaType(primitive_name='int')
 VOID = JavaType(primitive_name='void')
+
+_EMPTY_TYPE_RESOLVER = TypeResolver(OBJECT_CLASS)
 EMPTY_PARAM_LIST = JavaParamList()

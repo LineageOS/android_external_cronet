@@ -61,6 +61,13 @@ class CRYPTO_EXPORT UnexportableSigningKey {
   virtual std::optional<std::vector<uint8_t>> SignSlowly(
       base::span<const uint8_t> data) = 0;
 
+  // Returns true if the underlying key is stored in "hardware". Something like
+  // ARM TrustZone would count as hardware for these purposes. Ideally all
+  // implementations of this class would return true here, because software
+  // implementations aren't really "unexportable", but a software implementation
+  // does exist.
+  virtual bool IsHardwareBacked() const;
+
 #if BUILDFLAG(IS_MAC)
   // Returns the underlying reference to a Keychain key owned by the current
   // instance.
@@ -144,7 +151,10 @@ class CRYPTO_EXPORT UnexportableKeyProvider {
   // key on such implementations. For stateless implementations, this is a
   // no-op.
   // Returns true on successful deletion, false otherwise.
-  virtual bool DeleteSigningKey(base::span<const uint8_t> wrapped_key) = 0;
+  // This can sometimes block, and therefore must not be called from the UI
+  // thread.
+  virtual bool DeleteSigningKeySlowly(
+      base::span<const uint8_t> wrapped_key) = 0;
 };
 
 // This is an experimental API as it uses an unofficial Windows API.
@@ -257,6 +267,8 @@ CRYPTO_EXPORT std::unique_ptr<UnexportableKeyProvider>
 GetSoftwareUnsecureUnexportableKeyProvider();
 
 namespace internal {
+
+CRYPTO_EXPORT bool HasScopedUnexportableKeyProvider();
 
 CRYPTO_EXPORT void SetUnexportableKeyProviderForTesting(
     std::unique_ptr<UnexportableKeyProvider> (*func)());

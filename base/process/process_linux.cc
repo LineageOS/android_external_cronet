@@ -288,7 +288,6 @@ Process::Priority GetProcessPriorityCGroup(std::string_view cgroup_contents) {
         SplitStringPiece(line, ":", TRIM_WHITESPACE, SPLIT_WANT_ALL);
     if (fields.size() != 3U) {
       NOTREACHED();
-      continue;
     }
     if (fields[2] == kBackground)
       return Process::Priority::kBestEffort;
@@ -320,7 +319,6 @@ ProcessId Process::GetPidInNamespace() const {
       // The last value in the list is the PID in the namespace.
       if (!StringToInt(split_value_str.back(), &value)) {
         NOTREACHED();
-        return kNullProcessId;
       }
       return value;
     }
@@ -431,8 +429,8 @@ void Process::CleanUpProcess(int remaining_retries) const {
   }
 
   // Try to delete the cgroup
-  // TODO(1322562): We can use notify_on_release to automoatically delete the
-  // cgroup when the process has left the cgroup.
+  // TODO(crbug.com/40224348): We can use notify_on_release to automoatically
+  // delete the cgroup when the process has left the cgroup.
   FilePath cgroup = CGroups::Get().GetForegroundCgroupDir(unique_token_);
   if (!DeleteFile(cgroup)) {
     auto saved_errno = errno;

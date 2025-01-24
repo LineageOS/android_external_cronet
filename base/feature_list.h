@@ -46,7 +46,7 @@ enum FeatureState {
   FEATURE_ENABLED_BY_DEFAULT,
 };
 
-// Recommended macros for declaring and defining features:
+// Recommended macros for declaring and defining features and parameters:
 //
 // - `kFeature` is the C++ identifier that will be used for the `base::Feature`.
 // - `name` is the feature name, which must be globally unique. This name is
@@ -75,7 +75,76 @@ enum FeatureState {
 // Features should *not* be defined in header files; do not use this macro in
 // header files.
 #define BASE_FEATURE(feature, name, default_state) \
-  constinit const base::Feature feature(name, default_state)
+  constinit const base::Feature feature(           \
+      name, default_state, base::internal::FeatureMacroHandshake::kSecret)
+
+// Provides a forward declaration for `feature_object_name` in a header file,
+// e.g.
+//
+//   BASE_DECLARE_FEATURE_PARAM(kMyFeatureParam);
+//
+// If the feature needs to be marked as exported, i.e. it is referenced by
+// multiple components, then write:
+//
+//   COMPONENT_EXPORT(MY_COMPONENT) BASE_DECLARE_FEATURE_PARAM(kMyFeatureParam);
+//
+// This macro enables optimizations to make the second and later calls faster,
+// but requires additional memory uses. If you obtain the parameter only once,
+// you can instantiate base::FeatureParam directly, or can call
+// base::GetFieldTrialParamByFeatureAsInt or equivalent functions for other
+// types directly.
+#define BASE_DECLARE_FEATURE_PARAM(T, feature_object_name) \
+  extern constinit const base::FeatureParam<T> feature_object_name
+
+// Provides a definition for `feature_object_name` with `T`, `feature`, `name`
+// and `default_value`, with an internal parsed value cache, e.g.
+//
+//   BASE_FEATURE_PARAM(int, kMyFeatureParam, kMyFeature, "MyFeatureParam", 0);
+//
+// `T` is a parameter type, one of bool, int, size_t, double, std::string, and
+// base::TimeDelta. Enum types are not supported for now.
+//
+// For now, ScopedFeatureList doesn't work to change the value dynamically when
+// the cache is used with this macro.
+//
+// It should *not* be defined in header files; do not use this macro in header
+// files.
+#define BASE_FEATURE_PARAM(T, feature_object_name, feature, name, \
+                           default_value)                         \
+  namespace field_trial_params_internal {                         \
+  T GetFeatureParamWithCacheFor##feature_object_name(             \
+      const base::FeatureParam<T>* feature_param) {               \
+    static const T param = feature_param->GetWithoutCache();      \
+    return param;                                                 \
+  }                                                               \
+  } /* field_trial_params_internal */                             \
+  constinit const base::FeatureParam<T> feature_object_name(      \
+      feature, name, default_value,                               \
+      &field_trial_params_internal::                              \
+          GetFeatureParamWithCacheFor##feature_object_name)
+
+// Same as BASE_FEATURE_PARAM() but used for enum type parameters with on extra
+// argument, `options`. See base::FeatureParam<Enum> template declaration in
+// //base/metrics/field_trial_params.h for `options`' details.
+#define BASE_FEATURE_ENUM_PARAM(T, feature_object_name, feature, name, \
+                                default_value, options)                \
+  namespace field_trial_params_internal {                              \
+  T GetFeatureParamWithCacheFor##feature_object_name(                  \
+      const base::FeatureParam<T>* feature_param) {                    \
+    static const T param = feature_param->GetWithoutCache();           \
+    return param;                                                      \
+  }                                                                    \
+  } /* field_trial_params_internal */                                  \
+  constinit const base::FeatureParam<T> feature_object_name(           \
+      feature, name, default_value, options,                           \
+      &field_trial_params_internal::                                   \
+          GetFeatureParamWithCacheFor##feature_object_name)
+
+// Secret handshake to (try to) ensure all places that construct a base::Feature
+// go through the helper `BASE_FEATURE()` macro above.
+namespace internal {
+enum class FeatureMacroHandshake { kSecret };
+}
 
 // The Feature struct is used to define the default state for a feature. There
 // must only ever be one struct instance for a given feature name—generally
@@ -99,7 +168,9 @@ enum FeatureState {
 // [1]:
 // https://crsrc.org/c/docs/speed/binary_size/android_binary_size_trybot.md#Mutable-Constants
 struct BASE_EXPORT LOGICALLY_CONST Feature {
-  constexpr Feature(const char* name, FeatureState default_state)
+  constexpr Feature(const char* name,
+                    FeatureState default_state,
+                    internal::FeatureMacroHandshake)
       : name(name), default_state(default_state) {
 #if BUILDFLAG(ENABLE_BANNED_BASE_FEATURE_PREFIX)
     if (std::string_view(name).find(BUILDFLAG(BANNED_BASE_FEATURE_PREFIX)) ==
@@ -389,14 +460,14 @@ class BASE_EXPORT FeatureList {
   //
   // If no `FeatureList` instance is registered, this will:
   // - DCHECK(), if FailOnFeatureAccessWithoutFeatureList() was called.
-  //     TODO(crbug.com/1358639): Change the DCHECK to a CHECK when we're
+  //     TODO(crbug.com/40237050): Change the DCHECK to a CHECK when we're
   //     confident that all early accesses have been fixed. We don't want to
   //     get many crash reports from the field in the meantime.
   // - Return the default state, otherwise. Registering a `FeatureList` later
   //   will fail.
   //
-  // TODO(crbug.com/1358639): Make early FeatureList access fail on iOS, Android
-  // and ChromeOS. This currently only works on Windows, Mac and Linux.
+  // TODO(crbug.com/40237050): Make early FeatureList access fail on iOS,
+  // Android and ChromeOS. This currently only works on Windows, Mac and Linux.
   //
   // A feature with a given name must only have a single corresponding Feature
   // instance, which is checked in builds with DCHECKs enabled.
@@ -489,7 +560,7 @@ class BASE_EXPORT FeatureList {
   // After calling this, an attempt to access feature state when no FeatureList
   // is registered will DCHECK.
   //
-  // TODO(crbug.com/1358639): Change the DCHECK to a CHECK when we're confident
+  // TODO(crbug.com/40237050): Change the DCHECK to a CHECK when we're confident
   // that all early accesses have been fixed. We don't want to get many crash
   // reports from the field in the meantime.
   //
@@ -637,8 +708,8 @@ class BASE_EXPORT FeatureList {
   // enabled. This is mutable as it's not externally visible and needs to be
   // usable from const getters.
   mutable Lock feature_identity_tracker_lock_;
-  mutable std::map<std::string, const Feature*> feature_identity_tracker_
-      GUARDED_BY(feature_identity_tracker_lock_);
+  mutable std::map<std::string, const Feature*, std::less<>>
+      feature_identity_tracker_ GUARDED_BY(feature_identity_tracker_lock_);
 
   // Tracks the associated FieldTrialList for DCHECKs. This is used to catch
   // the scenario where multiple FieldTrialList are used with the same

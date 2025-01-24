@@ -209,7 +209,6 @@ bool BreakIterator::SetText(std::u16string_view text) {
   prev_ = npos;
   if (U_FAILURE(status)) {
     NOTREACHED() << "ubrk_setText failed";
-    return false;
   }
   string_ = text;
   return true;
@@ -264,10 +263,10 @@ bool BreakIterator::IsGraphemeBoundary(size_t position) const {
 }
 
 std::u16string BreakIterator::GetString() const {
-  return std::u16string(GetStringPiece());
+  return std::u16string(GetStringView());
 }
 
-std::u16string_view BreakIterator::GetStringPiece() const {
+std::u16string_view BreakIterator::GetStringView() const {
   DCHECK(prev_ != npos && pos_ != npos);
   return string_.substr(prev_, pos_ - prev_);
 }

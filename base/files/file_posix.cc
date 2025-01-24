@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/files/file.h"
 
 // The only 32-bit platform that uses this file is Android. On Android APIs
@@ -544,9 +549,6 @@ void File::DoInitialize(const FilePath& path, uint32_t flags) {
 
   if (!open_flags && !(flags & FLAG_OPEN) && !(flags & FLAG_OPEN_ALWAYS)) {
     NOTREACHED();
-    errno = EOPNOTSUPP;
-    error_details_ = FILE_ERROR_FAILED;
-    return;
   }
 
   if (flags & FLAG_WRITE && flags & FLAG_READ) {
@@ -670,17 +672,17 @@ File::Error File::GetLastFileError() {
   return base::File::OSErrorToFileError(errno);
 }
 
-int File::Stat(const char* path, stat_wrapper_t* sb) {
+int File::Stat(const FilePath& path, stat_wrapper_t* sb) {
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
-  return stat(path, sb);
+  return stat(path.value().c_str(), sb);
 }
 int File::Fstat(int fd, stat_wrapper_t* sb) {
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
   return fstat(fd, sb);
 }
-int File::Lstat(const char* path, stat_wrapper_t* sb) {
+int File::Lstat(const FilePath& path, stat_wrapper_t* sb) {
   ScopedBlockingCall scoped_blocking_call(FROM_HERE, BlockingType::MAY_BLOCK);
-  return lstat(path, sb);
+  return lstat(path.value().c_str(), sb);
 }
 
 }  // namespace base

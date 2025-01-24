@@ -12,6 +12,7 @@
 #include "base/gtest_prod_util.h"
 #include "base/memory/ref_counted.h"
 #include "build/build_config.h"
+#include "components/network_time/time_tracker/time_tracker.h"
 #include "crypto/crypto_buildflags.h"
 #include "net/base/hash_value.h"
 #include "net/base/ip_address.h"
@@ -92,6 +93,7 @@ class NET_EXPORT CertVerifyProc
     scoped_refptr<CRLSet> crl_set;
     std::vector<scoped_refptr<const net::CTLogVerifier>> ct_logs;
     scoped_refptr<net::CTPolicyEnforcer> ct_policy_enforcer;
+    std::optional<network_time::TimeTracker> time_tracker;
 #if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
     std::optional<net::ChromeRootStoreData> root_store_data;
 #endif
@@ -158,10 +160,12 @@ class NET_EXPORT CertVerifyProc
     //  Additional SPKIs to consider as distrusted during path validation.
     std::vector<std::vector<uint8_t>> additional_distrusted_spkis;
 
+#if !BUILDFLAG(IS_CHROMEOS)
     // If true, use the user-added certs in the system trust store for path
     // validation.
     // This only has an impact if the Chrome Root Store is being used.
     bool include_system_trust_store = true;
+#endif
   };
 
   // These values are persisted to logs. Entries should not be renumbered and
@@ -190,7 +194,8 @@ class NET_EXPORT CertVerifyProc
       scoped_refptr<CRLSet> crl_set,
       std::unique_ptr<CTVerifier> ct_verifier,
       scoped_refptr<CTPolicyEnforcer> ct_policy_enforcer,
-      const InstanceParams instance_params);
+      const InstanceParams instance_params,
+      std::optional<network_time::TimeTracker> time_tracker);
 #endif
 
 #if BUILDFLAG(CHROME_ROOT_STORE_SUPPORTED)
@@ -203,7 +208,8 @@ class NET_EXPORT CertVerifyProc
       std::unique_ptr<CTVerifier> ct_verifier,
       scoped_refptr<CTPolicyEnforcer> ct_policy_enforcer,
       const ChromeRootStoreData* root_store_data,
-      const InstanceParams instance_params);
+      const InstanceParams instance_params,
+      std::optional<network_time::TimeTracker> time_tracker);
 #endif
 
   CertVerifyProc(const CertVerifyProc&) = delete;
@@ -237,8 +243,7 @@ class NET_EXPORT CertVerifyProc
              const std::string& sct_list,
              int flags,
              CertVerifyResult* verify_result,
-             const NetLogWithSource& net_log,
-             std::optional<base::Time> time_now = std::nullopt);
+             const NetLogWithSource& net_log);
 
  protected:
   explicit CertVerifyProc(scoped_refptr<CRLSet> crl_set);
@@ -292,8 +297,7 @@ class NET_EXPORT CertVerifyProc
                              const std::string& sct_list,
                              int flags,
                              CertVerifyResult* verify_result,
-                             const NetLogWithSource& net_log,
-                             std::optional<base::Time> time_now) = 0;
+                             const NetLogWithSource& net_log) = 0;
 
   // HasNameConstraintsViolation returns true iff one of |public_key_hashes|
   // (which are hashes of SubjectPublicKeyInfo structures) has name constraints

@@ -14,8 +14,7 @@
 #include "base/containers/span.h"
 #include "base/token.h"
 
-namespace base {
-namespace android {
+namespace base::android {
 
 class BASE_EXPORT TokenAndroid {
  public:
@@ -27,17 +26,25 @@ class BASE_EXPORT TokenAndroid {
   static base::Token FromJavaToken(JNIEnv* env,
                                    const JavaRef<jobject>& j_token);
 
-  // Converts the collection of `tokens` to an array of Token objects in Java.
-  static ScopedJavaLocalRef<jobjectArray> ToJavaArrayOfTokens(
-      JNIEnv* env,
-      base::span<std::optional<base::Token>> tokens);
-
   TokenAndroid() = delete;
   TokenAndroid(const TokenAndroid&) = delete;
   TokenAndroid& operator=(const TokenAndroid&) = delete;
 };
 
-}  // namespace android
-}  // namespace base
+}  // namespace base::android
+
+namespace jni_zero {
+template <>
+inline base::Token FromJniType<base::Token>(JNIEnv* env,
+                                            const JavaRef<jobject>& j_object) {
+  return base::android::TokenAndroid::FromJavaToken(env, j_object);
+}
+template <>
+inline ScopedJavaLocalRef<jobject> ToJniType<base::Token>(
+    JNIEnv* env,
+    const base::Token& token) {
+  return base::android::TokenAndroid::Create(env, token);
+}
+}  // namespace jni_zero
 
 #endif  // BASE_ANDROID_TOKEN_ANDROID_H_

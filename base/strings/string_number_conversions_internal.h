@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef BASE_STRINGS_STRING_NUMBER_CONVERSIONS_INTERNAL_H_
 #define BASE_STRINGS_STRING_NUMBER_CONVERSIONS_INTERNAL_H_
 
@@ -256,7 +261,7 @@ bool StringToDoubleImpl(STRING input, const CHAR* data, double& output) {
 }
 
 template <typename Char, typename OutIter>
-static bool HexStringToByteContainer(StringPiece input, OutIter output) {
+static bool HexStringToByteContainer(std::string_view input, OutIter output) {
   size_t count = input.size();
   if (count == 0 || (count % 2) != 0)
     return false;

@@ -2,9 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <memory>
+#include <optional>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "absl/base/macros.h"
 #include "openssl/hpke.h"
@@ -30,6 +33,7 @@
 #include "quiche/common/test_tools/quiche_test_utils.h"
 
 using testing::_;
+using testing::HasSubstr;
 
 namespace quic {
 namespace test {
@@ -166,7 +170,7 @@ class TlsClientHandshakerTest : public QuicTestWithParam<ParsedQuicVersion> {
  public:
   TlsClientHandshakerTest()
       : supported_versions_({GetParam()}),
-        server_id_(kServerHostname, kServerPort, false),
+        server_id_(kServerHostname, kServerPort),
         server_compressed_certs_cache_(
             QuicCompressedCertsCache::kQuicCompressedCertsCacheSize) {
     crypto_config_ = std::make_unique<QuicCryptoClientConfig>(
@@ -644,13 +648,14 @@ TEST_P(TlsClientHandshakerTest, ServerRequiresCustomALPN) {
         return std::find(alpns.cbegin(), alpns.cend(), kTestAlpn);
       });
 
-  EXPECT_CALL(*server_connection_,
-              CloseConnection(QUIC_HANDSHAKE_FAILED,
-                              static_cast<QuicIetfTransportErrorCodes>(
-                                  CRYPTO_ERROR_FIRST + 120),
-                              "TLS handshake failure (ENCRYPTION_INITIAL) 120: "
-                              "no application protocol",
-                              _));
+  EXPECT_CALL(
+      *server_connection_,
+      CloseConnection(
+          QUIC_HANDSHAKE_FAILED,
+          static_cast<QuicIetfTransportErrorCodes>(CRYPTO_ERROR_FIRST + 120),
+          HasSubstr("TLS handshake failure (ENCRYPTION_INITIAL) 120: "
+                    "no application protocol"),
+          _));
 
   stream()->CryptoConnect();
   crypto_test_utils::AdvanceHandshake(connection_, stream(), 0,

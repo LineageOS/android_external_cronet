@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and use spans.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/profiler/chrome_unwinder_android.h"
 
 #include "base/memory/aligned_memory.h"
@@ -1107,9 +1112,10 @@ TEST(ChromeUnwinderAndroidTest, TryUnwind) {
   RegisterContextStackPointer(&context) = stack_memory.stack_start_address();
   context.arm_lr = second_pc;
 
-  EXPECT_EQ(UnwindResult::kUnrecognizedFrame,
-            unwinder.TryUnwind(&context, stack_memory.stack_end_address(),
-                               &unwound_frames));
+  EXPECT_EQ(
+      UnwindResult::kUnrecognizedFrame,
+      unwinder.TryUnwind(/*capture_state=*/nullptr, &context,
+                         stack_memory.stack_end_address(), &unwound_frames));
   ExpectFramesEq(std::vector<Frame>({{first_pc, chrome_module},
                                      {second_pc, chrome_module},
                                      {third_pc, nullptr}}),
@@ -1177,9 +1183,10 @@ TEST(ChromeUnwinderAndroidTest, TryUnwindInfiniteLoopSingleFrame) {
   // unwind.
   context.arm_lr = pc;
 
-  EXPECT_EQ(UnwindResult::kAborted,
-            unwinder.TryUnwind(&context, stack_memory.stack_end_address(),
-                               &unwound_frames));
+  EXPECT_EQ(
+      UnwindResult::kAborted,
+      unwinder.TryUnwind(/*capture_state=*/nullptr, &context,
+                         stack_memory.stack_end_address(), &unwound_frames));
   ExpectFramesEq(std::vector<Frame>({{pc, chrome_module}}), unwound_frames);
 }
 
@@ -1270,9 +1277,10 @@ TEST(ChromeUnwinderAndroidTest, TryUnwindInfiniteLoopMultipleFrames) {
   context.arm_lr = second_pc;
   context.arm_r4 = stack_memory.stack_start_address();
 
-  EXPECT_EQ(UnwindResult::kAborted,
-            unwinder.TryUnwind(&context, stack_memory.stack_end_address(),
-                               &unwound_frames));
+  EXPECT_EQ(
+      UnwindResult::kAborted,
+      unwinder.TryUnwind(/*capture_state=*/nullptr, &context,
+                         stack_memory.stack_end_address(), &unwound_frames));
   ExpectFramesEq(std::vector<Frame>(
                      {{first_pc, chrome_module}, {second_pc, chrome_module}}),
                  unwound_frames);
@@ -1343,9 +1351,10 @@ TEST(ChromeUnwinderAndroidTest, TryUnwindUnalignedSPFrameUnwind) {
   context.arm_lr =
       text_section_start_address + (number_of_pages + 1) * page_size;
 
-  EXPECT_EQ(UnwindResult::kAborted,
-            unwinder.TryUnwind(&context, stack_memory.stack_end_address(),
-                               &unwound_frames));
+  EXPECT_EQ(
+      UnwindResult::kAborted,
+      unwinder.TryUnwind(/*capture_state=*/nullptr, &context,
+                         stack_memory.stack_end_address(), &unwound_frames));
   ExpectFramesEq(std::vector<Frame>({{pc, chrome_module}}), unwound_frames);
 }
 
@@ -1416,9 +1425,10 @@ TEST(ChromeUnwinderAndroidTest, TryUnwindUnalignedSPInstructionUnwind) {
 
   context.arm_r4 = stack_memory.stack_start_address() + sizeof(uintptr_t) / 2;
 
-  EXPECT_EQ(UnwindResult::kAborted,
-            unwinder.TryUnwind(&context, stack_memory.stack_end_address(),
-                               &unwound_frames));
+  EXPECT_EQ(
+      UnwindResult::kAborted,
+      unwinder.TryUnwind(/*capture_state=*/nullptr, &context,
+                         stack_memory.stack_end_address(), &unwound_frames));
   ExpectFramesEq(std::vector<Frame>({{pc, chrome_module}}), unwound_frames);
 }
 
@@ -1488,9 +1498,10 @@ TEST(ChromeUnwinderAndroidTest, TryUnwindSPOverflow) {
   context.arm_lr =
       text_section_start_address + (number_of_pages + 1) * page_size;
 
-  EXPECT_EQ(UnwindResult::kAborted,
-            unwinder.TryUnwind(&context, stack_memory.stack_end_address(),
-                               &unwound_frames));
+  EXPECT_EQ(
+      UnwindResult::kAborted,
+      unwinder.TryUnwind(/*capture_state=*/nullptr, &context,
+                         stack_memory.stack_end_address(), &unwound_frames));
   ExpectFramesEq(std::vector<Frame>({{pc, chrome_module}}), unwound_frames);
 }
 
@@ -1560,9 +1571,10 @@ TEST(ChromeUnwinderAndroidTest, TryUnwindNullSP) {
   context.arm_lr =
       text_section_start_address + (number_of_pages + 1) * page_size;
 
-  EXPECT_EQ(UnwindResult::kAborted,
-            unwinder.TryUnwind(&context, stack_memory.stack_end_address(),
-                               &unwound_frames));
+  EXPECT_EQ(
+      UnwindResult::kAborted,
+      unwinder.TryUnwind(/*capture_state=*/nullptr, &context,
+                         stack_memory.stack_end_address(), &unwound_frames));
   ExpectFramesEq(std::vector<Frame>({{pc, chrome_module}}), unwound_frames);
 }
 
@@ -1635,9 +1647,10 @@ TEST(ChromeUnwinderAndroidTest, TryUnwindInvalidSPOperation) {
   context.arm_lr =
       text_section_start_address + (number_of_pages + 1) * page_size;
 
-  EXPECT_EQ(UnwindResult::kAborted,
-            unwinder.TryUnwind(&context, stack_memory.stack_end_address(),
-                               &unwound_frames));
+  EXPECT_EQ(
+      UnwindResult::kAborted,
+      unwinder.TryUnwind(/*capture_state=*/nullptr, &context,
+                         stack_memory.stack_end_address(), &unwound_frames));
   ExpectFramesEq(std::vector<Frame>({{pc, chrome_module}}), unwound_frames);
 }
 

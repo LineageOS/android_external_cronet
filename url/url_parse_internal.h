@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/350788890): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef URL_URL_PARSE_INTERNAL_H_
 #define URL_URL_PARSE_INTERNAL_H_
 
@@ -88,14 +93,8 @@ void ParsePathInternal(const char16_t* spec,
 // Internal functions in url_parse.cc that parse non-special URLs, which are
 // similar to `ParseNonSpecialURL` functions in url_parse.h, but with
 // `trim_path_end` parameter that controls whether to trim path end or not.
-void ParseNonSpecialURLInternal(const char* url,
-                                int url_len,
-                                bool trim_path_end,
-                                Parsed* parsed);
-void ParseNonSpecialURLInternal(const char16_t* url,
-                                int url_len,
-                                bool trim_path_end,
-                                Parsed* parsed);
+Parsed ParseNonSpecialURLInternal(std::string_view url, bool trim_path_end);
+Parsed ParseNonSpecialURLInternal(std::u16string_view url, bool trim_path_end);
 
 // Given a spec and a pointer to the character after the colon following the
 // special scheme, this parses it and fills in the structure, Every item in the

@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <utility>
@@ -63,7 +64,7 @@ class QuicCryptoServerStreamTest : public QuicTest {
             std::move(proof_source), KeyExchangeSource::Default()),
         server_compressed_certs_cache_(
             QuicCompressedCertsCache::kQuicCompressedCertsCacheSize),
-        server_id_(kServerHostname, kServerPort, false),
+        server_id_(kServerHostname, kServerPort),
         client_crypto_config_(crypto_test_utils::ProofVerifierForTesting()) {}
 
   void Initialize() { InitializeServer(); }

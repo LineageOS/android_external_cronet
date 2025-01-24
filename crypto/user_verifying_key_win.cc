@@ -2,21 +2,33 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <atomic>
-#include <functional>
-#include <utility>
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/351564777): Remove this and convert code to safer constructs.
+#pragma allow_unsafe_buffers
+#endif
+
+#include "crypto/user_verifying_key.h"
+
+#include <windows.h>
 
 #include <windows.foundation.h>
 #include <windows.security.credentials.h>
 #include <windows.security.cryptography.core.h>
 #include <windows.storage.streams.h>
 
-#include "base/base64.h"
+#include <atomic>
+#include <functional>
+#include <utility>
+
 #include "base/functional/callback_helpers.h"
 #include "base/logging.h"
+#include "base/memory/ref_counted.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
+#include "base/metrics/histogram_functions.h"
 #include "base/strings/strcat.h"
+#include "base/strings/string_number_conversions.h"
+#include "base/synchronization/atomic_flag.h"
 #include "base/task/bind_post_task.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
@@ -26,7 +38,6 @@
 #include "base/win/scoped_hstring.h"
 #include "base/win/winrt_storage_util.h"
 #include "crypto/random.h"
-#include "crypto/user_verifying_key.h"
 
 using ABI::Windows::Foundation::IAsyncAction;
 using ABI::Windows::Foundation::IAsyncOperation;
@@ -38,7 +49,13 @@ using ABI::Windows::Security::Credentials::KeyCredentialCreationOption;
 using ABI::Windows::Security::Credentials::KeyCredentialOperationResult;
 using ABI::Windows::Security::Credentials::KeyCredentialRetrievalResult;
 using ABI::Windows::Security::Credentials::KeyCredentialStatus;
+using ABI::Windows::Security::Credentials::
+    KeyCredentialStatus_CredentialAlreadyExists;
+using ABI::Windows::Security::Credentials::KeyCredentialStatus_NotFound;
 using ABI::Windows::Security::Credentials::KeyCredentialStatus_Success;
+using ABI::Windows::Security::Credentials::KeyCredentialStatus_UserCanceled;
+using ABI::Windows::Security::Credentials::
+    KeyCredentialStatus_UserPrefersPassword;
 using ABI::Windows::Security::Cryptography::Core::
     CryptographicPublicKeyBlobType_X509SubjectPublicKeyInfo;
 using ABI::Windows::Storage::Streams::IBuffer;
@@ -47,6 +64,147 @@ using Microsoft::WRL::ComPtr;
 namespace crypto {
 
 namespace {
+
+// Possible outcomes for WinRT API calls. These are recorded for signing
+// and key creation.
+// Do not delete or reorder entries, this must be kept in sync with the
+// corresponding metrics enum.
+enum class KeyCredentialCreateResult {
+  kSucceeded = 0,
+  kAPIReturnedError = 1,
+  kNoActivationFactory = 2,
+  kRequestCreateAsyncFailed = 3,
+  kPostAsyncHandlersFailed = 4,
+  kInvalidStatusReturned = 5,
+  kInvalidResultReturned = 6,
+  kInvalidCredentialReturned = 7,
+
+  kMaxValue = 7,
+};
+
+enum class KeyCredentialSignResult {
+  kSucceeded = 0,
+  kAPIReturnedError = 1,
+  kRequestSignAsyncFailed = 2,
+  kPostAsyncHandlersFailed = 3,
+  kIBufferCreationFailed = 4,
+  kInvalidStatusReturned = 5,
+  kInvalidResultReturned = 6,
+  kInvalidSignatureBufferReturned = 7,
+
+  kMaxValue = 7,
+};
+
+void RecordCreateAsyncResult(KeyCredentialCreateResult result) {
+  base::UmaHistogramEnumeration(
+      "WebAuthentication.Windows.KeyCredentialCreation", result);
+}
+
+void RecordSignAsyncResult(KeyCredentialSignResult result) {
+  base::UmaHistogramEnumeration("WebAuthentication.Windows.KeyCredentialSign",
+                                result);
+}
+
+// Due to a Windows bug (http://task.ms/49689617), the system UI for
+// KeyCredentialManager appears under all other windows, at least when invoked
+// from a Win32 app. Therefore this code polls the visible windows and
+// foregrounds the correct window when it appears.
+class HelloDialogForegrounder
+    : public base::RefCountedThreadSafe<HelloDialogForegrounder> {
+ public:
+  HelloDialogForegrounder() = default;
+  HelloDialogForegrounder(const HelloDialogForegrounder&) = delete;
+  HelloDialogForegrounder& operator=(const HelloDialogForegrounder&) = delete;
+
+  void Start() {
+    CHECK_EQ(state_, State::kNotStarted);
+    state_ = State::kPollingForFirstAppearance;
+    BringHelloDialogToFront(/*iteration=*/0);
+  }
+
+  void Stop() { stopping_.Set(); }
+
+ private:
+  friend class base::RefCountedThreadSafe<HelloDialogForegrounder>;
+  ~HelloDialogForegrounder() = default;
+
+  // Values to report the results of attempts to bring the Windows Hello
+  // user verification dialog to the foreground.
+  // Do not delete or reorder entries, this must be kept in sync with the
+  // corresponding metrics enum.
+  enum class ForegroundHelloDialogResult {
+    kSucceeded = 0,
+    kForegroundingFailed = 1,
+    kWindowNotFound = 2,
+    kAbortedWithoutFindingWindow = 3,
+
+    kMaxValue = 3,
+  };
+
+  enum class State {
+    kNotStarted,
+    kPollingForFirstAppearance,
+    kPollingForAuthRetry,
+  };
+
+  void RecordForegroundingOutcome(ForegroundHelloDialogResult result) {
+    base::UmaHistogramEnumeration(
+        "WebAuthentication.Windows.ForegroundedWindowsHelloDialog", result);
+  }
+
+  void BringHelloDialogToFront(int iteration) {
+    int interval = 100;
+
+    if (stopping_.IsSet()) {
+      if (state_ == State::kPollingForFirstAppearance) {
+        // In State::kPollingForAuthRetry, success has already been reported.
+        RecordForegroundingOutcome(
+            ForegroundHelloDialogResult::kAbortedWithoutFindingWindow);
+      }
+      return;
+    }
+
+    constexpr wchar_t kTargetWindowName[] = L"Windows Security";
+    constexpr wchar_t kTargetClassName[] = L"Credential Dialog Xaml Host";
+    if (state_ == State::kPollingForFirstAppearance) {
+      constexpr int kMaxIterations = 40;
+      if (iteration > kMaxIterations) {
+        RecordForegroundingOutcome(
+            ForegroundHelloDialogResult::kWindowNotFound);
+        return;
+      }
+
+      if (HWND hwnd = FindWindowW(kTargetClassName, kTargetWindowName)) {
+        base::UmaHistogramExactLinear(
+            "WebAuthentication.Windows.FindHelloDialogIterationCount",
+            iteration,
+            /*exclusive_max=*/kMaxIterations + 1);
+        if (SetForegroundWindow(hwnd)) {
+          RecordForegroundingOutcome(ForegroundHelloDialogResult::kSucceeded);
+        } else {
+          RecordForegroundingOutcome(
+              ForegroundHelloDialogResult::kForegroundingFailed);
+        }
+        state_ = State::kPollingForAuthRetry;
+      }
+    } else {
+      CHECK_EQ(state_, State::kPollingForAuthRetry);
+      if (HWND hwnd = FindWindowW(kTargetClassName, kTargetWindowName)) {
+        SetForegroundWindow(hwnd);
+      }
+      interval = 500;
+    }
+    base::ThreadPool::PostDelayedTask(
+        FROM_HERE, {base::TaskPriority::USER_BLOCKING, base::MayBlock()},
+        base::BindOnce(&HelloDialogForegrounder::BringHelloDialogToFront,
+                       base::WrapRefCounted<HelloDialogForegrounder>(this),
+                       iteration + 1),
+        base::Milliseconds(interval));
+  }
+
+  State state_ = State::kNotStarted;
+  base::AtomicFlag stopping_;
+};
 
 enum KeyCredentialManagerAvailability {
   kUnknown = 0,
@@ -74,14 +232,27 @@ SplitOnceCallbackIntoThree(base::OnceCallback<void(Args...)> callback) {
 }
 
 void OnSigningSuccess(
-    base::OnceCallback<void(std::optional<std::vector<uint8_t>>)> callback,
+    UserVerifyingSigningKey::UserVerifyingKeySignatureCallback callback,
+    scoped_refptr<HelloDialogForegrounder> foregrounder,
     ComPtr<IKeyCredentialOperationResult> sign_result) {
+  foregrounder->Stop();
+
   KeyCredentialStatus status;
   HRESULT hr = sign_result->get_Status(&status);
   if (FAILED(hr) || status != KeyCredentialStatus_Success) {
     LOG(ERROR) << FormatError(
         "Failed to obtain Status from IKeyCredentialOperationResult", hr);
-    std::move(callback).Run(std::nullopt);
+    RecordSignAsyncResult(KeyCredentialSignResult::kInvalidStatusReturned);
+    UserVerifyingKeySigningError sign_error;
+    switch (status) {
+      case KeyCredentialStatus_UserCanceled:
+      case KeyCredentialStatus_UserPrefersPassword:
+        sign_error = UserVerifyingKeySigningError::kUserCancellation;
+        break;
+      default:
+        sign_error = UserVerifyingKeySigningError::kUnknownError;
+    }
+    std::move(callback).Run(base::unexpected(sign_error));
     return;
   }
 
@@ -90,7 +261,9 @@ void OnSigningSuccess(
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError(
         "Failed to obtain Result from IKeyCredentialOperationResult", hr);
-    std::move(callback).Run(std::nullopt);
+    RecordSignAsyncResult(KeyCredentialSignResult::kInvalidResultReturned);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeySigningError::kPlatformApiError));
     return;
   }
 
@@ -101,30 +274,41 @@ void OnSigningSuccess(
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError("Failed to obtain data from signature buffer",
                               hr);
-    std::move(callback).Run(std::nullopt);
+    RecordSignAsyncResult(
+        KeyCredentialSignResult::kInvalidSignatureBufferReturned);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeySigningError::kPlatformApiError));
     return;
   }
-  std::move(callback).Run(
-      std::vector<uint8_t>(signature_data, signature_data + signature_length));
+
+  RecordSignAsyncResult(KeyCredentialSignResult::kSucceeded);
+  std::move(callback).Run(base::ok(
+      std::vector<uint8_t>(signature_data, signature_data + signature_length)));
 }
 
 void OnSigningError(
-    base::OnceCallback<void(std::optional<std::vector<uint8_t>>)> callback,
+    UserVerifyingSigningKey::UserVerifyingKeySignatureCallback callback,
+    scoped_refptr<HelloDialogForegrounder> foregrounder,
     HRESULT hr) {
+  foregrounder->Stop();
   LOG(ERROR) << FormatError("Failed to sign with user-verifying signature", hr);
-  std::move(callback).Run(std::nullopt);
+  RecordSignAsyncResult(KeyCredentialSignResult::kAPIReturnedError);
+  std::move(callback).Run(
+      base::unexpected(UserVerifyingKeySigningError::kPlatformApiError));
 }
 
 void SignInternal(
     std::vector<uint8_t> data,
     ComPtr<IKeyCredential> credential,
-    base::OnceCallback<void(std::optional<std::vector<uint8_t>>)> callback) {
+    UserVerifyingSigningKey::UserVerifyingKeySignatureCallback callback) {
   Microsoft::WRL::ComPtr<IBuffer> signing_buf;
   HRESULT hr =
       base::win::CreateIBufferFromData(data.data(), data.size(), &signing_buf);
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError("SignInternal: IBuffer creation failed", hr);
-    std::move(callback).Run(std::nullopt);
+    RecordSignAsyncResult(KeyCredentialSignResult::kIBufferCreationFailed);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeySigningError::kPlatformApiError));
     return;
   }
 
@@ -133,22 +317,30 @@ void SignInternal(
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError("SignInternal: Call to RequestSignAsync failed",
                               hr);
-    std::move(callback).Run(std::nullopt);
+    RecordSignAsyncResult(KeyCredentialSignResult::kRequestSignAsyncFailed);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeySigningError::kPlatformApiError));
     return;
   }
 
+  auto foregrounder = base::MakeRefCounted<HelloDialogForegrounder>();
   auto callback_splits = SplitOnceCallbackIntoThree(std::move(callback));
   hr = base::win::PostAsyncHandlers(
       sign_result.Get(),
-      base::BindOnce(&OnSigningSuccess,
-                     std::move(std::get<0>(callback_splits))),
-      base::BindOnce(&OnSigningError, std::move(std::get<1>(callback_splits))));
+      base::BindOnce(&OnSigningSuccess, std::move(std::get<0>(callback_splits)),
+                     foregrounder),
+      base::BindOnce(&OnSigningError, std::move(std::get<1>(callback_splits)),
+                     foregrounder));
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError("SignInternal: Call to PostAsyncHandlers failed",
                               hr);
-    std::move(std::get<2>(callback_splits)).Run(std::nullopt);
+    RecordSignAsyncResult(KeyCredentialSignResult::kPostAsyncHandlersFailed);
+    std::move(std::get<2>(callback_splits))
+        .Run(base::unexpected(UserVerifyingKeySigningError::kPlatformApiError));
     return;
   }
+
+  foregrounder->Start();
 }
 
 class UserVerifyingSigningKeyWin : public UserVerifyingSigningKey {
@@ -159,8 +351,7 @@ class UserVerifyingSigningKeyWin : public UserVerifyingSigningKey {
   ~UserVerifyingSigningKeyWin() override = default;
 
   void Sign(base::span<const uint8_t> data,
-            base::OnceCallback<void(std::optional<std::vector<uint8_t>>)>
-                callback) override {
+            UserVerifyingKeySignatureCallback callback) override {
     scoped_refptr<base::SequencedTaskRunner> task_runner =
         base::ThreadPool::CreateSequencedTaskRunner(
             {base::MayBlock(), base::TaskPriority::USER_BLOCKING});
@@ -192,26 +383,51 @@ class UserVerifyingSigningKeyWin : public UserVerifyingSigningKey {
     return key_name_;
   }
 
+  bool IsHardwareBacked() const override { return true; }
+
  private:
   std::string key_name_;
   ComPtr<IKeyCredential> credential_;
 };
 
 void OnKeyCreationCompletionSuccess(
-    base::OnceCallback<void(std::unique_ptr<UserVerifyingSigningKey>)> callback,
+    UserVerifyingKeyProvider::UserVerifyingKeyCreationCallback callback,
     std::string key_name,
+    scoped_refptr<HelloDialogForegrounder> foregrounder,
     ComPtr<IKeyCredentialRetrievalResult> key_result) {
+  if (foregrounder) {
+    foregrounder->Stop();
+  }
+
   KeyCredentialStatus status;
   HRESULT hr = key_result->get_Status(&status);
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError(
         "Failed to obtain Status from IKeyCredentialRetrievalResult", hr);
-    std::move(callback).Run(nullptr);
+    RecordCreateAsyncResult(KeyCredentialCreateResult::kInvalidStatusReturned);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
     return;
   } else if (status != KeyCredentialStatus_Success) {
     LOG(ERROR) << "IKeyCredentialRetrievalResult failed with status "
                << static_cast<uint32_t>(status);
-    std::move(callback).Run(nullptr);
+    RecordCreateAsyncResult(KeyCredentialCreateResult::kInvalidResultReturned);
+    UserVerifyingKeyCreationError uv_key_error;
+    switch (status) {
+      case KeyCredentialStatus_CredentialAlreadyExists:
+        uv_key_error = UserVerifyingKeyCreationError::kDuplicateCredential;
+        break;
+      case KeyCredentialStatus_NotFound:
+        uv_key_error = UserVerifyingKeyCreationError::kNotFound;
+        break;
+      case KeyCredentialStatus_UserCanceled:
+      case KeyCredentialStatus_UserPrefersPassword:
+        uv_key_error = UserVerifyingKeyCreationError::kUserCancellation;
+        break;
+      default:
+        uv_key_error = UserVerifyingKeyCreationError::kUnknownError;
+    }
+    std::move(callback).Run(base::unexpected(uv_key_error));
     return;
   }
 
@@ -220,26 +436,36 @@ void OnKeyCreationCompletionSuccess(
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError(
         "Failed to obtain KeyCredential from KeyCredentialRetrievalResult", hr);
-    std::move(callback).Run(nullptr);
+    RecordCreateAsyncResult(
+        KeyCredentialCreateResult::kInvalidCredentialReturned);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
     return;
   }
+
+  RecordCreateAsyncResult(KeyCredentialCreateResult::kSucceeded);
   auto key = std::make_unique<UserVerifyingSigningKeyWin>(
       std::move(key_name), std::move(credential));
-  std::move(callback).Run(std::move(key));
+  std::move(callback).Run(base::ok(std::move(key)));
 }
 
 void OnKeyCreationCompletionError(
-    base::OnceCallback<void(std::unique_ptr<UserVerifyingSigningKey>)> callback,
+    UserVerifyingKeyProvider::UserVerifyingKeyCreationCallback callback,
+    scoped_refptr<HelloDialogForegrounder> foregrounder,
     HRESULT hr) {
+  if (foregrounder) {
+    foregrounder->Stop();
+  }
   LOG(ERROR) << FormatError("Failed to obtain user-verifying key from system",
                             hr);
-  std::move(callback).Run(nullptr);
+  RecordCreateAsyncResult(KeyCredentialCreateResult::kAPIReturnedError);
+  std::move(callback).Run(
+      base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
 }
 
 void GenerateUserVerifyingSigningKeyInternal(
     std::string key_label,
-    base::OnceCallback<void(std::unique_ptr<UserVerifyingSigningKey>)>
-        callback) {
+    UserVerifyingKeyProvider::UserVerifyingKeyCreationCallback callback) {
   SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY();
   auto key_name = base::win::ScopedHString::Create(key_label);
 
@@ -252,10 +478,11 @@ void GenerateUserVerifyingSigningKeyInternal(
         "GenerateUserVerifyingSigningKeyInternal: Failed to obtain activation "
         "factory for KeyCredentialManager",
         hr);
-    std::move(callback).Run(nullptr);
+    RecordCreateAsyncResult(KeyCredentialCreateResult::kNoActivationFactory);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
     return;
   }
-
   ComPtr<IAsyncOperation<KeyCredentialRetrievalResult*>> create_result;
   hr = factory->RequestCreateAsync(
       key_name.get(),
@@ -266,32 +493,41 @@ void GenerateUserVerifyingSigningKeyInternal(
         "GenerateUserVerifyingSigningKeyInternal: Call to RequestCreateAsync "
         "failed",
         hr);
-    std::move(callback).Run(nullptr);
+    RecordCreateAsyncResult(
+        KeyCredentialCreateResult::kRequestCreateAsyncFailed);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
     return;
   }
 
+  auto foregrounder = base::MakeRefCounted<HelloDialogForegrounder>();
   auto callback_splits = SplitOnceCallbackIntoThree(std::move(callback));
   hr = base::win::PostAsyncHandlers(
       create_result.Get(),
       base::BindOnce(&OnKeyCreationCompletionSuccess,
                      std::move(std::get<0>(callback_splits)),
-                     std::move(key_label)),
+                     std::move(key_label), foregrounder),
       base::BindOnce(&OnKeyCreationCompletionError,
-                     std::move(std::get<1>(callback_splits))));
+                     std::move(std::get<1>(callback_splits)), foregrounder));
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError(
         "GenerateUserVerifyingSigningKeyInternal: Call to PostAsyncHandlers "
         "failed",
         hr);
-    std::move(std::get<2>(callback_splits)).Run(nullptr);
+    RecordCreateAsyncResult(
+        KeyCredentialCreateResult::kPostAsyncHandlersFailed);
+    std::move(std::get<2>(callback_splits))
+        .Run(
+            base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
     return;
   }
+
+  foregrounder->Start();
 }
 
 void GetUserVerifyingSigningKeyInternal(
     std::string key_label,
-    base::OnceCallback<void(std::unique_ptr<UserVerifyingSigningKey>)>
-        callback) {
+    UserVerifyingKeyProvider::UserVerifyingKeyCreationCallback callback) {
   SCOPED_MAY_LOAD_LIBRARY_AT_BACKGROUND_PRIORITY();
   auto key_name = base::win::ScopedHString::Create(key_label);
 
@@ -304,7 +540,8 @@ void GetUserVerifyingSigningKeyInternal(
         "GetUserVerifyingSigningKeyInternal: Failed to obtain activation "
         "factory for KeyCredentialManager",
         hr);
-    std::move(callback).Run(nullptr);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
     return;
   }
 
@@ -313,7 +550,8 @@ void GetUserVerifyingSigningKeyInternal(
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError(
         "GetUserVerifyingSigningKeyInternal: Call to OpenAsync failed", hr);
-    std::move(callback).Run(nullptr);
+    std::move(callback).Run(
+        base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
     return;
   }
 
@@ -322,14 +560,18 @@ void GetUserVerifyingSigningKeyInternal(
       open_result.Get(),
       base::BindOnce(&OnKeyCreationCompletionSuccess,
                      std::move(std::get<0>(callback_splits)),
-                     std::move(key_label)),
+                     std::move(key_label),
+                     /*HelloDialogForegrounder=*/nullptr),
       base::BindOnce(&OnKeyCreationCompletionError,
-                     std::move(std::get<1>(callback_splits))));
+                     std::move(std::get<1>(callback_splits)),
+                     /*HelloDialogForegrounder=*/nullptr));
   if (FAILED(hr)) {
     LOG(ERROR) << FormatError(
         "GetUserVerifyingSigningKeyInternal: Call to PostAsyncHandlers failed",
         hr);
-    std::move(std::get<2>(callback_splits)).Run(nullptr);
+    std::move(std::get<2>(callback_splits))
+        .Run(
+            base::unexpected(UserVerifyingKeyCreationError::kPlatformApiError));
     return;
   }
 }
@@ -385,20 +627,20 @@ class UserVerifyingKeyProviderWin : public UserVerifyingKeyProvider {
   void GenerateUserVerifyingSigningKey(
       base::span<const SignatureVerifier::SignatureAlgorithm>
           acceptable_algorithms,
-      base::OnceCallback<void(std::unique_ptr<UserVerifyingSigningKey>)>
-          callback) override {
+      UserVerifyingKeyCreationCallback callback) override {
     // Ignore the non-empty return value of `SelectAlgorithm` unless in the
     // future Windows supports more algorithms.
     if (!SelectAlgorithm(acceptable_algorithms)) {
       LOG(ERROR) << "Key generation does not include a supported algorithm.";
-      std::move(callback).Run(nullptr);
+      std::move(callback).Run(base::unexpected(
+          UserVerifyingKeyCreationError::kNoMatchingAlgorithm));
       return;
     }
 
     std::vector<uint8_t> random(16);
     crypto::RandBytes(random);
     UserVerifyingKeyLabel key_label =
-        base::StrCat({"uvkey-", base::Base64Encode(random)});
+        base::StrCat({"uvkey-", base::HexEncode(random)});
 
     scoped_refptr<base::SequencedTaskRunner> task_runner =
         base::ThreadPool::CreateSequencedTaskRunner(
@@ -412,8 +654,7 @@ class UserVerifyingKeyProviderWin : public UserVerifyingKeyProvider {
 
   void GetUserVerifyingSigningKey(
       UserVerifyingKeyLabel key_label,
-      base::OnceCallback<void(std::unique_ptr<UserVerifyingSigningKey>)>
-          callback) override {
+      UserVerifyingKeyCreationCallback callback) override {
     scoped_refptr<base::SequencedTaskRunner> task_runner =
         base::ThreadPool::CreateSequencedTaskRunner(
             {base::MayBlock(), base::TaskPriority::USER_BLOCKING});

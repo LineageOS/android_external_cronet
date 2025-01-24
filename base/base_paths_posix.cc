@@ -43,7 +43,6 @@ bool PathProviderPosix(int key, FilePath* result) {
       FilePath bin_dir;
       if (!ReadSymbolicLink(FilePath(kProcSelfExe), &bin_dir)) {
         NOTREACHED() << "Unable to resolve " << kProcSelfExe << ".";
-        return false;
       }
       *result = bin_dir;
       return true;
@@ -52,7 +51,6 @@ bool PathProviderPosix(int key, FilePath* result) {
       std::optional<std::string> bin_dir = StringSysctl(name, std::size(name));
       if (!bin_dir.has_value() || bin_dir.value().length() <= 1) {
         NOTREACHED() << "Unable to resolve path.";
-        return false;
       }
       *result = FilePath(bin_dir.value());
       return true;
@@ -60,7 +58,6 @@ bool PathProviderPosix(int key, FilePath* result) {
       char bin_dir[PATH_MAX + 1];
       if (realpath(getexecname(), bin_dir) == NULL) {
         NOTREACHED() << "Unable to resolve " << getexecname() << ".";
-        return false;
       }
       *result = FilePath(bin_dir);
       return true;

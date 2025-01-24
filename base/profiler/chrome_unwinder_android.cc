@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/profiler/chrome_unwinder_android.h"
 
 #include <algorithm>
@@ -83,9 +88,11 @@ bool ChromeUnwinderAndroid::CanUnwindFrom(const Frame& current_frame) const {
          current_frame.module->GetBaseAddress() == chrome_module_base_address_;
 }
 
-UnwindResult ChromeUnwinderAndroid::TryUnwind(RegisterContext* thread_context,
-                                              uintptr_t stack_top,
-                                              std::vector<Frame>* stack) {
+UnwindResult ChromeUnwinderAndroid::TryUnwind(
+    UnwinderStateCapture* capture_state,
+    RegisterContext* thread_context,
+    uintptr_t stack_top,
+    std::vector<Frame>* stack) {
   DCHECK(CanUnwindFrom(stack->back()));
   uintptr_t frame_initial_sp = RegisterContextStackPointer(thread_context);
   const uintptr_t unwind_initial_pc =
@@ -296,7 +303,6 @@ uintptr_t GetFirstUnwindInstructionIndexFromFunctionOffsetTableEntry(
   } while (true);
 
   NOTREACHED();
-  return 0;
 }
 
 const std::optional<FunctionOffsetTableIndex>

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "net/http/http_auth_handler_digest.h"
 
 #include <string>
@@ -277,8 +282,8 @@ bool HttpAuthHandlerDigest::ParseChallengeProperty(std::string_view name,
     // Parse the comma separated list of qops.
     // auth is the only supported qop, and all other values are ignored.
     //
-    // TODO(https://crbug.com/820198): Remove this copy when
-    // HttpUtil::ValuesIterator can take a StringPiece.
+    // TODO(crbug.com/41375521): Remove this copy when
+    // HttpUtil::ValuesIterator can take a std::string_view.
     std::string value_str(value);
     HttpUtil::ValuesIterator qop_values(value_str.begin(), value_str.end(),
                                         ',');
@@ -305,7 +310,7 @@ std::string HttpAuthHandlerDigest::QopToString(QualityOfProtection qop) {
     case QOP_AUTH:
       return "auth";
     default:
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
       return std::string();
   }
 }
@@ -324,7 +329,7 @@ std::string HttpAuthHandlerDigest::AlgorithmToString(Algorithm algorithm) {
     case Algorithm::SHA256_SESS:
       return "SHA-256-sess";
     default:
-      NOTREACHED();
+      NOTREACHED_IN_MIGRATION();
       return std::string();
   }
 }

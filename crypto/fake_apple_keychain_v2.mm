@@ -4,25 +4,27 @@
 
 #include "crypto/fake_apple_keychain_v2.h"
 
-#include <vector>
-
-#if defined(LEAK_SANITIZER)
-#include <sanitizer/lsan_interface.h>
-#endif
-
 #import <CoreFoundation/CoreFoundation.h>
 #import <Foundation/Foundation.h>
 #import <LocalAuthentication/LocalAuthentication.h>
 #import <Security/Security.h>
 
+#include <algorithm>
+#include <vector>
+
 #include "base/apple/bridging.h"
 #include "base/apple/foundation_util.h"
 #include "base/apple/scoped_cftyperef.h"
+#include "base/apple/scoped_typeref.h"
 #include "base/check_op.h"
+#include "base/memory/scoped_policy.h"
 #include "base/notimplemented.h"
-#include "base/notreached.h"
 #include "base/strings/sys_string_conversions.h"
 #include "crypto/apple_keychain_v2.h"
+
+#if defined(LEAK_SANITIZER)
+#include <sanitizer/lsan_interface.h>
+#endif
 
 namespace crypto {
 
@@ -141,6 +143,20 @@ FakeAppleKeychainV2::KeyCopyAttributes(SecKeyRef key) {
   // The real implementation does not return the actual key.
   CFDictionaryRemoveValue(result.get(), kSecValueRef);
   return result;
+}
+
+OSStatus FakeAppleKeychainV2::ItemAdd(CFDictionaryRef attributes,
+                                      CFTypeRef* result) {
+  CFStringRef keychain_access_group =
+      base::apple::GetValueFromDictionary<CFStringRef>(attributes,
+                                                       kSecAttrAccessGroup);
+  if (!CFEqual(keychain_access_group, keychain_access_group_.get())) {
+    return errSecMissingEntitlement;
+  }
+  base::apple::ScopedCFTypeRef<CFDictionaryRef> item(
+      attributes, base::scoped_policy::RETAIN);
+  items_.push_back(item);
+  return errSecSuccess;
 }
 
 OSStatus FakeAppleKeychainV2::ItemCopyMatching(CFDictionaryRef query,

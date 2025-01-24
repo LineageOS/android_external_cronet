@@ -96,6 +96,7 @@
 #include "absl/strings/internal/resize_uninitialized.h"
 #include "absl/strings/internal/string_constant.h"
 #include "absl/strings/string_view.h"
+#include "absl/types/compare.h"
 #include "absl/types/optional.h"
 
 namespace absl {
@@ -105,6 +106,7 @@ class CordTestPeer;
 template <typename Releaser>
 Cord MakeCordFromExternal(absl::string_view, Releaser&&);
 void CopyCordToString(const Cord& src, absl::Nonnull<std::string*> dst);
+void AppendCordToString(const Cord& src, absl::Nonnull<std::string*> dst);
 
 // Cord memory accounting modes
 enum class CordMemoryAccounting {
@@ -421,6 +423,18 @@ class Cord {
   friend void CopyCordToString(const Cord& src,
                                absl::Nonnull<std::string*> dst);
 
+  // AppendCordToString()
+  //
+  // Appends the contents of a `src` Cord to a `*dst` string.
+  //
+  // This function optimizes the case of appending to a non-empty destination
+  // string. If `*dst` already has capacity to store the contents of the cord,
+  // this function does not invalidate pointers previously returned by
+  // `dst->data()`. If `*dst` is a new object, prefer to simply use the
+  // conversion operator to `std::string`.
+  friend void AppendCordToString(const Cord& src,
+                                 absl::Nonnull<std::string*> dst);
+
   class CharIterator;
 
   //----------------------------------------------------------------------------
@@ -627,7 +641,6 @@ class Cord {
     bool operator==(const CharIterator& other) const;
     bool operator!=(const CharIterator& other) const;
     reference operator*() const;
-    pointer operator->() const;
 
     friend Cord;
 
@@ -758,7 +771,7 @@ class Cord {
 
   // Cord::Find()
   //
-  // Returns an iterator to the first occurrance of the substring `needle`.
+  // Returns an iterator to the first occurrence of the substring `needle`.
   //
   // If the substring `needle` does not occur, `Cord::char_end()` is returned.
   CharIterator Find(absl::string_view needle) const;
@@ -835,6 +848,38 @@ class Cord {
   friend class CordTestPeer;
   friend bool operator==(const Cord& lhs, const Cord& rhs);
   friend bool operator==(const Cord& lhs, absl::string_view rhs);
+
+#ifdef __cpp_impl_three_way_comparison
+
+  // Cords support comparison with other Cords and string_views via operator<
+  // and others; here we provide a wrapper for the C++20 three-way comparison
+  // <=> operator.
+
+  static inline std::strong_ordering ConvertCompareResultToStrongOrdering(
+      int c) {
+    if (c == 0) {
+      return std::strong_ordering::equal;
+    } else if (c < 0) {
+      return std::strong_ordering::less;
+    } else {
+      return std::strong_ordering::greater;
+    }
+  }
+
+  friend inline std::strong_ordering operator<=>(const Cord& x, const Cord& y) {
+    return ConvertCompareResultToStrongOrdering(x.Compare(y));
+  }
+
+  friend inline std::strong_ordering operator<=>(const Cord& lhs,
+                                                 absl::string_view rhs) {
+    return ConvertCompareResultToStrongOrdering(lhs.Compare(rhs));
+  }
+
+  friend inline std::strong_ordering operator<=>(absl::string_view lhs,
+                                                 const Cord& rhs) {
+    return ConvertCompareResultToStrongOrdering(-rhs.Compare(lhs));
+  }
+#endif
 
   friend absl::Nullable<const CordzInfo*> GetCordzInfoForTesting(
       const Cord& cord);
@@ -1066,6 +1111,8 @@ class Cord {
       const;
 
   CharIterator FindImpl(CharIterator it, absl::string_view needle) const;
+
+  void CopyToArrayImpl(absl::Nonnull<char*> dst) const;
 };
 
 ABSL_NAMESPACE_END
@@ -1104,8 +1151,8 @@ absl::Nonnull<CordRep*> NewExternalRep(absl::string_view data,
 // Overload for function reference types that dispatches using a function
 // pointer because there are no `alignof()` or `sizeof()` a function reference.
 // NOLINTNEXTLINE - suppress clang-tidy raw pointer return.
-inline absl::Nonnull<CordRep*> NewExternalRep(absl::string_view data,
-                               void (&releaser)(absl::string_view)) {
+inline absl::Nonnull<CordRep*> NewExternalRep(
+    absl::string_view data, void (&releaser)(absl::string_view)) {
   return NewExternalRep(data, &releaser);
 }
 
@@ -1450,6 +1497,14 @@ inline bool Cord::StartsWith(absl::string_view rhs) const {
   return EqualsImpl(rhs, rhs_size);
 }
 
+inline void Cord::CopyToArrayImpl(absl::Nonnull<char*> dst) const {
+  if (!contents_.is_tree()) {
+    if (!empty()) contents_.CopyToArray(dst);
+  } else {
+    CopyToArraySlowPath(dst);
+  }
+}
+
 inline void Cord::ChunkIterator::InitTree(
     absl::Nonnull<cord_internal::CordRep*> tree) {
   tree = cord_internal::SkipCrcNode(tree);
@@ -1601,10 +1656,6 @@ inline bool Cord::CharIterator::operator!=(const CharIterator& other) const {
 
 inline Cord::CharIterator::reference Cord::CharIterator::operator*() const {
   return *chunk_iterator_->data();
-}
-
-inline Cord::CharIterator::pointer Cord::CharIterator::operator->() const {
-  return chunk_iterator_->data();
 }
 
 inline Cord Cord::AdvanceAndRead(absl::Nonnull<CharIterator*> it,

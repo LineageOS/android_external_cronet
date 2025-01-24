@@ -6,13 +6,14 @@
 
 #include <inttypes.h>
 
+#include <array>
 #include <optional>
+#include <string_view>
 
 #include "base/check.h"
 #include "base/hash/hash.h"
 #include "base/pickle.h"
 #include "base/rand_util.h"
-#include "base/strings/string_piece.h"
 #include "base/strings/stringprintf.h"
 
 namespace base {
@@ -23,7 +24,7 @@ Token Token::CreateRandom() {
 
   // Use base::RandBytes instead of crypto::RandBytes, because crypto calls the
   // base version directly, and to prevent the dependency from base/ to crypto/.
-  base::RandBytes(&token, sizeof(token));
+  RandBytes(byte_span_from_ref(token));
 
   CHECK(!token.is_zero());
 
@@ -31,15 +32,15 @@ Token Token::CreateRandom() {
 }
 
 std::string Token::ToString() const {
-  return base::StringPrintf("%016" PRIX64 "%016" PRIX64, words_[0], words_[1]);
+  return StringPrintf("%016" PRIX64 "%016" PRIX64, words_[0], words_[1]);
 }
 
 // static
-std::optional<Token> Token::FromString(StringPiece string_representation) {
+std::optional<Token> Token::FromString(std::string_view string_representation) {
   if (string_representation.size() != 32) {
     return std::nullopt;
   }
-  uint64_t words[2];
+  std::array<uint64_t, 2> words;
   for (size_t i = 0; i < 2; i++) {
     uint64_t word = 0;
     // This j loop is similar to HexStringToUInt64 but we are intentionally

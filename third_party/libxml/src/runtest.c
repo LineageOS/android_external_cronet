@@ -11,6 +11,8 @@
  * daniel@veillard.com
  */
 
+#define XML_DEPRECATED
+
 #include "libxml.h"
 #include <stdio.h>
 #ifdef HAVE_UNISTD_H
@@ -209,33 +211,11 @@ static void globfree(glob_t *pglob) {
 static int nb_tests = 0;
 static int nb_errors = 0;
 static int nb_leaks = 0;
-static int extraMemoryFromResolver = 0;
 
 static int
 fatalError(void) {
     fprintf(stderr, "Exitting tests on fatal error\n");
     exit(1);
-}
-
-/*
- * We need to trap calls to the resolver to not account memory for the catalog
- * which is shared to the current running test. We also don't want to have
- * network downloads modifying tests.
- */
-static xmlParserInputPtr
-testExternalEntityLoader(const char *URL, const char *ID,
-			 xmlParserCtxtPtr ctxt) {
-    xmlParserInputPtr ret;
-
-    if (checkTestFile(URL)) {
-	ret = xmlNoNetExternalEntityLoader(URL, ID, ctxt);
-    } else {
-	int memused = xmlMemUsed();
-	ret = xmlNoNetExternalEntityLoader(URL, ID, ctxt);
-	extraMemoryFromResolver += xmlMemUsed() - memused;
-    }
-
-    return(ret);
 }
 
 /*
@@ -284,7 +264,15 @@ initializeLibxml2(void) {
     xmlMemStrdup = NULL;
     xmlInitParser();
     xmlMemSetup(xmlMemFree, xmlMemMalloc, xmlMemRealloc, xmlMemoryStrdup);
-    xmlSetExternalEntityLoader(testExternalEntityLoader);
+#ifdef LIBXML_CATALOG_ENABLED
+#ifdef _WIN32
+    putenv("XML_CATALOG_FILES=");
+#else
+    setenv("XML_CATALOG_FILES", "", 1);
+#endif
+    xmlInitializeCatalog();
+    xmlCatalogSetDefaults(XML_CATA_ALLOW_NONE);
+#endif
 #ifdef LIBXML_SCHEMAS_ENABLED
     xmlSchemaInitTypes();
     xmlRelaxNGInitTypes();
@@ -1515,8 +1503,8 @@ saxParseTest(const char *filename, const char *result,
         xmlFreeDoc(ctxt->myDoc);
         xmlFreeParserCtxt(ctxt);
     }
-    if (ret == XML_WAR_UNDECLARED_ENTITY) {
-        fprintf(SAXdebug, "xmlSAXUserParseFile returned error %d\n", ret);
+    if (ret == XML_ERR_UNDECLARED_ENTITY) {
+        fprintf(SAXdebug, "xmlParseDocument returned error %d\n", ret);
         ret = 0;
     }
     if (ret != 0) {
@@ -1555,10 +1543,6 @@ saxParseTest(const char *filename, const char *result,
         xmlHashFree(userData.parameterEntities, hashFreeEntity);
         xmlFreeDoc(ctxt->myDoc);
         xmlFreeParserCtxt(ctxt);
-    }
-    if (ret == XML_WAR_UNDECLARED_ENTITY) {
-        fprintf(SAXdebug, "xmlSAXUserParseFile returned error %d\n", ret);
-        ret = 0;
     }
     fclose(SAXdebug);
     if (compareFiles(temp, result)) {
@@ -1605,9 +1589,11 @@ oldParseTest(const char *filename, const char *result,
      * base of the test, parse with the old API
      */
 #ifdef LIBXML_SAX1_ENABLED
+    xmlGetWarningsDefaultValue = 0;
     doc = xmlParseFile(filename);
+    xmlGetWarningsDefaultValue = 1;
 #else
-    doc = xmlReadFile(filename, NULL, 0);
+    doc = xmlReadFile(filename, NULL, XML_PARSE_NOWARNING);
 #endif
     if (doc == NULL)
         return(1);
@@ -1626,9 +1612,11 @@ oldParseTest(const char *filename, const char *result,
      * Parse the saved result to make sure the round trip is okay
      */
 #ifdef LIBXML_SAX1_ENABLED
+    xmlGetWarningsDefaultValue = 0;
     doc = xmlParseFile(temp);
+    xmlGetWarningsDefaultValue = 1;
 #else
-    doc = xmlReadFile(temp, NULL, 0);
+    doc = xmlReadFile(temp, NULL, XML_PARSE_NOWARNING);
 #endif
     if (doc == NULL)
         return(1);
@@ -2129,7 +2117,8 @@ noentParseTest(const char *filename, const char *result,
     /*
      * base of the test, parse with the old API
      */
-    doc = xmlReadFile(filename, NULL, options | XML_PARSE_NOWARNING);
+    doc = xmlReadFile(filename, NULL,
+                      options | XML_PARSE_NOWARNING | XML_PARSE_NOERROR);
     if (doc == NULL)
         return(1);
     temp = resultFilename(filename, temp_directory, ".res");
@@ -2146,7 +2135,8 @@ noentParseTest(const char *filename, const char *result,
     /*
      * Parse the saved result to make sure the round trip is okay
      */
-    doc = xmlReadFile(filename, NULL, options | XML_PARSE_NOWARNING);
+    doc = xmlReadFile(filename, NULL,
+                      options | XML_PARSE_NOWARNING | XML_PARSE_NOERROR);
     if (doc == NULL)
         return(1);
     xmlSaveFile(temp, doc);
@@ -2542,7 +2532,7 @@ testXPath(const char *str, int xptr, int expr) {
     nb_tests++;
 #if defined(LIBXML_XPTR_ENABLED)
     if (xptr) {
-	ctxt = xmlXPtrNewContext(xpathDocument, NULL, NULL);
+	ctxt = xmlXPathNewContext(xpathDocument);
         xmlXPathSetErrorHandler(ctxt, testStructuredErrorHandler, NULL);
 	res = xmlXPtrEval(BAD_CAST str, ctxt);
     } else {
@@ -2723,14 +2713,13 @@ static int
 xptrDocTest(const char *filename,
             const char *resul ATTRIBUTE_UNUSED,
             const char *err ATTRIBUTE_UNUSED,
-            int options) {
+            int options ATTRIBUTE_UNUSED) {
 
     char pattern[500];
     char result[500];
     glob_t globbuf;
     size_t i;
     int ret = 0, res;
-    const char *subdir = options == -1 ? "xptr-xp1" : "xptr";
 
     xpathDocument = xmlReadFile(filename, NULL,
                                 XML_PARSE_DTDATTR | XML_PARSE_NOENT);
@@ -2739,15 +2728,15 @@ xptrDocTest(const char *filename,
 	return(-1);
     }
 
-    res = snprintf(pattern, 499, "./test/XPath/%s/%s*",
-            subdir, baseFilename(filename));
+    res = snprintf(pattern, 499, "./test/XPath/xptr/%s*",
+                   baseFilename(filename));
     if (res >= 499)
         pattern[499] = 0;
     globbuf.gl_offs = 0;
     glob(pattern, GLOB_DOOFFS, NULL, &globbuf);
     for (i = 0;i < globbuf.gl_pathc;i++) {
-        res = snprintf(result, 499, "result/XPath/%s/%s",
-	         subdir, baseFilename(globbuf.gl_pathv[i]));
+        res = snprintf(result, 499, "result/XPath/xptr/%s",
+	               baseFilename(globbuf.gl_pathv[i]));
         if (res >= 499)
             result[499] = 0;
 	res = xpathCommonTest(globbuf.gl_pathv[i], &result[0], 1, 0);
@@ -4336,7 +4325,13 @@ threadsTest(const char *filename ATTRIBUTE_UNUSED,
 	    const char *resul ATTRIBUTE_UNUSED,
 	    const char *err ATTRIBUTE_UNUSED,
 	    int options ATTRIBUTE_UNUSED) {
-    return(testThread());
+    int ret;
+
+    xmlCatalogSetDefaults(XML_CATA_ALLOW_ALL);
+    ret = testThread();
+    xmlCatalogSetDefaults(XML_CATA_ALLOW_NONE);
+
+    return(ret);
 }
 #endif
 
@@ -4839,11 +4834,6 @@ testDesc testDescriptions[] = {
 #ifdef LIBXML_XPTR_ENABLED
     { "XPointer document queries regression tests" ,
       xptrDocTest, "./test/XPath/docs/*", NULL, NULL, NULL,
-      -1 },
-#endif
-#ifdef LIBXML_XPTR_LOCS_ENABLED
-    { "XPointer xpointer() queries regression tests" ,
-      xptrDocTest, "./test/XPath/docs/*", NULL, NULL, NULL,
       0 },
 #endif
 #ifdef LIBXML_VALID_ENABLED
@@ -4930,10 +4920,29 @@ launchTests(testDescPtr tst) {
     char *result;
     char *error;
     int mem;
-    xmlCharEncodingHandlerPtr ebcdicHandler, eucJpHandler;
+    xmlCharEncodingHandlerPtr ebcdicHandler, ibm1141Handler, eucJpHandler;
 
     ebcdicHandler = xmlGetCharEncodingHandler(XML_CHAR_ENCODING_EBCDIC);
+    ibm1141Handler = xmlFindCharEncodingHandler("IBM-1141");
+
+    /*
+     * When decoding EUC-JP, musl doesn't seem to support 0x8F control
+     * codes.
+     */
     eucJpHandler = xmlGetCharEncodingHandler(XML_CHAR_ENCODING_EUC_JP);
+    if (eucJpHandler != NULL) {
+        xmlBufferPtr in, out;
+
+        in = xmlBufferCreateSize(10);
+        xmlBufferCCat(in, "\x8f\xe9\xae");
+        out = xmlBufferCreateSize(10);
+        if (xmlCharEncInFunc(eucJpHandler, out, in) != 3) {
+            xmlCharEncCloseFunc(eucJpHandler);
+            eucJpHandler = NULL;
+        }
+        xmlBufferFree(out);
+        xmlBufferFree(in);
+    }
 
     if (tst == NULL) return(-1);
     if (tst->in != NULL) {
@@ -4944,7 +4953,7 @@ launchTests(testDescPtr tst) {
 	for (i = 0;i < globbuf.gl_pathc;i++) {
 	    if (!checkTestFile(globbuf.gl_pathv[i]))
 	        continue;
-            if (((ebcdicHandler == NULL) &&
+            if ((((ebcdicHandler == NULL) || (ibm1141Handler == NULL)) &&
                  (strstr(globbuf.gl_pathv[i], "ebcdic") != NULL)) ||
                 ((eucJpHandler == NULL) &&
                  (strstr(globbuf.gl_pathv[i], "icu_parse_test") != NULL)))
@@ -4970,7 +4979,6 @@ launchTests(testDescPtr tst) {
 	        error = NULL;
 	    }
             mem = xmlMemUsed();
-            extraMemoryFromResolver = 0;
             testErrorsSize = 0;
             testErrors[0] = 0;
             res = tst->func(globbuf.gl_pathv[i], result, error,
@@ -4983,13 +4991,10 @@ launchTests(testDescPtr tst) {
                 err++;
             }
             else if (xmlMemUsed() != mem) {
-                if ((xmlMemUsed() != mem) &&
-                    (extraMemoryFromResolver == 0)) {
-                    fprintf(stderr, "File %s leaked %d bytes\n",
-                            globbuf.gl_pathv[i], xmlMemUsed() - mem);
-                    nb_leaks++;
-                    err++;
-                }
+                fprintf(stderr, "File %s leaked %d bytes\n",
+                        globbuf.gl_pathv[i], xmlMemUsed() - mem);
+                nb_leaks++;
+                err++;
             }
             testErrorsSize = 0;
 	    if (result)
@@ -5001,8 +5006,8 @@ launchTests(testDescPtr tst) {
     } else {
         testErrorsSize = 0;
 	testErrors[0] = 0;
-	extraMemoryFromResolver = 0;
         res = tst->func(NULL, NULL, NULL, tst->options);
+        xmlResetLastError();
 	if (res != 0) {
 	    nb_errors++;
 	    err++;
@@ -5010,6 +5015,7 @@ launchTests(testDescPtr tst) {
     }
 
     xmlCharEncCloseFunc(ebcdicHandler);
+    xmlCharEncCloseFunc(ibm1141Handler);
     xmlCharEncCloseFunc(eucJpHandler);
 
     return(err);

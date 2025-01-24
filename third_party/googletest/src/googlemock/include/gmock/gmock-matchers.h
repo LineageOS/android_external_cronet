@@ -1300,34 +1300,48 @@ class AllOfMatcherImpl : public MatcherInterface<const T&> {
 
   bool MatchAndExplain(const T& x,
                        MatchResultListener* listener) const override {
-    // If either matcher1_ or matcher2_ doesn't match x, we only need
-    // to explain why one of them fails.
+    // This method uses matcher's explanation when explaining the result.
+    // However, if matcher doesn't provide one, this method uses matcher's
+    // description.
     std::string all_match_result;
-
-    for (size_t i = 0; i < matchers_.size(); ++i) {
+    for (const Matcher<T>& matcher : matchers_) {
       StringMatchResultListener slistener;
-      if (matchers_[i].MatchAndExplain(x, &slistener)) {
-        if (all_match_result.empty()) {
-          all_match_result = slistener.str();
+      // Return explanation for first failed matcher.
+      if (!matcher.MatchAndExplain(x, &slistener)) {
+        const std::string explanation = slistener.str();
+        if (!explanation.empty()) {
+          *listener << explanation;
         } else {
-          std::string result = slistener.str();
-          if (!result.empty()) {
-            all_match_result += ", and ";
-            all_match_result += result;
-          }
+          *listener << "which doesn't match (" << Describe(matcher) << ")";
         }
-      } else {
-        *listener << slistener.str();
         return false;
+      }
+      // Keep track of explanations in case all matchers succeed.
+      std::string explanation = slistener.str();
+      if (explanation.empty()) {
+        explanation = Describe(matcher);
+      }
+      if (all_match_result.empty()) {
+        all_match_result = explanation;
+      } else {
+        if (!explanation.empty()) {
+          all_match_result += ", and ";
+          all_match_result += explanation;
+        }
       }
     }
 
-    // Otherwise we need to explain why *both* of them match.
     *listener << all_match_result;
     return true;
   }
 
  private:
+  // Returns matcher description as a string.
+  std::string Describe(const Matcher<T>& matcher) const {
+    StringMatchResultListener listener;
+    matcher.DescribeTo(listener.stream());
+    return listener.str();
+  }
   const std::vector<Matcher<T>> matchers_;
 };
 
@@ -1405,34 +1419,55 @@ class AnyOfMatcherImpl : public MatcherInterface<const T&> {
 
   bool MatchAndExplain(const T& x,
                        MatchResultListener* listener) const override {
+    // This method uses matcher's explanation when explaining the result.
+    // However, if matcher doesn't provide one, this method uses matcher's
+    // description.
     std::string no_match_result;
-
-    // If either matcher1_ or matcher2_ matches x, we just need to
-    // explain why *one* of them matches.
-    for (size_t i = 0; i < matchers_.size(); ++i) {
+    for (const Matcher<T>& matcher : matchers_) {
       StringMatchResultListener slistener;
-      if (matchers_[i].MatchAndExplain(x, &slistener)) {
-        *listener << slistener.str();
-        return true;
-      } else {
-        if (no_match_result.empty()) {
-          no_match_result = slistener.str();
+      // Return explanation for first match.
+      if (matcher.MatchAndExplain(x, &slistener)) {
+        const std::string explanation = slistener.str();
+        if (!explanation.empty()) {
+          *listener << explanation;
         } else {
-          std::string result = slistener.str();
-          if (!result.empty()) {
-            no_match_result += ", and ";
-            no_match_result += result;
-          }
+          *listener << "which matches (" << Describe(matcher) << ")";
+        }
+        return true;
+      }
+      // Keep track of explanations in case there is no match.
+      std::string explanation = slistener.str();
+      if (explanation.empty()) {
+        explanation = DescribeNegation(matcher);
+      }
+      if (no_match_result.empty()) {
+        no_match_result = explanation;
+      } else {
+        if (!explanation.empty()) {
+          no_match_result += ", and ";
+          no_match_result += explanation;
         }
       }
     }
 
-    // Otherwise we need to explain why *both* of them fail.
     *listener << no_match_result;
     return false;
   }
 
  private:
+  // Returns matcher description as a string.
+  std::string Describe(const Matcher<T>& matcher) const {
+    StringMatchResultListener listener;
+    matcher.DescribeTo(listener.stream());
+    return listener.str();
+  }
+
+  std::string DescribeNegation(const Matcher<T>& matcher) const {
+    StringMatchResultListener listener;
+    matcher.DescribeNegationTo(listener.stream());
+    return listener.str();
+  }
+
   const std::vector<Matcher<T>> matchers_;
 };
 
@@ -5445,47 +5480,47 @@ PolymorphicMatcher<internal::ExceptionMatcherImpl<Err>> ThrowsMessage(
       ::testing::internal::MakePredicateFormatterFromMatcher(matcher), value)
 
 // MATCHER* macros itself are listed below.
-#define MATCHER(name, description)                                             \
-  class name##Matcher                                                          \
-      : public ::testing::internal::MatcherBaseImpl<name##Matcher> {           \
-   public:                                                                     \
-    template <typename arg_type>                                               \
-    class gmock_Impl : public ::testing::MatcherInterface<const arg_type&> {   \
-     public:                                                                   \
-      gmock_Impl() {}                                                          \
-      bool MatchAndExplain(                                                    \
-          const arg_type& arg,                                                 \
-          ::testing::MatchResultListener* result_listener) const override;     \
-      void DescribeTo(::std::ostream* gmock_os) const override {               \
-        *gmock_os << FormatDescription(false);                                 \
-      }                                                                        \
-      void DescribeNegationTo(::std::ostream* gmock_os) const override {       \
-        *gmock_os << FormatDescription(true);                                  \
-      }                                                                        \
-                                                                               \
-     private:                                                                  \
-      ::std::string FormatDescription(bool negation) const {                   \
-        /* NOLINTNEXTLINE readability-redundant-string-init */                 \
-        ::std::string gmock_description = (description);                       \
-        if (!gmock_description.empty()) {                                      \
-          return gmock_description;                                            \
-        }                                                                      \
-        return ::testing::internal::FormatMatcherDescription(negation, #name,  \
-                                                             {}, {});          \
-      }                                                                        \
-    };                                                                         \
-  };                                                                           \
-  inline name##Matcher GMOCK_INTERNAL_WARNING_PUSH()                           \
-      GMOCK_INTERNAL_WARNING_CLANG(ignored, "-Wunused-function")               \
-          GMOCK_INTERNAL_WARNING_CLANG(ignored, "-Wunused-member-function")    \
-              name GMOCK_INTERNAL_WARNING_POP()() {                            \
-    return {};                                                                 \
-  }                                                                            \
-  template <typename arg_type>                                                 \
-  bool name##Matcher::gmock_Impl<arg_type>::MatchAndExplain(                   \
-      const arg_type& arg,                                                     \
-      ::testing::MatchResultListener* result_listener GTEST_ATTRIBUTE_UNUSED_) \
-      const
+#define MATCHER(name, description)                                            \
+  class name##Matcher                                                         \
+      : public ::testing::internal::MatcherBaseImpl<name##Matcher> {          \
+   public:                                                                    \
+    template <typename arg_type>                                              \
+    class gmock_Impl : public ::testing::MatcherInterface<const arg_type&> {  \
+     public:                                                                  \
+      gmock_Impl() {}                                                         \
+      bool MatchAndExplain(                                                   \
+          const arg_type& arg,                                                \
+          ::testing::MatchResultListener* result_listener) const override;    \
+      void DescribeTo(::std::ostream* gmock_os) const override {              \
+        *gmock_os << FormatDescription(false);                                \
+      }                                                                       \
+      void DescribeNegationTo(::std::ostream* gmock_os) const override {      \
+        *gmock_os << FormatDescription(true);                                 \
+      }                                                                       \
+                                                                              \
+     private:                                                                 \
+      ::std::string FormatDescription(bool negation) const {                  \
+        /* NOLINTNEXTLINE readability-redundant-string-init */                \
+        ::std::string gmock_description = (description);                      \
+        if (!gmock_description.empty()) {                                     \
+          return gmock_description;                                           \
+        }                                                                     \
+        return ::testing::internal::FormatMatcherDescription(negation, #name, \
+                                                             {}, {});         \
+      }                                                                       \
+    };                                                                        \
+  };                                                                          \
+  inline name##Matcher GMOCK_INTERNAL_WARNING_PUSH()                          \
+      GMOCK_INTERNAL_WARNING_CLANG(ignored, "-Wunused-function")              \
+          GMOCK_INTERNAL_WARNING_CLANG(ignored, "-Wunused-member-function")   \
+              name GMOCK_INTERNAL_WARNING_POP()() {                           \
+    return {};                                                                \
+  }                                                                           \
+  template <typename arg_type>                                                \
+  bool name##Matcher::gmock_Impl<arg_type>::MatchAndExplain(                  \
+      const arg_type& arg,                                                    \
+      GTEST_INTERNAL_ATTRIBUTE_MAYBE_UNUSED ::testing::MatchResultListener*   \
+          result_listener) const
 
 #define MATCHER_P(name, p0, description) \
   GMOCK_INTERNAL_MATCHER(name, name##MatcherP, description, (#p0), (p0))
@@ -5567,11 +5602,11 @@ PolymorphicMatcher<internal::ExceptionMatcherImpl<Err>> ThrowsMessage(
   }                                                                            \
   template <GMOCK_INTERNAL_MATCHER_TEMPLATE_PARAMS(args)>                      \
   template <typename arg_type>                                                 \
-  bool full_name<GMOCK_INTERNAL_MATCHER_TYPE_PARAMS(args)>::gmock_Impl<        \
-      arg_type>::MatchAndExplain(const arg_type& arg,                          \
-                                 ::testing::MatchResultListener*               \
-                                     result_listener GTEST_ATTRIBUTE_UNUSED_)  \
-      const
+  bool full_name<GMOCK_INTERNAL_MATCHER_TYPE_PARAMS(args)>::                   \
+      gmock_Impl<arg_type>::MatchAndExplain(                                   \
+          const arg_type& arg,                                                 \
+          GTEST_INTERNAL_ATTRIBUTE_MAYBE_UNUSED ::testing::                    \
+              MatchResultListener* result_listener) const
 
 #define GMOCK_INTERNAL_MATCHER_TEMPLATE_PARAMS(args) \
   GMOCK_PP_TAIL(                                     \
@@ -5606,8 +5641,8 @@ PolymorphicMatcher<internal::ExceptionMatcherImpl<Err>> ThrowsMessage(
 
 #define GMOCK_INTERNAL_MATCHER_ARGS_USAGE(args) \
   GMOCK_PP_TAIL(GMOCK_PP_FOR_EACH(GMOCK_INTERNAL_MATCHER_ARG_USAGE, , args))
-#define GMOCK_INTERNAL_MATCHER_ARG_USAGE(i, data_unused, arg_unused) \
-  , gmock_p##i
+#define GMOCK_INTERNAL_MATCHER_ARG_USAGE(i, data_unused, arg) \
+  , ::std::forward<arg##_type>(gmock_p##i)
 
 // To prevent ADL on certain functions we put them on a separate namespace.
 using namespace no_adl;  // NOLINT

@@ -2,6 +2,8 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+// IWYU pragma: private, include "base/memory/raw_ptr.h"
+
 #ifndef PARTITION_ALLOC_POINTERS_RAW_PTR_H_
 #define PARTITION_ALLOC_POINTERS_RAW_PTR_H_
 
@@ -11,62 +13,76 @@
 #include <type_traits>
 #include <utility>
 
-#include "build/build_config.h"
+#include "partition_alloc/build_config.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/flags.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
 #include "partition_alloc/partition_alloc_base/component_export.h"
 #include "partition_alloc/partition_alloc_base/cxx20_is_constant_evaluated.h"
-#include "partition_alloc/partition_alloc_base/debug/debugging_buildflags.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_config.h"
 #include "partition_alloc/partition_alloc_forward.h"
 #include "partition_alloc/pointers/instance_tracer.h"
-#include "partition_alloc/raw_ptr_buildflags.h"
 
-#if BUILDFLAG(IS_WIN)
+#if PA_BUILDFLAG(IS_WIN)
 #include "partition_alloc/partition_alloc_base/win/win_handle_types.h"
 #endif
 
-#if BUILDFLAG(USE_PARTITION_ALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC)
 #include "partition_alloc/partition_alloc_base/check.h"
 // Live implementation of MiraclePtr being built.
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) || \
-    BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
+#if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) || \
+    PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 #define PA_RAW_PTR_CHECK(condition) PA_BASE_CHECK(condition)
 #else
 // No-op implementation of MiraclePtr being built.
 // Note that `PA_BASE_DCHECK()` evaporates from non-DCHECK builds,
 // minimizing impact of generated code.
 #define PA_RAW_PTR_CHECK(condition) PA_BASE_DCHECK(condition)
-#endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||
-        // BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
-#else   // BUILDFLAG(USE_PARTITION_ALLOC)
+#endif  // PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||
+        // PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
+#else   // PA_BUILDFLAG(USE_PARTITION_ALLOC)
 // Without PartitionAlloc, there's no `PA_BASE_D?CHECK()` implementation
 // available.
 #define PA_RAW_PTR_CHECK(condition)
-#endif  // BUILDFLAG(USE_PARTITION_ALLOC)
+#endif  // PA_BUILDFLAG(USE_PARTITION_ALLOC)
 
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+#if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL)
 #include "partition_alloc/pointers/raw_ptr_backup_ref_impl.h"
-#elif BUILDFLAG(USE_ASAN_UNOWNED_PTR)
+#elif PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL)
 #include "partition_alloc/pointers/raw_ptr_asan_unowned_impl.h"
-#elif BUILDFLAG(USE_HOOKABLE_RAW_PTR)
+#elif PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL)
 #include "partition_alloc/pointers/raw_ptr_hookable_impl.h"
 #else
 #include "partition_alloc/pointers/raw_ptr_noop_impl.h"
 #endif
 
 namespace cc {
+class ImageDecodeCache;
 class Scheduler;
-}
+class TextureLayerImpl;
+}  // namespace cc
 namespace base::internal {
 class DelayTimerBase;
+class JobTaskSource;
 }
 namespace base::test {
 struct RawPtrCountingImplForTest;
 }
 namespace content::responsiveness {
 class Calculator;
+}
+namespace v8 {
+class JobTask;
+}
+namespace blink::scheduler {
+class MainThreadTaskQueue;
+class NonMainThreadTaskQueue;
+}  // namespace blink::scheduler
+namespace base::sequence_manager::internal {
+class TaskQueueImpl;
+}
+namespace mojo {
+class Connector;
 }
 
 namespace partition_alloc::internal {
@@ -93,7 +109,8 @@ enum class RawPtrTraits : unsigned {
   // instead.
   kMayDangle = (1 << 0),
 
-  // Disables any hooks, when building with BUILDFLAG(USE_HOOKABLE_RAW_PTR).
+  // Disables any hooks, when building with
+  // PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL).
   //
   // Internal use only.
   kDisableHooks = (1 << 2),
@@ -166,8 +183,9 @@ struct IsSupportedType<T, std::enable_if_t<std::is_function_v<T>>> {
 };
 
 // This section excludes some types from raw_ptr<T> to avoid them from being
-// used inside base::Unretained in performance sensitive places. These were
-// identified from sampling profiler data. See crbug.com/1287151 for more info.
+// used inside base::Unretained in performance sensitive places.
+// The ones below were identified from sampling profiler data. See
+// crbug.com/1287151 for more info.
 template <>
 struct IsSupportedType<cc::Scheduler> {
   static constexpr bool value = false;
@@ -178,6 +196,42 @@ struct IsSupportedType<base::internal::DelayTimerBase> {
 };
 template <>
 struct IsSupportedType<content::responsiveness::Calculator> {
+  static constexpr bool value = false;
+};
+// The ones below were identified from speedometer3. See crbug.com/335556942 for
+// more info.
+template <>
+struct IsSupportedType<v8::JobTask> {
+  static constexpr bool value = false;
+};
+template <>
+struct IsSupportedType<blink::scheduler::MainThreadTaskQueue> {
+  static constexpr bool value = false;
+};
+template <>
+struct IsSupportedType<base::sequence_manager::internal::TaskQueueImpl> {
+  static constexpr bool value = false;
+};
+template <>
+struct IsSupportedType<base::internal::JobTaskSource> {
+  static constexpr bool value = false;
+};
+template <>
+struct IsSupportedType<mojo::Connector> {
+  static constexpr bool value = false;
+};
+template <>
+struct IsSupportedType<blink::scheduler::NonMainThreadTaskQueue> {
+  static constexpr bool value = false;
+};
+// The ones below were identified from MotionMark. See crbug.com/335556942 for
+// more info.
+template <>
+struct IsSupportedType<cc::ImageDecodeCache> {
+  static constexpr bool value = false;
+};
+template <>
+struct IsSupportedType<cc::TextureLayerImpl> {
   static constexpr bool value = false;
 };
 
@@ -194,13 +248,13 @@ struct IsSupportedType<T, std::enable_if_t<std::is_convertible_v<T*, id>>> {
 };
 #endif  // __OBJC__
 
-#if BUILDFLAG(IS_WIN)
+#if PA_BUILDFLAG(IS_WIN)
 // raw_ptr<HWND__> is unsafe at runtime - if the handle happens to also
 // represent a valid pointer into a PartitionAlloc-managed region then it can
 // lead to manipulating random memory when treating it as BackupRefPtr
 // ref-count.  See also https://crbug.com/1262017.
 //
-// TODO(https://crbug.com/1262017): Cover other handle types like HANDLE,
+// TODO(crbug.com/40799223): Cover other handle types like HANDLE,
 // HLOCAL, HINTERNET, or HDEVINFO.  Maybe we should avoid using raw_ptr<T> when
 // T=void (as is the case in these handle types).  OTOH, explicit,
 // non-template-based raw_ptr<void> should be allowed.  Maybe this can be solved
@@ -218,7 +272,7 @@ struct IsSupportedType<T, std::enable_if_t<std::is_convertible_v<T*, id>>> {
 #undef PA_WINDOWS_HANDLE_TYPE
 #endif
 
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+#if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL)
 template <RawPtrTraits Traits>
 using UnderlyingImplForTraits = internal::RawPtrBackupRefImpl<
     /*AllowDangling=*/partition_alloc::internal::ContainsFlags(
@@ -228,14 +282,14 @@ using UnderlyingImplForTraits = internal::RawPtrBackupRefImpl<
         Traits,
         RawPtrTraits::kDisableBRP)>;
 
-#elif BUILDFLAG(USE_ASAN_UNOWNED_PTR)
+#elif PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL)
 template <RawPtrTraits Traits>
 using UnderlyingImplForTraits = internal::RawPtrAsanUnownedImpl<
     partition_alloc::internal::ContainsFlags(Traits,
                                              RawPtrTraits::kAllowPtrArithmetic),
     partition_alloc::internal::ContainsFlags(Traits, RawPtrTraits::kMayDangle)>;
 
-#elif BUILDFLAG(USE_HOOKABLE_RAW_PTR)
+#elif PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL)
 template <RawPtrTraits Traits>
 using UnderlyingImplForTraits = internal::RawPtrHookableImpl<
     /*EnableHooks=*/!partition_alloc::internal::ContainsFlags(
@@ -248,7 +302,7 @@ using UnderlyingImplForTraits = internal::RawPtrNoOpImpl;
 #endif
 
 constexpr bool IsPtrArithmeticAllowed([[maybe_unused]] RawPtrTraits Traits) {
-#if BUILDFLAG(ENABLE_POINTER_ARITHMETIC_TRAIT_CHECK)
+#if PA_BUILDFLAG(ENABLE_POINTER_ARITHMETIC_TRAIT_CHECK)
   return partition_alloc::internal::ContainsFlags(
       Traits, RawPtrTraits::kAllowPtrArithmetic);
 #else
@@ -300,10 +354,10 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   using element_type = T;
   using DanglingType = raw_ptr<T, Traits | RawPtrTraits::kMayDangle>;
 
-#if !BUILDFLAG(USE_PARTITION_ALLOC)
+#if !PA_BUILDFLAG(USE_PARTITION_ALLOC)
   // See comment at top about `PA_RAW_PTR_CHECK()`.
   static_assert(std::is_same_v<Impl, internal::RawPtrNoOpImpl>);
-#endif  // !BUILDFLAG(USE_PARTITION_ALLOC)
+#endif  // !PA_BUILDFLAG(USE_PARTITION_ALLOC)
 
   static_assert(partition_alloc::internal::AreValidFlags(Traits),
                 "Unknown raw_ptr trait(s)");
@@ -311,20 +365,21 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                 "raw_ptr<T> doesn't work with this kind of pointee type T");
 
   static constexpr bool kZeroOnConstruct =
-      Impl::kMustZeroOnConstruct || (BUILDFLAG(RAW_PTR_ZERO_ON_CONSTRUCT) &&
+      Impl::kMustZeroOnConstruct || (PA_BUILDFLAG(RAW_PTR_ZERO_ON_CONSTRUCT) &&
                                      !partition_alloc::internal::ContainsFlags(
                                          Traits,
                                          RawPtrTraits::kAllowUninitialized));
   static constexpr bool kZeroOnMove =
-      Impl::kMustZeroOnMove || BUILDFLAG(RAW_PTR_ZERO_ON_MOVE);
+      Impl::kMustZeroOnMove || PA_BUILDFLAG(RAW_PTR_ZERO_ON_MOVE);
   static constexpr bool kZeroOnDestruct =
-      Impl::kMustZeroOnDestruct || BUILDFLAG(RAW_PTR_ZERO_ON_DESTRUCT);
+      Impl::kMustZeroOnDestruct || PA_BUILDFLAG(RAW_PTR_ZERO_ON_DESTRUCT);
 
 // A non-trivial default ctor is required for complex implementations (e.g.
 // BackupRefPtr), or even for NoOpImpl when zeroing is requested.
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||                           \
-    BUILDFLAG(USE_ASAN_UNOWNED_PTR) || BUILDFLAG(USE_HOOKABLE_RAW_PTR) || \
-    BUILDFLAG(RAW_PTR_ZERO_ON_CONSTRUCT)
+#if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||   \
+    PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) || \
+    PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL) ||     \
+    PA_BUILDFLAG(RAW_PTR_ZERO_ON_CONSTRUCT)
   PA_ALWAYS_INLINE constexpr raw_ptr() noexcept {
     if constexpr (kZeroOnConstruct) {
       wrapped_ptr_ = nullptr;
@@ -335,23 +390,28 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   // uninitialized).
   PA_ALWAYS_INLINE constexpr raw_ptr() noexcept = default;
   static_assert(!kZeroOnConstruct);
-#endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||
-        // BUILDFLAG(USE_ASAN_UNOWNED_PTR) || BUILDFLAG(USE_HOOKABLE_RAW_PTR) ||
-        // BUILDFLAG(RAW_PTR_ZERO_ON_CONSTRUCT)
+#endif  // PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||
+        // PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) ||
+        // PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL) ||
+        // PA_BUILDFLAG(RAW_PTR_ZERO_ON_CONSTRUCT)
 
 // A non-trivial copy ctor and assignment operator are required for complex
 // implementations (e.g. BackupRefPtr). Unlike the blocks around, we don't need
 // these for NoOpImpl even when zeroing is requested; better to keep them
 // trivial.
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) || \
-    BUILDFLAG(USE_ASAN_UNOWNED_PTR) || BUILDFLAG(USE_HOOKABLE_RAW_PTR)
+#if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||   \
+    PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) || \
+    PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL)
   PA_ALWAYS_INLINE constexpr raw_ptr(const raw_ptr& p) noexcept
       : wrapped_ptr_(Impl::Duplicate(p.wrapped_ptr_)) {
     Impl::Trace(tracer_.owner_id(), p.wrapped_ptr_);
   }
 
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(const raw_ptr& p) noexcept {
-    // Duplicate before releasing, in case the pointer is assigned to itself.
+    // Increment the ref-count first before releasing, in case the pointer is
+    // assigned to itself. (This is different from the concern in the assign-T*
+    // version of this operator, where a different pointer to the same allocator
+    // slot could cause trouble, which isn't a concern here at all.)
     //
     // Unlike the move version of this operator, don't add |this != &p| branch,
     // for performance reasons. Self-assignment is rare, so unconditionally
@@ -367,15 +427,17 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
 #else
   PA_ALWAYS_INLINE raw_ptr(const raw_ptr&) noexcept = default;
   PA_ALWAYS_INLINE raw_ptr& operator=(const raw_ptr&) noexcept = default;
-#endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||
-        // BUILDFLAG(USE_ASAN_UNOWNED_PTR) || BUILDFLAG(USE_HOOKABLE_RAW_PTR)
+#endif  // PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||
+        // PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) ||
+        // PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL)
 
 // A non-trivial move ctor and assignment operator are required for complex
 // implementations (e.g. BackupRefPtr), or even for NoOpImpl when zeroing is
 // requested.
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||                           \
-    BUILDFLAG(USE_ASAN_UNOWNED_PTR) || BUILDFLAG(USE_HOOKABLE_RAW_PTR) || \
-    BUILDFLAG(RAW_PTR_ZERO_ON_MOVE)
+#if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||   \
+    PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) || \
+    PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL) ||     \
+    PA_BUILDFLAG(RAW_PTR_ZERO_ON_MOVE)
   PA_ALWAYS_INLINE constexpr raw_ptr(raw_ptr&& p) noexcept {
     wrapped_ptr_ = p.wrapped_ptr_;
     Impl::Trace(tracer_.owner_id(), wrapped_ptr_);
@@ -387,7 +449,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(raw_ptr&& p) noexcept {
     // Unlike the the copy version of this operator, this branch is necessary
     // for correctness.
-    if (PA_LIKELY(this != &p)) {
+    if (this != &p) [[likely]] {
       Impl::ReleaseWrappedPtr(wrapped_ptr_);
       Impl::Untrace(tracer_.owner_id());
       wrapped_ptr_ = p.wrapped_ptr_;
@@ -403,15 +465,17 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   PA_ALWAYS_INLINE raw_ptr(raw_ptr&&) noexcept = default;
   PA_ALWAYS_INLINE raw_ptr& operator=(raw_ptr&&) noexcept = default;
   static_assert(!kZeroOnMove);
-#endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||
-        // BUILDFLAG(USE_ASAN_UNOWNED_PTR) || BUILDFLAG(USE_HOOKABLE_RAW_PTR) ||
-        // BUILDFLAG(RAW_PTR_ZERO_ON_MOVE)
+#endif  // PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||
+        // PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) ||
+        // PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL) ||
+        // PA_BUILDFLAG(RAW_PTR_ZERO_ON_MOVE)
 
 // A non-trivial default dtor is required for complex implementations (e.g.
 // BackupRefPtr), or even for NoOpImpl when zeroing is requested.
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||                           \
-    BUILDFLAG(USE_ASAN_UNOWNED_PTR) || BUILDFLAG(USE_HOOKABLE_RAW_PTR) || \
-    BUILDFLAG(RAW_PTR_ZERO_ON_DESTRUCT)
+#if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||   \
+    PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) || \
+    PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL) ||     \
+    PA_BUILDFLAG(RAW_PTR_ZERO_ON_DESTRUCT)
   PA_ALWAYS_INLINE PA_CONSTEXPR_DTOR ~raw_ptr() noexcept {
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
@@ -423,9 +487,10 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
 #else
   PA_ALWAYS_INLINE ~raw_ptr() noexcept = default;
   static_assert(!kZeroOnDestruct);
-#endif  // BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) ||
-        // BUILDFLAG(USE_ASAN_UNOWNED_PTR) || BUILDFLAG(USE_HOOKABLE_RAW_PTR) ||
-        // BUILDFLAG(RAW_PTR_ZERO_ON_DESTRUCT)
+#endif  // PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL) ||
+        // PA_BUILDFLAG(USE_RAW_PTR_ASAN_UNOWNED_IMPL) ||
+        // PA_BUILDFLAG(USE_RAW_PTR_HOOKABLE_IMPL) ||
+        // PA_BUILDFLAG(RAW_PTR_ZERO_ON_DESTRUCT)
 
   // Cross-kind copy constructor.
   // Move is not supported as different traits may use different ref-counts, so
@@ -441,7 +506,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     // Limit cross-kind conversions only to cases where `kMayDangle` gets added,
     // because that's needed for ExtractAsDangling() and Unretained(Ref)Wrapper.
     // Use a static_assert, instead of disabling via SFINAE, so that the
-    // compiler catches other conversions. Otherwise the implicit
+    // compiler catches other conversions. Otherwise the implicits
     // `raw_ptr<T> -> T* -> raw_ptr<>` route will be taken.
     static_assert(Traits == (raw_ptr<T, PassedTraits>::Traits |
                              RawPtrTraits::kMayDangle));
@@ -461,7 +526,12 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     // `raw_ptr<T> -> T* -> raw_ptr<>` route will be taken.
     static_assert(Traits == (raw_ptr<T, PassedTraits>::Traits |
                              RawPtrTraits::kMayDangle));
+    // If it was the same type, another overload would've been used.
+    static_assert(!std::is_same_v<raw_ptr, std::decay_t<decltype(p)>>);
 
+    // Unlike the regular varsion of operator=, we don't have an issue of
+    // `*this` and `ptr` being the same object (because it isn't even the same
+    // type, as asserted above), so no need to increment the ref-count first.
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
     wrapped_ptr_ = Impl::WrapRawPtrForDuplication(
@@ -518,9 +588,15 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
     return *this;
   }
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(T* p) noexcept {
+    // Duplicate before releasing, in case the pointers point to the same
+    // allocator slot. Releasing the pointer first could lead to dropping the
+    // ref-count to 0 for the slot, immediately unqurantining and releasing it,
+    // just to immediately reacquire the the ref-count on that slot, leading to
+    // correctness issues.
+    T* new_ptr = Impl::WrapRawPtr(p);
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
-    wrapped_ptr_ = Impl::WrapRawPtr(p);
+    wrapped_ptr_ = new_ptr;
     Impl::Trace(tracer_.owner_id(), wrapped_ptr_);
     return *this;
   }
@@ -532,14 +608,12 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                 !std::is_void_v<typename std::remove_cv<T>::type>>>
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(
       const raw_ptr<U, Traits>& ptr) noexcept {
-    // Make sure that pointer isn't assigned to itself (look at raw_ptr address,
-    // not its contained pointer value). The comparison is only needed when they
-    // are the same type, otherwise they can't be the same raw_ptr object.
-#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-    if constexpr (std::is_same_v<raw_ptr, std::decay_t<decltype(ptr)>>) {
-      PA_RAW_PTR_CHECK(this != &ptr);
-    }
-#endif
+    // If it was the same type, another overload would've been used.
+    static_assert(!std::is_same_v<raw_ptr, std::decay_t<decltype(ptr)>>);
+
+    // Unlike the regular varsion of operator=, we don't have an issue of
+    // `*this` and `ptr` being the same object (because it isn't even the same
+    // type, as asserted above), so no need to increment the ref-count first.
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
     wrapped_ptr_ =
@@ -553,14 +627,12 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
                 !std::is_void_v<typename std::remove_cv<T>::type>>>
   PA_ALWAYS_INLINE constexpr raw_ptr& operator=(
       raw_ptr<U, Traits>&& ptr) noexcept {
-    // Make sure that pointer isn't assigned to itself (look at raw_ptr address,
-    // not its contained pointer value). The comparison is only needed when they
-    // are the same type, otherwise they can't be the same raw_ptr object.
-#if BUILDFLAG(PA_DCHECK_IS_ON) || BUILDFLAG(ENABLE_BACKUP_REF_PTR_SLOW_CHECKS)
-    if constexpr (std::is_same_v<raw_ptr, std::decay_t<decltype(ptr)>>) {
-      PA_RAW_PTR_CHECK(this != &ptr);
-    }
-#endif
+    // If it was the same type, another overload would've been used.
+    static_assert(!std::is_same_v<raw_ptr, std::decay_t<decltype(ptr)>>);
+
+    // Unlike the regular varsion of operator=, we don't have an issue of
+    // `*this` and `ptr` being the same object (because it isn't even the same
+    // type, as asserted above), so no need to increment the ref-count first.
     Impl::ReleaseWrappedPtr(wrapped_ptr_);
     Impl::Untrace(tracer_.owner_id());
     wrapped_ptr_ = Impl::template Upcast<T, U>(ptr.wrapped_ptr_);
@@ -918,7 +990,7 @@ class PA_TRIVIAL_ABI PA_GSL_POINTER raw_ptr {
   }
 
   PA_ALWAYS_INLINE void ReportIfDangling() const noexcept {
-#if BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)
+#if PA_BUILDFLAG(USE_RAW_PTR_BACKUP_REF_IMPL)
     Impl::ReportIfDangling(wrapped_ptr_);
 #endif
   }
@@ -1183,7 +1255,6 @@ struct iterator_traits<raw_ptr<T, Traits>> {
 // `std::to_address(pointer)` in C++20 [3].
 //
 // [1] https://wg21.link/pointer.traits.optmem
-
 template <typename T, ::base::RawPtrTraits Traits>
 struct pointer_traits<::raw_ptr<T, Traits>> {
   using pointer = ::raw_ptr<T, Traits>;

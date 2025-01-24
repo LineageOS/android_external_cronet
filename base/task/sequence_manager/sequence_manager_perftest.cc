@@ -554,7 +554,6 @@ class SequenceManagerPerfTest : public testing::TestWithParam<PerfTestType> {
 
       default:
         NOTREACHED();
-        return nullptr;
     }
   }
 

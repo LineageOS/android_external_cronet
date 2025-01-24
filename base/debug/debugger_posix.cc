@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/debug/debugger.h"
 
 #include <errno.h>
@@ -173,13 +178,15 @@ Process GetDebuggerProcess() {
   std::string_view status(buf, static_cast<size_t>(num_read));
   std::string_view tracer("TracerPid:\t");
 
-  StringPiece::size_type pid_index = status.find(tracer);
-  if (pid_index == StringPiece::npos)
+  std::string_view::size_type pid_index = status.find(tracer);
+  if (pid_index == std::string_view::npos) {
     return Process();
+  }
   pid_index += tracer.size();
-  StringPiece::size_type pid_end_index = status.find('\n', pid_index);
-  if (pid_end_index == StringPiece::npos)
+  std::string_view::size_type pid_end_index = status.find('\n', pid_index);
+  if (pid_end_index == std::string_view::npos) {
     return Process();
+  }
 
   std::string_view pid_str(buf + pid_index, pid_end_index - pid_index);
   int pid = 0;

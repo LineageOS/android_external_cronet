@@ -6,108 +6,35 @@ package org.chromium.base.test.transit;
 
 import androidx.annotation.Nullable;
 
-import org.chromium.base.Log;
-import org.chromium.base.test.transit.ConditionWaiter.ConditionWait;
-
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
-/** A {@link Transition} into a {@link StationFacility}. */
+/** A {@link Transition} into a {@link Facility}. */
 class FacilityCheckIn extends Transition {
-    private static final String TAG = "Transit";
-
-    private StationFacility mFacility;
+    private final String mFacilityNames;
 
     /**
-     * Constructor. FacilityCheckIn is instantiated to enter a {@link StationFacility}.
+     * Constructor. FacilityCheckIn is instantiated to enter a {@link Facility}.
      *
-     * @param facility the {@link StationFacility} to enter.
+     * @param facilities the {@link Facility}s to enter.
      * @param options the {@link TransitionOptions}.
      * @param trigger the action that triggers the transition into the facility. e.g. clicking a
      *     View.
      */
     FacilityCheckIn(
-            StationFacility facility, TransitionOptions options, @Nullable Trigger trigger) {
-        super(options, trigger);
-        mFacility = facility;
-    }
+            List<Facility<?>> facilities, TransitionOptions options, @Nullable Trigger trigger) {
+        super(options, Collections.EMPTY_LIST, facilities, trigger);
 
-    void enterSync() {
-        // TODO(crbug.com/333735412): Unify Trip#travelSyncInternal(), FacilityCheckIn#enterSync()
-        // and FacilityCheckOut#exitSync().
-        onBeforeTransition();
-        List<ConditionWait> waits = createWaits();
-
-        if (mOptions.mTries == 1) {
-            triggerTransition();
-            Log.i(TAG, "Triggered transition, waiting to enter %s", mFacility);
-            waitUntilEntry(waits);
-        } else {
-            for (int tryNumber = 1; tryNumber <= mOptions.mTries; tryNumber++) {
-                try {
-                    triggerTransition();
-                    Log.i(
-                            TAG,
-                            "Triggered transition (try #%d/%d), waiting to enter %s",
-                            tryNumber,
-                            mOptions.mTries,
-                            mFacility);
-                    waitUntilEntry(waits);
-                    break;
-                } catch (TravelException e) {
-                    Log.w(TAG, "Try #%d failed", tryNumber, e);
-                    if (tryNumber >= mOptions.mTries) {
-                        throw e;
-                    }
-                }
-            }
+        List<String> names = new ArrayList<>();
+        for (Facility<?> facility : facilities) {
+            names.add(facility.getName());
         }
-
-        onAfterTransition();
-        PublicTransitConfig.maybePauseAfterTransition(mFacility);
-    }
-
-    private void onBeforeTransition() {
-        mFacility.setStateTransitioningTo();
-        Log.i(TAG, "Will enter %s", mFacility);
+        mFacilityNames = String.join(", ", names);
     }
 
     @Override
-    protected void triggerTransition() {
-        super.triggerTransition();
-        Log.i(TAG, "Triggered entry into %s", mFacility);
-    }
-
-    private List<ConditionWait> createWaits() {
-        ArrayList<ConditionWait> waits = new ArrayList<>();
-
-        for (ElementInState element : mFacility.getElements().getElementsInState()) {
-            Condition enterCondition = element.getEnterCondition();
-            if (enterCondition != null) {
-                waits.add(new ConditionWait(enterCondition, ConditionWaiter.ConditionOrigin.ENTER));
-            }
-        }
-
-        for (Condition enterCondition : mFacility.getElements().getOtherEnterConditions()) {
-            waits.add(new ConditionWait(enterCondition, ConditionWaiter.ConditionOrigin.ENTER));
-        }
-
-        for (Condition condition : getTransitionConditions()) {
-            waits.add(new ConditionWait(condition, ConditionWaiter.ConditionOrigin.TRANSITION));
-        }
-        return waits;
-    }
-
-    private void waitUntilEntry(List<ConditionWait> transitionConditions) {
-        try {
-            ConditionWaiter.waitFor(transitionConditions, mOptions);
-        } catch (AssertionError e) {
-            throw TravelException.newEnterFacilityException(mFacility, e);
-        }
-    }
-
-    private void onAfterTransition() {
-        mFacility.setStateActive();
-        Log.i(TAG, "Entered %s", mFacility);
+    public String toDebugString() {
+        return String.format("FacilityCheckIn %d (enter %s)", mId, mFacilityNames);
     }
 }

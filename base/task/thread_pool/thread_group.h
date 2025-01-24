@@ -103,6 +103,14 @@ class BASE_EXPORT ThreadGroup {
   // Returns true if the thread group is registered in TLS.
   bool IsBoundToCurrentThread() const;
 
+  // Sets a new maximum number of concurrent tasks, subject to adjustments for
+  // blocking tasks.
+  void SetMaxTasks(size_t max_tasks);
+
+  // Resets the maximum number of concurrent tasks to the default provided
+  // in constructor, subject to adjustments for blocking tasks.
+  void ResetMaxTasks();
+
   // Removes |task_source| from |priority_queue_|. Returns a
   // RegisteredTaskSource that evaluats to true if successful, or false if
   // |task_source| is not currently in |priority_queue_|, such as when a worker
@@ -229,8 +237,6 @@ class BASE_EXPORT ThreadGroup {
     void ScheduleStart(scoped_refptr<WorkerThread> worker);
     void ScheduleAdjustMaxTasks();
     void ScheduleReleaseTaskSource(RegisteredTaskSource task_source);
-    // Unlocks held_lock. Flushes this executor.
-    void FlushWorkerCreation(CheckedLock* held_lock);
 
    protected:
     explicit BaseScopedCommandsExecutor(ThreadGroup* outer);
@@ -248,7 +254,6 @@ class BASE_EXPORT ThreadGroup {
     absl::InlinedVector<scoped_refptr<WorkerThread>, 2> workers_to_start_;
     bool must_schedule_adjust_max_tasks_ = false;
   };
-  virtual std::unique_ptr<BaseScopedCommandsExecutor> GetExecutor() = 0;
 
   // Allows a task source to be pushed to a ThreadGroup's PriorityQueue at the
   // end of a scope, when all locks have been released.
@@ -324,24 +329,11 @@ class BASE_EXPORT ThreadGroup {
   void PushTaskSourceAndWakeUpWorkersImpl(
       BaseScopedCommandsExecutor* executor,
       RegisteredTaskSourceAndTransaction transaction_with_task_source);
-  void OnShutDownStartedImpl(BaseScopedCommandsExecutor* executor);
-
-  virtual ThreadGroupWorkerDelegate* GetWorkerDelegate(
-      WorkerThread* worker) = 0;
 
   // Returns the desired number of awake workers, given current workload and
   // concurrency limits.
   size_t GetDesiredNumAwakeWorkersLockRequired() const
       EXCLUSIVE_LOCKS_REQUIRED(lock_);
-
-  // Examines the list of WorkerThreads and increments |max_tasks_| for each
-  // worker that has been within the scope of a MAY_BLOCK ScopedBlockingCall for
-  // more than BlockedThreshold(). Reschedules a call if necessary.
-  void AdjustMaxTasks();
-
-  // Schedules AdjustMaxTasks() if required.
-  void MaybeScheduleAdjustMaxTasksLockRequired(
-      BaseScopedCommandsExecutor* executor) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Enqueues all task sources from `new_priority_queue` into this thread group.
   void EnqueueAllTaskSources(PriorityQueue* new_priority_queue);
@@ -359,9 +351,18 @@ class BASE_EXPORT ThreadGroup {
     return after_start().blocked_workers_poll_period;
   }
 
+  // Schedules AdjustMaxTasks() if required.
+  void MaybeScheduleAdjustMaxTasksLockRequired(
+      BaseScopedCommandsExecutor* executor) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+
   // Starts calling AdjustMaxTasks() periodically on
   // |service_thread_task_runner_|.
-  void ScheduleAdjustMaxTasks();
+  virtual void ScheduleAdjustMaxTasks() = 0;
+
+  // Examines the list of WorkerThreads and increments |max_tasks_| for each
+  // worker that has been within the scope of a MAY_BLOCK ScopedBlockingCall for
+  // more than BlockedThreshold(). Reschedules a call if necessary.
+  virtual void AdjustMaxTasks() = 0;
 
   // Returns true if AdjustMaxTasks() should periodically be called on
   // |service_thread_task_runner_|.
@@ -481,7 +482,10 @@ class BASE_EXPORT ThreadGroup {
   bool shutdown_started_ GUARDED_BY(lock_) = false;
 
   // Maximum number of tasks of any priority / BEST_EFFORT priority that can run
-  // concurrently in this thread group.
+  // concurrently in this thread group currently, excluding adjustment for
+  // blocking tasks.
+  size_t baseline_max_tasks_ GUARDED_BY(lock_) = 0;
+  // Same as `baseline_max_tasks_`, but including adjustment for blocking tasks.
   size_t max_tasks_ GUARDED_BY(lock_) = 0;
   size_t max_best_effort_tasks_ GUARDED_BY(lock_) = 0;
 

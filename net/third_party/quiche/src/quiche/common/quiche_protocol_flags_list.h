@@ -15,6 +15,10 @@ QUICHE_PROTOCOL_FLAG(
     "future CHLO, and allow CHLO packets to be buffered until next "
     "iteration of the event loop.")
 
+QUICHE_PROTOCOL_FLAG(uint64_t, quic_dispatcher_max_ack_sent_per_connection, 2,
+                     "Number of INITIAL ack packets the dispatcher is allowed "
+                     "to send for each connection.")
+
 QUICHE_PROTOCOL_FLAG(bool, quic_disable_pacing_for_perf_tests, false,
                      "If true, disable pacing in QUIC")
 
@@ -251,4 +255,24 @@ QUICHE_PROTOCOL_FLAG(bool, quic_always_support_server_preferred_address, false,
 QUICHE_PROTOCOL_FLAG(bool, quiche_oghttp2_debug_trace, false,
                      "If true, emits trace logs for HTTP/2 events.")
 
+QUICHE_PROTOCOL_FLAG(
+    float, quic_ack_decimation_delay, 0.25f,
+    "The fraction of a min_rtt when doing ack decimation, this fraction can be "
+    "overridden by connection option AKD3.")
+
+// Uses a 25ms delayed ack timer. Helps with better signaling
+// in low-bandwidth (< ~384 kbps), where an ack is sent per packet.
+// NOTE: If the flag value exceeds half of kMinRetransmissionTimeMs, it will be
+// clamped to that value.
+QUICHE_PROTOCOL_FLAG(int64_t, quic_default_delayed_ack_time_ms, 25,
+                     "Default maximum delayed ack time, in ms.")
+
+QUICHE_PROTOCOL_FLAG(
+    uint32_t, quic_max_num_path_degrading_to_mitigate, 5,
+    "The maximum number of path degrading to mitigate with port migration. Any "
+    "further path degrading will not kick off port migration.")
+
+QUICHE_PROTOCOL_FLAG(bool, quic_client_allow_invalid_sni_for_test, false,
+                     "If true, QUIC client will allow sending invalid SNI to "
+                     "the server. TLS only.")
 #endif

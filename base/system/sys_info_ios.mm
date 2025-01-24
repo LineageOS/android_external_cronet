@@ -114,7 +114,6 @@ uint64_t SysInfo::AmountOfPhysicalMemoryImpl() {
                          reinterpret_cast<host_info_t>(&hostinfo), &count);
   if (result != KERN_SUCCESS) {
     NOTREACHED();
-    return 0;
   }
   DCHECK_EQ(HOST_BASIC_INFO_COUNT, count);
   return hostinfo.max_mem;

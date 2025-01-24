@@ -76,7 +76,7 @@ class CertNotificationForwarder : public NSSCertDatabase::Observer {
   raw_ptr<CertDatabase> cert_db_;
 };
 
-// TODO(https://crbug.com/1412591): once the other IsUntrusted impl is deleted,
+// TODO(crbug.com/40890963): once the other IsUntrusted impl is deleted,
 // rename this.
 bool IsUntrustedUsingTrustStore(const CERTCertificate* cert,
                                 bssl::CertificateTrust trust) {
@@ -274,7 +274,7 @@ CERTCertificate* NSSCertDatabase::FindRootInList(
 int NSSCertDatabase::ImportUserCert(const std::string& data) {
   ScopedCERTCertificateList certificates =
       x509_util::CreateCERTCertificateListFromBytes(
-          data.c_str(), data.size(), net::X509Certificate::FORMAT_AUTO);
+          base::as_byte_span(data), net::X509Certificate::FORMAT_AUTO);
   if (certificates.empty())
     return ERR_CERT_INVALID;
 

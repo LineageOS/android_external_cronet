@@ -31,10 +31,6 @@
 #include <windows.h>
 #endif
 
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL)
-#include "base/message_loop/message_pump_libevent.h"
-#endif
-
 using ::testing::_;
 using ::testing::AnyNumber;
 using ::testing::AtMost;
@@ -81,7 +77,7 @@ class MockMessagePumpDelegate : public MessagePump::Delegate {
   void BeforeWait() override {}
   void BeginNativeWorkBeforeDoWork() override {}
   MOCK_METHOD0(DoWork, MessagePump::Delegate::NextWorkInfo());
-  MOCK_METHOD0(DoIdleWork, bool());
+  MOCK_METHOD0(DoIdleWork, void());
 
   // Functions invoked directly by the message pump.
   void OnBeginWorkItem() override {
@@ -184,12 +180,6 @@ class MessagePumpTest : public ::testing::TestWithParam<MessagePumpType> {
 
   void AddPostDoWorkExpectations(
       testing::StrictMock<MockMessagePumpDelegate>& delegate) {
-#if BUILDFLAG(IS_POSIX) && !BUILDFLAG(IS_NACL)
-    // MessagePumpLibEvent checks for native notifications once after processing
-    // a DoWork() but only instantiates a ScopedDoWorkItem that triggers
-    // MessagePumpLibevent::OnLibeventNotification() which this test does not
-    // so there are no post-work expectations at the moment.
-#endif
 #if defined(USE_GLIB)
     if (GetParam() == MessagePumpType::UI) {
       // The GLib MessagePump can create and destroy work items between DoWorks
@@ -272,10 +262,8 @@ TEST_P(MessagePumpTest, DetectingHasInputYieldsOnUi) {
                                                    TimeTicks::Max()};
   }));
 
-  if (pump_type == MessagePumpType::UI) {
-    EXPECT_CALL(hint_checker_mock, HasInputImplWithThrottling())
-        .WillOnce(Return(false));
-  }
+  // No immediate next_work_info remaining before the yield. Not expecting
+  // to observe an input hint check.
   EXPECT_CALL(delegate, DoIdleWork()).Times(0);
 
   message_pump_->Run(&delegate);

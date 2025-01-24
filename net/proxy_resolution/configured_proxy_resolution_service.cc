@@ -255,7 +255,7 @@ class ProxyResolverFactoryForSystem : public MultiThreadedProxyResolverFactory {
 #elif BUILDFLAG(IS_APPLE)
     return std::make_unique<ProxyResolverFactoryApple>();
 #else
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
     return nullptr;
 #endif
   }
@@ -380,7 +380,7 @@ base::Value::Dict NetLogFinishedResolvingProxyParams(const ProxyInfo* result) {
 // for security (attacker can already route traffic through their HTTP proxy
 // and see the full URL for http:// requests).
 //
-// TODO(https://crbug.com/882536): Use the same stripping for insecure URL
+// TODO(crbug.com/41412888): Use the same stripping for insecure URL
 // schemes.
 GURL SanitizeUrl(const GURL& url) {
   DCHECK(url.is_valid());
@@ -539,7 +539,7 @@ class ConfiguredProxyResolutionService::InitProxyResolver {
           rv = DoCreateResolverComplete(rv);
           break;
         default:
-          NOTREACHED() << "bad state: " << static_cast<int>(state);
+          NOTREACHED_IN_MIGRATION() << "bad state: " << static_cast<int>(state);
           rv = ERR_UNEXPECTED;
           break;
       }
@@ -1432,7 +1432,8 @@ void ConfiguredProxyResolutionService::OnProxyConfigChanged(
   switch (availability) {
     case ProxyConfigService::CONFIG_PENDING:
       // ProxyConfigService implementors should never pass CONFIG_PENDING.
-      NOTREACHED() << "Proxy config change with CONFIG_PENDING availability!";
+      NOTREACHED_IN_MIGRATION()
+          << "Proxy config change with CONFIG_PENDING availability!";
       return;
     case ProxyConfigService::CONFIG_VALID:
       effective_config = config;

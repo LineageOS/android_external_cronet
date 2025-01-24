@@ -7,9 +7,9 @@
 
 #include <cstdint>
 
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_alloc_base/bits.h"
 #include "partition_alloc/partition_alloc_base/compiler_specific.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
 #include "partition_alloc/partition_alloc_constants.h"
 #include "partition_alloc/partition_alloc_forward.h"
 #include "partition_alloc/reservation_offset_table.h"
@@ -28,7 +28,7 @@ constexpr size_t kFreeSlotBitmapSize =
 
 PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
 ReservedFreeSlotBitmapSize() {
-#if BUILDFLAG(USE_FREESLOT_BITMAP)
+#if PA_BUILDFLAG(USE_FREESLOT_BITMAP)
   return base::bits::AlignUp(kFreeSlotBitmapSize, PartitionPageSize());
 #else
   return 0;
@@ -37,7 +37,7 @@ ReservedFreeSlotBitmapSize() {
 
 PA_ALWAYS_INLINE PAGE_ALLOCATOR_CONSTANTS_DECLARE_CONSTEXPR size_t
 CommittedFreeSlotBitmapSize() {
-#if BUILDFLAG(USE_FREESLOT_BITMAP)
+#if PA_BUILDFLAG(USE_FREESLOT_BITMAP)
   return base::bits::AlignUp(kFreeSlotBitmapSize, SystemPageSize());
 #else
   return 0;
@@ -49,7 +49,7 @@ NumPartitionPagesPerFreeSlotBitmap() {
   return ReservedFreeSlotBitmapSize() / PartitionPageSize();
 }
 
-#if BUILDFLAG(USE_FREESLOT_BITMAP)
+#if PA_BUILDFLAG(USE_FREESLOT_BITMAP)
 PA_ALWAYS_INLINE uintptr_t SuperPageFreeSlotBitmapAddr(uintptr_t super_page) {
   PA_DCHECK(!(super_page % kSuperPageAlignment));
   return super_page + PartitionPageSize();

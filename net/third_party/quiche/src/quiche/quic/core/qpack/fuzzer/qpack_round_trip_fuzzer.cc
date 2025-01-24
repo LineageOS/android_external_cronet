@@ -7,6 +7,11 @@
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <iterator>
+#include <limits>
+#include <map>
+#include <memory>
+#include <queue>
 #include <string>
 #include <utility>
 
@@ -20,8 +25,8 @@
 #include "quiche/quic/core/quic_error_codes.h"
 #include "quiche/quic/test_tools/qpack/qpack_decoder_test_utils.h"
 #include "quiche/quic/test_tools/qpack/qpack_encoder_peer.h"
+#include "quiche/common/http/http_header_block.h"
 #include "quiche/common/quiche_circular_deque.h"
-#include "quiche/spdy/core/http2_header_block.h"
 
 namespace quic {
 namespace test {
@@ -45,8 +50,10 @@ class EncodingEndpoint {
  public:
   EncodingEndpoint(uint64_t maximum_dynamic_table_capacity,
                    uint64_t maximum_blocked_streams,
-                   HuffmanEncoding huffman_encoding)
-      : encoder_(&decoder_stream_error_delegate, huffman_encoding) {
+                   HuffmanEncoding huffman_encoding,
+                   CookieCrumbling cookie_crumbling)
+      : encoder_(&decoder_stream_error_delegate, huffman_encoding,
+                 cookie_crumbling) {
     encoder_.SetMaximumDynamicTableCapacity(maximum_dynamic_table_capacity);
     encoder_.SetMaximumBlockedStreams(maximum_blocked_streams);
   }
@@ -70,7 +77,7 @@ class EncodingEndpoint {
   }
 
   std::string EncodeHeaderList(QuicStreamId stream_id,
-                               const spdy::Http2HeaderBlock& header_list) {
+                               const quiche::HttpHeaderBlock& header_list) {
     return encoder_.EncodeHeaderList(stream_id, header_list, nullptr);
   }
 
@@ -466,8 +473,8 @@ class DelayedStreamDataTransmitter : public QpackStreamSenderDelegate {
 };
 
 // Generate header list using fuzzer data.
-spdy::Http2HeaderBlock GenerateHeaderList(FuzzedDataProvider* provider) {
-  spdy::Http2HeaderBlock header_list;
+quiche::HttpHeaderBlock GenerateHeaderList(FuzzedDataProvider* provider) {
+  quiche::HttpHeaderBlock header_list;
   uint8_t header_count = provider->ConsumeIntegral<uint8_t>();
   for (uint8_t header_index = 0; header_index < header_count; ++header_index) {
     if (provider->remaining_bytes() == 0) {
@@ -566,13 +573,15 @@ spdy::Http2HeaderBlock GenerateHeaderList(FuzzedDataProvider* provider) {
   return header_list;
 }
 
-// Splits |*header_list| header values along '\0' or ';' separators.
-QuicHeaderList SplitHeaderList(const spdy::Http2HeaderBlock& header_list) {
+// Splits |*header_list| header values. Cookie header is split along ';'
+// separator if crumbling is enabled. Other headers are split along '\0'.
+QuicHeaderList SplitHeaderList(const quiche::HttpHeaderBlock& header_list,
+                               CookieCrumbling cookie_crumbling) {
   QuicHeaderList split_header_list;
-  split_header_list.OnHeaderBlockStart();
 
   size_t total_size = 0;
-  ValueSplittingHeaderList splitting_header_list(&header_list);
+  ValueSplittingHeaderList splitting_header_list(&header_list,
+                                                 cookie_crumbling);
   for (const auto& header : splitting_header_list) {
     split_header_list.OnHeader(header.first, header.second);
     total_size += header.first.size() + header.second.size();
@@ -600,10 +609,14 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
   const uint64_t maximum_blocked_streams = provider.ConsumeIntegral<uint8_t>();
 
   // Set up encoder.
+  const CookieCrumbling cookie_crumbling = provider.ConsumeBool()
+                                               ? CookieCrumbling::kEnabled
+                                               : CookieCrumbling::kDisabled;
   EncodingEndpoint encoder(maximum_dynamic_table_capacity,
                            maximum_blocked_streams,
                            provider.ConsumeBool() ? HuffmanEncoding::kEnabled
-                                                  : HuffmanEncoding::kDisabled);
+                                                  : HuffmanEncoding::kDisabled,
+                           cookie_crumbling);
 
   // Set up decoder.
   DecodingEndpoint decoder(maximum_dynamic_table_capacity,
@@ -632,7 +645,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
     const QuicStreamId stream_id = provider.ConsumeIntegral<uint8_t>();
 
     // Generate header list.
-    spdy::Http2HeaderBlock header_list = GenerateHeaderList(&provider);
+    quiche::HttpHeaderBlock header_list = GenerateHeaderList(&provider);
 
     // Encode header list.
     std::string encoded_header_block =
@@ -640,9 +653,11 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 
     // TODO(bnc): Randomly cancel the stream.
 
-    // Encoder splits |header_list| header values along '\0' or ';' separators.
+    // Encoder splits |header_list| header values along '\0' or ';' separators
+    // (unless cookie crumbling is disabled).
     // Do the same here so that we get matching results.
-    QuicHeaderList expected_header_list = SplitHeaderList(header_list);
+    QuicHeaderList expected_header_list =
+        SplitHeaderList(header_list, cookie_crumbling);
     decoder.AddExpectedHeaderList(stream_id, std::move(expected_header_list));
 
     header_block_transmitter.SendEncodedHeaderBlock(

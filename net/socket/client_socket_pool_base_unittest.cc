@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include <stdint.h>
 
 #include <optional>
@@ -65,6 +70,7 @@
 #include "net/test/test_with_task_environment.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/traffic_annotation/network_traffic_annotation_test_helper.h"
+#include "net/url_request/static_http_user_agent_settings.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "url/scheme_host_port.h"
@@ -233,7 +239,7 @@ class MockClientSocketFactory : public ClientSocketFactory {
       DatagramSocket::BindType bind_type,
       NetLog* net_log,
       const NetLogSource& source) override {
-    NOTREACHED();
+    NOTREACHED_IN_MIGRATION();
     return nullptr;
   }
 
@@ -454,7 +460,7 @@ class TestConnectJob : public ConnectJob {
         DoAdvanceAuthChallenge(2, false /* succeed_after_last_challenge */);
         return ERR_IO_PENDING;
       default:
-        NOTREACHED();
+        NOTREACHED_IN_MIGRATION();
         SetSocket(std::unique_ptr<StreamSocket>(), std::nullopt);
         return ERR_FAILED;
     }
@@ -699,6 +705,8 @@ class ClientSocketPoolBaseTest : public TestWithTaskEnvironment {
   // synchronous completions are not registered by this count.
   size_t completion_count() const { return test_base_.completion_count(); }
 
+  const StaticHttpUserAgentSettings http_user_agent_settings_ = {"*",
+                                                                 "test-ua"};
   const CommonConnectJobParams common_connect_job_params_{
       /*client_socket_factory=*/nullptr,
       /*host_resolver=*/nullptr,
@@ -708,7 +716,7 @@ class ClientSocketPoolBaseTest : public TestWithTaskEnvironment {
       /*quic_supported_versions=*/nullptr,
       /*quic_session_pool=*/nullptr,
       /*proxy_delegate=*/nullptr,
-      /*http_user_agent_settings=*/nullptr,
+      &http_user_agent_settings_,
       /*ssl_client_context=*/nullptr,
       /*socket_performance_watcher_factory=*/nullptr,
       /*network_quality_estimator=*/nullptr,
@@ -718,7 +726,7 @@ class ClientSocketPoolBaseTest : public TestWithTaskEnvironment {
       /*alpn_protos=*/nullptr,
       /*application_settings=*/nullptr,
       /*ignore_certificate_errors=*/nullptr,
-      /*early_data_enabled=*/nullptr};
+      /*enable_early_data=*/nullptr};
   bool connect_backup_jobs_enabled_;
   MockClientSocketFactory client_socket_factory_;
   RecordingNetLogObserver net_log_observer_;
@@ -3003,7 +3011,7 @@ TEST_F(ClientSocketPoolBaseTest, DoNotReuseSocketAfterFlush) {
                   callback.callback(), ClientSocketPool::ProxyAuthCallback(),
                   pool_.get(), NetLogWithSource()));
   EXPECT_THAT(callback.WaitForResult(), IsOk());
-  EXPECT_EQ(ClientSocketHandle::UNUSED, handle.reuse_type());
+  EXPECT_EQ(StreamSocketHandle::SocketReuseType::kUnused, handle.reuse_type());
   NetLogSource source = handle.socket()->NetLog().source();
 
   pool_->FlushWithError(ERR_NETWORK_CHANGED, "Network changed");
@@ -3018,7 +3026,7 @@ TEST_F(ClientSocketPoolBaseTest, DoNotReuseSocketAfterFlush) {
                   callback.callback(), ClientSocketPool::ProxyAuthCallback(),
                   pool_.get(), NetLogWithSource()));
   EXPECT_THAT(callback.WaitForResult(), IsOk());
-  EXPECT_EQ(ClientSocketHandle::UNUSED, handle.reuse_type());
+  EXPECT_EQ(StreamSocketHandle::SocketReuseType::kUnused, handle.reuse_type());
 
   ExpectSocketClosedWithReason(
       source, TransportClientSocketPool::kSocketGenerationOutOfDate);
@@ -5943,11 +5951,13 @@ TEST_P(ClientSocketPoolBaseRefreshTest,
   EXPECT_EQ(1u, pool_->IdleSocketCountInGroup(kGroupId));
 }
 
+// TODO(crbug.com/365771838): Add tests for non-ip protection nested proxy
+// chains if support is enabled for all builds.
 TEST_F(ClientSocketPoolBaseTest, RefreshProxyRefreshesAllGroups) {
   // Create a proxy chain containing `myproxy` (which is refreshed) and
   // nonrefreshedproxy (which is not), verifying that if any proxy in a chain is
   // refreshed, all groups are refreshed.
-  ProxyChain proxy_chain({
+  auto proxy_chain = ProxyChain::ForIpProtection({
       PacResultElementToProxyServer("HTTPS myproxy:70"),
       PacResultElementToProxyServer("HTTPS nonrefreshedproxy:70"),
   });

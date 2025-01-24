@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/files/important_file_writer.h"
 
 #include <stddef.h>
@@ -10,6 +15,7 @@
 
 #include <algorithm>
 #include <string>
+#include <string_view>
 #include <utility>
 
 #include "base/check.h"
@@ -52,7 +58,7 @@ constexpr auto kReplacePauseInterval = Milliseconds(100);
 #endif
 
 void UmaHistogramTimesWithSuffix(const char* histogram_name,
-                                 StringPiece histogram_suffix,
+                                 std::string_view histogram_suffix,
                                  base::TimeDelta sample) {
   DCHECK(histogram_name);
   std::string histogram_full_name(histogram_name);
@@ -104,9 +110,10 @@ void DeleteTmpFileWithRetry(File tmp_file,
 }  // namespace
 
 // static
-bool ImportantFileWriter::WriteFileAtomically(const FilePath& path,
-                                              StringPiece data,
-                                              StringPiece histogram_suffix) {
+bool ImportantFileWriter::WriteFileAtomically(
+    const FilePath& path,
+    std::string_view data,
+    std::string_view histogram_suffix) {
   // Calling the impl by way of the public WriteFileAtomically, so
   // |from_instance| is false.
   return WriteFileAtomicallyImpl(path, data, histogram_suffix,
@@ -142,10 +149,11 @@ void ImportantFileWriter::ProduceAndWriteStringToFileAtomically(
 }
 
 // static
-bool ImportantFileWriter::WriteFileAtomicallyImpl(const FilePath& path,
-                                                  StringPiece data,
-                                                  StringPiece histogram_suffix,
-                                                  bool from_instance) {
+bool ImportantFileWriter::WriteFileAtomicallyImpl(
+    const FilePath& path,
+    std::string_view data,
+    std::string_view histogram_suffix,
+    bool from_instance) {
   const TimeTicks write_start = TimeTicks::Now();
   if (!from_instance)
     ImportantFileWriterCleaner::AddDirectory(path.DirName());
@@ -270,7 +278,7 @@ bool ImportantFileWriter::WriteFileAtomicallyImpl(const FilePath& path,
 ImportantFileWriter::ImportantFileWriter(
     const FilePath& path,
     scoped_refptr<SequencedTaskRunner> task_runner,
-    StringPiece histogram_suffix)
+    std::string_view histogram_suffix)
     : ImportantFileWriter(path,
                           std::move(task_runner),
                           kDefaultCommitInterval,
@@ -280,7 +288,7 @@ ImportantFileWriter::ImportantFileWriter(
     const FilePath& path,
     scoped_refptr<SequencedTaskRunner> task_runner,
     TimeDelta interval,
-    StringPiece histogram_suffix)
+    std::string_view histogram_suffix)
     : path_(path),
       task_runner_(std::move(task_runner)),
       commit_interval_(interval),
@@ -304,10 +312,7 @@ bool ImportantFileWriter::HasPendingWrite() const {
 
 void ImportantFileWriter::WriteNow(std::string data) {
   DCHECK_CALLED_ON_VALID_SEQUENCE(sequence_checker_);
-  if (!IsValueInRangeForNumericType<int32_t>(data.length())) {
-    NOTREACHED();
-    return;
-  }
+  CHECK(IsValueInRangeForNumericType<int32_t>(data.length()));
 
   WriteNowWithBackgroundDataProducer(base::BindOnce(
       [](std::string data) { return std::make_optional(std::move(data)); },
@@ -329,11 +334,8 @@ void ImportantFileWriter::WriteNowWithBackgroundDataProducer(
                                          std::move(split_task.first),
                                          /*is_immediate=*/true))) {
     // Posting the task to background message loop is not expected
-    // to fail, but if it does, avoid losing data and just hit the disk
-    // on the current thread.
+    // to fail.
     NOTREACHED();
-
-    std::move(split_task.second).Run();
   }
   ClearPendingWrite();
 }

@@ -2,7 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "base/android/linker/linker_jni.h"
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
 
 #include <android/dlext.h>
 #include <dlfcn.h>
@@ -18,6 +21,9 @@
 #include <unistd.h>
 
 #include <memory>
+
+// Must come after all headers that specialize FromJniType() / ToJniType().
+#include "base/android/linker/linker_jni.h"
 
 namespace chromium_android_linker {
 
@@ -120,7 +126,14 @@ bool FindRegionInOpenFile(int fd, uintptr_t* out_address, size_t* out_size) {
   // Loop until no bytes left to scan. On every iteration except the last, fill
   // the buffer till the end. On every iteration except the first, the buffer
   // begins with kMaxLineLength bytes from the end of the previous fill.
+
+// Silence clang's warning about allocating on the stack because this is a very
+// special case.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wvla-extension"
   char buf[kReadSize + kMaxLineLength + 1];
+#pragma clang diagnostic pop
+
   buf[kReadSize + kMaxLineLength] = '\0';  // Stop strstr().
   size_t pos = 0;
   size_t bytes_requested = kReadSize + kMaxLineLength;

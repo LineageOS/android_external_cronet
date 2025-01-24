@@ -2,7 +2,7 @@
 # This directory was imported from Chromium.
 name: "url_parse"
 third_party {
-  license_type: NOTICE
+  license_type: RECIPROCAL
   identifier {
     value: "https://hg.mozilla.org/mozilla-central/file/tip/netwerk/base/nsURLParsers.cpp"
     type: "Hg"

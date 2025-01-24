@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #ifndef BASE_PICKLE_H_
 #define BASE_PICKLE_H_
 
@@ -18,7 +23,6 @@
 #include "base/gtest_prod_util.h"
 #include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/ref_counted.h"
-#include "base/strings/string_piece.h"
 
 namespace base {
 
@@ -46,11 +50,13 @@ class BASE_EXPORT PickleIterator {
   [[nodiscard]] bool ReadFloat(float* result);
   [[nodiscard]] bool ReadDouble(double* result);
   [[nodiscard]] bool ReadString(std::string* result);
-  // The StringPiece data will only be valid for the lifetime of the message.
-  [[nodiscard]] bool ReadStringPiece(StringPiece* result);
+  // The std::string_view data will only be valid for the lifetime of the
+  // message.
+  [[nodiscard]] bool ReadStringPiece(std::string_view* result);
   [[nodiscard]] bool ReadString16(std::u16string* result);
-  // The StringPiece16 data will only be valid for the lifetime of the message.
-  [[nodiscard]] bool ReadStringPiece16(StringPiece16* result);
+  // The std::u16string_view data will only be valid for the lifetime of the
+  // message.
+  [[nodiscard]] bool ReadStringPiece16(std::u16string_view* result);
 
   // A pointer to the data will be placed in |*data|, and the length will be
   // placed in |*length|. The pointer placed into |*data| points into the
@@ -224,8 +230,8 @@ class BASE_EXPORT Pickle {
   void WriteUInt64(uint64_t value) { WritePOD(value); }
   void WriteFloat(float value) { WritePOD(value); }
   void WriteDouble(double value) { WritePOD(value); }
-  void WriteString(const StringPiece& value);
-  void WriteString16(const StringPiece16& value);
+  void WriteString(std::string_view value);
+  void WriteString16(std::u16string_view value);
   // "Data" is a blob with a length. When you read it out you will be given the
   // length. See also WriteBytes.
   // TODO(https://crbug.com/40284755): Migrate callers to the span versions.

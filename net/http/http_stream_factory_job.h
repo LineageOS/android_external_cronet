@@ -48,7 +48,6 @@ class HttpNetworkSession;
 class HttpStream;
 class SpdySessionPool;
 class NetLog;
-class ProxyChain;
 struct SSLConfig;
 
 // An HttpStreamRequest exists for each stream which is in progress of being
@@ -60,10 +59,6 @@ class HttpStreamFactory::Job
   // applied to avoid unnecessary socket connection establishments.
   // https://crbug.com/718576
   static const int kHTTP2ThrottleMs = 300;
-
-  // Returns true when QUIC is forcibly used for `destination`.
-  static bool OriginToForceQuicOn(const QuicParams& quic_params,
-                                  const url::SchemeHostPort& destination);
 
   // Delegate to report Job's status to HttpStreamRequest and HttpStreamFactory.
   class NET_EXPORT_PRIVATE Delegate {
@@ -83,6 +78,12 @@ class HttpStreamFactory::Job
         Job* job,
         const ProxyInfo& used_proxy_info,
         std::unique_ptr<WebSocketHandshakeStreamBase> stream) = 0;
+
+    // Invoked when a QUIC job finished a DNS resolution.
+    virtual void OnQuicHostResolution(
+        const url::SchemeHostPort& destination,
+        base::TimeTicks dns_resolution_start_time,
+        base::TimeTicks dns_resolution_end_time) = 0;
 
     // Invoked when |job| fails to create a stream.
     virtual void OnStreamFailed(Job* job, int status) = 0;
@@ -333,27 +334,6 @@ class HttpStreamFactory::Job
   // Returns true if the resulting stream will use an HTTP GET to the final
   // proxy in the chain, instead of a CONNECT to the endpoint.
   bool UsingHttpProxyWithoutTunnel() const;
-
-  // Called in Job constructor: should Job be forced to use QUIC.
-  static bool ShouldForceQuic(HttpNetworkSession* session,
-                              const url::SchemeHostPort& destination,
-                              const ProxyInfo& proxy_info,
-                              bool using_ssl,
-                              bool is_websocket);
-
-  // Called in Job constructor. Use |spdy_session_key_| after construction.
-  static SpdySessionKey GetSpdySessionKey(
-      const ProxyChain& proxy_chain,
-      const GURL& origin_url,
-      const StreamRequestInfo& request_info);
-
-  // Returns whether an appropriate SPDY session would correspond to either a
-  // connection to the last proxy server in the chain (for the traditional HTTP
-  // proxying behavior of sending a GET request to the proxy server) or a
-  // connection through the entire proxy chain (for tunneled requests). Note
-  // that for QUIC proxies we no longer support the former.
-  static bool IsGetToProxy(const ProxyChain& proxy_chain,
-                           const GURL& origin_url);
 
   // Returns true if the current request can use an existing spdy session.
   bool CanUseExistingSpdySession() const;

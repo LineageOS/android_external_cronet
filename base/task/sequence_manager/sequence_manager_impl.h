@@ -21,6 +21,7 @@
 #include "base/feature_list.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/raw_ptr_exclusion.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/message_loop/message_pump_type.h"
@@ -170,7 +171,9 @@ class BASE_EXPORT SequenceManagerImpl
   void AttachToMessagePump();
 #endif
   bool IsIdleForTesting() override;
-  void EnableMessagePumpTimeKeeperMetrics(const char* thread_name);
+  void EnableMessagePumpTimeKeeperMetrics(
+      const char* thread_name,
+      bool wall_time_based_metrics_enabled_for_testing = false);
 
   // Requests that a task to process work is scheduled.
   void ScheduleWork();
@@ -184,7 +187,7 @@ class BASE_EXPORT SequenceManagerImpl
   void UnregisterTaskQueueImpl(
       std::unique_ptr<internal::TaskQueueImpl> task_queue);
 
-  scoped_refptr<const AssociatedThreadId> associated_thread() const {
+  scoped_refptr<AssociatedThreadId> associated_thread() const {
     return associated_thread_;
   }
 
@@ -306,9 +309,10 @@ class BASE_EXPORT SequenceManagerImpl
     std::optional<base::MetricsSubSampler> metrics_subsampler;
 
     internal::TaskQueueSelector selector;
-    ObserverList<TaskObserver>::UncheckedAndDanglingUntriaged task_observers;
-    ObserverList<TaskTimeObserver>::UncheckedAndDanglingUntriaged
-        task_time_observers;
+    // RAW_PTR_EXCLUSION: Performance reasons(based on analysis of
+    // speedometer3).
+    ObserverList<TaskObserver>::UncheckedAndRawPtrExcluded task_observers;
+    ObserverList<TaskTimeObserver> task_time_observers;
     const raw_ptr<const base::TickClock> default_clock;
     raw_ptr<TimeDomain> time_domain = nullptr;
 
@@ -328,7 +332,9 @@ class BASE_EXPORT SequenceManagerImpl
     //   internal scheduling code does not expect queues to be pulled
     //   from underneath.
 
-    std::set<raw_ptr<internal::TaskQueueImpl, SetExperimental>> active_queues;
+    // RAW_PTR_EXCLUSION: Performance reasons (based on analysis of
+    // speedometer3).
+    RAW_PTR_EXCLUSION std::set<internal::TaskQueueImpl*> active_queues;
 
     std::map<internal::TaskQueueImpl*, std::unique_ptr<internal::TaskQueueImpl>>
         queues_to_delete;

@@ -2,6 +2,11 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#ifdef UNSAFE_BUFFERS_BUILD
+// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
+#pragma allow_unsafe_buffers
+#endif
+
 #include "base/win/win_util.h"
 
 #include <objbase.h>
@@ -815,6 +820,25 @@ bool IsCurrentSessionRemote() {
 
 bool IsAppVerifierLoaded() {
   return GetModuleHandleA(kApplicationVerifierDllName);
+}
+
+std::optional<std::wstring> ExpandEnvironmentVariables(wcstring_view str) {
+  std::wstring path_expanded;
+  DWORD path_len = MAX_PATH;
+  for (int iterations = 0; iterations < 5; iterations++) {
+    DWORD result = ::ExpandEnvironmentStringsW(
+        str.c_str(), base::WriteInto(&path_expanded, path_len), path_len);
+    if (!result) {
+      // Failed to expand variables.
+      break;
+    }
+    if (result <= path_len) {
+      return path_expanded.substr(0, result - 1);
+    }
+    path_len = result;
+  }
+
+  return std::nullopt;
 }
 
 ScopedDomainStateForTesting::ScopedDomainStateForTesting(bool state)

@@ -39,13 +39,13 @@
 #include <utility>
 #include <vector>
 
+#include "gmock/gmock.h"
+#include "test/gmock-matchers_test.h"
 #include "gtest/gtest.h"
 
 // Silence warning C4244: 'initializing': conversion from 'int' to 'short',
 // possible loss of data and C4100, unreferenced local parameter
 GTEST_DISABLE_MSC_WARNINGS_PUSH_(4244 4100)
-
-#include "test/gmock-matchers_test.h"
 
 namespace testing {
 namespace gmock_matchers_test {
@@ -1576,10 +1576,10 @@ TEST_P(AnyOfArrayTestP, ExplainsMatchResultCorrectly) {
   const Matcher<int> m1 = AnyOfArray(v1);
   const Matcher<int> m2 = AnyOfArray(v2);
   EXPECT_EQ("", Explain(m0, 0));
-  EXPECT_EQ("", Explain(m1, 1));
-  EXPECT_EQ("", Explain(m1, 2));
-  EXPECT_EQ("", Explain(m2, 3));
-  EXPECT_EQ("", Explain(m2, 4));
+  EXPECT_EQ("which matches (is equal to 1)", Explain(m1, 1));
+  EXPECT_EQ("isn't equal to 1", Explain(m1, 2));
+  EXPECT_EQ("which matches (is equal to 3)", Explain(m2, 3));
+  EXPECT_EQ("isn't equal to 2, and isn't equal to 3", Explain(m2, 4));
   EXPECT_EQ("()", Describe(m0));
   EXPECT_EQ("(is equal to 1)", Describe(m1));
   EXPECT_EQ("(is equal to 2) or (is equal to 3)", Describe(m2));

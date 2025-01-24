@@ -14,7 +14,6 @@
 #include "net/base/net_export.h"
 #include "net/base/network_isolation_key.h"
 #include "net/base/schemeful_site.h"
-#include "net/cookies/site_for_cookies.h"
 #include "url/gurl.h"
 
 #if !BUILDFLAG(CRONET_BUILD)
@@ -23,6 +22,8 @@
 
 namespace net {
 
+class SiteForCookies;
+
 class NET_EXPORT CookiePartitionKey {
  public:
   class NET_EXPORT SerializedCookiePartitionKey {
@@ -30,14 +31,16 @@ class NET_EXPORT CookiePartitionKey {
     const std::string& TopLevelSite() const;
     bool has_cross_site_ancestor() const;
 
-   private:
-    friend class CookiePartitionKey;
+    std::string GetDebugString() const;
+
     // This constructor does not check if the values being serialized are valid.
     // The caller of this function must ensure that only valid values are passed
     // to this method.
-    explicit SerializedCookiePartitionKey(const std::string& site,
-                                          bool has_cross_site_ancestor);
+    SerializedCookiePartitionKey(base::PassKey<CookiePartitionKey> key,
+                                 const std::string& site,
+                                 bool has_cross_site_ancestor);
 
+   private:
     std::string top_level_site_;
     bool has_cross_site_ancestor_;
   };
@@ -82,7 +85,7 @@ class NET_EXPORT CookiePartitionKey {
   // we will not be able to attach the saved cookie to any future requests. This
   // is because opaque origins' nonces are only stored in volatile memory.
   //
-  // TODO(crbug.com/1225444) Investigate ways to persist partition keys with
+  // TODO(crbug.com/40188414) Investigate ways to persist partition keys with
   // opaque origins if a browser session is restored.
   [[nodiscard]] static base::expected<SerializedCookiePartitionKey, std::string>
   Serialize(const std::optional<CookiePartitionKey>& in);
@@ -99,8 +102,9 @@ class NET_EXPORT CookiePartitionKey {
   // is the url of the context running the code.
   static std::optional<CookiePartitionKey> FromNetworkIsolationKey(
       const NetworkIsolationKey& network_isolation_key,
-      SiteForCookies site_for_cookies,
-      SchemefulSite request_site);
+      const SiteForCookies& site_for_cookies,
+      const SchemefulSite& request_site,
+      bool main_frame_navigation);
 
   // Create a new CookiePartitionKey from the site of an existing
   // CookiePartitionKey. This should only be used for sites of partition keys
@@ -121,7 +125,7 @@ class NET_EXPORT CookiePartitionKey {
   // either the `from_script_` flag should be set or the cookie partition key
   // should match the browser's. Otherwise the renderer may be compromised.
   //
-  // TODO(crbug.com/1225444) Consider removing this factory method and
+  // TODO(crbug.com/40188414) Consider removing this factory method and
   // `from_script_` flag when BlinkStorageKey is available in
   // ServiceWorkerGlobalScope.
   static std::optional<CookiePartitionKey> FromScript() {
@@ -175,6 +179,18 @@ class NET_EXPORT CookiePartitionKey {
   }
 
  private:
+  // Used by DeserializeInternal to determine how strict the context should be
+  // about inconsistencies in the input.
+  enum class ParsingMode {
+    // The top_level_site string must be serialized exactly as a SchemefulSite
+    // would be.
+    // Use this when reading from storage.
+    kStrict = 0,
+    // The top_level_site string must be coercible to a SchemefulSite.
+    // Use this for user input.
+    kLoose = 1,
+  };
+
   explicit CookiePartitionKey(const SchemefulSite& site,
                               std::optional<base::UnguessableToken> nonce,
                               AncestorChainBit ancestor_chain_bit);
@@ -186,7 +202,8 @@ class NET_EXPORT CookiePartitionKey {
   [[nodiscard]] static base::expected<CookiePartitionKey, std::string>
   DeserializeInternal(
       const std::string& top_level_site,
-      CookiePartitionKey::AncestorChainBit has_cross_site_ancestor);
+      CookiePartitionKey::AncestorChainBit has_cross_site_ancestor,
+      CookiePartitionKey::ParsingMode parsing_mode);
 
   AncestorChainBit MaybeAncestorChainBit() const;
 

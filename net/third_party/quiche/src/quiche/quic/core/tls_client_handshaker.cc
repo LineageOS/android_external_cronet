@@ -4,8 +4,13 @@
 
 #include "quiche/quic/core/tls_client_handshaker.h"
 
+#include <algorithm>
 #include <cstring>
+#include <limits>
+#include <memory>
 #include <string>
+#include <utility>
+#include <vector>
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
@@ -94,14 +99,19 @@ bool TlsClientHandshaker::CryptoConnect() {
 
   // Set the SNI to send, if any.
   SSL_set_connect_state(ssl());
+  const bool allow_invalid_sni_for_test =
+      GetQuicFlag(quic_client_allow_invalid_sni_for_test);
   if (QUIC_DLOG_INFO_IS_ON() &&
       !QuicHostnameUtils::IsValidSNI(server_id_.host())) {
     QUIC_DLOG(INFO) << "Client configured with invalid hostname \""
-                    << server_id_.host() << "\", not sending as SNI";
+                    << server_id_.host() << "\", "
+                    << (allow_invalid_sni_for_test
+                            ? "sending it anyway for test."
+                            : "not sending as SNI.");
   }
   if (!server_id_.host().empty() &&
       (QuicHostnameUtils::IsValidSNI(server_id_.host()) ||
-       allow_invalid_sni_for_tests_) &&
+       allow_invalid_sni_for_test) &&
       SSL_set_tlsext_host_name(ssl(), server_id_.host().c_str()) != 1) {
     return false;
   }
@@ -520,7 +530,7 @@ void TlsClientHandshaker::FinishHandshake() {
 
   QUICHE_CHECK(!SSL_in_early_data(ssl()));
 
-  QUIC_LOG(INFO) << "Client: handshake finished";
+  QUIC_DLOG(INFO) << "Client: handshake finished";
 
   std::string error_details;
   if (!ProcessTransportParameters(&error_details)) {
@@ -617,7 +627,7 @@ bool TlsClientHandshaker::ShouldCloseConnectionOnUnexpectedError(
 }
 
 void TlsClientHandshaker::HandleZeroRttReject() {
-  QUIC_LOG(INFO) << "0-RTT handshake attempted but was rejected by the server";
+  QUIC_DLOG(INFO) << "0-RTT handshake attempted but was rejected by the server";
   QUICHE_DCHECK(session_cache_);
   // Disable encrytion to block outgoing data until 1-RTT keys are available.
   encryption_established_ = false;

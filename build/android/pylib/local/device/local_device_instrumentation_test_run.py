@@ -30,7 +30,6 @@ from devil.android.tools import webview_app
 from devil.utils import reraiser_thread
 from incremental_install import installer
 from pylib import constants
-from pylib import valgrind_tools
 from pylib.base import base_test_result
 from pylib.base import output_manager
 from pylib.constants import host_paths
@@ -42,9 +41,9 @@ from pylib.output import remote_output_manager
 from pylib.symbols import stack_symbolizer
 from pylib.utils import chrome_proxy_utils
 from pylib.utils import code_coverage_utils
+from pylib.utils import device_dependencies
 from pylib.utils import gold_utils
 from pylib.utils import instrumentation_tracing
-from pylib.utils.device_dependencies import DevicePathComponentsFor
 from py_trace_event import trace_event
 from py_trace_event import trace_time
 from py_utils import contextlib_ext
@@ -64,13 +63,13 @@ _JINJA_TEMPLATE_DIR = os.path.join(
 _JINJA_TEMPLATE_FILENAME = 'render_test.html.jinja'
 
 _WPR_GO_LINUX_X86_64_PATH = os.path.join(host_paths.DIR_SOURCE_ROOT,
-                                         'third_party', 'webpagereplay', 'bin',
-                                         'linux', 'x86_64', 'wpr')
+                                         'third_party', 'webpagereplay', 'cipd',
+                                         'bin', 'linux', 'x86_64', 'wpr')
 
 _TAG = 'test_runner_py'
 
 TIMEOUT_ANNOTATIONS = [
-    ('Manual', 10 * 60 * 60),
+    ('Manual', 1000 * 60 * 60),
     ('IntegrationTest', 10 * 60),
     ('External', 10 * 60),
     ('EnormousTest', 5 * 60),
@@ -91,25 +90,27 @@ LOGCAT_FILTERS = ['*:e', 'chromium:v', 'cr_*:v', 'DEBUG:I',
                   'StrictMode:D', '%s:I' % _TAG]
 
 EXTRA_CLANG_COVERAGE_DEVICE_FILE = (
-    'org.chromium.base.test.BaseChromiumAndroidJUnitRunner.'
-    'ClangCoverageDeviceFile')
+    'BaseChromiumAndroidJUnitRunner.ClangCoverageDeviceFile')
 
 EXTRA_SCREENSHOT_FILE = (
     'org.chromium.base.test.ScreenshotOnFailureStatement.ScreenshotFile')
 
+EXTRA_TIMEOUT_SCALE = 'BaseChromiumAndroidJUnitRunner.TimeoutScale'
+
 EXTRA_UI_CAPTURE_DIR = (
     'org.chromium.base.test.util.Screenshooter.ScreenshotDir')
 
-EXTRA_TRACE_FILE = ('org.chromium.base.test.BaseJUnit4ClassRunner.TraceFile')
+EXTRA_TRACE_FILE = 'BaseChromiumAndroidJUnitRunner.TraceFile'
 
 _EXTRA_RUN_DISABLED_TEST = (
     'org.chromium.base.test.util.DisableIfSkipCheck.RunDisabledTest')
 
-_EXTRA_TEST_IS_UNIT = (
-    'org.chromium.base.test.BaseChromiumAndroidJUnitRunner.IsUnitTest')
+_EXTRA_TEST_IS_UNIT = 'BaseChromiumAndroidJUnitRunner.IsUnitTest'
 
 _EXTRA_PACKAGE_UNDER_TEST = ('org.chromium.chrome.test.pagecontroller.rules.'
                              'ChromeUiApplicationTestRule.PackageUnderTest')
+
+_EXTRA_WEBVIEW_PROCESS_MODE = 'AwJUnit4ClassRunner.ProcessMode'
 
 FEATURE_ANNOTATION = 'Feature'
 RENDER_TEST_FEATURE_ANNOTATION = 'RenderTest'
@@ -130,9 +131,33 @@ RENDER_TEST_MODEL_SDK_CONFIGS = {
 
 _BATCH_SUFFIX = '_batch'
 # If the batch is too big it starts to fail for command line length reasons.
-_LOCAL_TEST_BATCH_MAX_GROUP_SIZE = 200
+_UNIT_TEST_MAX_GROUP_SIZE = 200
+# With sharding, large batches can unbalance the shards, so break down batches
+# of slow tests to a size that should not take more than a couple of minutes to
+# run.
+_NON_UNIT_TEST_MAX_GROUP_SIZE = 30
 
 _PICKLE_FORMAT_VERSION = 12
+
+
+def _dict2list(d):
+  if isinstance(d, dict):
+    return sorted([(k, _dict2list(v)) for k, v in d.items()])
+  if isinstance(d, list):
+    return [_dict2list(v) for v in d]
+  if isinstance(d, tuple):
+    return tuple(_dict2list(v) for v in d)
+  return d
+
+
+def _UpdateExtrasListener(extras, new_listener):
+  existing_listeners = extras.get('listener')
+  if existing_listeners:
+    # Comma is used to specify multiple listeners. See AndroidJUnitRunner.java
+    # in androidx code.
+    extras['listener'] = ','.join([existing_listeners, new_listener])
+  else:
+    extras['listener'] = new_listener
 
 
 class _TestListPickleException(Exception):
@@ -527,6 +552,14 @@ class LocalDeviceInstrumentationTestRun(
         self._ToggleAppLinks(dev, 'STATE_APPROVED')
 
       @trace_event.traced
+      def disable_system_modals(dev):
+        # Disable "Swipe down to exit fullscreen" modal.
+        # Disable notification permission dialog in Android T+.
+        cmd = ('settings put secure immersive_mode_confirmations confirmed && '
+               'settings put secure notification_permission_enabled 0')
+        dev.RunShellCommand(cmd, shell=True, check_return=True)
+
+      @trace_event.traced
       def set_vega_permissions(dev):
         # Normally, installation of VrCore automatically grants storage
         # permissions. However, since VrCore is part of the system image on
@@ -546,18 +579,16 @@ class LocalDeviceInstrumentationTestRun(
         # commands. Don't resolve if the path is passed to app through flags.
         if self._env.force_main_user:
           device_root = device.ResolveSpecialPath(device_root)
-        host_device_tuples_substituted = [
-            (h, local_device_test_run.SubstituteDeviceRoot(d, device_root))
-            for h, d in host_device_tuples
-        ]
+        resolved_host_device_tuples = device_dependencies.SubstituteDeviceRoot(
+            host_device_tuples, device_root)
         logging.info('Pushing data dependencies.')
-        for h, d in host_device_tuples_substituted:
+        for h, d in resolved_host_device_tuples:
           logging.debug('  %r -> %r', h, d)
         dev.PlaceNomediaFile(device_root)
-        dev.PushChangedFiles(host_device_tuples_substituted,
+        dev.PushChangedFiles(resolved_host_device_tuples,
                              delete_device_stale=True,
                              as_root=self._env.force_main_user)
-        if not host_device_tuples_substituted:
+        if not resolved_host_device_tuples:
           dev.RunShellCommand(['rm', '-rf', device_root],
                               check_return=True,
                               as_root=self._env.force_main_user)
@@ -574,8 +605,9 @@ class LocalDeviceInstrumentationTestRun(
           webview_flags.append('--webview-verbose-logging')
 
         def _get_variations_seed_path_arg(seed_path):
-          seed_path_components = DevicePathComponentsFor(seed_path)
-          test_seed_path = local_device_test_run.SubstituteDeviceRoot(
+          seed_path_components = device_dependencies.DevicePathComponentsFor(
+              seed_path)
+          test_seed_path = device_dependencies.SubstituteDeviceRootSingle(
               seed_path_components, test_data_root_dir)
           return '--variations-test-seed-path={0}'.format(test_seed_path)
 
@@ -600,13 +632,10 @@ class LocalDeviceInstrumentationTestRun(
           logging.debug('Attempting to set WebView flags: %r', webview_flags)
           self._webview_flag_changers[str(dev)].AddFlags(webview_flags)
 
-        valgrind_tools.SetChromeTimeoutScale(
-            dev, self._test_instance.timeout_scale)
-
       install_steps += [push_test_data, create_flag_changer]
       post_install_steps += [
-          set_debug_app, approve_app_links, set_vega_permissions,
-          DismissCrashDialogs
+          set_debug_app, approve_app_links, disable_system_modals,
+          set_vega_permissions, DismissCrashDialogs
       ]
 
       def bind_crash_handler(step, dev):
@@ -690,8 +719,6 @@ class LocalDeviceInstrumentationTestRun(
       for cmd in self._test_instance.run_teardown_commands:
         logging.info('Running custom teardown shell command: %s', cmd)
         dev.RunShellCommand(cmd, shell=True, check_return=True)
-
-      valgrind_tools.SetChromeTimeoutScale(dev, None)
 
       # If we've force approved app links for a package, undo that now.
       self._ToggleAppLinks(dev, 'STATE_NO_RESPONSE')
@@ -817,6 +844,16 @@ class LocalDeviceInstrumentationTestRun(
 
   #override
   def _GroupTests(self, tests):
+    batched_tests, other_tests = self._GroupTestsIntoBatchesAndOthers(tests)
+    batched_tests_split = self._SplitBatchesAboveMaxSize(batched_tests)
+    all_tests = batched_tests_split + other_tests
+
+    # Sort all tests by hash.
+    # TODO(crbug.com/40200835): Add sorting logic back to _PartitionTests.
+    return self._SortTests(all_tests)
+
+  def _GroupTestsIntoBatchesAndOthers(self, tests):
+    # pylint: disable=no-self-use
     batched_tests = dict()
     other_tests = []
     for test in tests:
@@ -852,44 +889,33 @@ class LocalDeviceInstrumentationTestRun(
           base_test_result.MULTIPROCESS_SUFFIX in test['method'])
         if webview_multiprocess_mode:
           batch_name += '|multiprocess_mode'
-
         batched_tests.setdefault(batch_name, []).append(test)
       else:
         other_tests.append(test)
+    for tests_in_batch in batched_tests.values():
+      tests_in_batch.sort(key=_dict2list)
+    return batched_tests, other_tests
 
-    def dict2list(d):
-      if isinstance(d, dict):
-        return sorted([(k, dict2list(v)) for k, v in d.items()])
-      if isinstance(d, list):
-        return [dict2list(v) for v in d]
-      if isinstance(d, tuple):
-        return tuple(dict2list(v) for v in d)
-      return d
+  def _SplitBatchesAboveMaxSize(self, batched_tests):
+    # pylint: disable=no-self-use
+    batched_tests_split = []
+    for batch_name, tests_in_batch in batched_tests.items():
+      if batch_name.startswith('UnitTests'):
+        max_group_size = _UNIT_TEST_MAX_GROUP_SIZE
+      else:
+        max_group_size = _NON_UNIT_TEST_MAX_GROUP_SIZE
+      for i in range(0, len(tests_in_batch), max_group_size):
+        batched_tests_split.append(tests_in_batch[i:i + max_group_size])
+    return batched_tests_split
 
-    test_count = sum(
-        [len(test) - 1 for test in tests if self._CountTestsIndividually(test)])
-    test_count += len(tests)
-    if self._test_instance.total_external_shards > 1:
-      # Calculate suitable test batch max group size based on average partition
-      # size. The batch size should be below partition size to balance between
-      # shards. Choose to divide by 3 as it works fine with most of test suite
-      # without increasing too much setup/teardown time for batch tests.
-      test_batch_max_group_size = \
-        max(1, test_count // self._test_instance.total_external_shards // 3)
-    else:
-      test_batch_max_group_size = _LOCAL_TEST_BATCH_MAX_GROUP_SIZE
+  #override
+  def _GroupTestsAfterSharding(self, tests):
+    # pylint: disable=no-self-use
+    batched_tests, other_tests = self._GroupTestsIntoBatchesAndOthers(tests)
+    all_tests = list(batched_tests.values()) + other_tests
 
-    all_tests = []
-    for _, btests in list(batched_tests.items()):
-      # Ensure a consistent ordering across external shards.
-      btests.sort(key=dict2list)
-      all_tests.extend([
-          btests[i:i + test_batch_max_group_size]
-          for i in range(0, len(btests), test_batch_max_group_size)
-      ])
-    all_tests.extend(other_tests)
     # Sort all tests by hash.
-    # TODO(crbug.com/1257820): Add sorting logic back to _PartitionTests.
+    # TODO(crbug.com/40200835): Add sorting logic back to _PartitionTests.
     return self._SortTests(all_tests)
 
   #override
@@ -912,7 +938,6 @@ class LocalDeviceInstrumentationTestRun(
       extras[_EXTRA_PACKAGE_UNDER_TEST] = package_name
 
     flags_to_add = []
-    test_timeout_scale = None
     if self._test_instance.coverage_directory:
       coverage_basename = '%s' % ('%s_%s_group' %
                                   (test[0]['class'], test[0]['method'])
@@ -953,6 +978,10 @@ class LocalDeviceInstrumentationTestRun(
                                 (coverage_basename, '%2m_%p%c'))
       extras[EXTRA_CLANG_COVERAGE_DEVICE_FILE] = posixpath.join(
           device_clang_profile_dir, clang_profile_filename)
+      if self._test_instance.use_native_coverage_listener:
+        _UpdateExtrasListener(
+            extras,
+            'org.chromium.base.test.NativeCoverageInstrumentationRunListener')
 
     if self._test_instance.enable_breakpad_dump:
       # Use external storage directory so that the breakpad dump can be accessed
@@ -1021,11 +1050,10 @@ class LocalDeviceInstrumentationTestRun(
       timeout = FIXED_TEST_TIMEOUT_OVERHEAD + self._GetTimeoutFromAnnotations(
           test['annotations'], test_display_name)
 
-      test_timeout_scale = self._GetTimeoutScaleFromAnnotations(
-          test['annotations'])
-      if test_timeout_scale and test_timeout_scale != 1:
-        valgrind_tools.SetChromeTimeoutScale(
-            device, test_timeout_scale * self._test_instance.timeout_scale)
+      timeout_scale = self._test_instance.timeout_scale * (
+          self._GetTimeoutScaleFromAnnotations(test['annotations']))
+      if timeout_scale != 1:
+        extras[EXTRA_TIMEOUT_SCALE] = str(self._test_instance.timeout_scale)
 
     if self._test_instance.wait_for_java_debugger:
       timeout = None
@@ -1107,11 +1135,6 @@ class LocalDeviceInstrumentationTestRun(
       def restore_flags():
         if flags_to_add:
           self._flag_changers[str(device)].Restore()
-
-      def restore_timeout_scale():
-        if test_timeout_scale:
-          valgrind_tools.SetChromeTimeoutScale(
-              device, self._test_instance.timeout_scale)
 
       def handle_coverage_data():
         if self._test_instance.coverage_directory:
@@ -1227,9 +1250,9 @@ class LocalDeviceInstrumentationTestRun(
       # the results! Things such as whether the test CRASHED have not yet been
       # determined.
       post_test_steps = [
-          restore_flags, restore_timeout_scale, stop_chrome_proxy,
-          handle_coverage_data, handle_render_test_data,
-          pull_ui_screen_captures, pull_baseline_profile
+          restore_flags, stop_chrome_proxy, handle_coverage_data,
+          handle_render_test_data, pull_ui_screen_captures,
+          pull_baseline_profile
       ]
       if self._env.concurrent_adb:
         reraiser_thread.RunAsync(post_test_steps)
@@ -1393,12 +1416,18 @@ class LocalDeviceInstrumentationTestRun(
             # Workaround for https://github.com/mockito/mockito/issues/922
             'notPackage': 'net.bytebuddy',
         }
+        if self._test_instance.webview_process_mode:
+          extras[_EXTRA_WEBVIEW_PROCESS_MODE] = (
+              self._test_instance.webview_process_mode)
+        if self._test_instance.timeout_scale != 1:
+          extras[EXTRA_TIMEOUT_SCALE] = str(self._test_instance.timeout_scale)
+
         # BaseChromiumAndroidJUnitRunner ignores this bundle value (and always
         # adds the listener). This is needed to enable the the listener when
         # using AndroidJUnitRunner directly.
         if self._test_instance.has_chromium_test_listener:
-          extras['listener'] = (
-              'org.chromium.testing.TestListInstrumentationRunListener')
+          _UpdateExtrasListener(
+              extras, 'org.chromium.testing.TestListInstrumentationRunListener')
         elif not run_disabled:
           extras['notAnnotation'] = 'androidx.test.filters.FlakyTest'
 
@@ -1740,8 +1769,12 @@ class LocalDeviceInstrumentationTestRun(
 
           processed_template_output = _GenerateRenderTestHtml(
               render_name, given_link, closest_link, diff_link)
+          # We include the timestamp in the HTML results filename so that
+          # multiple tries from the same run do not clobber each other.
+          timestamp = time.strftime('%Y%m%dT%H%M%S-UTC', time.gmtime())
+          html_results_name = f'{render_name}_{timestamp}.html'
           with self._env.output_manager.ArchivedTempfile(
-              '%s.html' % render_name, 'gold_local_diffs',
+              html_results_name, 'gold_local_diffs',
               output_manager.Datatype.HTML) as html_results:
             html_results.write(processed_template_output)
           _SetLinkOnResults(results, full_test_name, render_name,

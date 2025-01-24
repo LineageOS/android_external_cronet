@@ -126,14 +126,10 @@ HttpStreamFactory::Job::Job(
       job_type_(job_type),
       using_ssl_(origin_url_.SchemeIs(url::kHttpsScheme) ||
                  origin_url_.SchemeIs(url::kWssScheme)),
-      using_quic_(alternative_protocol == kProtoQUIC ||
-                  (ShouldForceQuic(session,
-                                   destination_,
-                                   proxy_info,
-                                   using_ssl_,
-                                   is_websocket_)) ||
-                  job_type == DNS_ALPN_H3 ||
-                  job_type == PRECONNECT_DNS_ALPN_H3),
+      using_quic_(
+          alternative_protocol == kProtoQUIC ||
+          session->ShouldForceQuic(destination_, proxy_info, is_websocket_) ||
+          job_type == DNS_ALPN_H3 || job_type == PRECONNECT_DNS_ALPN_H3),
       quic_version_(quic_version),
       expect_spdy_(alternative_protocol == kProtoHTTP2 && !using_quic_),
       quic_request_(session_->quic_session_pool()),
@@ -154,16 +150,10 @@ HttpStreamFactory::Job::Job(
   // `HttpNetworkTransaction`, which consumes additional fields.
   DCHECK(!proxy_info_.is_empty());
 
-  // QUIC can only be spoken to servers, never to proxies.
-  if (alternative_protocol == kProtoQUIC) {
-    DCHECK(proxy_info_.is_direct());
-  }
-
   // The Job is forced to use QUIC without a designated version, try the
   // preferred QUIC version that is supported by default.
   if (quic_version_ == quic::ParsedQuicVersion::Unsupported() &&
-      ShouldForceQuic(session, destination_, proxy_info, using_ssl_,
-                      is_websocket_)) {
+      session->ShouldForceQuic(destination_, proxy_info, is_websocket_)) {
     quic_version_ =
         session->context().quic_context->params()->supported_versions[0];
   }
@@ -329,11 +319,13 @@ bool HttpStreamFactory::Job::HasAvailableQuicSession() const {
   bool require_dns_https_alpn =
       (job_type_ == DNS_ALPN_H3) || (job_type_ == PRECONNECT_DNS_ALPN_H3);
 
-  return quic_request_.CanUseExistingSession(
-      origin_url_, proxy_info_.proxy_chain(), request_info_.privacy_mode,
-      SessionUsage::kDestination, request_info_.socket_tag,
-      request_info_.network_anonymization_key, request_info_.secure_dns_policy,
-      require_dns_https_alpn, destination_);
+  QuicSessionKey quic_session_key(
+      HostPortPair::FromURL(origin_url_), request_info_.privacy_mode,
+      proxy_info_.proxy_chain(), SessionUsage::kDestination,
+      request_info_.socket_tag, request_info_.network_anonymization_key,
+      request_info_.secure_dns_policy, require_dns_https_alpn);
+  return session_->quic_session_pool()->CanUseExistingSession(quic_session_key,
+                                                              destination_);
 }
 
 bool HttpStreamFactory::Job::TargettedSocketGroupHasActiveSocket() const {
@@ -379,87 +371,6 @@ void HttpStreamFactory::Job::GetSSLInfo(SSLInfo* ssl_info) {
 bool HttpStreamFactory::Job::UsingHttpProxyWithoutTunnel() const {
   return !using_quic_ && !using_ssl_ && !is_websocket_ &&
          proxy_info_.proxy_chain().is_get_to_proxy_allowed();
-}
-
-// static
-bool HttpStreamFactory::Job::OriginToForceQuicOn(
-    const QuicParams& quic_params,
-    const url::SchemeHostPort& destination) {
-  // TODO(crbug.com/1206799): Consider converting `origins_to_force_quic_on` to
-  // use url::SchemeHostPort.
-  return (
-      base::Contains(quic_params.origins_to_force_quic_on, HostPortPair()) ||
-      base::Contains(quic_params.origins_to_force_quic_on,
-                     HostPortPair::FromSchemeHostPort(destination)));
-}
-
-// static
-bool HttpStreamFactory::Job::ShouldForceQuic(
-    HttpNetworkSession* session,
-    const url::SchemeHostPort& destination,
-    const ProxyInfo& proxy_info,
-    bool using_ssl,
-    bool is_websocket) {
-  if (!session->IsQuicEnabled()) {
-    return false;
-  }
-  if (is_websocket) {
-    return false;
-  }
-  // If a proxy is being used, the last proxy in the chain must be QUIC if we
-  // are to use QUIC on top of it.
-  if (!proxy_info.is_direct() && !proxy_info.proxy_chain().Last().is_quic()) {
-    return false;
-  }
-  return OriginToForceQuicOn(*session->context().quic_context->params(),
-                             destination) &&
-         base::EqualsCaseInsensitiveASCII(destination.scheme(),
-                                          url::kHttpsScheme);
-}
-
-// static
-SpdySessionKey HttpStreamFactory::Job::GetSpdySessionKey(
-    const ProxyChain& proxy_chain,
-    const GURL& origin_url,
-    const StreamRequestInfo& request_info) {
-  // In the case that we'll be sending a GET request to the proxy, look for a
-  // HTTP/2 proxy session *to* the proxy, instead of to the origin server. The
-  // way HTTP over HTTPS proxies work is that the ConnectJob makes a SpdyProxy,
-  // and then the HttpStreamFactory detects it when it's added to the
-  // SpdySession pool, and uses it directly (completely ignoring the result of
-  // the ConnectJob, and in fact cancelling it). So we need to create the same
-  // key used by the HttpProxyConnectJob for the last proxy in the chain.
-  if (IsGetToProxy(proxy_chain, origin_url)) {
-    // For this to work as expected, the whole chain should be HTTPS.
-    for (const auto& proxy_server : proxy_chain.proxy_servers()) {
-      CHECK(proxy_server.is_https());
-    }
-    auto [last_proxy_partial_chain, last_proxy_server] =
-        proxy_chain.SplitLast();
-    const auto& last_proxy_host_port_pair = last_proxy_server.host_port_pair();
-    // Note that `disable_cert_network_fetches` must be true for proxies to
-    // avoid deadlock. See comment on
-    // `SSLConfig::disable_cert_verification_network_fetches`.
-    return SpdySessionKey(
-        last_proxy_host_port_pair, PRIVACY_MODE_DISABLED,
-        last_proxy_partial_chain, SessionUsage::kProxy, request_info.socket_tag,
-        request_info.network_anonymization_key, request_info.secure_dns_policy,
-        /*disable_cert_network_fetches=*/true);
-  }
-  return SpdySessionKey(
-      HostPortPair::FromURL(origin_url), request_info.privacy_mode, proxy_chain,
-      SessionUsage::kDestination, request_info.socket_tag,
-      request_info.network_anonymization_key, request_info.secure_dns_policy,
-      request_info.load_flags & LOAD_DISABLE_CERT_NETWORK_FETCHES);
-}
-
-// static
-bool HttpStreamFactory::Job::IsGetToProxy(const ProxyChain& proxy_chain,
-                                          const GURL& origin_url) {
-  // Sending proxied GET requests to the last proxy server in the chain is no
-  // longer supported for QUIC.
-  return proxy_chain.is_get_to_proxy_allowed() &&
-         proxy_chain.Last().is_https() && origin_url.SchemeIs(url::kHttpScheme);
 }
 
 bool HttpStreamFactory::Job::CanUseExistingSpdySession() const {
@@ -703,7 +614,7 @@ int HttpStreamFactory::Job::DoLoop(int result) {
         rv = DoCreateStreamComplete(rv);
         break;
       default:
-        NOTREACHED() << "bad state";
+        NOTREACHED_IN_MIGRATION() << "bad state";
         rv = ERR_FAILED;
         break;
     }
@@ -948,6 +859,11 @@ int HttpStreamFactory::Job::DoInitConnectionImplQuic(
 void HttpStreamFactory::Job::OnQuicHostResolution(int result) {
   DCHECK(expect_on_quic_host_resolution_);
   expect_on_quic_host_resolution_ = false;
+
+  delegate_->OnQuicHostResolution(destination_,
+                                  quic_request_.dns_resolution_start_time(),
+                                  quic_request_.dns_resolution_end_time());
+
   // If no `OnQuicSessionCreated` call is expected, then consider the
   // connection "initialized" and inform the delegate. Note that
   // `OnQuicHostResolution` is actually called somewhat _after_ host resolution
@@ -1087,7 +1003,7 @@ int HttpStreamFactory::Job::DoInitConnectionComplete(int result) {
       stream_ = std::make_unique<QuicHttpStream>(std::move(session),
                                                  std::move(dns_aliases));
     }
-    next_state_ = STATE_NONE;
+    next_state_ = STATE_CREATE_STREAM_COMPLETE;
     return OK;
   }
 
@@ -1279,7 +1195,7 @@ void HttpStreamFactory::Job::OnSpdySessionAvailable(
 
   // This will synchronously close |connection_|, so no need to worry about it
   // calling back into |this|.
-  RunLoop(net::OK);
+  RunLoop(OK);
 }
 
 int HttpStreamFactory::Job::ReconsiderProxyAfterError(int error) {

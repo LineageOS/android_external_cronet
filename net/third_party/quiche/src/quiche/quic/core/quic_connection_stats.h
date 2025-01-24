@@ -23,6 +23,9 @@ struct QUICHE_EXPORT QuicConnectionStats {
 
   QuicByteCount bytes_sent = 0;  // Includes retransmissions.
   QuicPacketCount packets_sent = 0;
+  // Number of ACK packets sent by the dispatcher on behalf of this connection,
+  // prior to the construction of QuicConnection.
+  QuicPacketCount packets_sent_by_dispatcher = 0;
   // Non-retransmitted bytes sent in a stream frame.
   QuicByteCount stream_bytes_sent = 0;
   // Packets serialized and discarded before sending.
@@ -253,6 +256,10 @@ struct QUICHE_EXPORT QuicConnectionStats {
 
   // The total number of streams which were pending from some time.
   size_t num_total_pending_streams = 0;
+
+  // Statistics to measure how many client path probes are reset.
+  uint32_t num_client_probing_attempts = 0;
+  uint32_t num_stateless_resets_on_alternate_path = 0;
 };
 
 }  // namespace quic

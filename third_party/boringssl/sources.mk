@@ -93,6 +93,7 @@ crypto_sources := \
   src/crypto/dh_extra/dh_asn1.c\
   src/crypto/dh_extra/params.c\
   src/crypto/digest_extra/digest_extra.c\
+  src/crypto/dilithium/dilithium.c\
   src/crypto/dsa/dsa.c\
   src/crypto/dsa/dsa_asn1.c\
   src/crypto/ec_extra/ec_asn1.c\
@@ -129,7 +130,11 @@ crypto_sources := \
   src/crypto/keccak/keccak.c\
   src/crypto/kyber/kyber.c\
   src/crypto/lhash/lhash.c\
+  src/crypto/md4/md4.c\
+  src/crypto/md5/md5.c\
   src/crypto/mem.c\
+  src/crypto/mldsa/mldsa.c\
+  src/crypto/mlkem/mlkem.cc\
   src/crypto/obj/obj.c\
   src/crypto/obj/obj_xref.c\
   src/crypto/pem/pem_all.c\
@@ -150,26 +155,37 @@ crypto_sources := \
   src/crypto/poly1305/poly1305_vec.c\
   src/crypto/pool/pool.c\
   src/crypto/rand_extra/deterministic.c\
+  src/crypto/rand_extra/fork_detect.c\
   src/crypto/rand_extra/forkunsafe.c\
   src/crypto/rand_extra/getentropy.c\
   src/crypto/rand_extra/ios.c\
   src/crypto/rand_extra/passive.c\
   src/crypto/rand_extra/rand_extra.c\
   src/crypto/rand_extra/trusty.c\
+  src/crypto/rand_extra/urandom.c\
   src/crypto/rand_extra/windows.c\
   src/crypto/rc4/rc4.c\
   src/crypto/refcount.c\
   src/crypto/rsa_extra/rsa_asn1.c\
   src/crypto/rsa_extra/rsa_crypt.c\
+  src/crypto/rsa_extra/rsa_extra.c\
   src/crypto/rsa_extra/rsa_print.c\
+  src/crypto/sha/sha1.c\
+  src/crypto/sha/sha256.c\
+  src/crypto/sha/sha512.c\
   src/crypto/siphash/siphash.c\
-  src/crypto/spx/address.c\
-  src/crypto/spx/fors.c\
-  src/crypto/spx/merkle.c\
+  src/crypto/slhdsa/fors.c\
+  src/crypto/slhdsa/merkle.c\
+  src/crypto/slhdsa/slhdsa.c\
+  src/crypto/slhdsa/thash.c\
+  src/crypto/slhdsa/wots.c\
   src/crypto/spx/spx.c\
+  src/crypto/spx/spx_address.c\
+  src/crypto/spx/spx_fors.c\
+  src/crypto/spx/spx_merkle.c\
+  src/crypto/spx/spx_thash.c\
   src/crypto/spx/spx_util.c\
-  src/crypto/spx/thash.c\
-  src/crypto/spx/wots.c\
+  src/crypto/spx/spx_wots.c\
   src/crypto/stack/stack.c\
   src/crypto/thread.c\
   src/crypto/thread_none.c\
@@ -295,10 +311,6 @@ crypto_sources_asm := \
   src/gen/bcm/ghashv8-armv8-apple.S\
   src/gen/bcm/ghashv8-armv8-linux.S\
   src/gen/bcm/ghashv8-armv8-win.S\
-  src/gen/bcm/md5-586-apple.S\
-  src/gen/bcm/md5-586-linux.S\
-  src/gen/bcm/md5-x86_64-apple.S\
-  src/gen/bcm/md5-x86_64-linux.S\
   src/gen/bcm/p256-armv8-asm-apple.S\
   src/gen/bcm/p256-armv8-asm-linux.S\
   src/gen/bcm/p256-armv8-asm-win.S\
@@ -366,6 +378,10 @@ crypto_sources_asm := \
   src/gen/crypto/chacha20_poly1305_armv8-win.S\
   src/gen/crypto/chacha20_poly1305_x86_64-apple.S\
   src/gen/crypto/chacha20_poly1305_x86_64-linux.S\
+  src/gen/crypto/md5-586-apple.S\
+  src/gen/crypto/md5-586-linux.S\
+  src/gen/crypto/md5-x86_64-apple.S\
+  src/gen/crypto/md5-x86_64-linux.S\
   src/gen/test_support/trampoline-armv4-linux.S\
   src/gen/test_support/trampoline-armv8-apple.S\
   src/gen/test_support/trampoline-armv8-linux.S\

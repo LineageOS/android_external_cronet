@@ -29,8 +29,6 @@
 #include "base/types/is_instantiation.h"
 #include "base/types/to_address.h"
 #include "build/build_config.h"
-#include "partition_alloc/partition_alloc_buildflags.h"
-#include "partition_alloc/partition_alloc_config.h"
 #include "third_party/abseil-cpp/absl/functional/function_ref.h"
 
 // See docs/callback.md for user documentation.
@@ -409,7 +407,7 @@ class OwnedRefWrapper {
 //  2) `is_valid_` is distinct from `nullptr` because it is valid to bind a null
 //     scoper to a `Callback` and allow the `Callback` to execute once.
 //
-// TODO(crbug.com/1326449): We have rvalue references and such now. Remove.
+// TODO(crbug.com/40840557): We have rvalue references and such now. Remove.
 template <typename T>
 class PassedWrapper {
  public:
@@ -1042,12 +1040,12 @@ struct Invoker<Traits, StorageType, R(UnboundArgs...)> {
                           BoundArgsTuple&& bound,
                           std::index_sequence<indices...>,
                           UnboundArgs&&... unbound_args) {
-#if BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
+#if PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
     RawPtrAsanBoundArgTracker raw_ptr_asan_bound_arg_tracker;
     raw_ptr_asan_bound_arg_tracker.AddArgs(
         std::get<indices>(std::forward<BoundArgsTuple>(bound))...,
         std::forward<UnboundArgs>(unbound_args)...);
-#endif  // BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
+#endif  // PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 
     using DecayedArgsTuple = std::decay_t<BoundArgsTuple>;
     static constexpr bool kIsWeakCall =
@@ -1072,7 +1070,7 @@ struct Invoker<Traits, StorageType, R(UnboundArgs...)> {
 };
 
 // Allow binding a method call with no receiver.
-// TODO(crbug.com/1511757): Remove or make safe.
+// TODO(crbug.com/41484339): Remove or make safe.
 template <typename... Unused>
 void VerifyMethodReceiver(Unused&&...) {}
 
@@ -1909,7 +1907,7 @@ struct BindHelper {
 // If `IsWeakReceiver<T>::value` is `true` and `T` is used as a method receiver,
 // `Bind()` cancels the method invocation if the receiver tests as false.
 // ```
-//   struct S : SupportsWeakPtr<S> {
+//   struct S {
 //     void f() {}
 //   };
 //

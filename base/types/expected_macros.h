@@ -254,7 +254,7 @@ UnexpectedDeducer(Lambda) -> UnexpectedDeducer<Lambda>;
     static_assert(base::internal::IsExpected<decltype(expected)>,          \
                   #name " should only be used with base::expected<>");     \
   }                                                                        \
-  if (UNLIKELY(!expected.has_value())) {                                   \
+  if (!expected.has_value()) [[unlikely]] {                                \
     return_keyword base::internal::UnexpectedDeducer([&] {                 \
       return error_expr;                                                   \
     }).Ret();                                                              \
@@ -267,18 +267,18 @@ UnexpectedDeducer(Lambda) -> UnexpectedDeducer<Lambda>;
                                 return_keyword, error_expr);               \
   } while (false)
 
-#define BASE_INTERNAL_EXPECTED_ASSIGN_OR_RETURN(                            \
-    expected, rexpr, return_keyword, error_expr, lhs)                       \
-  BASE_INTERNAL_EXPECTED_BODY(expected, rexpr, ASSIGN_OR_RETURN,            \
-                              return_keyword, error_expr);                  \
-  {                                                                         \
-    static_assert(#lhs[0] != '(' || #lhs[sizeof #lhs - 2] != ')' ||         \
-                      std::string_view(#lhs).rfind('?', sizeof #lhs - 2) == \
-                          base::StringPiece::npos,                          \
-                  "Identified possible ternary in `lhs`; avoid passing "    \
-                  "parenthesized expressions containing '?' to the first "  \
-                  "argument of ASSIGN_OR_RETURN()");                        \
-  }                                                                         \
+#define BASE_INTERNAL_EXPECTED_ASSIGN_OR_RETURN(                           \
+    expected, rexpr, return_keyword, error_expr, lhs)                      \
+  BASE_INTERNAL_EXPECTED_BODY(expected, rexpr, ASSIGN_OR_RETURN,           \
+                              return_keyword, error_expr);                 \
+  {                                                                        \
+    constexpr auto lhs_v = std::string_view(#lhs);                         \
+    static_assert(!(lhs_v.front() == '(' && lhs_v.back() == ')' &&         \
+                    lhs_v.rfind('?') != std::string_view::npos),           \
+                  "Identified possible ternary in `lhs`; avoid passing "   \
+                  "parenthesized expressions containing '?' to the first " \
+                  "argument of ASSIGN_OR_RETURN()");                       \
+  }                                                                        \
   BASE_REMOVE_PARENS(lhs) = std::move(expected).value();
 
 #define BASE_INTERNAL_EXPECTED_PASS_ARGS(func, ...) func(__VA_ARGS__)

@@ -478,6 +478,7 @@ typedef enum {
     XML_IO_EADDRINUSE, /* 1554 */
     XML_IO_EALREADY, /* 1555 */
     XML_IO_EAFNOSUPPORT, /* 1556 */
+    XML_IO_UNSUPPORTED_PROTOCOL, /* 1557 */
     XML_XINCLUDE_RECURSION=1600,
     XML_XINCLUDE_PARSE_VALUE, /* 1601 */
     XML_XINCLUDE_ENTITY_DEF_MISMATCH, /* 1602 */
@@ -891,6 +892,7 @@ XML_GLOBALS_ERROR
 XMLPUBFUN void
     xmlSetGenericErrorFunc	(void *ctx,
 				 xmlGenericErrorFunc handler);
+XML_DEPRECATED
 XMLPUBFUN void
     xmlThrDefSetGenericErrorFunc(void *ctx,
                                  xmlGenericErrorFunc handler);
@@ -901,6 +903,7 @@ XMLPUBFUN void
 XMLPUBFUN void
     xmlSetStructuredErrorFunc	(void *ctx,
 				 xmlStructuredErrorFunc handler);
+XML_DEPRECATED
 XMLPUBFUN void
     xmlThrDefSetStructuredErrorFunc(void *ctx,
                                  xmlStructuredErrorFunc handler);
@@ -924,7 +927,9 @@ XMLPUBFUN void
     xmlParserValidityWarning	(void *ctx,
 				 const char *msg,
 				 ...) LIBXML_ATTR_FORMAT(2,3);
+/** DOC_DISABLE */
 struct _xmlParserInput;
+/** DOC_ENABLE */
 XMLPUBFUN void
     xmlParserPrintFileInfo	(struct _xmlParserInput *input);
 XMLPUBFUN void

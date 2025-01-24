@@ -3,5 +3,10 @@
 name: "Netscape Portable Runtime (NSPR)"
 third_party {
   license_type: RECIPROCAL
-  homepage: "http://www.mozilla.org/projects/nspr/"
+  version: "4.8"
+  identifier {
+    value: "https://hg.mozilla.org/projects/nspr"
+    type: "Hg"
+    version: "4.8"
+  }
 }

@@ -13,7 +13,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 
 /**
- * The return value of {@link Condition#check()}.
+ * The return value of {@link Condition#checkWithSuppliers()}.
  *
  * <p>Includes whether the condition is fulfilled, an optional message and the timestamp of the
  * check.
@@ -26,13 +26,15 @@ public class ConditionStatus {
     @IntDef({
         ConditionStatus.Status.NOT_FULFILLED,
         ConditionStatus.Status.FULFILLED,
-        ConditionStatus.Status.ERROR
+        ConditionStatus.Status.ERROR,
+        ConditionStatus.Status.AWAITING
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface Status {
         int NOT_FULFILLED = 0;
         int FULFILLED = 1;
         int ERROR = 2;
+        int AWAITING = 3;
     }
 
     private final long mTimestamp;
@@ -57,6 +59,10 @@ public class ConditionStatus {
 
     public boolean isError() {
         return mStatus == Status.ERROR;
+    }
+
+    public boolean isAwaiting() {
+        return mStatus == Status.AWAITING;
     }
 
     public @Status int getStatus() {
@@ -87,6 +93,7 @@ public class ConditionStatus {
                     case Status.FULFILLED -> "REQUIRED";
                     case Status.NOT_FULFILLED -> "NOT REQ";
                     case Status.ERROR -> "ERROR";
+                    case Status.AWAITING -> "AWAITING";
                     default -> throw new IllegalStateException();
                 };
         fullMessage.append(statusMessage);
@@ -96,5 +103,24 @@ public class ConditionStatus {
         }
         fullMessage.append(">");
         return fullMessage.toString();
+    }
+
+    /**
+     * Create a {@link ConditionStatusWithResult} to return a status with a result from {@link
+     * ConditionWithResult#resolveWithSuppliers()}.
+     *
+     * <p>All statuses exception AWAITING can return a result.
+     */
+    public <T> ConditionStatusWithResult<T> withResult(T result) {
+        assert mStatus != Status.AWAITING;
+        return new ConditionStatusWithResult<>(this, result);
+    }
+
+    /**
+     * Create a {@link ConditionStatusWithResult} to return a status without a result from {@link
+     * ConditionWithResult#resolveWithSuppliers()}.
+     */
+    public <T> ConditionStatusWithResult<T> withoutResult() {
+        return new ConditionStatusWithResult<>(this, /* result= */ null);
     }
 }

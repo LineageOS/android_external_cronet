@@ -5,7 +5,7 @@
 #ifndef PARTITION_ALLOC_EXTENDED_API_H_
 #define PARTITION_ALLOC_EXTENDED_API_H_
 
-#include "partition_alloc/partition_alloc_buildflags.h"
+#include "partition_alloc/buildflags.h"
 #include "partition_alloc/partition_root.h"
 #include "partition_alloc/partition_stats.h"
 #include "partition_alloc/thread_cache.h"
@@ -32,7 +32,7 @@ class ThreadCacheProcessScopeForTesting {
 
  private:
   PartitionRoot* root_ = nullptr;
-#if BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
+#if PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
   bool regular_was_enabled_ = false;
 #endif
 };
