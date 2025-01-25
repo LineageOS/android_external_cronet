@@ -45341,7 +45341,6 @@ third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.bazelignore: 1cc9997ef34
 third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.bazelrc: 0ff925a9392622a47a41bf11f6a5567bc08934526020a3abdd38862e2fff5803
 third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.buckconfig: 1d960f9b564b0c404272cb72b5015b3b871c4f20df9a3c00743544670a818a98
 third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.buckroot: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.cache/clangd/index/cxx.h.C0DDD5657DB570ED.idx: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
 third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.cargo-checksum.json: 715669b6894789f736958ebc7cc70c9fe25b4ee509cccc38d0908dcd1c6268af
 third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.cargo_vcs_info.json: fd665bc956c2b7b9051948b863eb66385d2d9fff7f60a635df5d51fcba38d527
 third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.clang-format: 6a93809b0b53d99447a0d16fab9ed9fcdf76316567976c120b855939cd348af8
@@ -50688,6 +50687,3 @@ index a90eeaf..0773c32 100644
    }
    if (ClearException(env) || !clazz) {
      JNI_ZERO_FLOG("Failed to find class %s", class_name);
-diff --git a/premerge/third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.cache/clangd/index/cxx.h.C0DDD5657DB570ED.idx b/checkout/third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.cache/clangd/index/cxx.h.C0DDD5657DB570ED.idx
-index e1a0dff..e69de29 100644
-Binary files a/premerge/third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.cache/clangd/index/cxx.h.C0DDD5657DB570ED.idx and b/checkout/third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/.cache/clangd/index/cxx.h.C0DDD5657DB570ED.idx differ

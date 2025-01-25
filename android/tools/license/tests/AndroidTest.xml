@@ -1,6 +1,0 @@
-<configuration description="Config to run license_converter_test unittests">
-  <test class="com.android.tradefed.testtype.python.PythonBinaryHostTest" >
-    <option name="par-file-name" value="license_converter_test" />
-    <option name="test-timeout" value="5m" />
-  </test>
-</configuration>
