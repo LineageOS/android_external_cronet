@@ -65,7 +65,7 @@ java_library {
     name: "cronet_aml_java",
     static_libs: [
         "cronet_aml_components_cronet_android_cronet_impl_native_java",
-        "cronet_aml_components_cronet_android_cronet_jni_registration_java"
+        "cronet_aml_components_cronet_android_cronet_jni_registration_java",
     ],
     sdk_version: "module_current",
     min_sdk_version: "30",
@@ -84,7 +84,7 @@ java_library {
     static_libs: [
         "cronet_aml_components_cronet_android_cronet_impl_native_java__testing",
         "cronet_aml_components_cronet_android_cronet_jni_registration_java__testing",
-        "cronet_aml_components_cronet_android_cronet_tests_jni_registration_java__testing"
+        "cronet_aml_components_cronet_android_cronet_tests_jni_registration_java__testing",
     ],
     sdk_version: "module_current",
     min_sdk_version: "30",
@@ -158,20 +158,20 @@ android_test_helper_app {
         "cronet_aml_net_net_unittests__library__testing",
     ],
     static_libs: ["cronet_for_testing_net_java"],
-    resource_dirs : [
+    resource_dirs: [
         "net/android/unittest_support/res",
     ],
 }
 
 filegroup {
-  name: "cronet_javatests_resources",
-  srcs: [
-    "net/data/ssl/certificates/**/*",
-    "components/cronet/testing/test_server/data/**/*",
-  ],
-  visibility: [
-      "//external/cronet/android/tests:__subpackages__",
-  ],
+    name: "cronet_javatests_resources",
+    srcs: [
+        "net/data/ssl/certificates/**/*",
+        "components/cronet/testing/test_server/data/**/*",
+    ],
+    visibility: [
+        "//external/cronet/android/tests:__subpackages__",
+    ],
 }
 
 android_library {
@@ -199,7 +199,9 @@ android_library {
         "framework-connectivity-t.stubs.module_lib",
         "guava",
     ],
-    lint: { test: true },
+    lint: {
+        test: true,
+    },
     visibility: [
         "//external/cronet/android/tests:__subpackages__",
     ],
@@ -221,6 +223,11 @@ java_defaults {
 // from the repository root.
 cc_library_headers {
     name: "cronet_repository_root_include_dirs_anchor",
+    host_supported: true,
+    apex_available: [
+        "com.android.tethering",
+    ],
+    min_sdk_version: "30",
     export_include_dirs: ["."],
     visibility: [
         "//external/cronet:__subpackages__",
@@ -228,6 +235,11 @@ cc_library_headers {
 }
 
 filegroup {
-  name: "license_data",
-  srcs: ["**/README.chromium", "**/MODULE_LICENSE_*", "**/LICENSE", "**/METADATA"]
+    name: "license_data",
+    srcs: [
+        "**/README.chromium",
+        "**/MODULE_LICENSE_*",
+        "**/LICENSE",
+        "**/METADATA",
+    ],
 }

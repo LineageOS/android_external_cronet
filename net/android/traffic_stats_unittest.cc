@@ -2,12 +2,13 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <unistd.h>     // For usleep
-
 #include "net/android/traffic_stats.h"
+
+#include <unistd.h>  // For usleep
 
 #include "base/run_loop.h"
 #include "base/test/task_environment.h"
+#include "base/time/time.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "net/url_request/url_request_context.h"
 #include "net/url_request/url_request_context_builder.h"
@@ -19,17 +20,37 @@ namespace net {
 
 namespace {
 
-
 template <typename Predicate>
-void ExpectWithRetry(Predicate predicate, int max_retries = 50, int retry_interval_ms = 100) {
-    for (int retry_count = 0; ; ++retry_count) {
-       if (predicate()) return;
-       if (retry_count == max_retries) break;
-       usleep(retry_interval_ms * 1000);
+void ExpectWithRetry(Predicate predicate) {
+  const int kMaxRetries = 500;
+  const auto kRetryInterval = base::Milliseconds(10);
+  for (int retry_count = 0;; ++retry_count) {
+    if (predicate()) {
+      return;
     }
+    if (retry_count == kMaxRetries) {
+      break;
+    }
+    base::PlatformThreadBase::Sleep(kRetryInterval);
+  }
 
-    // If reached here, all retries have failed.
-    FAIL() << "Condition remained false even after " << max_retries * retry_interval_ms << " ms";
+  // If reached here, all retries have failed.
+  FAIL() << "Condition remained false even after "
+         << kMaxRetries * kRetryInterval;
+}
+
+int64_t GetTotalTxBytes() {
+  int64_t ret = -1;
+  EXPECT_TRUE(android::traffic_stats::GetTotalTxBytes(&ret));
+  EXPECT_GE(ret, 0);
+  return ret;
+}
+
+int64_t GetTotalRxBytes() {
+  int64_t ret = -1;
+  EXPECT_TRUE(android::traffic_stats::GetTotalRxBytes(&ret));
+  EXPECT_GE(ret, 0);
+  return ret;
 }
 
 TEST(TrafficStatsAndroidTest, BasicsTest) {
@@ -60,18 +81,10 @@ TEST(TrafficStatsAndroidTest, BasicsTest) {
   test_delegate.RunUntilComplete();
 
   // Bytes should increase because of the network traffic.
-  // Retry is needed to avoid rate-limit caching for
+  // Retry is needed to work around rate-limit caching for
   // TrafficStats API results on V+ devices.
-  ExpectWithRetry([&] {
-    int64_t ret = -1;
-    EXPECT_TRUE(android::traffic_stats::GetTotalTxBytes(&ret));
-    return ret > tx_bytes_before_request;
-  });
-  ExpectWithRetry([&] {
-      int64_t ret = -1;
-      EXPECT_TRUE(android::traffic_stats::GetTotalRxBytes(&ret));
-      return ret > rx_bytes_before_request;
-    });
+  ExpectWithRetry([&] { return GetTotalTxBytes() > tx_bytes_before_request; });
+  ExpectWithRetry([&] { return GetTotalRxBytes() > rx_bytes_before_request; });
 }
 
 TEST(TrafficStatsAndroidTest, UIDBasicsTest) {
@@ -102,18 +115,10 @@ TEST(TrafficStatsAndroidTest, UIDBasicsTest) {
   test_delegate.RunUntilComplete();
 
   // Bytes should increase because of the network traffic.
-  // Retry is needed to avoid rate-limit caching for
+  // Retry is needed to work around rate-limit caching for
   // TrafficStats API results on V+ devices.
-  ExpectWithRetry([&] {
-      int64_t ret = -1;
-      EXPECT_TRUE(android::traffic_stats::GetTotalTxBytes(&ret));
-      return ret > tx_bytes_before_request;
-    });
-   ExpectWithRetry([&] {
-       int64_t ret = -1;
-       EXPECT_TRUE(android::traffic_stats::GetTotalRxBytes(&ret));
-       return ret > rx_bytes_before_request;
-  });
+  ExpectWithRetry([&] { return GetTotalTxBytes() > tx_bytes_before_request; });
+  ExpectWithRetry([&] { return GetTotalRxBytes() > rx_bytes_before_request; });
 }
 
 }  // namespace

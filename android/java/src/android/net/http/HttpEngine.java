@@ -13,16 +13,16 @@ import android.annotation.SystemApi;
 import android.content.Context;
 import android.net.Network;
 
-
-import org.chromium.net.ExperimentalCronetEngine;
-import org.chromium.net.ApiVersion;
-import org.chromium.net.impl.CronetLibraryLoader;
-import org.chromium.net.impl.NativeCronetEngineBuilderImpl;
-
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
+
+import org.chromium.base.metrics.ScopedSysTraceEvent;
+import org.chromium.net.ApiVersion;
+import org.chromium.net.ExperimentalCronetEngine;
+import org.chromium.net.impl.CronetLibraryLoader;
+import org.chromium.net.impl.NativeCronetEngineBuilderImpl;
 
 import java.io.IOException;
 import java.net.URL;
@@ -406,23 +406,29 @@ public abstract class HttpEngine {
 
         /**
          * Build a {@link HttpEngine} using this builder's configuration.
+         *
          * @return constructed {@link HttpEngine}.
          */
         @NonNull
         public HttpEngine build() {
-            return mBuilderDelegate.build();
+            try (var traceEvent = ScopedSysTraceEvent.scoped("HttpEngine#build")) {
+                return mBuilderDelegate.build();
+            }
         }
 
         /**
-         * Creates an implementation of {@link IHttpEngineBuilder} that can be used
-         * to delegate the builder calls to.
+         * Creates an implementation of {@link IHttpEngineBuilder} that can be used to delegate the
+         * builder calls to.
          *
          * @param context Android Context to use.
          * @return the created {@link IHttpEngineBuilder}.
          */
         private static IHttpEngineBuilder createBuilderDelegate(Context context) {
-            return new CronetEngineBuilderWrapper(new ExperimentalCronetEngine.Builder(
-                    new NativeCronetEngineBuilderImpl(context)));
+            try (var traceEvent = ScopedSysTraceEvent.scoped("HttpEngine#createBuilderDelegate")) {
+                return new CronetEngineBuilderWrapper(
+                        new ExperimentalCronetEngine.Builder(
+                                new NativeCronetEngineBuilderImpl(context)));
+            }
         }
     }
 
