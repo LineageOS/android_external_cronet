@@ -240,6 +240,7 @@ rust_ffi_static {
         "visitor.rs",
     ],
     host_supported: true,
+    host_cross_supported: false,
     apex_available: [
         "com.android.tethering",
     ],

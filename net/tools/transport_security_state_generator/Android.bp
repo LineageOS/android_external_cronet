@@ -141,6 +141,7 @@ cc_binary {
         "libunicode_ident__a2554af8d49a4107",
     ],
     host_supported: true,
+    host_cross_supported: false,
     device_supported: false,
     defaults: [
         "cronet_aml_cc_defaults",

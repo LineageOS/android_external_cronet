@@ -95,6 +95,7 @@ rust_ffi_static {
         "src/whitespace.rs",
     ],
     host_supported: true,
+    host_cross_supported: false,
     device_supported: false,
     apex_available: [
         "com.android.tethering",
@@ -204,6 +205,7 @@ rust_ffi_static {
         "src/whitespace.rs",
     ],
     host_supported: true,
+    host_cross_supported: false,
     device_supported: false,
     apex_available: [
         "com.android.tethering",

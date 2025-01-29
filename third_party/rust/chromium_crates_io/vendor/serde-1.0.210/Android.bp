@@ -60,6 +60,7 @@ rust_ffi_static {
         "src/std_error.rs",
     ],
     host_supported: true,
+    host_cross_supported: false,
     apex_available: [
         "com.android.tethering",
     ],

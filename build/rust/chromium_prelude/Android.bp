@@ -155,6 +155,7 @@ rust_ffi_static {
         "chromium_prelude.rs",
     ],
     host_supported: true,
+    host_cross_supported: false,
     apex_available: [
         "com.android.tethering",
     ],
