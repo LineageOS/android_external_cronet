@@ -85,9 +85,6 @@
     },
     {
       "name": "net_unittests_tester"
-    },
-    {
-      "name": "license_converter_test"
     }
   ]
 }
