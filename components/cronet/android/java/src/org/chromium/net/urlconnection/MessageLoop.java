@@ -59,7 +59,6 @@ public class MessageLoop implements Executor {
      * @param useTimeout whether to use a timeout.
      * @param timeoutNano Time to wait, in nanoseconds.
      * @return A non-{@code null} Runnable from the queue.
-     * @throws InterruptedIOException
      */
     private Runnable take(boolean useTimeout, long timeoutNano) throws InterruptedIOException {
         Runnable task = null;
@@ -83,21 +82,18 @@ public class MessageLoop implements Executor {
     }
 
     /**
-     * Runs the message loop. Be sure to call {@link MessageLoop#quit()}
-     * to end the loop. If an interruptedException occurs, the loop cannot be
-     * started again (see {@link #mLoopFailed}).
-     * @throws IOException
+     * Runs the message loop. Be sure to call {@link MessageLoop#quit()} to end the loop. If an
+     * interruptedException occurs, the loop cannot be started again (see {@link #mLoopFailed}).
      */
     public void loop() throws IOException {
         loop(0);
     }
 
     /**
-     * Runs the message loop. Be sure to call {@link MessageLoop#quit()}
-     * to end the loop. If an interruptedException occurs, the loop cannot be
-     * started again (see {@link #mLoopFailed}).
+     * Runs the message loop. Be sure to call {@link MessageLoop#quit()} to end the loop. If an
+     * interruptedException occurs, the loop cannot be started again (see {@link #mLoopFailed}).
+     *
      * @param timeoutMilli Timeout, in milliseconds, or 0 for no timeout.
-     * @throws IOException
      */
     public void loop(int timeoutMilli) throws IOException {
         assert calledOnValidThread();

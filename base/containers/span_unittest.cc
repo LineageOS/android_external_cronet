@@ -24,6 +24,7 @@
 #include "base/memory/raw_span.h"
 #include "base/numerics/byte_conversions.h"
 #include "base/ranges/algorithm.h"
+#include "base/strings/utf_ostream_operators.h"
 #include "base/test/gtest_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -55,6 +56,10 @@ namespace {
         std::is_same_v<decltype(span(v.begin(), v.size())), span<const int>>);
     static_assert(
         std::is_same_v<decltype(span(v.data(), v.size())), span<const int>>);
+    static_assert(
+        std::is_same_v<decltype(span(v.cbegin(),
+                                     std::integral_constant<size_t, 0>())),
+                       span<const int, 0>>);
   }
 
   {
@@ -65,6 +70,10 @@ namespace {
         std::is_same_v<decltype(span(v.begin(), v.size())), span<int>>);
     static_assert(
         std::is_same_v<decltype(span(v.data(), v.size())), span<int>>);
+    static_assert(
+        std::is_same_v<decltype(span(v.cbegin(),
+                                     std::integral_constant<size_t, 0>())),
+                       span<const int, 0>>);
   }
 
   {
@@ -742,6 +751,13 @@ TEST(SpanTest, FromRefOfConstStackVariable) {
   EXPECT_EQ(sizeof(int), b.size());
 }
 
+TEST(SpanTest, FromRefOfRValue) {
+  int x = 123;
+  static_assert(std::is_same_v<decltype(span_from_ref(std::move(x))),
+                               span<const int, 1u>>);
+  EXPECT_EQ(&x, span_from_ref(std::move(x)).data());
+}
+
 TEST(SpanTest, FromCString) {
   // No terminating null, size known at compile time.
   {
@@ -865,6 +881,42 @@ TEST(SpanTest, FromCStringEmbeddedNul) {
     static_assert(std::same_as<decltype(s), span<const uint8_t, 6u>>);
     EXPECT_THAT(s, ElementsAre('h', '\0', '\0', '\0', 'o', '\0'));
   }
+}
+
+// The sorts of constructions-from-short-lifetime-objects that trigger lifetime
+// warnings with dangling refs should not warn when there is no dangling.
+TEST(SpanTest, NoLifetimeWarnings) {
+  // Test each of dynamic- and fixed-extent spans.
+  static constexpr auto l1 = [](span<const int> s) { return s[0] == 1; };
+  static constexpr auto l2 = [](span<const int, 3> s) { return s[0] == 1; };
+
+  // C-style array, `std::array`, and `std::initializer_list` usage is safe when
+  // the produced span is consumed before the full expression ends.
+  [] {
+    int arr[3] = {1, 2, 3};
+    return l1(arr);
+  }();
+  [] {
+    int arr[3] = {1, 2, 3};
+    return l2(arr);
+  }();
+  [[maybe_unused]] auto a = l1(std::to_array({1, 2, 3}));
+  [[maybe_unused]] auto b = l2(std::to_array({1, 2, 3}));
+  [[maybe_unused]] auto c =
+      l2(span<const int, 3>({1, 2, 3}));  // Constructor is explicit.
+
+  // `std::string_view` is safe with a compile-time string constant, because it
+  // refers directly to the character array in the binary.
+  [[maybe_unused]] auto d = span<const char>(std::string_view("123"));
+  [[maybe_unused]] auto e = span<const char, 3>(std::string_view("123"));
+
+  // It's also safe with an lvalue `std::string`.
+  std::string s = "123";
+  [[maybe_unused]] auto f = span<const char>(std::string_view(s));
+  [[maybe_unused]] auto g = span<const char>(std::string_view(s));
+
+  // Non-std:: helpers should also allow safe usage.
+  [[maybe_unused]] auto h = as_byte_span(std::string_view(s));
 }
 
 TEST(SpanTest, FromCStringOtherTypes) {
@@ -1888,15 +1940,16 @@ TEST(SpanTest, AsWritableByteSpan) {
     EXPECT_EQ(byte_span.data(), reinterpret_cast<uint8_t*>(kMutVec.data()));
     EXPECT_EQ(byte_span.size(), kMutVec.size() * sizeof(int));
   }
-  // Rvalue input.
+  // Result can be passed as rvalue.
   {
+    int kMutArray[] = {2, 3, 5, 7, 11, 13};
     [](auto byte_span) {
       static_assert(
           std::is_same_v<decltype(byte_span), span<uint8_t, 6u * sizeof(int)>>);
       EXPECT_EQ(byte_span.size(), 6u * sizeof(int));
       // Little endian puts the low bits in the first byte.
       EXPECT_EQ(byte_span[0u], 2);
-    }(as_writable_byte_span({2, 3, 5, 7, 11, 13}));
+    }(as_writable_byte_span(kMutArray));
   }
 }
 
@@ -3315,6 +3368,11 @@ TEST(SpanTest, Printing) {
   EXPECT_EQ(testing::PrintToString(base::span<int>()), "[]");
   EXPECT_EQ(testing::PrintToString(base::span<char>()), "[\"\"]");
 
+  EXPECT_EQ(testing::PrintToString(base::span({u'a', u'b', u'c'})),
+            "[u\"abc\"]");
+  EXPECT_EQ(testing::PrintToString(base::span({L'a', L'b', L'c'})),
+            "[L\"abc\"]");
+
   // Base prints values in spans. Chars are special.
   EXPECT_EQ(base::ToString(base::span({1, 2, 3})), "[1, 2, 3]");
   EXPECT_EQ(base::ToString(base::span({S(), S()})), "[S(), S()]");
@@ -3325,6 +3383,9 @@ TEST(SpanTest, Printing) {
             std::string_view("[\"ab\0c\0\"]", 9u));
   EXPECT_EQ(base::ToString(base::span<int>()), "[]");
   EXPECT_EQ(base::ToString(base::span<char>()), "[\"\"]");
+
+  EXPECT_EQ(base::ToString(base::span({u'a', u'b', u'c'})), "[u\"abc\"]");
+  EXPECT_EQ(base::ToString(base::span({L'a', L'b', L'c'})), "[L\"abc\"]");
 }
 
 }  // namespace base

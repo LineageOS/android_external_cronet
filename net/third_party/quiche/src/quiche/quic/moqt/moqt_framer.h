@@ -55,9 +55,26 @@ class QUICHE_EXPORT MoqtFramer {
   quiche::QuicheBuffer SerializeUnannounce(const MoqtUnannounce& message);
   quiche::QuicheBuffer SerializeTrackStatus(const MoqtTrackStatus& message);
   quiche::QuicheBuffer SerializeGoAway(const MoqtGoAway& message);
+  quiche::QuicheBuffer SerializeSubscribeAnnounces(
+      const MoqtSubscribeAnnounces& message);
+  quiche::QuicheBuffer SerializeSubscribeAnnouncesOk(
+      const MoqtSubscribeAnnouncesOk& message);
+  quiche::QuicheBuffer SerializeSubscribeAnnouncesError(
+      const MoqtSubscribeAnnouncesError& message);
+  quiche::QuicheBuffer SerializeUnsubscribeAnnounces(
+      const MoqtUnsubscribeAnnounces& message);
+  quiche::QuicheBuffer SerializeMaxSubscribeId(
+      const MoqtMaxSubscribeId& message);
+  quiche::QuicheBuffer SerializeFetch(const MoqtFetch& message);
+  quiche::QuicheBuffer SerializeFetchCancel(const MoqtFetchCancel& message);
+  quiche::QuicheBuffer SerializeFetchOk(const MoqtFetchOk& message);
+  quiche::QuicheBuffer SerializeFetchError(const MoqtFetchError& message);
   quiche::QuicheBuffer SerializeObjectAck(const MoqtObjectAck& message);
 
  private:
+  // Returns true if the metadata is internally consistent.
+  static bool ValidateObjectMetadata(const MoqtObject& object);
+
   quiche::QuicheBufferAllocator* allocator_;
   bool using_webtrans_;
 };

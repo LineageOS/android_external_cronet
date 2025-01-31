@@ -256,7 +256,6 @@ def dev_list():
       "pkgconf",
       "rpm",
       "ruby",
-      "subversion",
       "uuid-dev",
       "wdiff",
       "x11-utils",
@@ -298,6 +297,10 @@ def dev_list():
 
   if package_exists("libinput-dev"):
     packages.append("libinput-dev")
+
+  # So accessibility APIs work, needed for AX fuzzer
+  if package_exists("at-spi2-core"):
+    packages.append("at-spi2-core")
 
   # Cross-toolchain strip is needed for building the sysroots.
   if package_exists("binutils-arm-linux-gnueabihf"):

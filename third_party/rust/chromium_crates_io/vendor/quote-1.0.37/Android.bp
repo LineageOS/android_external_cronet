@@ -67,7 +67,7 @@ rust_ffi_static {
         host: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             features: [
                 "proc-macro",
@@ -123,7 +123,7 @@ rust_ffi_static {
         host: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             features: [
                 "proc-macro",

@@ -27,6 +27,7 @@ cc_library_static {
     srcs: [
         ":cronet_aml_third_party_rust_serde_json_lenient_v0_2_wrapper_wrapper_cxx_generated_gen",
     ],
+    host_cross_supported: false,
     generated_headers: [
         "cronet_aml_third_party_rust_serde_json_lenient_v0_2_wrapper_wrapper_cxx_generated_gen_header",
     ],
@@ -39,15 +40,15 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-3847-g69c43468-28\"",
-        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/include/cxx.h\"",
-        "-DCR_LIBCXX_REVISION=39e674e51a7dc3d8e4dc7574fa4e1e75c73116af",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
+        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.129/include/cxx.h\"",
+        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DNDEBUG",
         "-DNVALGRIND",
         "-DOFFICIAL_BUILD",
-        "-DTEMP_REBUILD_HACK",
+        "-DTMP_REBUILD_HACK",
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
@@ -114,6 +115,7 @@ cc_library_static {
         ":cronet_aml_third_party_rust_serde_json_lenient_v0_2_wrapper_wrapper_cxx_generated_gen__testing",
     ],
     host_supported: true,
+    host_cross_supported: false,
     generated_headers: [
         "cronet_aml_third_party_rust_serde_json_lenient_v0_2_wrapper_wrapper_cxx_generated_gen__testing_header",
     ],
@@ -124,14 +126,14 @@ cc_library_static {
         "cronet_aml_cc_defaults",
     ],
     cflags: [
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-3847-g69c43468-28\"",
-        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.128/include/cxx.h\"",
-        "-DCR_LIBCXX_REVISION=39e674e51a7dc3d8e4dc7574fa4e1e75c73116af",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
+        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.129/include/cxx.h\"",
+        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DNDEBUG",
         "-DNVALGRIND",
         "-DOFFICIAL_BUILD",
-        "-DTEMP_REBUILD_HACK",
+        "-DTMP_REBUILD_HACK",
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
@@ -262,7 +264,7 @@ rust_ffi_static {
         android_arm: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -281,7 +283,7 @@ rust_ffi_static {
         android_arm64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -300,7 +302,7 @@ rust_ffi_static {
         android_riscv64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -319,7 +321,7 @@ rust_ffi_static {
         android_x86: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -338,7 +340,7 @@ rust_ffi_static {
         android_x86_64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -357,7 +359,7 @@ rust_ffi_static {
         host: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -390,6 +392,7 @@ rust_ffi_static {
         "lib.rs",
         "visitor.rs",
     ],
+    host_cross_supported: false,
     apex_available: [
         "com.android.tethering",
     ],
@@ -411,7 +414,7 @@ rust_ffi_static {
         android_arm: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -430,7 +433,7 @@ rust_ffi_static {
         android_arm64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -449,7 +452,7 @@ rust_ffi_static {
         android_riscv64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -468,7 +471,7 @@ rust_ffi_static {
         android_x86: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -487,7 +490,7 @@ rust_ffi_static {
         android_x86_64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",

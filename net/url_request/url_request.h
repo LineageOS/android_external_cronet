@@ -39,6 +39,7 @@
 #include "net/cookies/canonical_cookie.h"
 #include "net/cookies/cookie_partition_key.h"
 #include "net/cookies/cookie_setting_override.h"
+#include "net/cookies/cookie_util.h"
 #include "net/cookies/site_for_cookies.h"
 #include "net/dns/public/secure_dns_policy.h"
 #include "net/filter/source_stream.h"
@@ -502,7 +503,7 @@ class NET_EXPORT URLRequest : public base::SupportsUserData {
   // that appear more than once in the response are coalesced, with values
   // separated by commas (per RFC 2616). This will not work with cookies since
   // comma can be used in cookie values.
-  void GetResponseHeaderByName(std::string_view name, std::string* value) const;
+  std::string GetResponseHeaderByName(std::string_view name) const;
 
   // The time when |this| was constructed.
   base::TimeTicks creation_time() const { return creation_time_; }
@@ -854,22 +855,29 @@ class NET_EXPORT URLRequest : public base::SupportsUserData {
   void SetSharedDictionaryGetter(
       SharedDictionaryGetter shared_dictionary_getter);
 
-  void set_storage_access_api_status(
-      StorageAccessApiStatus storage_access_api_status) {
-    DCHECK(!is_pending_);
-    DCHECK(!has_notified_completion_);
-    storage_access_api_status_ = storage_access_api_status;
-  }
-  StorageAccessApiStatus storage_access_api_status() const {
-    return storage_access_api_status_;
+  void set_storage_access_status(
+      std::optional<cookie_util::StorageAccessStatus> status) {
+    storage_access_status_ = status;
   }
 
   // Returns the StorageAccessStatus for this request.
   // TODO(https://crbug.com/366284840): move this state out of //net (into
   // network::URLLoader) to respect layering rules.
-  cookie_util::StorageAccessStatus StorageAccessStatus() const;
+  std::optional<cookie_util::StorageAccessStatus> storage_access_status()
+      const {
+    return storage_access_status_;
+  }
 
   static bool DefaultCanUseCookies();
+
+  // Calculates the StorageAccessStatus for this request, according to the
+  // NetworkDelegate. Also records metrics.
+  // TODO(https://crbug.com/366284840): Move this to URLLoader once the
+  // "Activate-Storage-Access: retry" header is handled in URLLoader.
+  std::optional<net::cookie_util::StorageAccessStatus>
+  CalculateStorageAccessStatus(
+      base::optional_ref<const RedirectInfo> redirect_info =
+          base::optional_ref<const RedirectInfo>(std::nullopt)) const;
 
   base::WeakPtr<URLRequest> GetWeakPtr();
 
@@ -898,9 +906,9 @@ class NET_EXPORT URLRequest : public base::SupportsUserData {
   // Storage Access (if possible).
   void RetryWithStorageAccess();
 
-  // Called by URLRequestJob to allow interception when a redirect occurs.
-  void NotifyReceivedRedirect(const RedirectInfo& redirect_info,
-                              bool* defer_redirect);
+  // Called by URLRequestJob when a redirect occurs. Notifies delegates, and
+  // follows the redirect (possibly asynchronously), unless they block it.
+  void ReceivedRedirect(RedirectInfo redirect_info);
 
  private:
   friend class URLRequestJob;
@@ -1022,14 +1030,6 @@ class NET_EXPORT URLRequest : public base::SupportsUserData {
   // Whether the request is allowed to send credentials in general. Set by
   // caller.
   bool allow_credentials_ = true;
-  // Whether the request is eligible for using a <request initiator's site,
-  // top-level site> storage access permission grant if one exists. Only set by
-  // caller when constructed and will not change during redirects.
-  //
-  // Note that this has no effect if the request initiator site and the request
-  // URL are not same-site to each other.
-  StorageAccessApiStatus storage_access_api_status_ =
-      StorageAccessApiStatus::kNone;
   SecureDnsPolicy secure_dns_policy_ = SecureDnsPolicy::kAllow;
 
   CookieAccessResultList maybe_sent_cookies_;
@@ -1072,6 +1072,10 @@ class NET_EXPORT URLRequest : public base::SupportsUserData {
   // location.  It is true from the time the headers complete until a
   // new request begins.
   bool is_redirecting_ = false;
+
+  // Set when a redirect is deferred. Redirects are deferred after validity
+  // checks are performed, so this field must not be modified.
+  std::optional<RedirectInfo> deferred_redirect_info_;
 
   // Number of times we're willing to redirect.  Used to guard against
   // infinite redirects.
@@ -1149,6 +1153,10 @@ class NET_EXPORT URLRequest : public base::SupportsUserData {
   Idempotency idempotency_ = DEFAULT_IDEMPOTENCY;
 
   SharedDictionaryGetter shared_dictionary_getter_;
+
+  // The storage access status for this request. If this is nullopt, this
+  // request will not include the Sec-Fetch-Storage-Access header.
+  std::optional<net::cookie_util::StorageAccessStatus> storage_access_status_;
 
   THREAD_CHECKER(thread_checker_);
 

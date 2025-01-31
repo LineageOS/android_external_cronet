@@ -45,6 +45,7 @@ cc_library_static {
         "liblog",
         "libprotobuf-cpp-lite",
     ],
+    host_cross_supported: false,
     generated_headers: [
         "cronet_aml_third_party_metrics_proto_metrics_proto_gen_headers",
     ],
@@ -57,8 +58,8 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-3847-g69c43468-28\"",
-        "-DCR_LIBCXX_REVISION=39e674e51a7dc3d8e4dc7574fa4e1e75c73116af",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
+        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DGOOGLE_PROTOBUF_INTERNAL_DONATE_STEAL_INLINE=0",
         "-DGOOGLE_PROTOBUF_NO_RTTI",
@@ -68,7 +69,7 @@ cc_library_static {
         "-DNDEBUG",
         "-DNVALGRIND",
         "-DOFFICIAL_BUILD",
-        "-DTEMP_REBUILD_HACK",
+        "-DTMP_REBUILD_HACK",
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
@@ -139,6 +140,7 @@ cc_library_static {
         "liblog",
         "libprotobuf-cpp-lite",
     ],
+    host_cross_supported: false,
     generated_headers: [
         "cronet_aml_third_party_metrics_proto_metrics_proto_gen__testing_headers",
     ],
@@ -151,8 +153,8 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-3847-g69c43468-28\"",
-        "-DCR_LIBCXX_REVISION=39e674e51a7dc3d8e4dc7574fa4e1e75c73116af",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
+        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DGOOGLE_PROTOBUF_INTERNAL_DONATE_STEAL_INLINE=0",
         "-DGOOGLE_PROTOBUF_NO_RTTI",
@@ -162,7 +164,7 @@ cc_library_static {
         "-DNDEBUG",
         "-DNVALGRIND",
         "-DOFFICIAL_BUILD",
-        "-DTEMP_REBUILD_HACK",
+        "-DTMP_REBUILD_HACK",
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
@@ -262,6 +264,7 @@ cc_genrule {
         "cronet_aml_third_party_protobuf_protoc",
     ],
     cmd: "$(location cronet_aml_third_party_protobuf_protoc) --proto_path=external/cronet/third_party/metrics_proto --cpp_out=lite=true:$(genDir)/third_party/metrics_proto/ $(in)",
+    host_cross_supported: false,
     out: [
         "third_party/metrics_proto/call_stack_profile.pb.cc",
         "third_party/metrics_proto/cast_logs.pb.cc",
@@ -341,6 +344,7 @@ cc_genrule {
         "cronet_aml_third_party_protobuf_protoc",
     ],
     cmd: "$(location cronet_aml_third_party_protobuf_protoc) --proto_path=external/cronet/third_party/metrics_proto --cpp_out=lite=true:$(genDir)/third_party/metrics_proto/ $(in)",
+    host_cross_supported: false,
     out: [
         "third_party/metrics_proto/call_stack_profile.pb.cc",
         "third_party/metrics_proto/cast_logs.pb.cc",

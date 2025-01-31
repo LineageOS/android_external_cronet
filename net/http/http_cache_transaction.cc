@@ -35,7 +35,6 @@
 #include "base/memory/stack_allocated.h"
 #include "base/metrics/histogram_functions.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/power_monitor/power_monitor.h"
 #include "base/strings/string_util.h"  // For EqualsCaseInsensitiveASCII.
 #include "base/task/single_thread_task_runner.h"
 #include "base/time/clock.h"
@@ -88,11 +87,6 @@ uint64_t GetNextTraceId(HttpCache* cache) {
 bool NonErrorResponse(int status_code) {
   int status_code_range = status_code / 100;
   return status_code_range == 2 || status_code_range == 3;
-}
-
-bool IsOnBatteryPower() {
-  auto* power_monitor = base::PowerMonitor::GetInstance();
-  return power_monitor->IsInitialized() && power_monitor->IsOnBatteryPower();
 }
 
 enum ExternallyConditionalizedType {
@@ -158,9 +152,9 @@ bool HeaderMatches(const HttpRequestHeaders& headers,
       return true;
     }
 
-    HttpUtil::ValuesIterator v(header_value->begin(), header_value->end(), ',');
+    HttpUtil::ValuesIterator v(*header_value, ',');
     while (v.GetNext()) {
-      if (base::EqualsCaseInsensitiveASCII(v.value_piece(), search->value)) {
+      if (base::EqualsCaseInsensitiveASCII(v.value(), search->value)) {
         return true;
       }
     }
@@ -2880,12 +2874,11 @@ bool HttpCache::Transaction::
     }
 
     // Retrieve either the cached response's "etag" or "last-modified" header.
-    std::string validator;
-    response_.headers->EnumerateHeader(
-        nullptr, kValidationHeaders[i].related_response_header_name,
-        &validator);
+    std::optional<std::string_view> validator =
+        response_.headers->EnumerateHeader(
+            nullptr, kValidationHeaders[i].related_response_header_name);
 
-    if (validator != external_validation_.values[i]) {
+    if (validator && *validator != external_validation_.values[i]) {
       return false;
     }
   }
@@ -4024,38 +4017,15 @@ bool HttpCache::Transaction::UpdateAndReportCacheability(
     return true;
   }
 
-  bool disable_caching = false;
-  if (base::FeatureList::IsEnabled(
-          features::kTurnOffStreamingMediaCachingAlways) ||
-      (base::FeatureList::IsEnabled(
-           features::kTurnOffStreamingMediaCachingOnBattery) &&
-       IsOnBatteryPower())) {
-    // If the feature is always enabled or enabled while we're running on
-    // battery, and the acquired content is 'large' and not already cached, and
-    // we have a MIME type of audio or video, then disable the cache for this
-    // response. We based our initial definition of 'large' on the disk cache
-    // maximum block size of 16K, which we observed captures the majority of
-    // responses from various MSE implementations.
-    static constexpr int kMaxContentSize = 4096 * 4;
-    std::string mime_type;
-    base::CompareCase insensitive_ascii = base::CompareCase::INSENSITIVE_ASCII;
-    if (headers.GetContentLength() > kMaxContentSize &&
-        headers.response_code() != HTTP_NOT_MODIFIED &&
-        headers.GetMimeType(&mime_type) &&
-        (base::StartsWith(mime_type, "video", insensitive_ascii) ||
-         base::StartsWith(mime_type, "audio", insensitive_ascii))) {
-      disable_caching = true;
-    }
-  }
-  return disable_caching;
+  return false;
 }
 
 void HttpCache::Transaction::UpdateSecurityHeadersBeforeForwarding() {
   // Because of COEP, we need to add CORP to the 304 of resources that set it
   // previously. It will be blocked in the network service otherwise.
-  std::string stored_corp_header;
-  response_.headers->GetNormalizedHeader("Cross-Origin-Resource-Policy",
-                                         &stored_corp_header);
+  std::string stored_corp_header =
+      response_.headers->GetNormalizedHeader("Cross-Origin-Resource-Policy")
+          .value_or(std::string());
   if (!stored_corp_header.empty()) {
     new_response_->headers->SetHeader("Cross-Origin-Resource-Policy",
                                       stored_corp_header);

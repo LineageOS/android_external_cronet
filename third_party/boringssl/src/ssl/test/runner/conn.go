@@ -228,7 +228,7 @@ func (hc *halfConn) prepareCipherSpec(version uint16, cipher any, mac macFunctio
 
 // changeCipherSpec changes the encryption and MAC states
 // to the ones previously passed to prepareCipherSpec.
-func (hc *halfConn) changeCipherSpec(config *Config) error {
+func (hc *halfConn) changeCipherSpec() error {
 	if hc.nextCipher == nil {
 		return alertInternalError
 	}
@@ -236,10 +236,9 @@ func (hc *halfConn) changeCipherSpec(config *Config) error {
 	hc.mac = hc.nextMac
 	hc.nextCipher = nil
 	hc.nextMac = nil
-	hc.config = config
 	hc.incEpoch()
 
-	if config.Bugs.NullAllCiphers {
+	if hc.config.Bugs.NullAllCiphers {
 		hc.cipher = nullCipher{}
 		hc.mac = nil
 	}
@@ -270,7 +269,8 @@ func (hc *halfConn) useTrafficSecret(version uint16, suite *cipherSuite, secret 
 		hc.cipher = nullCipher{}
 	}
 	hc.trafficSecret = secret
-	if hc.isDTLS && protocolVersion == VersionTLS13 {
+	if hc.isDTLS {
+		// TODO(crbug.com/42290594): This will need to handle KeyUpdate.
 		hc.setEpoch(uint16(level))
 	} else {
 		hc.incEpoch()
@@ -337,13 +337,9 @@ func (hc *halfConn) incEpoch() {
 			}
 		}
 		copy(hc.seq[2:], hc.nextSeq[:])
-		for i := range hc.nextSeq {
-			hc.nextSeq[i] = 0
-		}
+		clear(hc.nextSeq[:])
 	} else {
-		for i := range hc.seq {
-			hc.seq[i] = 0
-		}
+		clear(hc.seq[:])
 	}
 }
 
@@ -354,9 +350,7 @@ func (hc *halfConn) setEpoch(epoch uint16) {
 	hc.seq[0] = byte(epoch >> 8)
 	hc.seq[1] = byte(epoch)
 	copy(hc.seq[2:], hc.nextSeq[:])
-	for i := range hc.nextSeq {
-		hc.nextSeq[i] = 0
-	}
+	clear(hc.nextSeq[:])
 }
 
 func (hc *halfConn) sequenceNumberForOutput() []byte {
@@ -454,7 +448,7 @@ type cbcMode interface {
 // success boolean, the application payload, the encrypted record type (or 0
 // if there is none), and an optional alert value. Decryption occurs in-place,
 // so the contents of record will be overwritten as part of this process.
-func (hc *halfConn) decrypt(seq []byte, recordHeaderLen int, record []byte) (ok bool, contentType recordType, data []byte, alertValue alert) {
+func (hc *halfConn) decrypt(recordHeaderLen int, record []byte) (ok bool, contentType recordType, data []byte, alertValue alert) {
 	// pull out payload
 	payload := record[recordHeaderLen:]
 
@@ -472,7 +466,15 @@ func (hc *halfConn) decrypt(seq []byte, recordHeaderLen int, record []byte) (ok 
 		case cipher.Stream:
 			c.XORKeyStream(payload, payload)
 		case *tlsAead:
-			nonce := seq
+			nonce := hc.seq[:]
+			if hc.isDTLS && hc.version >= VersionTLS13 && !hc.conn.useDTLSPlaintextHeader() {
+				// Unlike DTLS 1.2, DTLS 1.3's nonce construction does not use
+				// the epoch number. We store the epoch and nonce numbers
+				// together, so make a copy without the epoch.
+				nonce = make([]byte, 8)
+				copy(nonce[2:], hc.seq[2:])
+			}
+
 			if explicitIVLen != 0 {
 				if len(payload) < explicitIVLen {
 					return false, 0, nil, alertBadRecordMAC
@@ -484,7 +486,7 @@ func (hc *halfConn) decrypt(seq []byte, recordHeaderLen int, record []byte) (ok 
 			var additionalData []byte
 			if hc.version < VersionTLS13 {
 				additionalData = make([]byte, 13)
-				copy(additionalData, seq)
+				copy(additionalData, hc.seq[:])
 				copy(additionalData[8:], record[:3])
 				n := len(payload) - c.Overhead()
 				additionalData[11] = byte(n >> 8)
@@ -552,7 +554,7 @@ func (hc *halfConn) decrypt(seq []byte, recordHeaderLen int, record []byte) (ok 
 		payload = payload[:n]
 		record[recordHeaderLen-2] = byte(n >> 8)
 		record[recordHeaderLen-1] = byte(n)
-		localMAC := hc.computeMAC(seq, record[:recordHeaderLen], payload)
+		localMAC := hc.computeMAC(hc.seq[:], record[:recordHeaderLen], payload)
 		if subtle.ConstantTimeCompare(localMAC, remoteMAC) != 1 || paddingGood != 255 {
 			return false, 0, nil, alertBadRecordMAC
 		}
@@ -633,7 +635,8 @@ func (c *Conn) useDTLSPlaintextHeader() bool {
 // (which must be in the last two bytes of the header) should be computed for
 // the unencrypted, unpadded payload. It will be updated, potentially in-place,
 // with the final length.
-func (hc *halfConn) encrypt(record, payload []byte, typ recordType, headerLen int, headerHasLength bool, seq []byte) ([]byte, error) {
+func (hc *halfConn) encrypt(record, payload []byte, typ recordType, headerLen int, headerHasLength bool) ([]byte, error) {
+	seq := hc.sequenceNumberForOutput()
 	prefixLen := len(record)
 	header := record[prefixLen-headerLen:]
 	explicitIVLen := hc.explicitIVLen()
@@ -653,9 +656,7 @@ func (hc *halfConn) encrypt(record, payload []byte, typ recordType, headerLen in
 			record = append(record, byte(typ))
 		}
 		padding := extendSlice(&record, hc.config.Bugs.RecordPadding)
-		for i := range padding {
-			padding[i] = 0
-		}
+		clear(padding)
 	}
 
 	if hc.mac != nil {
@@ -776,20 +777,18 @@ func newChachaRecordNumberEncrypter(key []byte) *chachaRecordNumberEncrypter {
 }
 
 func (c *chachaRecordNumberEncrypter) generateMask(sample []byte) []byte {
-	var counter uint32
-	nonce := make([]byte, 12)
+	var counter, nonce []byte
 	sampleReader := cryptobyte.String(sample)
-	if !sampleReader.ReadUint32(&counter) || !sampleReader.CopyBytes(nonce) {
+	if !sampleReader.ReadBytes(&counter, 4) || !sampleReader.ReadBytes(&nonce, 12) {
 		panic("chachaRecordNumberEncrypter.GenerateMask called with wrong size sample")
 	}
 	cipher, err := chacha20.NewUnauthenticatedCipher(c.key, nonce)
 	if err != nil {
 		panic("Failed to create chacha20 cipher for record number encryption")
 	}
-	cipher.SetCounter(counter)
-	zeroes := make([]byte, 2)
+	cipher.SetCounter(binary.LittleEndian.Uint32(counter))
 	out := make([]byte, 2)
-	cipher.XORKeyStream(out, zeroes)
+	cipher.XORKeyStream(out, out)
 	return out
 }
 
@@ -812,6 +811,11 @@ func (c *Conn) useInTrafficSecret(level encryptionLevel, version uint16, suite *
 }
 
 func (c *Conn) useOutTrafficSecret(level encryptionLevel, version uint16, suite *cipherSuite, secret []byte) {
+	if c.isDTLS {
+		// We buffer fragments in DTLS to pack them. Flush the buffer
+		// before the key change.
+		c.dtlsPackHandshake()
+	}
 	side := serverWrite
 	if c.isClient {
 		side = clientWrite
@@ -937,7 +941,7 @@ RestartReadRecord:
 
 	// Process message.
 	b := c.rawInput.Next(recordHeaderLen + n)
-	ok, encTyp, data, alertValue := c.in.decrypt(c.in.seq[:], recordHeaderLen, b)
+	ok, encTyp, data, alertValue := c.in.decrypt(recordHeaderLen, b)
 	if !ok {
 		// TLS 1.3 early data uses trial decryption.
 		if c.skipEarlyData {
@@ -1093,7 +1097,7 @@ Again:
 			c.in.setErrorLocked(errors.New("tls: buffered handshake messages on cipher change"))
 			break
 		}
-		if err := c.in.changeCipherSpec(c.config); err != nil {
+		if err := c.in.changeCipherSpec(); err != nil {
 			c.in.setErrorLocked(c.sendAlert(err.(alert)))
 		}
 
@@ -1289,7 +1293,7 @@ func (c *Conn) doWriteRecord(typ recordType, data []byte) (n int, err error) {
 		record[3] = byte(m >> 8) // encrypt will update this
 		record[4] = byte(m)
 
-		record, err = c.out.encrypt(record, data[:m], typ, tlsRecordHeaderLen, true /* header has length */, c.out.seq[:])
+		record, err = c.out.encrypt(record, data[:m], typ, tlsRecordHeaderLen, true /* header has length */)
 		if err != nil {
 			return
 		}
@@ -1302,7 +1306,7 @@ func (c *Conn) doWriteRecord(typ recordType, data []byte) (n int, err error) {
 	}
 
 	if typ == recordTypeChangeCipherSpec && c.vers < VersionTLS13 {
-		err = c.out.changeCipherSpec(c.config)
+		err = c.out.changeCipherSpec()
 		if err != nil {
 			return n, c.sendAlertLocked(alertLevelError, err.(alert))
 		}
@@ -1432,7 +1436,7 @@ func (c *Conn) readHandshake() (any, error) {
 	// The handshake message unmarshallers
 	// expect to be able to keep references to data,
 	// so pass in a fresh copy that won't be overwritten.
-	data = append([]byte(nil), data...)
+	data = slices.Clone(data)
 
 	if data[0] == typeServerHello && len(data) >= 38 {
 		vers := uint16(data[4])<<8 | uint16(data[5])
@@ -2060,7 +2064,12 @@ func (c *Conn) sendKeyUpdateLocked(keyUpdateRequest byte) error {
 	if err := c.flushHandshake(); err != nil {
 		return err
 	}
-	c.useOutTrafficSecret(encryptionApplication, c.out.wireVersion, c.cipherSuite, updateTrafficSecret(c.cipherSuite.hash(), c.wireVersion, c.out.trafficSecret, c.isDTLS))
+	if !c.isDTLS {
+		// TODO(crbug.com/42290594): Properly implement KeyUpdate. Right
+		// now we only support sending KeyUpdate to test that we drop
+		// post-HS messages on the floor (instead of erroring).
+		c.useOutTrafficSecret(encryptionApplication, c.out.wireVersion, c.cipherSuite, updateTrafficSecret(c.cipherSuite.hash(), c.wireVersion, c.out.trafficSecret, c.isDTLS))
+	}
 	return nil
 }
 

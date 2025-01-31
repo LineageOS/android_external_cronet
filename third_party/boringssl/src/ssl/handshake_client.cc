@@ -328,7 +328,7 @@ bool ssl_write_client_hello_without_extensions(const SSL_HANDSHAKE *hs,
   // Do not send a session ID on renegotiation.
   if (!ssl->s3->initial_handshake_complete &&
       !empty_session_id &&
-      !CBB_add_bytes(&child, hs->session_id, hs->session_id_len)) {
+      !CBB_add_bytes(&child, hs->session_id.data(), hs->session_id.size())) {
     return false;
   }
 
@@ -526,7 +526,7 @@ static enum ssl_hs_wait_t do_start_connect(SSL_HANDSHAKE *hs) {
   }
 
   const bool has_id_session = ssl->session != nullptr &&
-                              ssl->session->session_id_length > 0 &&
+                              !ssl->session->session_id.empty() &&
                               ssl->session->ticket.empty();
   const bool has_ticket_session =
       ssl->session != nullptr && !ssl->session->ticket.empty();
@@ -540,12 +540,10 @@ static enum ssl_hs_wait_t do_start_connect(SSL_HANDSHAKE *hs) {
                                          ssl->quic_method == nullptr &&
                                          !SSL_is_dtls(hs->ssl);
   if (has_id_session) {
-    hs->session_id_len = ssl->session->session_id_length;
-    OPENSSL_memcpy(hs->session_id, ssl->session->session_id,
-                   hs->session_id_len);
+    hs->session_id = ssl->session->session_id;
   } else if (ticket_session_requires_random_id || enable_compatibility_mode) {
-    hs->session_id_len = sizeof(hs->session_id);
-    if (!RAND_bytes(hs->session_id, hs->session_id_len)) {
+    hs->session_id.ResizeForOverwrite(SSL_MAX_SSL_SESSION_ID_LENGTH);
+    if (!RAND_bytes(hs->session_id.data(), hs->session_id.size())) {
       return ssl_hs_error;
     }
   }
@@ -575,10 +573,12 @@ static enum ssl_hs_wait_t do_enter_early_data(SSL_HANDSHAKE *hs) {
     return ssl_hs_ok;
   }
 
-  // Stash the early data session. This must happen before
-  // |do_early_reverify_server_certificate|, so early connection properties are
-  // available to the callback.
+  // Stash the early data session and activate the early version. This must
+  // happen before |do_early_reverify_server_certificate|, so early connection
+  // properties are available to the callback. Note the early version may be
+  // overwritten later by the final version.
   hs->early_session = UpRef(ssl->session);
+  ssl->s3->version = hs->early_session->ssl_version;
   hs->state = state_early_reverify_server_certificate;
   return ssl_hs_ok;
 }
@@ -604,8 +604,6 @@ static enum ssl_hs_wait_t do_early_reverify_server_certificate(SSL_HANDSHAKE *hs
     }
   }
 
-  ssl->s3->aead_write_ctx->SetVersionIfNullCipher(
-      hs->early_session->ssl_version);
   if (!ssl->method->add_change_cipher_spec(ssl)) {
     return ssl_hs_error;
   }
@@ -616,7 +614,7 @@ static enum ssl_hs_wait_t do_early_reverify_server_certificate(SSL_HANDSHAKE *hs
       !tls13_derive_early_secret(hs) ||
       !tls13_set_traffic_key(hs->ssl, ssl_encryption_early_data, evp_aead_seal,
                              hs->early_session.get(),
-                             hs->early_traffic_secret())) {
+                             hs->early_traffic_secret)) {
     return ssl_hs_error;
   }
 
@@ -723,12 +721,13 @@ static enum ssl_hs_wait_t do_read_server_hello(SSL_HANDSHAKE *hs) {
     return ssl_hs_error;
   }
 
-  assert((ssl->s3->version != 0) == ssl->s3->initial_handshake_complete);
-  if (ssl->s3->version == 0) {
+  if (!ssl->s3->initial_handshake_complete) {
+    // |ssl->s3->version| may be set due to 0-RTT. If it was to a different
+    // value, the check below will fire.
+    assert(ssl->s3->version == 0 ||
+           (hs->early_data_offered &&
+            ssl->s3->version == hs->early_session->ssl_version));
     ssl->s3->version = server_version;
-    // At this point, the connection's version is known and ssl->s3->version is
-    // fixed. Begin enforcing the record-layer version.
-    ssl->s3->aead_write_ctx->SetVersionIfNullCipher(ssl->s3->version);
   } else if (server_version != ssl->s3->version) {
     OPENSSL_PUT_ERROR(SSL, SSL_R_WRONG_SSL_VERSION);
     ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_PROTOCOL_VERSION);
@@ -829,9 +828,8 @@ static enum ssl_hs_wait_t do_read_server_hello(SSL_HANDSHAKE *hs) {
 
   hs->new_cipher = cipher;
 
-  if (hs->session_id_len != 0 &&
-      CBS_mem_equal(&server_hello.session_id, hs->session_id,
-                    hs->session_id_len)) {
+  if (!hs->session_id.empty() &&
+      Span<const uint8_t>(server_hello.session_id) == hs->session_id) {
     // Echoing the ClientHello session ID in TLS 1.2, whether from the session
     // or a synthetic one, indicates resumption. If there was no session (or if
     // the session was only offered in ECH ClientHelloInner), this was the
@@ -873,16 +871,9 @@ static enum ssl_hs_wait_t do_read_server_hello(SSL_HANDSHAKE *hs) {
     }
 
     // Save the session ID from the server. This may be empty if the session
-    // isn't resumable, or if we'll receive a session ticket later.
-    assert(CBS_len(&server_hello.session_id) <= SSL3_SESSION_ID_SIZE);
-    static_assert(SSL3_SESSION_ID_SIZE <= UINT8_MAX,
-                  "max session ID is too large");
-    hs->new_session->session_id_length =
-        static_cast<uint8_t>(CBS_len(&server_hello.session_id));
-    OPENSSL_memcpy(hs->new_session->session_id,
-                   CBS_data(&server_hello.session_id),
-                   CBS_len(&server_hello.session_id));
-
+    // isn't resumable, or if we'll receive a session ticket later. The
+    // ServerHello parser ensures |server_hello.session_id| is within bounds.
+    hs->new_session->session_id.CopyFrom(server_hello.session_id);
     hs->new_session->cipher = hs->new_cipher;
   }
 
@@ -1310,7 +1301,7 @@ static enum ssl_hs_wait_t do_read_certificate_request(SSL_HANDSHAKE *hs) {
 
   uint8_t alert = SSL_AD_DECODE_ERROR;
   UniquePtr<STACK_OF(CRYPTO_BUFFER)> ca_names =
-      ssl_parse_client_CA_list(ssl, &alert, &body);
+      SSL_parse_CA_list(ssl, &alert, &body);
   if (!ca_names) {
     ssl_send_alert(ssl, SSL3_AL_FATAL, alert);
     return ssl_hs_error;
@@ -1537,16 +1528,15 @@ static enum ssl_hs_wait_t do_send_client_key_exchange(SSL_HANDSHAKE *hs) {
 
   // Depending on the key exchange method, compute |pms|.
   if (alg_k & SSL_kRSA) {
-    if (!pms.Init(SSL_MAX_MASTER_KEY_LENGTH)) {
-      return ssl_hs_error;
-    }
-
     RSA *rsa = EVP_PKEY_get0_RSA(hs->peer_pubkey.get());
     if (rsa == NULL) {
       OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
       return ssl_hs_error;
     }
 
+    if (!pms.InitForOverwrite(SSL_MAX_MASTER_KEY_LENGTH)) {
+      return ssl_hs_error;
+    }
     pms[0] = hs->client_version >> 8;
     pms[1] = hs->client_version & 0xff;
     if (!RAND_bytes(&pms[2], SSL_MAX_MASTER_KEY_LENGTH - 2)) {
@@ -1590,7 +1580,6 @@ static enum ssl_hs_wait_t do_send_client_key_exchange(SSL_HANDSHAKE *hs) {
     if (!pms.Init(psk_len)) {
       return ssl_hs_error;
     }
-    OPENSSL_memset(pms.data(), 0, pms.size());
   } else {
     ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_HANDSHAKE_FAILURE);
     OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
@@ -1618,13 +1607,13 @@ static enum ssl_hs_wait_t do_send_client_key_exchange(SSL_HANDSHAKE *hs) {
     return ssl_hs_error;
   }
 
-  hs->new_session->secret_length =
-      tls1_generate_master_secret(hs, hs->new_session->secret, pms);
-  if (hs->new_session->secret_length == 0) {
+  hs->new_session->secret.ResizeForOverwrite(SSL3_MASTER_SECRET_SIZE);
+  if (!tls1_generate_master_secret(hs, MakeSpan(hs->new_session->secret),
+                                   pms)) {
     return ssl_hs_error;
   }
-  hs->new_session->extended_master_secret = hs->extended_master_secret;
 
+  hs->new_session->extended_master_secret = hs->extended_master_secret;
   hs->state = state_send_client_certificate_verify;
   return ssl_hs_ok;
 }
@@ -1859,8 +1848,9 @@ static enum ssl_hs_wait_t do_read_session_ticket(SSL_HANDSHAKE *hs) {
 
   // Historically, OpenSSL filled in fake session IDs for ticket-based sessions.
   // TODO(davidben): Are external callers relying on this? Try removing this.
-  SHA256(CBS_data(&ticket), CBS_len(&ticket), hs->new_session->session_id);
-  hs->new_session->session_id_length = SHA256_DIGEST_LENGTH;
+  hs->new_session->session_id.ResizeForOverwrite(SHA256_DIGEST_LENGTH);
+  SHA256(CBS_data(&ticket), CBS_len(&ticket),
+         hs->new_session->session_id.data());
 
   ssl->method->next_message(ssl);
   hs->state = state_process_change_cipher_spec;

@@ -948,6 +948,7 @@ QuicChromiumClientSession::QuicChromiumClientSession(
     const ConnectionEndpointMetadata& metadata,
     bool report_ecn,
     bool enable_origin_frame,
+    bool allow_server_preferred_address,
     const NetLogWithSource& net_log)
     : quic::QuicSpdyClientSessionBase(connection,
                                       /*visitor=*/nullptr,
@@ -992,7 +993,8 @@ QuicChromiumClientSession::QuicChromiumClientSession(
           net_log_)),
       http3_logger_(std::make_unique<QuicHttp3Logger>(net_log_)),
       path_validation_writer_delegate_(this, task_runner_),
-      ech_config_list_(metadata.ech_config_list) {
+      ech_config_list_(metadata.ech_config_list),
+      allow_server_preferred_address_(allow_server_preferred_address) {
   default_network_ = default_network;
   auto* socket_raw = socket.get();
   packet_readers_.push_back(std::make_unique<QuicChromiumPacketReader>(
@@ -1653,43 +1655,6 @@ quic::QuicSSLConfig QuicChromiumClientSession::GetSSLConfig() const {
                                   ech_config_list_.end());
   }
   return config;
-}
-
-void QuicChromiumClientSession::OnConfigNegotiated() {
-  quic::QuicSpdyClientSessionBase::OnConfigNegotiated();
-  if (!session_pool_ || !session_pool_->allow_server_migration()) {
-    return;
-  }
-  if (!config()->HasReceivedPreferredAddressConnectionIdAndToken()) {
-    return;
-  }
-
-  // Server has sent an alternate address to connect to.
-  IPEndPoint old_address;
-  GetDefaultSocket()->GetPeerAddress(&old_address);
-
-  // Migrate only if address families match.
-  IPEndPoint new_address;
-  if (old_address.GetFamily() == ADDRESS_FAMILY_IPV6) {
-    if (!config()->HasReceivedIPv6AlternateServerAddress()) {
-      return;
-    }
-    new_address = ToIPEndPoint(config()->ReceivedIPv6AlternateServerAddress());
-  } else if (old_address.GetFamily() == ADDRESS_FAMILY_IPV4) {
-    if (!config()->HasReceivedIPv4AlternateServerAddress()) {
-      return;
-    }
-    new_address = ToIPEndPoint(config()->ReceivedIPv4AlternateServerAddress());
-  }
-  DCHECK_EQ(new_address.GetFamily(), old_address.GetFamily());
-
-  // Specifying handles::kInvalidNetworkHandle for the |network| parameter
-  // causes the session to use the default network for the new socket.
-  // DoNothingAs is passed in as `migration_callback` because OnConfigNegotiated
-  // does not need to do anything directly with the migration result.
-  Migrate(handles::kInvalidNetworkHandle, new_address,
-          /*close_session_on_error=*/true,
-          base::DoNothingAs<void(MigrationResult)>());
 }
 
 void QuicChromiumClientSession::SetDefaultEncryptionLevel(
@@ -3724,7 +3689,7 @@ void QuicChromiumClientSession::NotifyFactoryOfSessionClosed() {
 
 void QuicChromiumClientSession::OnCryptoHandshakeComplete() {
   if (session_pool_) {
-    session_pool_->set_is_quic_known_to_work_on_current_network(true);
+    session_pool_->set_has_quic_ever_worked_on_current_network(true);
   }
 
   // Update |connect_end| only when handshake is confirmed. This should also
@@ -3985,6 +3950,9 @@ void QuicChromiumClientSession::OnServerPreferredAddressAvailable(
           connection_id(),
           "Ignored server preferred address received via proxied connection");
     });
+    return;
+  }
+  if (!allow_server_preferred_address_) {
     return;
   }
 

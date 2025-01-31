@@ -35,6 +35,7 @@
 #include "quiche/quic/core/frames/quic_max_streams_frame.h"
 #include "quiche/quic/core/frames/quic_new_connection_id_frame.h"
 #include "quiche/quic/core/frames/quic_reset_stream_at_frame.h"
+#include "quiche/quic/core/frames/quic_rst_stream_frame.h"
 #include "quiche/quic/core/quic_alarm.h"
 #include "quiche/quic/core/quic_alarm_factory.h"
 #include "quiche/quic/core/quic_blocked_writer_interface.h"
@@ -44,6 +45,7 @@
 #include "quiche/quic/core/quic_connection_id_manager.h"
 #include "quiche/quic/core/quic_connection_stats.h"
 #include "quiche/quic/core/quic_constants.h"
+#include "quiche/quic/core/quic_error_codes.h"
 #include "quiche/quic/core/quic_framer.h"
 #include "quiche/quic/core/quic_idle_network_detector.h"
 #include "quiche/quic/core/quic_lru_cache.h"
@@ -108,6 +110,7 @@ class QUICHE_EXPORT QuicConnectionVisitorInterface {
 
   // Called when the stream is reset by the peer.
   virtual void OnRstStream(const QuicRstStreamFrame& frame) = 0;
+  virtual void OnResetStreamAt(const QuicResetStreamAtFrame& frame) = 0;
 
   // Called when the connection is going away according to the peer.
   virtual void OnGoAway(const QuicGoAwayFrame& frame) = 0;
@@ -469,6 +472,10 @@ class QUICHE_EXPORT QuicConnectionDebugVisitor
   // Called after an ClientHelloInner is received and decrypted as a server.
   virtual void OnEncryptedClientHelloReceived(
       absl::string_view /*client_hello*/) {}
+
+  // Called after the QuicSession is created.
+  virtual void OnParsedClientHelloInfo(
+      const ParsedClientHello& /*client_hello*/) {}
 
   // Called by QuicConnection::SetMultiPacketClientHello.
   virtual void SetMultiPacketClientHello() {}
@@ -1084,8 +1091,35 @@ class QUICHE_EXPORT QuicConnection
   // Returns the id of the cipher last used for decrypting packets.
   uint32_t cipher_id() const;
 
-  std::vector<std::unique_ptr<QuicEncryptedPacket>>* termination_packets() {
-    return termination_packets_.get();
+  // Information about the connection close sent by this connection.
+  struct TerminationInfo {
+    explicit TerminationInfo(QuicErrorCode error_code)
+        : error_code(error_code) {}
+
+    const QuicErrorCode error_code;  // The connection close error code.
+    std::vector<std::unique_ptr<QuicEncryptedPacket>> termination_packets;
+  };
+
+  const TerminationInfo* termination_info() const {
+    return termination_info_.get();
+  }
+
+  // Whether the connection has termination packets _and_ they have not been
+  // consumed by ConsumeTerminationPackets.
+  bool HasTerminationPackets() const {
+    return termination_info_ != nullptr &&
+           !termination_info_->termination_packets.empty();
+  }
+
+  // Returns the termination packets and clears them from the connection.
+  // Postcondition: HasTerminationPackets() == false
+  std::vector<std::unique_ptr<QuicEncryptedPacket>>
+  ConsumeTerminationPackets() {
+    std::vector<std::unique_ptr<QuicEncryptedPacket>> packets;
+    if (termination_info_ != nullptr) {
+      packets.swap(termination_info_->termination_packets);
+    }
+    return packets;
   }
 
   bool ack_frame_updated() const;
@@ -1229,6 +1263,9 @@ class QUICHE_EXPORT QuicConnection
 
   // Called after an ClientHelloInner is received and decrypted as a server.
   void OnEncryptedClientHelloReceived(absl::string_view client_hello) const;
+
+  // Called after the QuicSession is created.
+  virtual void OnParsedClientHelloInfo(const ParsedClientHello& client_hello);
 
   // Returns true if ack_alarm_ is set.
   bool HasPendingAcks() const;
@@ -1399,6 +1436,28 @@ class QUICHE_EXPORT QuicConnection
     return quic_limit_new_streams_per_loop_2_;
   }
 
+  void set_outgoing_flow_label(uint32_t flow_label);
+
+  // Returns the flow label used for outgoing IPv6 packets, or 0 if no
+  // flow label will be sent.
+  uint32_t outgoing_flow_label() const { return outgoing_flow_label_; }
+
+  // Returns the flow label received on the most recent packet, or 0 if no
+  // flow label was received.
+  uint32_t last_received_flow_label() const {
+    return last_received_packet_info_.flow_label;
+  }
+
+  void EnableBlackholeAvoidanceViaFlowLabel() {
+    GenerateNewOutgoingFlowLabel();
+    enable_black_hole_avoidance_via_flow_label_ = true;
+    QUIC_CODE_COUNT(quic_black_hole_avoidance_via_flow_label_enabled);
+  }
+
+  bool enable_black_hole_avoidance_via_flow_label() const {
+    return enable_black_hole_avoidance_via_flow_label_;
+  }
+
   void OnDiscardZeroRttDecryptionKeysAlarm() override;
   void OnIdleDetectorAlarm() override;
   void OnNetworkBlackholeDetectorAlarm() override;
@@ -1421,6 +1480,10 @@ class QUICHE_EXPORT QuicConnection
       QuicErrorCode error, const std::string& error_details);
 
   bool ShouldFixTimeouts(const QuicConfig& config) const;
+
+  bool reliable_stream_reset_enabled() const {
+    return framer_.process_reset_stream_at();
+  }
 
  protected:
   // Calls cancel() on all the alarms owned by this connection.
@@ -1594,12 +1657,12 @@ class QUICHE_EXPORT QuicConnection
     BufferedPacket(const SerializedPacket& packet,
                    const QuicSocketAddress& self_address,
                    const QuicSocketAddress& peer_address,
-                   QuicEcnCodepoint ecn_codepoint);
+                   QuicEcnCodepoint ecn_codepoint, uint32_t flow_label);
     BufferedPacket(const char* encrypted_buffer,
                    QuicPacketLength encrypted_length,
                    const QuicSocketAddress& self_address,
                    const QuicSocketAddress& peer_address,
-                   QuicEcnCodepoint ecn_codepoint);
+                   QuicEcnCodepoint ecn_codepoint, uint32_t flow_label);
     // Please note, this buffered packet contains random bytes (and is not
     // *actually* a QUIC packet).
     BufferedPacket(QuicRandom& random, QuicPacketLength encrypted_length,
@@ -1616,6 +1679,7 @@ class QUICHE_EXPORT QuicConnection
     const QuicSocketAddress self_address;
     const QuicSocketAddress peer_address;
     QuicEcnCodepoint ecn_codepoint = ECN_NOT_ECT;
+    uint32_t flow_label = 0;
   };
 
   // ReceivedPacketInfo comprises the received packet information.
@@ -1625,7 +1689,7 @@ class QUICHE_EXPORT QuicConnection
     ReceivedPacketInfo(const QuicSocketAddress& destination_address,
                        const QuicSocketAddress& source_address,
                        QuicTime receipt_time, QuicByteCount length,
-                       QuicEcnCodepoint ecn_codepoint);
+                       QuicEcnCodepoint ecn_codepoint, uint32_t flow_label);
 
     QuicSocketAddress destination_address;
     QuicSocketAddress source_address;
@@ -1640,6 +1704,7 @@ class QUICHE_EXPORT QuicConnection
     QuicPacketHeader header;
     absl::InlinedVector<QuicFrameType, 1> frames;
     QuicEcnCodepoint ecn_codepoint = ECN_NOT_ECT;
+    uint32_t flow_label = 0;
     // Stores the actual address this packet is received on when it is received
     // on the preferred address. In this case, |destination_address| will
     // be overridden to the current default self address.
@@ -2085,9 +2150,12 @@ class QUICHE_EXPORT QuicConnection
                                  const QuicIpAddress& self_address,
                                  const QuicSocketAddress& destination_address,
                                  QuicPacketWriter* writer,
-                                 const QuicEcnCodepoint ecn_codepoint);
+                                 const QuicEcnCodepoint ecn_codepoint,
+                                 uint32_t flow_label);
 
   bool PeerAddressChanged() const;
+
+  void GenerateNewOutgoingFlowLabel();
 
   QuicAlarm& ack_alarm() { return alarms_.ack_alarm(); }
   const QuicAlarm& ack_alarm() const { return alarms_.ack_alarm(); }
@@ -2227,8 +2295,7 @@ class QUICHE_EXPORT QuicConnection
   QuicPacketCount max_tracked_packets_;
 
   // Contains the connection close packets if the connection has been closed.
-  std::unique_ptr<std::vector<std::unique_ptr<QuicEncryptedPacket>>>
-      termination_packets_;
+  std::unique_ptr<TerminationInfo> termination_info_;
 
   // Determines whether or not a connection close packet is sent to the peer
   // after idle timeout due to lack of network activity. During the handshake,
@@ -2281,6 +2348,9 @@ class QUICHE_EXPORT QuicConnection
   // True by default.  False if we've received or sent an explicit connection
   // close.
   bool connected_;
+
+  // True if the connection is in the CloseConnection stack.
+  bool in_close_connection_ = false;
 
   // Set to false if the connection should not send truncated connection IDs to
   // the peer, even if the peer supports it.
@@ -2516,6 +2586,21 @@ class QUICHE_EXPORT QuicConnection
   // The ECN codepoint of the last packet to be sent to the writer, which
   // might be different from the next codepoint in per_packet_options_.
   QuicEcnCodepoint last_ecn_codepoint_sent_ = ECN_NOT_ECT;
+  // The flow label of the last packet to be sent to the writer, which
+  // might be different from the next flow label in per_packet_options_.
+  uint32_t last_flow_label_sent_ = 0;
+  // The flow label to be sent for outgoing packets.
+  uint32_t outgoing_flow_label_ = 0;
+  // The flow label of the packet with the largest packet number received
+  // from the peer.
+  uint32_t last_flow_label_received_ = 0;
+  // True if the peer is expected to change their flow label in response to
+  // a flow label change made by this connection.
+  bool expect_peer_flow_label_change_ = false;
+  // If true then flow labels will be changed when a PTO fires, or when
+  // a PTO'd packet from a peer is detected.
+  bool enable_black_hole_avoidance_via_flow_label_ = false;
+
 
   const bool quic_limit_new_streams_per_loop_2_ =
       GetQuicReloadableFlag(quic_limit_new_streams_per_loop_2);

@@ -4755,6 +4755,10 @@ TEST(CanonicalCookieTest, IsSetPermittedInContext) {
       "A", "2", "www.example.com", "/test", current_time, base::Time(),
       base::Time(), base::Time(), true /*secure*/, true /*httponly*/,
       CookieSameSite::NO_RESTRICTION, COOKIE_PRIORITY_DEFAULT);
+  auto cookie_tld = CanonicalCookie::CreateUnsafeCookieForTesting(
+      "A", "2", "co.uk", "/test", current_time, base::Time(), base::Time(),
+      base::Time(), true /*secure*/, false /*httponly*/,
+      CookieSameSite::NO_RESTRICTION, COOKIE_PRIORITY_DEFAULT);
 
   CookieOptions context_script;
   CookieOptions context_network;
@@ -4771,6 +4775,8 @@ TEST(CanonicalCookieTest, IsSetPermittedInContext) {
           CookieInclusionStatus::MakeFromReasonsForTesting({
               CookieInclusionStatus::EXCLUDE_NONCOOKIEABLE_SCHEME,
               CookieInclusionStatus::EXCLUDE_SECURE_ONLY,
+              CookieInclusionStatus::EXCLUDE_DOMAIN_MISMATCH,
+              CookieInclusionStatus::EXCLUDE_INVALID_DOMAIN,
           }),
           _, _, false));
 
@@ -4821,6 +4827,34 @@ TEST(CanonicalCookieTest, IsSetPermittedInContext) {
           CookieInclusionStatus::MakeFromReasonsForTesting(
               {CookieInclusionStatus::EXCLUDE_HTTP_ONLY}),
           _, _, true));
+
+  EXPECT_THAT(
+      cookie_scriptable->IsSetPermittedInContext(
+          GURL("https://www.badexample.com/test"), context_script,
+          CookieAccessParams(CookieAccessSemantics::UNKNOWN,
+                             false /* delegate_treats_url_as_trustworthy */
+                             ),
+          kCookieableSchemes),
+      MatchesCookieAccessResult(
+          CookieInclusionStatus::MakeFromReasonsForTesting(
+              {CookieInclusionStatus::EXCLUDE_DOMAIN_MISMATCH,
+               CookieInclusionStatus::EXCLUDE_INVALID_DOMAIN}),
+          _, _, true));
+
+  EXPECT_THAT(
+      cookie_tld->IsSetPermittedInContext(
+          GURL("co.uk/test"), context_script,
+          CookieAccessParams(CookieAccessSemantics::UNKNOWN,
+                             false /* delegate_treats_url_as_trustworthy */
+                             ),
+          kCookieableSchemes),
+      MatchesCookieAccessResult(
+          CookieInclusionStatus::MakeFromReasonsForTesting(
+              {CookieInclusionStatus::EXCLUDE_NONCOOKIEABLE_SCHEME,
+               CookieInclusionStatus::EXCLUDE_SECURE_ONLY,
+               CookieInclusionStatus::EXCLUDE_DOMAIN_MISMATCH,
+               CookieInclusionStatus::EXCLUDE_INVALID_DOMAIN}),
+          _, _, false));
 
   CookieOptions context_cross_site;
   CookieOptions context_same_site_lax;

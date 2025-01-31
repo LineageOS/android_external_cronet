@@ -14,6 +14,7 @@
 #include "quiche/quic/core/quic_constants.h"
 #include "quiche/quic/core/quic_packets.h"
 #include "quiche/quic/core/quic_time.h"
+#include "quiche/quic/core/quic_types.h"
 #include "quiche/quic/core/quic_utils.h"
 #include "quiche/quic/platform/api/quic_expect_bug.h"
 #include "quiche/quic/platform/api/quic_flags.h"
@@ -335,9 +336,12 @@ TEST_P(QuicConfigTest, HasClientSentConnectionOption) {
   QuicConfig client_config;
   QuicTagVector copt;
   copt.push_back(kTBBR);
+  copt.push_back(kPRGC);
   client_config.SetConnectionOptionsToSend(copt);
   EXPECT_TRUE(client_config.HasClientSentConnectionOption(
       kTBBR, Perspective::IS_CLIENT));
+  EXPECT_TRUE(client_config.HasClientSentConnectionOption(
+      kPRGC, Perspective::IS_CLIENT));
 
   CryptoHandshakeMessage msg;
   client_config.ToHandshakeMessage(&msg, version_.transport_version);
@@ -349,9 +353,11 @@ TEST_P(QuicConfigTest, HasClientSentConnectionOption) {
   EXPECT_TRUE(config_.negotiated());
 
   EXPECT_TRUE(config_.HasReceivedConnectionOptions());
-  EXPECT_EQ(1u, config_.ReceivedConnectionOptions().size());
+  EXPECT_EQ(2u, config_.ReceivedConnectionOptions().size());
   EXPECT_TRUE(
       config_.HasClientSentConnectionOption(kTBBR, Perspective::IS_SERVER));
+  EXPECT_TRUE(
+      config_.HasClientSentConnectionOption(kPRGC, Perspective::IS_SERVER));
 }
 
 TEST_P(QuicConfigTest, DontSendClientConnectionOptions) {
@@ -476,6 +482,7 @@ TEST_P(QuicConfigTest, FillTransportParams) {
   config_.SetRetrySourceConnectionIdToSend(TestConnectionId(0x3333));
   config_.SetMinAckDelayMs(kDefaultMinAckDelayTimeMs);
   config_.SetGoogleHandshakeMessageToSend(kFakeGoogleHandshakeMessage);
+  config_.SetReliableStreamReset(true);
 
   QuicIpAddress host;
   host.FromString("127.0.3.1");
@@ -536,6 +543,8 @@ TEST_P(QuicConfigTest, FillTransportParams) {
                 &params.preferred_address->stateless_reset_token.front()),
             new_stateless_reset_token);
   EXPECT_EQ(kFakeGoogleHandshakeMessage, params.google_handshake_message);
+
+  EXPECT_TRUE(params.reliable_stream_reset);
 }
 
 TEST_P(QuicConfigTest, DNATPreferredAddress) {
@@ -606,7 +615,7 @@ TEST_P(QuicConfigTest, SupportsServerPreferredAddress) {
   EXPECT_TRUE(config_.SupportsServerPreferredAddress(Perspective::IS_SERVER));
 
   SetQuicFlag(quic_always_support_server_preferred_address, false);
-  EXPECT_FALSE(config_.SupportsServerPreferredAddress(Perspective::IS_CLIENT));
+  EXPECT_TRUE(config_.SupportsServerPreferredAddress(Perspective::IS_CLIENT));
   EXPECT_FALSE(config_.SupportsServerPreferredAddress(Perspective::IS_SERVER));
 
   QuicTagVector copt;

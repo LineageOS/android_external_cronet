@@ -124,6 +124,7 @@
   X("log")                                                               \
   X("login")                                                             \
   X("media")                                                             \
+  X("mediastream")                                                       \
   X("media_router")                                                      \
   X("memory")                                                            \
   X("midi")                                                              \
@@ -263,6 +264,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("network"))                                \
   X(TRACE_DISABLED_BY_DEFAULT("paint-worklet"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("power"))                                  \
+  X(TRACE_DISABLED_BY_DEFAULT("process_metrics"))                        \
   X(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler"))                     \
   X(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler.debug"))               \
   X(TRACE_DISABLED_BY_DEFAULT("sequence_manager"))                       \
@@ -339,6 +341,7 @@
   X("category1,category2")                                                    \
   X("cc,benchmark")                                                           \
   X("cc,benchmark,input,input.scrolling")                                     \
+  X("cc,benchmark,latency")                                                   \
   X("cc,benchmark," TRACE_DISABLED_BY_DEFAULT("devtools.timeline.frame"))     \
   X("cc,input")                                                               \
   X("cc,raf_investigation")                                                   \
@@ -388,6 +391,7 @@
   X("shutdown,viz")                                                           \
   X("startup,benchmark,rail")                                                 \
   X("startup,rail")                                                           \
+  X("toplevel,graphics.pipeline")                                             \
   X("toplevel,Java")                                                          \
   X("toplevel,viz")                                                           \
   X("ui,input")                                                               \

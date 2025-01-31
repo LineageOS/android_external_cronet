@@ -58,6 +58,7 @@
 #include "partition_alloc/pointers/raw_ptr.h"
 #include "partition_alloc/shim/allocator_shim.h"
 #include "partition_alloc/shim/allocator_shim_default_dispatch_to_partition_alloc.h"
+#include "partition_alloc/shim/allocator_shim_dispatch_to_noop_on_free.h"
 #include "partition_alloc/stack/stack.h"
 #include "partition_alloc/thread_cache.h"
 
@@ -782,6 +783,22 @@ void ReconfigurePartitionForKnownProcess(const std::string& process_type) {
   // experiments.
 }
 
+void MakeFreeNoOp() {
+  // Ignoring `free()` during Shutdown would allow developers to introduce new
+  // dangling pointers. So we want to avoid ignoring free when it is enabled.
+  // Note: For now, the DanglingPointerDetector is only enabled on 5 bots, and
+  // on linux non-official configuration.
+#if PA_BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS)
+  CHECK(base::FeatureList::GetInstance());
+  if (base::FeatureList::IsEnabled(features::kPartitionAllocDanglingPtr)) {
+    return;
+  }
+#endif  // PA_BUILDFLAG(ENABLE_DANGLING_RAW_PTR_CHECKS)
+#if PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
+  allocator_shim::InsertNoOpOnFreeAllocatorShimOnShutDown();
+#endif  // PA_BUILDFLAG(USE_ALLOCATOR_SHIM)
+}
+
 PartitionAllocSupport* PartitionAllocSupport::Get() {
   static auto* singleton = new PartitionAllocSupport();
   return singleton;
@@ -839,17 +856,6 @@ bool PartitionAllocSupport::ShouldEnablePartitionAllocWithAdvancedChecks(
 #endif  // !PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC)
 }
 
-#if PA_BUILDFLAG( \
-    ENABLE_ALLOCATOR_SHIM_PARTITION_ALLOC_DISPATCH_WITH_ADVANCED_CHECKS_SUPPORT)
-allocator_shim::AllocatorDispatch g_dispatch_for_advanced_checks = {
-    .realloc_function =
-        &allocator_shim::internal::PartitionReallocWithAdvancedChecks,
-    .free_function = &allocator_shim::internal::PartitionFreeWithAdvancedChecks,
-    .next = nullptr,
-};
-#endif  // PA_BUILDFLAG(
-        // ENABLE_ALLOCATOR_SHIM_PARTITION_ALLOC_DISPATCH_WITH_ADVANCED_CHECKS_SUPPORT)
-
 // static
 PartitionAllocSupport::BrpConfiguration
 PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
@@ -857,8 +863,9 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
   CHECK(base::FeatureList::GetInstance());
 
   bool process_affected_by_brp_flag = false;
-#if (PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&  \
-     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)) || \
+#if (PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&          \
+     PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT) &&          \
+     !PA_BUILDFLAG(FORCE_DISABLE_BACKUP_REF_PTR_FEATURE)) || \
     PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
   if (base::FeatureList::IsEnabled(
           base::features::kPartitionAllocBackupRefPtr)) {
@@ -867,7 +874,8 @@ PartitionAllocSupport::GetBrpConfiguration(const std::string& process_type) {
         base::features::kBackupRefPtrEnabledProcessesParam.Get(), process_type);
   }
 #endif  // (PA_BUILDFLAG(USE_PARTITION_ALLOC_AS_MALLOC) &&
-        // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)) ||
+        // PA_BUILDFLAG(ENABLE_BACKUP_REF_PTR_SUPPORT)&&
+        // !PA_BUILDFLAG(FORCE_DISABLE_BACKUP_REF_PTR_FEATURE)) ||
         // PA_BUILDFLAG(USE_ASAN_BACKUP_REF_PTR)
 
   const bool enable_brp =
@@ -1024,6 +1032,8 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
               .Get());
   const bool zapping_by_free_flags = base::FeatureList::IsEnabled(
       base::features::kPartitionAllocZappingByFreeFlags);
+  const bool eventually_zero_freed_memory = base::FeatureList::IsEnabled(
+      base::features::kPartitionAllocEventuallyZeroFreedMemory);
 
 #if PA_BUILDFLAG(USE_FREELIST_DISPATCHER)
   const bool use_pool_offset_freelists =
@@ -1108,6 +1118,7 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
       allocator_shim::SchedulerLoopQuarantine(scheduler_loop_quarantine),
       scheduler_loop_quarantine_branch_capacity_in_bytes,
       allocator_shim::ZappingByFreeFlags(zapping_by_free_flags),
+      allocator_shim::EventuallyZeroFreedMemory(eventually_zero_freed_memory),
       allocator_shim::UsePoolOffsetFreelists(use_pool_offset_freelists),
       use_small_single_slot_spans);
 
@@ -1135,8 +1146,7 @@ void PartitionAllocSupport::ReconfigureAfterFeatureListInit(
   bool enable_pa_with_advanced_checks =
       ShouldEnablePartitionAllocWithAdvancedChecks(process_type);
   if (enable_pa_with_advanced_checks) {
-    allocator_shim::InstallDispatchToPartitionAllocWithAdvancedChecks(
-        &g_dispatch_for_advanced_checks);
+    allocator_shim::InstallCustomDispatchForPartitionAllocWithAdvancedChecks();
   }
 #endif  // PA_BUILDFLAG(
         // ENABLE_ALLOCATOR_SHIM_PARTITION_ALLOC_DISPATCH_WITH_ADVANCED_CHECKS_SUPPORT)
@@ -1313,9 +1323,8 @@ void PartitionAllocSupport::OnBackgrounded() {
   // TODO(lizeb): Remove once/if the behavior of idle tasks changes.
   base::PostDelayedMemoryReductionTask(
       base::SingleThreadTaskRunner::GetCurrentDefault(), FROM_HERE,
-      base::BindOnce([]() {
-        ::partition_alloc::MemoryReclaimer::Instance()->ReclaimAll();
-      }),
+      base::BindOnce(
+          [] { ::partition_alloc::MemoryReclaimer::Instance()->ReclaimAll(); }),
       base::Seconds(10));
 
 #endif  // PA_CONFIG(THREAD_CACHE_SUPPORTED)

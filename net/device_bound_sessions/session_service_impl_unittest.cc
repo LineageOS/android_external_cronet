@@ -4,6 +4,7 @@
 
 #include "net/device_bound_sessions/session_service_impl.h"
 
+#include "crypto/scoped_mock_unexportable_key_provider.h"
 #include "net/device_bound_sessions/unexportable_key_service_factory.h"
 #include "net/test/test_with_task_environment.h"
 #include "net/url_request/url_request_context_builder.h"
@@ -29,6 +30,7 @@ class SessionServiceImplTest : public TestWithTaskEnvironment {
   std::unique_ptr<URLRequestContext> context_;
 
  private:
+  crypto::ScopedMockUnexportableKeyProvider scoped_mock_key_provider_;
   SessionServiceImpl service_;
 };
 
@@ -184,6 +186,33 @@ TEST_F(SessionServiceImplTest, SetChallengeForBoundSession) {
   session =
       service().GetSessionForTesting(SchemefulSite(kTestUrl), "NonExisted");
   ASSERT_FALSE(session);
+}
+
+TEST_F(SessionServiceImplTest, ExpiryExtendedOnUser) {
+  // Set the session id to be used for in TestFetcher()
+  g_session_id = "SessionId";
+  ScopedTestFetcher scopedTestFetcher;
+
+  auto fetch_param = RegistrationFetcherParam::CreateInstanceForTesting(
+      kTestUrl, {crypto::SignatureVerifier::SignatureAlgorithm::ECDSA_SHA256},
+      "challenge", /*authorization=*/std::nullopt);
+  service().RegisterBoundSession(std::move(fetch_param),
+                                 IsolationInfo::CreateTransient());
+
+  Session* session =
+      service().GetSessionForTesting(SchemefulSite(kTestUrl), g_session_id);
+  ASSERT_TRUE(session);
+  session->set_expiry_date(base::Time::Now() + base::Days(1));
+
+  std::unique_ptr<URLRequest> request = context_->CreateRequest(
+      kTestUrl, IDLE, new FakeDelegate(), kDummyAnnotation);
+  // The request needs to be samesite for it to be considered
+  // candidate for deferral.
+  request->set_site_for_cookies(SiteForCookies::FromUrl(kTestUrl));
+
+  service().GetAnySessionRequiringDeferral(request.get());
+
+  EXPECT_GT(session->expiry_date(), base::Time::Now() + base::Days(399));
 }
 
 }  // namespace

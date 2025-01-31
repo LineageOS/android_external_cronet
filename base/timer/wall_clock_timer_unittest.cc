@@ -85,7 +85,7 @@ TEST_F(WallClockTimerTest, UseTimerTwiceInRow) {
   wall_clock_timer.Start(FROM_HERE, clock_.Now() + delay, first_callback.Get());
   EXPECT_CALL(first_callback, Run())
       .WillOnce(::testing::InvokeWithoutArgs(
-          [this, &wall_clock_timer, &second_callback, delay]() {
+          [this, &wall_clock_timer, &second_callback, delay] {
             wall_clock_timer.Start(FROM_HERE, clock_.Now() + delay,
                                    second_callback.Get());
           }));
@@ -248,12 +248,6 @@ TEST_F(WallClockTimerTest, NonStopTickClockWithLongPause) {
   clock_.SetNow(clock_.Now() + past_time);
   task_environment_.FastForwardBy(past_time);
   fake_power_monitor_source_.Resume();
-
-  // The WallClockTimer restarts its task with a shorter timeout when the system
-  // resumes, so it needs to be taken out of the queue and executed. In this
-  // case, the time is already elapsed, so fast forwarding by 0 to pump the task
-  // without advancing time.
-  task_environment_.FastForwardBy(base::TimeDelta());
 
   ::testing::Mock::VerifyAndClearExpectations(&callback);
   EXPECT_FALSE(wall_clock_timer.IsRunning());

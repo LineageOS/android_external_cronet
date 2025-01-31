@@ -3,8 +3,10 @@
 name: "Google Test: Google's C++ Testing Framework"
 third_party {
   license_type: NOTICE
+  version: "DEPS"
   identifier {
     value: "https://github.com/google/googletest.git"
     type: "Git"
+    version: "DEPS"
   }
 }

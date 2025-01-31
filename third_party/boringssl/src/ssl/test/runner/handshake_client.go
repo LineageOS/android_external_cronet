@@ -18,6 +18,7 @@ import (
 	"io"
 	"math/big"
 	"net"
+	"slices"
 	"time"
 
 	"boringssl.googlesource.com/boringssl/ssl/test/runner/hpke"
@@ -63,7 +64,7 @@ func mapClientHelloVersion(vers uint16, isDTLS bool) uint16 {
 // this function does not update internal handshake state, so the test must be
 // configured compatibly with |in|.
 func replaceClientHello(hello *clientHelloMsg, in []byte) (*clientHelloMsg, error) {
-	copied := append([]byte{}, in...)
+	copied := slices.Clone(in)
 	newHello := new(clientHelloMsg)
 	if !newHello.unmarshal(copied) {
 		return nil, errors.New("tls: invalid ClientHello")
@@ -197,9 +198,7 @@ func (c *Conn) clientHandshake() error {
 		}
 		if challengeLength <= len(hs.hello.random) {
 			skip := len(hs.hello.random) - challengeLength
-			for i := 0; i < skip; i++ {
-				hs.hello.random[i] = 0
-			}
+			clear(hs.hello.random[:skip])
 			hs.hello.v2Challenge = hs.hello.random[skip:]
 		} else {
 			hs.hello.v2Challenge = make([]byte, challengeLength)
@@ -451,14 +450,9 @@ func chooseECHCipherSuite(echConfig *ECHConfig, config *Config) (HPKECipherSuite
 		return HPKECipherSuite{}, false
 	}
 
-	for _, wantSuite := range config.echCipherSuitePreferences() {
-		if config.Bugs.IgnoreECHConfigCipherPreferences {
-			return wantSuite, true
-		}
-		for _, cipherSuite := range echConfig.CipherSuites {
-			if cipherSuite == wantSuite {
-				return cipherSuite, true
-			}
+	for _, suite := range config.echCipherSuitePreferences() {
+		if config.Bugs.IgnoreECHConfigCipherPreferences || slices.Contains(echConfig.CipherSuites, suite) {
+			return suite, true
 		}
 	}
 	return HPKECipherSuite{}, false
@@ -691,20 +685,17 @@ func (hs *clientHandshakeState) createClientHello(innerHello *clientHelloMsg, ec
 	possibleCipherSuites := c.config.cipherSuites()
 	hello.cipherSuites = make([]uint16, 0, len(possibleCipherSuites))
 
-NextCipherSuite:
 	for _, suiteID := range possibleCipherSuites {
-		for _, suite := range cipherSuites {
-			if suite.id != suiteID {
-				continue
-			}
-			// Don't advertise TLS 1.2-only cipher suites unless
-			// we're attempting TLS 1.2.
-			if maxVersion < VersionTLS12 && suite.flags&suiteTLS12 != 0 {
-				continue
-			}
-			hello.cipherSuites = append(hello.cipherSuites, suiteID)
-			continue NextCipherSuite
+		suite := cipherSuiteFromID(suiteID)
+		if suite == nil {
+			continue
 		}
+		// Don't advertise TLS 1.2-only cipher suites unless
+		// we're attempting TLS 1.2.
+		if maxVersion < VersionTLS12 && suite.flags&suiteTLS12 != 0 {
+			continue
+		}
+		hello.cipherSuites = append(hello.cipherSuites, suiteID)
 	}
 
 	if c.config.Bugs.AdvertiseAllConfiguredCiphers {
@@ -865,8 +856,11 @@ NextCipherSuite:
 		// We may have a pre-1.3 session if SendBothTickets is set.
 		if session.vers < VersionTLS13 {
 			version = VersionTLS13
+			if c.isDTLS {
+				version = VersionDTLS125Experimental
+			}
 		}
-		generatePSKBinders(version, hello, session, nil, nil, c.config)
+		generatePSKBinders(version, c.isDTLS, hello, session, nil, nil, c.config)
 	}
 
 	if c.config.Bugs.SendClientHelloWithFixes != nil {
@@ -953,10 +947,8 @@ func (hs *clientHandshakeState) checkECHConfirmation(msg any, hello *clientHello
 		offset = 4 + 2 + 32 - echAcceptConfirmationLength
 	}
 
-	withZeros := append(make([]byte, 0, len(raw)), raw...)
-	for i := 0; i < echAcceptConfirmationLength; i++ {
-		withZeros[i+offset] = 0
-	}
+	withZeros := slices.Clone(raw)
+	clear(withZeros[offset : offset+echAcceptConfirmationLength])
 
 	confirmation := finishedHash.echAcceptConfirmation(hello.random, label, withZeros)
 	return bytes.Equal(confirmation, raw[offset:offset+echAcceptConfirmationLength])
@@ -1542,15 +1534,8 @@ func (hs *clientHandshakeState) applyHelloRetryRequest(helloRetryRequest *helloR
 		helloRetryRequest.selectedGroup = c.config.Bugs.MisinterpretHelloRetryRequestCurve
 	}
 	if helloRetryRequest.hasSelectedGroup {
-		var hrrCurveFound bool
 		group := helloRetryRequest.selectedGroup
-		for _, curveID := range hello.supportedCurves {
-			if group == curveID {
-				hrrCurveFound = true
-				break
-			}
-		}
-		if !hrrCurveFound || hs.keyShares[group] != nil {
+		if !slices.Contains(hello.supportedCurves, group) || hs.keyShares[group] != nil {
 			c.sendAlert(alertHandshakeFailure)
 			return errors.New("tls: received invalid HelloRetryRequest")
 		}
@@ -1591,7 +1576,7 @@ func (hs *clientHandshakeState) applyHelloRetryRequest(helloRetryRequest *helloR
 	hello.raw = nil
 
 	if len(hello.pskIdentities) > 0 {
-		generatePSKBinders(c.wireVersion, hello, hs.session, firstHelloBytes, helloRetryRequest.marshal(), c.config)
+		generatePSKBinders(c.wireVersion, c.isDTLS, hello, hs.session, firstHelloBytes, helloRetryRequest.marshal(), c.config)
 	}
 
 	if outerHello != nil {
@@ -2408,10 +2393,8 @@ func clientSessionCacheKey(serverAddr net.Addr, config *Config) string {
 // indicating if the fallback case was reached.
 func mutualProtocol(protos, preferenceProtos []string) (string, bool) {
 	for _, s := range preferenceProtos {
-		for _, c := range protos {
-			if s == c {
-				return s, false
-			}
+		if slices.Contains(protos, s) {
+			return s, false
 		}
 	}
 
@@ -2421,14 +2404,12 @@ func mutualProtocol(protos, preferenceProtos []string) (string, bool) {
 // writeIntPadded writes x into b, padded up with leading zeros as
 // needed.
 func writeIntPadded(b []byte, x *big.Int) {
-	for i := range b {
-		b[i] = 0
-	}
+	clear(b)
 	xb := x.Bytes()
 	copy(b[len(b)-len(xb):], xb)
 }
 
-func generatePSKBinders(version uint16, hello *clientHelloMsg, session *ClientSessionState, firstClientHello, helloRetryRequest []byte, config *Config) {
+func generatePSKBinders(version uint16, isDTLS bool, hello *clientHelloMsg, session *ClientSessionState, firstClientHello, helloRetryRequest []byte, config *Config) {
 	maybeCorruptBinder := !config.Bugs.OnlyCorruptSecondPSKBinder || len(firstClientHello) > 0
 	binderLen := session.cipherSuite.hash().Size()
 	numBinders := 1
@@ -2460,7 +2441,7 @@ func generatePSKBinders(version uint16, hello *clientHelloMsg, session *ClientSe
 	helloBytes := hello.marshal()
 	binderSize := len(hello.pskBinders)*(binderLen+1) + 2
 	truncatedHello := helloBytes[:len(helloBytes)-binderSize]
-	binder := computePSKBinder(session.secret, version, resumptionPSKBinderLabel, session.cipherSuite, firstClientHello, helloRetryRequest, truncatedHello)
+	binder := computePSKBinder(session.secret, version, isDTLS, resumptionPSKBinderLabel, session.cipherSuite, firstClientHello, helloRetryRequest, truncatedHello)
 	if maybeCorruptBinder {
 		if config.Bugs.SendShortPSKBinder {
 			binder = binder[:binderLen]

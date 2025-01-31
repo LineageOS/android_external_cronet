@@ -37,6 +37,7 @@ java_library {
         "java/src/org/chromium/build/annotations/MockedInTests.java",
         "java/src/org/chromium/build/annotations/ServiceImpl.java",
         "java/src/org/chromium/build/annotations/UsedByReflection.java",
+        "java/src/org/chromium/build/annotations/UsedReflectively.java",
     ],
     defaults: [
         "cronet_aml_java_framework_defaults",
@@ -67,6 +68,7 @@ java_library {
         "java/src/org/chromium/build/annotations/MockedInTests.java",
         "java/src/org/chromium/build/annotations/ServiceImpl.java",
         "java/src/org/chromium/build/annotations/UsedByReflection.java",
+        "java/src/org/chromium/build/annotations/UsedReflectively.java",
     ],
     apex_available: [
         "com.android.tethering",

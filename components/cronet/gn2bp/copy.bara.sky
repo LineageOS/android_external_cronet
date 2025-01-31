@@ -61,6 +61,7 @@ origin_files = glob([
     "net/third_party/uri_template/**",
     "third_party/abseil-cpp/**",
     "third_party/android_ndk/sources/android/cpufeatures/**",
+    "third_party/llvm-libc/**",
     # See https://chromium-review.googlesource.com/c/chromium/src/+/4885470
     # Note: Only used for tests.
     "third_party/anonymous_tokens/**",
@@ -179,6 +180,7 @@ destination_files = glob(["**"]) - glob([
     "Android.extras.bp",
     "METADATA",
     "MODULE_LICENSE_BSD",
+    "PREUPLOAD.cfg",
 
     "android/**",
     "test_runner/**",

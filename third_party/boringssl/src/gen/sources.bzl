@@ -361,7 +361,7 @@ crypto_sources = [
     "crypto/md4/md4.c",
     "crypto/md5/md5.c",
     "crypto/mem.c",
-    "crypto/mldsa/mldsa.c",
+    "crypto/mldsa/mldsa.cc",
     "crypto/mlkem/mlkem.cc",
     "crypto/obj/obj.c",
     "crypto/obj/obj_xref.c",
@@ -2673,9 +2673,12 @@ rust_bssl_crypto_sources = [
     "rust/bssl-crypto/src/lib.rs",
     "rust/bssl-crypto/src/macros.rs",
     "rust/bssl-crypto/src/mem.rs",
+    "rust/bssl-crypto/src/mldsa.rs",
+    "rust/bssl-crypto/src/mlkem.rs",
     "rust/bssl-crypto/src/rand.rs",
     "rust/bssl-crypto/src/rsa.rs",
     "rust/bssl-crypto/src/scoped.rs",
+    "rust/bssl-crypto/src/slhdsa.rs",
     "rust/bssl-crypto/src/test_helpers.rs",
     "rust/bssl-crypto/src/x25519.rs",
 ]
@@ -2741,6 +2744,7 @@ ssl_test_sources = [
     "crypto/test/gtest_main.cc",
     "ssl/span_test.cc",
     "ssl/ssl_c_test.c",
+    "ssl/ssl_internal_test.cc",
     "ssl/ssl_test.cc",
 ]
 

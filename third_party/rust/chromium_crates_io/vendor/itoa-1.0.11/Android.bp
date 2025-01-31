@@ -43,6 +43,7 @@ rust_ffi_static {
         "src/udiv128.rs",
     ],
     host_supported: true,
+    host_cross_supported: false,
     apex_available: [
         "com.android.tethering",
     ],
@@ -56,7 +57,7 @@ rust_ffi_static {
         android_arm: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -77,7 +78,7 @@ rust_ffi_static {
         android_arm64: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -98,7 +99,7 @@ rust_ffi_static {
         android_riscv64: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -119,7 +120,7 @@ rust_ffi_static {
         android_x86: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -140,7 +141,7 @@ rust_ffi_static {
         android_x86_64: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -161,7 +162,7 @@ rust_ffi_static {
         host: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -190,6 +191,7 @@ rust_ffi_static {
         "src/lib.rs",
         "src/udiv128.rs",
     ],
+    host_cross_supported: false,
     apex_available: [
         "com.android.tethering",
     ],
@@ -203,7 +205,7 @@ rust_ffi_static {
         android_arm: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -224,7 +226,7 @@ rust_ffi_static {
         android_arm64: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -245,7 +247,7 @@ rust_ffi_static {
         android_riscv64: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -266,7 +268,7 @@ rust_ffi_static {
         android_x86: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",
@@ -287,7 +289,7 @@ rust_ffi_static {
         android_x86_64: {
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"009e73825af0e59ad4fc603562e038b3dbd6593a-2-llvmorg-20-init-3847-g69c43468\"",
+                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
             ],
             flags: [
                 "-Cmetadata=itoa-1",

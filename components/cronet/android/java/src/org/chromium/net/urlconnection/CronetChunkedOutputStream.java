@@ -22,7 +22,6 @@ import java.util.Objects;
  */
 @VisibleForTesting
 public final class CronetChunkedOutputStream extends CronetOutputStream {
-    private final CronetHttpURLConnection mConnection;
     private final MessageLoop mMessageLoop;
     private final ByteBuffer mBuffer;
     private final UploadDataProvider mUploadDataProvider = new UploadDataProviderImpl();
@@ -43,7 +42,6 @@ public final class CronetChunkedOutputStream extends CronetOutputStream {
             throw new IllegalArgumentException("chunkLength should be greater than 0");
         }
         mBuffer = ByteBuffer.allocate(chunkLength);
-        mConnection = connection;
         mMessageLoop = messageLoop;
     }
 

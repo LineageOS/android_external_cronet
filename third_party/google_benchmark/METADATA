@@ -3,10 +3,10 @@
 name: "Google Benchmark"
 third_party {
   license_type: NOTICE
-  version: "344117638c8ff7e239044fd0fa7085839fc03021"
+  version: "761305ec3b33abf30e08d50eb829e19a802581cc"
   identifier {
     value: "https://github.com/google/benchmark"
     type: "Git"
-    version: "344117638c8ff7e239044fd0fa7085839fc03021"
+    version: "761305ec3b33abf30e08d50eb829e19a802581cc"
   }
 }

@@ -75,6 +75,11 @@ POST_PROCESS_OPERATION = {
                ['MIT',
                 'University of Illinois/NCSA Open Source License'],
                ["MIT"])),
+    "third_party/llvm-libc/README.chromium": create_license_post_processing(
+        Mapper("License",
+               ['MIT',
+                'University of Illinois/NCSA Open Source License'],
+               ["MIT"])),
     "third_party/boringssl/README.chromium": create_license_post_processing(
         Mapper("License", ['BSDish'], ["BSD"]),
         # TODO(b/360316861): Fix upstream by setting an explicit version to boringssl.
@@ -109,8 +114,6 @@ IGNORED_README = {
     "third_party/junit/README.chromium",
     # The real README.chromium lives nested inside each dependency.
     "third_party/androidx/README.chromium",
-    # This is not used in AOSP and not imported.
-    "third_party/llvm-libc/README.chromium",
     # This is not used in AOSP and not imported.
     "third_party/aosp_dalvik/README.chromium",
     # b/369075726, those crates are missing LICENSE files upstream, once fixed

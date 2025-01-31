@@ -264,7 +264,7 @@ cc_defaults {
         "src/crypto/md4/md4.c",
         "src/crypto/md5/md5.c",
         "src/crypto/mem.c",
-        "src/crypto/mldsa/mldsa.c",
+        "src/crypto/mldsa/mldsa.cc",
         "src/crypto/mlkem/mlkem.cc",
         "src/crypto/obj/obj.c",
         "src/crypto/obj/obj_xref.c",
@@ -856,6 +856,7 @@ cc_defaults {
         "src/crypto/test/gtest_main.cc",
         "src/ssl/span_test.cc",
         "src/ssl/ssl_c_test.c",
+        "src/ssl/ssl_internal_test.cc",
         "src/ssl/ssl_test.cc",
     ],
 }

@@ -67,7 +67,7 @@ using ::quic::simulator::Simulator;
 // value just has to be sufficiently larger than the server link bandwidth.
 constexpr QuicBandwidth kClientLinkBandwidth =
     QuicBandwidth::FromBitsPerSecond(10.0e6);
-constexpr MoqtVersion kMoqtVersion = MoqtVersion::kDraft05;
+constexpr MoqtVersion kMoqtVersion = kDefaultMoqtVersion;
 
 // Track name used by the simulator.
 FullTrackName TrackName() { return FullTrackName("test", "track"); }
@@ -118,7 +118,7 @@ class ObjectGenerator : public quic::simulator::Actor,
                   QuicBandwidth bitrate)
       : Actor(simulator, actor_name),
         queue_(std::make_shared<MoqtOutgoingQueue>(
-            track_name, MoqtForwardingPreference::kGroup)),
+            track_name, MoqtForwardingPreference::kSubgroup)),
         keyframe_interval_(keyframe_interval),
         time_between_frames_(QuicTimeDelta::FromMicroseconds(1.0e6 / fps)),
         i_to_p_ratio_(i_to_p_ratio),
@@ -202,7 +202,7 @@ class ObjectReceiver : public RemoteTrack::Visitor {
   }
 
   void OnObjectFragment(const FullTrackName& full_track_name,
-                        uint64_t group_sequence, uint64_t object_sequence,
+                        FullSequence sequence,
                         MoqtPriority /*publisher_priority*/,
                         MoqtObjectStatus status,
                         MoqtForwardingPreference /*forwarding_preference*/,
@@ -218,7 +218,6 @@ class ObjectReceiver : public RemoteTrack::Visitor {
     // TODO: this logic should be factored out. Also, this should take advantage
     // of the fact that in the current MoQT, the object size is known in
     // advance.
-    FullSequence sequence{group_sequence, object_sequence};
     if (!end_of_message) {
       auto [it, unused] = partial_objects_.try_emplace(sequence);
       it->second.append(object);
@@ -311,7 +310,9 @@ class MoqtSimulator {
         receiver_(simulator_.GetClock(), parameters.deadline),
         adjuster_(simulator_.GetClock(), client_endpoint_.session()->session(),
                   &generator_),
-        parameters_(parameters) {}
+        parameters_(parameters) {
+    client_endpoint_.RecordTrace();
+  }
 
   MoqtSession* client_session() { return client_endpoint_.session(); }
   MoqtSession* server_session() { return server_endpoint_.session(); }
@@ -357,8 +358,7 @@ class MoqtSimulator {
     //       server does not yet have an active subscription, so the client has
     //       some catching up to do.
     generator_.Start();
-    server_session()->SubscribeCurrentGroup(TrackName().track_namespace,
-                                            TrackName().track_name, &receiver_);
+    server_session()->SubscribeCurrentGroup(TrackName(), &receiver_);
     simulator_.RunFor(parameters_.duration);
 
     // At the end, we wait for eight RTTs until the connection settles down.

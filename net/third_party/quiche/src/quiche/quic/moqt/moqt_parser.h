@@ -43,6 +43,19 @@ class QUICHE_EXPORT MoqtControlParserVisitor {
   virtual void OnUnannounceMessage(const MoqtUnannounce& message) = 0;
   virtual void OnTrackStatusMessage(const MoqtTrackStatus& message) = 0;
   virtual void OnGoAwayMessage(const MoqtGoAway& message) = 0;
+  virtual void OnSubscribeAnnouncesMessage(
+      const MoqtSubscribeAnnounces& message) = 0;
+  virtual void OnSubscribeAnnouncesOkMessage(
+      const MoqtSubscribeAnnouncesOk& message) = 0;
+  virtual void OnSubscribeAnnouncesErrorMessage(
+      const MoqtSubscribeAnnouncesError& message) = 0;
+  virtual void OnUnsubscribeAnnouncesMessage(
+      const MoqtUnsubscribeAnnounces& message) = 0;
+  virtual void OnMaxSubscribeIdMessage(const MoqtMaxSubscribeId& message) = 0;
+  virtual void OnFetchMessage(const MoqtFetch& message) = 0;
+  virtual void OnFetchCancelMessage(const MoqtFetchCancel& message) = 0;
+  virtual void OnFetchOkMessage(const MoqtFetchOk& message) = 0;
+  virtual void OnFetchErrorMessage(const MoqtFetchError& message) = 0;
   virtual void OnObjectAckMessage(const MoqtObjectAck& message) = 0;
 
   virtual void OnParsingError(MoqtError code, absl::string_view reason) = 0;
@@ -107,6 +120,15 @@ class QUICHE_EXPORT MoqtControlParser {
   size_t ProcessUnannounce(quic::QuicDataReader& reader);
   size_t ProcessTrackStatus(quic::QuicDataReader& reader);
   size_t ProcessGoAway(quic::QuicDataReader& reader);
+  size_t ProcessSubscribeAnnounces(quic::QuicDataReader& reader);
+  size_t ProcessSubscribeAnnouncesOk(quic::QuicDataReader& reader);
+  size_t ProcessSubscribeAnnouncesError(quic::QuicDataReader& reader);
+  size_t ProcessUnsubscribeAnnounces(quic::QuicDataReader& reader);
+  size_t ProcessMaxSubscribeId(quic::QuicDataReader& reader);
+  size_t ProcessFetch(quic::QuicDataReader& reader);
+  size_t ProcessFetchCancel(quic::QuicDataReader& reader);
+  size_t ProcessFetchOk(quic::QuicDataReader& reader);
+  size_t ProcessFetchError(quic::QuicDataReader& reader);
   size_t ProcessObjectAck(quic::QuicDataReader& reader);
 
   // If |error| is not provided, assumes kProtocolViolation.
@@ -120,9 +142,22 @@ class QUICHE_EXPORT MoqtControlParser {
   // |reader| does not have enough data.
   bool ReadParameter(quic::QuicDataReader& reader, uint64_t& type,
                      absl::string_view& value);
+  // Reads MoqtSubscribeParameter from one of the message types that supports
+  // it. The cursor in |reader| should point to the "number of parameters"
+  // field in the message. The cursor will move to the end of the parameters.
+  // Returns false if it could not parse the full message, in which case the
+  // cursor in |reader| should not be used.
+  bool ReadSubscribeParameters(quic::QuicDataReader& reader,
+                               MoqtSubscribeParameters& params);
   // Convert a string view to a varint. Throws an error and returns false if the
   // string_view is not exactly the right length.
   bool StringViewToVarInt(absl::string_view& sv, uint64_t& vi);
+
+  // Parses a message that a track namespace but not name. The last element of
+  // |full_track_name| will be set to the empty string. Returns false if it
+  // could not parse the full namespace field.
+  bool ReadTrackNamespace(quic::QuicDataReader& reader,
+                          FullTrackName& full_track_name);
 
   MoqtControlParserVisitor& visitor_;
   bool uses_web_transport_;
@@ -191,8 +226,7 @@ class QUICHE_EXPORT MoqtDataParser {
     if (!metadata_.has_value()) {
       return kHeader;
     }
-    if (payload_length_remaining_ > 0 ||
-        *type_ == MoqtDataStreamType::kObjectStream) {
+    if (payload_length_remaining_ > 0) {
       return kData;
     }
     return kSubheader;
@@ -200,8 +234,7 @@ class QUICHE_EXPORT MoqtDataParser {
 
   // Processes all that can be entirely processed, and returns the view for the
   // data that needs to be buffered.
-  // TODO: remove the `fin` argument once kObjectStream is gone.
-  absl::string_view ProcessDataInner(absl::string_view data, bool fin);
+  absl::string_view ProcessDataInner(absl::string_view data);
 
   void ParseError(absl::string_view reason);
 

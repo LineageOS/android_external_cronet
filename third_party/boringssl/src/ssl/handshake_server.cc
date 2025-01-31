@@ -245,10 +245,6 @@ static bool negotiate_version(SSL_HANDSHAKE *hs, uint8_t *out_alert,
     return false;
   }
 
-  // At this point, the connection's version is known and |ssl->s3->version| is
-  // fixed. Begin enforcing the record-layer version.
-  ssl->s3->aead_write_ctx->SetVersionIfNullCipher(ssl->s3->version);
-
   // Handle FALLBACK_SCSV.
   if (ssl_client_cipher_list_contains_cipher(client_hello,
                                              SSL3_CK_FALLBACK_SCSV & 0xffff) &&
@@ -898,10 +894,10 @@ static enum ssl_hs_wait_t do_select_parameters(SSL_HANDSHAKE *hs) {
   hs->new_cipher = params.cipher;
   hs->signature_algorithm = params.signature_algorithm;
 
-  hs->session_id_len = client_hello.session_id_len;
-  // This is checked in |ssl_client_hello_init|.
-  assert(hs->session_id_len <= sizeof(hs->session_id));
-  OPENSSL_memcpy(hs->session_id, client_hello.session_id, hs->session_id_len);
+  // |ssl_client_hello_init| checks that |client_hello.session_id| is not too
+  // large.
+  hs->session_id.CopyFrom(
+      MakeConstSpan(client_hello.session_id, client_hello.session_id_len));
 
   // Determine whether we are doing session resumption.
   UniquePtr<SSL_SESSION> session;
@@ -945,9 +941,9 @@ static enum ssl_hs_wait_t do_select_parameters(SSL_HANDSHAKE *hs) {
     // Assign a session ID if not using session tickets.
     if (!hs->ticket_expected &&
         (ssl->ctx->session_cache_mode & SSL_SESS_CACHE_SERVER)) {
-      hs->new_session->session_id_length = SSL3_SSL_SESSION_ID_LENGTH;
-      RAND_bytes(hs->new_session->session_id,
-                 hs->new_session->session_id_length);
+      hs->new_session->session_id.ResizeForOverwrite(SSL3_SSL_SESSION_ID_LENGTH);
+      RAND_bytes(hs->new_session->session_id.data(),
+                 hs->new_session->session_id.size());
     }
   }
 
@@ -995,8 +991,7 @@ static enum ssl_hs_wait_t do_select_parameters(SSL_HANDSHAKE *hs) {
 
   // Now that all parameters are known, initialize the handshake hash and hash
   // the ClientHello.
-  if (!hs->transcript.InitHash(ssl_protocol_version(ssl), hs->new_cipher) ||
-      !ssl_hash_message(hs, msg)) {
+  if (!hs->transcript.InitHash(ssl_protocol_version(ssl), hs->new_cipher)) {
     ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
     return ssl_hs_error;
   }
@@ -1005,6 +1000,11 @@ static enum ssl_hs_wait_t do_select_parameters(SSL_HANDSHAKE *hs) {
   // transcript buffer in the handback case.
   if (!hs->cert_request && !hs->handback) {
     hs->transcript.FreeBuffer();
+  }
+
+  if (!ssl_hash_message(hs, msg)) {
+    ssl_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_INTERNAL_ERROR);
+    return ssl_hs_error;
   }
 
   ssl->method->next_message(ssl);
@@ -1031,8 +1031,8 @@ static enum ssl_hs_wait_t do_send_server_hello(SSL_HANDSHAKE *hs) {
   // If this is a resumption and the original handshake didn't support
   // ChannelID then we didn't record the original handshake hashes in the
   // session and so cannot resume with ChannelIDs.
-  if (ssl->session != NULL &&
-      ssl->session->original_handshake_hash_len == 0) {
+  if (ssl->session != nullptr &&
+      ssl->session->original_handshake_hash.empty()) {
     hs->channel_id_negotiated = false;
   }
 
@@ -1076,10 +1076,9 @@ static enum ssl_hs_wait_t do_send_server_hello(SSL_HANDSHAKE *hs) {
   Span<const uint8_t> session_id;
   if (ssl->session != nullptr) {
     // Echo the session ID from the ClientHello to indicate resumption.
-    session_id = MakeConstSpan(hs->session_id, hs->session_id_len);
+    session_id = hs->session_id;
   } else {
-    session_id = MakeConstSpan(hs->new_session->session_id,
-                               hs->new_session->session_id_length);
+    session_id = hs->new_session->session_id;
   }
 
   ScopedCBB cbb;
@@ -1465,7 +1464,8 @@ static enum ssl_hs_wait_t do_read_client_key_exchange(SSL_HANDSHAKE *hs) {
 
     // Allocate a buffer large enough for an RSA decryption.
     Array<uint8_t> decrypt_buf;
-    if (!decrypt_buf.Init(EVP_PKEY_size(hs->credential->pubkey.get()))) {
+    if (!decrypt_buf.InitForOverwrite(
+            EVP_PKEY_size(hs->credential->pubkey.get()))) {
       return ssl_hs_error;
     }
 
@@ -1493,7 +1493,7 @@ static enum ssl_hs_wait_t do_read_client_key_exchange(SSL_HANDSHAKE *hs) {
 
     // Prepare a random premaster, to be used on invalid padding. See RFC 5246,
     // section 7.4.7.1.
-    if (!premaster_secret.Init(SSL_MAX_MASTER_KEY_LENGTH) ||
+    if (!premaster_secret.InitForOverwrite(SSL_MAX_MASTER_KEY_LENGTH) ||
         !RAND_bytes(premaster_secret.data(), premaster_secret.size())) {
       return ssl_hs_error;
     }
@@ -1584,7 +1584,6 @@ static enum ssl_hs_wait_t do_read_client_key_exchange(SSL_HANDSHAKE *hs) {
       if (!premaster_secret.Init(psk_len)) {
         return ssl_hs_error;
       }
-      OPENSSL_memset(premaster_secret.data(), 0, premaster_secret.size());
     }
 
     ScopedCBB new_premaster;
@@ -1606,13 +1605,18 @@ static enum ssl_hs_wait_t do_read_client_key_exchange(SSL_HANDSHAKE *hs) {
   }
 
   // Compute the master secret.
-  hs->new_session->secret_length = tls1_generate_master_secret(
-      hs, hs->new_session->secret, premaster_secret);
-  if (hs->new_session->secret_length == 0) {
+  hs->new_session->secret.ResizeForOverwrite(SSL3_MASTER_SECRET_SIZE);
+  if (!tls1_generate_master_secret(hs, MakeSpan(hs->new_session->secret),
+                                   premaster_secret)) {
     return ssl_hs_error;
   }
   hs->new_session->extended_master_secret = hs->extended_master_secret;
-  CONSTTIME_DECLASSIFY(hs->new_session->secret, hs->new_session->secret_length);
+  // Declassify the secret to undo the RSA decryption validation above. We are
+  // not currently running most of the TLS library with constant-time
+  // validation.
+  // TODO(crbug.com/42290551): Remove this and cover the TLS library too.
+  CONSTTIME_DECLASSIFY(hs->new_session->secret.data(),
+                       hs->new_session->secret.size());
   hs->can_release_private_key = true;
 
   ssl->method->next_message(ssl);

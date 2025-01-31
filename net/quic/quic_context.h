@@ -199,7 +199,7 @@ struct NET_EXPORT QuicParams {
       kMaxMigrationsToNonDefaultNetworkOnPathDegrading;
   // If true, allows migration of QUIC connections to a server-specified
   // alternate server address.
-  bool allow_server_migration = false;
+  bool allow_server_migration = true;
   // If true, allows QUIC to use alternative services with a different
   // hostname from the origin.
   bool allow_remote_alt_svc = true;
@@ -233,11 +233,11 @@ struct NET_EXPORT QuicParams {
   bool report_ecn = false;
 
   // If true, parse received ORIGIN frame.
-  bool enable_origin_frame = false;
+  bool enable_origin_frame = true;
 
   // If true, skip DNS resolution for a hostname if the ORIGIN frame received
   // during an ongoing session encompasses that hostname.
-  bool skip_dns_with_origin_frame = false;
+  bool skip_dns_with_origin_frame = true;
 
   // If true, a request will be sent on the existing session iff the hostname
   // matches the certificate presented during the handshake.
@@ -264,6 +264,13 @@ class NET_EXPORT_PRIVATE QuicContext {
   const quic::ParsedQuicVersionVector& supported_versions() {
     return params_.supported_versions;
   }
+
+  // Returns the first quic::ParsedQuicVersion that has been advertised in
+  // `advertised_versions` and is supported, following the order of
+  // `advertised_versions`.  If no mutually supported version is found,
+  // quic::ParsedQuicVersion::Unsupported() will be returned.
+  quic::ParsedQuicVersion SelectQuicVersion(
+      const quic::ParsedQuicVersionVector& advertised_versions);
 
   void SetHelperForTesting(
       std::unique_ptr<quic::QuicConnectionHelperInterface> helper) {
