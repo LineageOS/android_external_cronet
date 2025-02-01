@@ -29,9 +29,9 @@ rust_binary {
     ],
     whole_static_libs: [
         "cronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib__testing",
-        "cronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib_bindgen_generator_static_fns__testing",
         "cronet_aml_buildtools_third_party_libc___libc____testing",
         "cronet_aml_buildtools_third_party_libc__abi_libc__abi__testing",
+        "libcronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib_bindgen_generator_static_fns__testing",
     ],
     apex_available: [
         "com.android.tethering",
@@ -233,87 +233,6 @@ cc_library_static {
     },
 }
 
-// GN: //build/rust/tests/bindgen_static_fns_test:c_lib_bindgen_generator_static_fns__testing
-cc_library_static {
-    name: "cronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib_bindgen_generator_static_fns__testing",
-    srcs: [
-        ":libcronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib_bindgen_generator__testing",
-    ],
-    host_cross_supported: false,
-    defaults: [
-        "cronet_aml_cc_defaults",
-    ],
-    cflags: [
-        "-DANDROID",
-        "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
-        "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
-        "-DHAVE_SYS_UIO_H",
-        "-DNDEBUG",
-        "-DNVALGRIND",
-        "-DOFFICIAL_BUILD",
-        "-DTMP_REBUILD_HACK",
-        "-D_GNU_SOURCE",
-        "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
-        "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
-        "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
-        "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
-        "-D__STDC_CONSTANT_MACROS",
-        "-D__STDC_FORMAT_MACROS",
-        "-fdata-sections",
-        "-ffunction-sections",
-        "-fstack-protector",
-        "-fvisibility-inlines-hidden",
-        "-fvisibility=hidden",
-        "-g1",
-    ],
-    include_dirs: [
-        ".",
-        "external/cronet/",
-        "external/cronet/buildtools/third_party/libc++/",
-        "external/cronet/third_party/libc++/src/include",
-        "external/cronet/third_party/libc++abi/src/include",
-    ],
-    cpp_std: "c++20",
-    ldflags: [
-        "-Wl,--as-needed",
-        "-Wl,--gc-sections",
-        "-Wl,--icf=all",
-    ],
-    visibility: [
-        "//external/cronet:__subpackages__",
-    ],
-    target: {
-        android_arm: {
-            cflags: [
-                "-D_FORTIFY_SOURCE=2",
-            ],
-        },
-        android_arm64: {
-            cflags: [
-                "-D_FORTIFY_SOURCE=2",
-                "-D__ARM_NEON__=1",
-                "-O2",
-                "-mno-outline",
-            ],
-        },
-        android_x86: {
-            cflags: [
-                "-D_FORTIFY_SOURCE=2",
-                "-msse3",
-            ],
-        },
-        android_x86_64: {
-            cflags: [
-                "-D_FORTIFY_SOURCE=2",
-                "-O2",
-                "-msse3",
-            ],
-        },
-    },
-}
-
 // GN: //build/rust/tests/bindgen_static_fns_test:bindgen_static_fns_test_lib__testing
 rust_ffi_static {
     name: "libbuild_srust_stests_sbindgen_ustatic_ufns_utest_cbindgen_ustatic_ufns_utest_ulib__83628a68f64c5f11",
@@ -450,5 +369,86 @@ rust_bindgen {
     source_stem: "bindings",
     wrapper_src: "lib.h",
     handle_static_inline: true,
-    static_inline_library: "cronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib_bindgen_generator_static_fns__testing",
+    static_inline_library: "libcronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib_bindgen_generator_static_fns__testing",
+}
+
+// GN: //build/rust/tests/bindgen_static_fns_test:c_lib_bindgen_generator_static_fns__testing
+cc_library_static {
+    name: "libcronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib_bindgen_generator_static_fns__testing",
+    srcs: [
+        ":libcronet_aml_build_rust_tests_bindgen_static_fns_test_c_lib_bindgen_generator__testing",
+    ],
+    host_cross_supported: false,
+    defaults: [
+        "cronet_aml_cc_defaults",
+    ],
+    cflags: [
+        "-DANDROID",
+        "-DANDROID_NDK_VERSION_ROLL=r27_1",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
+        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
+        "-DHAVE_SYS_UIO_H",
+        "-DNDEBUG",
+        "-DNVALGRIND",
+        "-DOFFICIAL_BUILD",
+        "-DTMP_REBUILD_HACK",
+        "-D_GNU_SOURCE",
+        "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
+        "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
+        "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
+        "-D__STDC_CONSTANT_MACROS",
+        "-D__STDC_FORMAT_MACROS",
+        "-fdata-sections",
+        "-ffunction-sections",
+        "-fstack-protector",
+        "-fvisibility-inlines-hidden",
+        "-fvisibility=hidden",
+        "-g1",
+    ],
+    include_dirs: [
+        ".",
+        "external/cronet/",
+        "external/cronet/buildtools/third_party/libc++/",
+        "external/cronet/third_party/libc++/src/include",
+        "external/cronet/third_party/libc++abi/src/include",
+    ],
+    cpp_std: "c++20",
+    ldflags: [
+        "-Wl,--as-needed",
+        "-Wl,--gc-sections",
+        "-Wl,--icf=all",
+    ],
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+    target: {
+        android_arm: {
+            cflags: [
+                "-D_FORTIFY_SOURCE=2",
+            ],
+        },
+        android_arm64: {
+            cflags: [
+                "-D_FORTIFY_SOURCE=2",
+                "-D__ARM_NEON__=1",
+                "-O2",
+                "-mno-outline",
+            ],
+        },
+        android_x86: {
+            cflags: [
+                "-D_FORTIFY_SOURCE=2",
+                "-msse3",
+            ],
+        },
+        android_x86_64: {
+            cflags: [
+                "-D_FORTIFY_SOURCE=2",
+                "-O2",
+                "-msse3",
+            ],
+        },
+    },
 }
