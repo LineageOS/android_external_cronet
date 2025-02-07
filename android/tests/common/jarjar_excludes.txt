@@ -12,6 +12,8 @@ android\.net\..+
 # cronet_tests.so is not jarjared and uses base classes. We can remove this when there's a
 # separate java base target to depend on.
 org\.chromium\.base\..+
+# Same rationale for jni_zero.
+org\.jni_zero\..+
 J\.cronet_tests_N(\$.+)?
 
 # don't jarjar automatically generated FooJni files.
