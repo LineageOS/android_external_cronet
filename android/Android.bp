@@ -41,7 +41,7 @@ java_genrule {
     tool_files: [
         ":httpclient_impl_internal{.jar}",
         "package_prefix_exclude.txt",
-        "preloading_exclude.txt"
+        "preloading_exclude.txt",
     ],
     tools: [
         "jar-classes-collector",
@@ -73,7 +73,10 @@ java_library {
         "cronet_aml_java",
         "httpclient_impl",
     ],
-    static_libs: ["com.android.net.http.flags-aconfig-java"],
+    static_libs: [
+        "com.android.net.http.flags-aconfig-java",
+        "modules-utils-expresslog",
+    ],
     sdk_version: "module_current",
     visibility: [
         "//packages/modules/Connectivity:__subpackages__",
