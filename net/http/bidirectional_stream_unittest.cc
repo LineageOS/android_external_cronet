@@ -341,12 +341,11 @@ class DeleteStreamDelegate : public TestDelegateBase {
     }
   }
 
-  void OnDataSent() override { NOTREACHED_IN_MIGRATION(); }
+  void OnDataSent() override { NOTREACHED(); }
 
   void OnDataRead(int bytes_read) override {
     if (phase_ == ON_HEADERS_RECEIVED) {
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     }
     TestDelegateBase::OnDataRead(bytes_read);
     if (phase_ == ON_DATA_READ) {
@@ -357,8 +356,7 @@ class DeleteStreamDelegate : public TestDelegateBase {
 
   void OnTrailersReceived(const quiche::HttpHeaderBlock& trailers) override {
     if (phase_ == ON_HEADERS_RECEIVED || phase_ == ON_DATA_READ) {
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     }
     TestDelegateBase::OnTrailersReceived(trailers);
     if (phase_ == ON_TRAILERS_RECEIVED) {
@@ -369,8 +367,7 @@ class DeleteStreamDelegate : public TestDelegateBase {
 
   void OnFailed(int error) override {
     if (phase_ != ON_FAILED) {
-      NOTREACHED_IN_MIGRATION();
-      return;
+      NOTREACHED();
     }
     TestDelegateBase::OnFailed(error);
     DeleteStream();
@@ -1343,9 +1340,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamAfterSendData) {
   // OnDataSent may or may not have been invoked.
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
-  EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
-      delegate->GetTotalSentBytes());
+  EXPECT_EQ(CountWriteBytes(base::span(writes).first(std::size(writes) - 1)),
+            delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 }
 
@@ -1401,12 +1397,11 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringReadData) {
   EXPECT_EQ(0, delegate->on_data_sent_count());
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
-  EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
-      delegate->GetTotalSentBytes());
-  // Response body frame isn't read becase stream is deleted once read returns
-  // ERR_IO_PENDING.
-  EXPECT_EQ(CountReadBytes(base::make_span(reads).first(std::size(reads) - 2)),
+  EXPECT_EQ(CountWriteBytes(base::span(writes).first(std::size(writes) - 1)),
+            delegate->GetTotalSentBytes());
+  // Response body frame isn't read because the stream is deleted once read
+  // returns ERR_IO_PENDING.
+  EXPECT_EQ(CountReadBytes(base::span(reads).first(std::size(reads) - 2)),
             delegate->GetTotalReceivedBytes());
 }
 
@@ -1454,7 +1449,7 @@ TEST_F(BidirectionalStreamTest, PropagateProtocolError) {
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // BidirectionalStreamSpdyStreamJob does not count the bytes sent for |rst|
   // because it is sent after SpdyStream::Delegate::OnClose is called.
-  EXPECT_EQ(CountWriteBytes(base::make_span(writes, 1u)),
+  EXPECT_EQ(CountWriteBytes(base::span(writes, 1u)),
             delegate->GetTotalSentBytes());
   EXPECT_EQ(0, delegate->GetTotalReceivedBytes());
 
@@ -1517,9 +1512,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnHeadersReceived) {
 
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
-  EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
-      delegate->GetTotalSentBytes());
+  EXPECT_EQ(CountWriteBytes(base::span(writes).first(std::size(writes) - 1)),
+            delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 }
 
@@ -1571,9 +1565,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnDataRead) {
 
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
-  EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
-      delegate->GetTotalSentBytes());
+  EXPECT_EQ(CountWriteBytes(base::span(writes).first(std::size(writes) - 1)),
+            delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 }
 
@@ -1630,9 +1623,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnTrailersReceived) {
   // deleted.
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
-  EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
-      delegate->GetTotalSentBytes());
+  EXPECT_EQ(CountWriteBytes(base::span(writes).first(std::size(writes) - 1)),
+            delegate->GetTotalSentBytes());
   EXPECT_EQ(CountReadBytes(reads), delegate->GetTotalReceivedBytes());
 }
 
@@ -1679,9 +1671,8 @@ TEST_F(BidirectionalStreamTest, DeleteStreamDuringOnFailed) {
 
   EXPECT_EQ(kProtoHTTP2, delegate->GetProtocol());
   // Bytes sent excludes the RST frame.
-  EXPECT_EQ(
-      CountWriteBytes(base::make_span(writes).first(std::size(writes) - 1)),
-      delegate->GetTotalSentBytes());
+  EXPECT_EQ(CountWriteBytes(base::span(writes).first(std::size(writes) - 1)),
+            delegate->GetTotalSentBytes());
   EXPECT_EQ(0, delegate->GetTotalReceivedBytes());
 }
 

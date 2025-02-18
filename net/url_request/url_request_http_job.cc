@@ -577,8 +577,7 @@ PrivacyMode URLRequestHttpJob::DeterminePrivacyMode() const {
     case NetworkDelegate::PrivacySetting::kStateDisallowed:
       return PRIVACY_MODE_ENABLED;
   }
-  NOTREACHED_IN_MIGRATION();
-  return PRIVACY_MODE_ENABLED;
+  NOTREACHED();
 }
 
 void URLRequestHttpJob::NotifyHeadersComplete() {
@@ -930,6 +929,30 @@ void URLRequestHttpJob::SetCookieHeaderAndStart(
 
   request_->set_maybe_sent_cookies(std::move(maybe_sent_cookies));
 
+#if BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
+  // Check if the right device bound cookies are set for the request, see
+  // https://wicg.github.io/dbsc/ for specification.
+  device_bound_sessions::SessionService* service =
+      request_->context()->device_bound_session_service();
+  if (service) {
+    std::optional<device_bound_sessions::Session::Id> id =
+        service->GetAnySessionRequiringDeferral(request_);
+    // If the request needs to be deferred while waiting for refresh,
+    // do not start the transaction at this time.
+    if (id) {
+      service->DeferRequestForRefresh(
+          request_, *id,
+          // restart with new cookies callback
+          base::BindOnce(&URLRequestHttpJob::RestartTransactionForRefresh,
+                         weak_factory_.GetWeakPtr()),
+          // continue callback
+          base::BindOnce(&URLRequestHttpJob::StartTransaction,
+                         weak_factory_.GetWeakPtr()));
+      return;
+    }
+  }
+#endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
+
   StartTransaction();
 }
 
@@ -1128,14 +1151,18 @@ void URLRequestHttpJob::ProcessDeviceBoundSessionsHeader() {
       device_bound_sessions::RegistrationFetcherParam::CreateIfValid(
           request_url, headers);
   for (auto& param : params) {
-    service->RegisterBoundSession(std::move(param), request_->isolation_info());
+    service->RegisterBoundSession(
+        request_->device_bound_session_access_callback(), std::move(param),
+        request_->isolation_info());
   }
 
   std::vector<device_bound_sessions::SessionChallengeParam> challenge_params =
       device_bound_sessions::SessionChallengeParam::CreateIfValid(request_url,
                                                                   headers);
   for (auto& param : challenge_params) {
-    service->SetChallengeForBoundSession(request_url, std::move(param));
+    service->SetChallengeForBoundSession(
+        request_->device_bound_session_access_callback(), request_url,
+        std::move(param));
   }
 }
 #endif  // BUILDFLAG(ENABLE_DEVICE_BOUND_SESSIONS)
@@ -1156,6 +1183,12 @@ void URLRequestHttpJob::ProcessStrictTransportSecurityHeader() {
   // Don't accept HSTS headers when the hostname is an IP address.
   if (request_info_.url.HostIsIPAddress())
     return;
+
+  // Don't accept HSTS headers for localhost. (crbug.com/41251622)
+  if (net::IsLocalHostname(request_info_.url.host()) &&
+      base::FeatureList::IsEnabled(features::kIgnoreHSTSForLocalhost)) {
+    return;
+  }
 
   // http://tools.ietf.org/html/draft-ietf-websec-strict-transport-sec:
   //
@@ -1299,11 +1332,8 @@ void URLRequestHttpJob::OnReadCompleted(int result) {
   ReadRawDataComplete(result);
 }
 
-void URLRequestHttpJob::RestartTransactionWithAuth(
-    const AuthCredentials& credentials) {
+void URLRequestHttpJob::RestartTransaction() {
   DCHECK(!override_response_info_);
-
-  auth_credentials_ = credentials;
 
   // These will be reset in OnStartCompleted.
   response_info_ = nullptr;
@@ -1330,6 +1360,16 @@ void URLRequestHttpJob::RestartTransactionWithAuth(
   } else {
     StartTransaction();
   }
+}
+
+void URLRequestHttpJob::RestartTransactionForRefresh() {
+  RestartTransaction();
+}
+
+void URLRequestHttpJob::RestartTransactionWithAuth(
+    const AuthCredentials& credentials) {
+  auth_credentials_ = credentials;
+  RestartTransaction();
 }
 
 void URLRequestHttpJob::SetUpload(UploadDataStream* upload) {
@@ -1480,8 +1520,7 @@ std::unique_ptr<SourceStream> URLRequestHttpJob::SetUpSourceStream() {
         break;
       case SourceStream::TYPE_NONE:
       case SourceStream::TYPE_UNKNOWN:
-        NOTREACHED_IN_MIGRATION();
-        return nullptr;
+        NOTREACHED();
     }
     if (downstream == nullptr)
       return nullptr;
@@ -1794,9 +1833,8 @@ IPEndPoint URLRequestHttpJob::GetResponseRemoteEndpoint() const {
 
 void URLRequestHttpJob::RecordTimer() {
   if (request_creation_time_.is_null()) {
-    NOTREACHED_IN_MIGRATION()
+    NOTREACHED()
         << "The same transaction shouldn't start twice without new timing.";
-    return;
   }
 
   base::TimeDelta to_start = base::Time::Now() - request_creation_time_;
@@ -1823,8 +1861,7 @@ void URLRequestHttpJob::RecordTimer() {
 
 void URLRequestHttpJob::ResetTimer() {
   if (!request_creation_time_.is_null()) {
-    NOTREACHED_IN_MIGRATION() << "The timer was reset before it was recorded.";
-    return;
+    NOTREACHED() << "The timer was reset before it was recorded.";
   }
   request_creation_time_ = base::Time::Now();
 }

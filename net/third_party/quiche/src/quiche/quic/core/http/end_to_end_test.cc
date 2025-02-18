@@ -16,6 +16,7 @@
 
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/notification.h"
 #include "absl/time/clock.h"
 #include "absl/time/time.h"
 #include "absl/types/span.h"
@@ -3994,7 +3995,7 @@ TEST_P(EndToEndTest, NegotiatedServerInitialFlowControlWindow) {
   // Bump the window.
   const uint32_t kExpectedStreamIFCW = 1024 * 1024;
   const uint32_t kExpectedSessionIFCW = 1.5 * 1024 * 1024;
-  client_extra_copts_.push_back(kIFWA);
+  client_extra_copts_.push_back(kIFWa);
 
   ASSERT_TRUE(Initialize());
 
@@ -7738,11 +7739,11 @@ TEST_P(EndToEndTest, OriginalConnectionIdClearedFromMap) {
 }
 
 TEST_P(EndToEndTest, FlowLabelSend) {
-  SetQuicRestartFlag(quic_support_flow_label, true);
+  SetQuicRestartFlag(quic_support_flow_label2, true);
   ASSERT_TRUE(Initialize());
 
   const uint32_t server_flow_label = 2;
-  quiche::QuicheNotification set;
+  absl::Notification set;
   server_thread_->Schedule([this, &set]() {
     QuicConnection* server_connection = GetServerConnection();
     if (server_connection != nullptr) {
@@ -7773,7 +7774,6 @@ TEST_P(EndToEndTest, FlowLabelSend) {
 
 TEST_P(EndToEndTest, ServerReportsNotEct) {
   // Client connects using not-ECT.
-  SetQuicRestartFlag(quic_support_ect1, true);
   ASSERT_TRUE(Initialize());
   QuicConnection* client_connection = GetClientConnection();
   QuicConnectionPeer::DisableEcnCodepointValidation(client_connection);
@@ -7793,7 +7793,6 @@ TEST_P(EndToEndTest, ServerReportsNotEct) {
 
 TEST_P(EndToEndTest, ServerReportsEct0) {
   // Client connects using not-ECT.
-  SetQuicRestartFlag(quic_support_ect1, true);
   ASSERT_TRUE(Initialize());
   QuicConnection* client_connection = GetClientConnection();
   QuicConnectionPeer::DisableEcnCodepointValidation(client_connection);
@@ -7817,7 +7816,6 @@ TEST_P(EndToEndTest, ServerReportsEct0) {
 
 TEST_P(EndToEndTest, ServerReportsEct1) {
   // Client connects using not-ECT.
-  SetQuicRestartFlag(quic_support_ect1, true);
   ASSERT_TRUE(Initialize());
   QuicConnection* client_connection = GetClientConnection();
   QuicConnectionPeer::DisableEcnCodepointValidation(client_connection);
@@ -7841,7 +7839,6 @@ TEST_P(EndToEndTest, ServerReportsEct1) {
 
 TEST_P(EndToEndTest, ServerReportsCe) {
   // Client connects using not-ECT.
-  SetQuicRestartFlag(quic_support_ect1, true);
   ASSERT_TRUE(Initialize());
   QuicConnection* client_connection = GetClientConnection();
   QuicConnectionPeer::DisableEcnCodepointValidation(client_connection);
@@ -7864,7 +7861,6 @@ TEST_P(EndToEndTest, ServerReportsCe) {
 }
 
 TEST_P(EndToEndTest, ClientReportsEct1) {
-  SetQuicRestartFlag(quic_support_ect1, true);
   ASSERT_TRUE(Initialize());
   // Wait for handshake to complete, so that we can manipulate the server
   // connection without race conditions.
@@ -8145,6 +8141,32 @@ TEST_P(EndToEndTest, SerializeConnectionClosePacketWithLargestPacketNumber) {
   EXPECT_EQ("", client_->SendSynchronousRequest("/foo"));
   EXPECT_THAT(client_->connection_error(), IsError(QUIC_PUBLIC_RESET));
 }
+
+TEST_P(EndToEndTest, EmptyResponseWithFin) {
+  ASSERT_TRUE(Initialize());
+  if (!version_.HasIetfQuicFrames()) {
+    return;
+  }
+  memory_cache_backend_.AddSpecialResponse(
+      server_hostname_, "/empty_response_with_fin",
+      QuicBackendResponse::EMPTY_PAYLOAD_WITH_FIN);
+
+  quiche::HttpHeaderBlock headers;
+  headers[":scheme"] = "https";
+  headers[":authority"] = server_hostname_;
+  headers[":method"] = "GET";
+  headers[":path"] = "/empty_response_with_fin";
+  client_->SendMessage(headers, "", /*fin=*/true);
+  client_->WaitForResponseForMs(100);
+  if (GetQuicReloadableFlag(quic_fin_before_completed_http_headers)) {
+    EXPECT_THAT(client_->connection_error(),
+                IsError(QUIC_HTTP_INVALID_FRAME_SEQUENCE_ON_SPDY_STREAM));
+  } else {
+    EXPECT_FALSE(client_->response_headers_complete());
+    EXPECT_FALSE(client_->response_complete());
+  }
+}
+
 }  // namespace
 }  // namespace test
 }  // namespace quic

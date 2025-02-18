@@ -44,7 +44,7 @@ rust_ffi_static {
         android_arm: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -65,7 +65,7 @@ rust_ffi_static {
         android_arm64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -86,7 +86,7 @@ rust_ffi_static {
         android_riscv64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -107,7 +107,7 @@ rust_ffi_static {
         android_x86: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -128,7 +128,7 @@ rust_ffi_static {
         android_x86_64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -145,6 +145,9 @@ rust_ffi_static {
                 "-Cdebuginfo=1",
                 "-Funsafe_code",
             ],
+        },
+        host: {
+            compile_multilib: "64",
         },
     },
 }
@@ -173,7 +176,7 @@ rust_ffi_static {
         android_arm: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -193,7 +196,7 @@ rust_ffi_static {
         android_arm64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -213,7 +216,7 @@ rust_ffi_static {
         android_riscv64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -233,7 +236,7 @@ rust_ffi_static {
         android_x86: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -253,7 +256,7 @@ rust_ffi_static {
         android_x86_64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -271,9 +274,10 @@ rust_ffi_static {
             ],
         },
         host: {
+            compile_multilib: "64",
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -295,7 +299,6 @@ rust_ffi_static {
                 "libsyn__61f02ce2afa67e0f",
                 "libunicode_ident__a2554af8d49a4107",
             ],
-            compile_multilib: "64",
         },
     },
 }
@@ -323,9 +326,10 @@ rust_proc_macro {
     ],
     target: {
         host: {
+            compile_multilib: "64",
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -340,7 +344,6 @@ rust_proc_macro {
                 "-Cdebuginfo=1",
                 "-Funsafe_code",
             ],
-            compile_multilib: "64",
         },
     },
 }
@@ -368,9 +371,10 @@ rust_proc_macro {
     ],
     target: {
         host: {
+            compile_multilib: "64",
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -385,7 +389,6 @@ rust_proc_macro {
                 "-Cdebuginfo=1",
                 "-Funsafe_code",
             ],
-            compile_multilib: "64",
         },
     },
 }

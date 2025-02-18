@@ -1034,7 +1034,7 @@ bool AppendToFile(const FilePath& filename, span<const uint8_t> data) {
 }
 
 bool AppendToFile(const FilePath& filename, std::string_view data) {
-  return AppendToFile(filename, as_bytes(make_span(data)));
+  return AppendToFile(filename, as_byte_span(data));
 }
 
 bool GetCurrentDirectory(FilePath* dir) {
@@ -1128,11 +1128,6 @@ bool PreReadFile(const FilePath& file_path,
 }
 
 bool PreventExecuteMappingInternal(const FilePath& path, bool skip_path_check) {
-  if (!base::FeatureList::IsEnabled(
-          features::kEnforceNoExecutableFileHandles)) {
-    return true;
-  }
-
   bool is_path_safe = skip_path_check || IsPathSafeToSetAclOn(path);
 
   if (!is_path_safe) {

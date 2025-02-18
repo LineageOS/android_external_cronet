@@ -137,7 +137,9 @@ struct TestConfig {
   bool expect_no_offer_early_data = false;
   bool expect_no_server_name = false;
   bool use_ticket_callback = false;
+  bool use_ticket_aead_callback = false;
   bool renew_ticket = false;
+  bool skip_ticket = false;
   bool enable_early_data = false;
   std::string ocsp_response;
   bool check_close_notify = false;
@@ -219,6 +221,7 @@ struct TestConfig {
   bool no_check_ecdsa_curve = false;
   int expect_selected_credential = -1;
   std::vector<CredentialConfig> credentials;
+  int private_key_delay_ms = 0;
 
   std::vector<const char*> handshaker_args;
 

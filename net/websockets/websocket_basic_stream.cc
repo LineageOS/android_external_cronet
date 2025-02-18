@@ -2,11 +2,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifdef UNSAFE_BUFFERS_BUILD
-// TODO(crbug.com/40284755): Remove this and spanify to fix the errors.
-#pragma allow_unsafe_buffers
-#endif
-
 #include "net/websockets/websocket_basic_stream.h"
 
 #include <stddef.h>
@@ -224,16 +219,13 @@ int WebSocketBasicStream::WriteFrames(
     DCHECK_NE(ERR_INVALID_ARGUMENT, result)
         << "WriteWebSocketFrameHeader() says that " << dest.size()
         << " is not enough to write the header in. This should not happen.";
-    CHECK_GE(result, 0) << "Potentially security-critical check failed";
-    dest = dest.subspan(result);
+    dest = dest.subspan(base::checked_cast<size_t>(result));
 
     CHECK_LE(frame->header.payload_length,
              base::checked_cast<uint64_t>(dest.size()));
     const size_t frame_size = frame->header.payload_length;
     if (frame_size > 0) {
-      base::span<const char> frame_data =
-          base::make_span(frame->payload, frame_size);
-      dest.copy_prefix_from(base::as_bytes(frame_data));
+      dest.copy_prefix_from(frame->payload);
       MaskWebSocketFramePayload(mask, 0, dest.first(frame_size));
       dest = dest.subspan(frame_size);
     }
@@ -423,10 +415,9 @@ int WebSocketBasicStream::ConvertChunksToFrames(
       const size_t length =
           base::checked_cast<size_t>(frame->header.payload_length);
       if (length > 0) {
-        auto copied_payload = base::HeapArray<char>::WithSize(length);
-        base::ranges::copy(base::make_span(frame->payload, length),
-                           copied_payload.begin());
-        frame->payload = copied_payload.data();
+        auto copied_payload =
+            base::HeapArray<uint8_t>::CopiedFrom(frame->payload);
+        frame->payload = copied_payload.as_span();
         control_frame_payloads_.emplace_back(std::move(copied_payload));
       }
     }

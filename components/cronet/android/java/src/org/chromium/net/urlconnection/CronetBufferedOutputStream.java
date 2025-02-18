@@ -4,10 +4,9 @@
 
 package org.chromium.net.urlconnection;
 
+import org.chromium.base.metrics.ScopedSysTraceEvent;
 import org.chromium.net.UploadDataProvider;
 import org.chromium.net.UploadDataSink;
-
-import androidx.annotation.VisibleForTesting;
 
 import java.io.IOException;
 import java.net.ProtocolException;
@@ -19,8 +18,7 @@ import java.util.Objects;
  * This is used when neither {@link CronetHttpURLConnection#setFixedLengthStreamingMode} nor {@link
  * CronetHttpURLConnection#setChunkedStreamingMode} is set.
  */
-@VisibleForTesting
-public final class CronetBufferedOutputStream extends CronetOutputStream {
+final class CronetBufferedOutputStream extends CronetOutputStream {
     // QUIC uses a read buffer of 14520 bytes, SPDY uses 2852 bytes, and normal
     // stream uses 16384 bytes. Therefore, use 16384 for now to avoid growing
     // the buffer too many times.
@@ -167,20 +165,28 @@ public final class CronetBufferedOutputStream extends CronetOutputStream {
 
         @Override
         public void read(UploadDataSink uploadDataSink, ByteBuffer byteBuffer) {
-            final int availableSpace = byteBuffer.remaining();
-            if (availableSpace < mBuffer.remaining()) {
-                byteBuffer.put(mBuffer.array(), mBuffer.position(), availableSpace);
-                mBuffer.position(mBuffer.position() + availableSpace);
-            } else {
-                byteBuffer.put(mBuffer);
+            try (var traceEvent =
+                    ScopedSysTraceEvent.scoped(
+                            "CronetBufferedOutputStream.UploadDataProviderImpl#read")) {
+                final int availableSpace = byteBuffer.remaining();
+                if (availableSpace < mBuffer.remaining()) {
+                    byteBuffer.put(mBuffer.array(), mBuffer.position(), availableSpace);
+                    mBuffer.position(mBuffer.position() + availableSpace);
+                } else {
+                    byteBuffer.put(mBuffer);
+                }
+                uploadDataSink.onReadSucceeded(false);
             }
-            uploadDataSink.onReadSucceeded(false);
         }
 
         @Override
         public void rewind(UploadDataSink uploadDataSink) {
-            mBuffer.position(0);
-            uploadDataSink.onRewindSucceeded();
+            try (var traceEvent =
+                    ScopedSysTraceEvent.scoped(
+                            "CronetBufferedOutputStream.UploadDataProviderImpl#rewind")) {
+                mBuffer.position(0);
+                uploadDataSink.onRewindSucceeded();
+            }
         }
     }
 }

@@ -121,8 +121,7 @@ std::string CreateNamePointer(uint16_t offset) {
 uint16_t DnsQueryTypeToQtype(DnsQueryType dns_query_type) {
   switch (dns_query_type) {
     case DnsQueryType::UNSPECIFIED:
-      NOTREACHED_IN_MIGRATION();
-      return 0;
+      NOTREACHED();
     case DnsQueryType::A:
       return dns_protocol::kTypeA;
     case DnsQueryType::AAAA:
@@ -147,8 +146,7 @@ DnsQueryType AddressFamilyToDnsQueryType(AddressFamily address_family) {
     case ADDRESS_FAMILY_IPV6:
       return DnsQueryType::AAAA;
     default:
-      NOTREACHED_IN_MIGRATION();
-      return DnsQueryType::UNSPECIFIED;
+      NOTREACHED();
   }
 }
 
@@ -188,13 +186,13 @@ std::string GetDohProviderIdForHistogramFromServerConfig(
   const auto& entries = DohProviderEntry::GetList();
   const auto it = base::ranges::find(entries, doh_server,
                                      &DohProviderEntry::doh_server_config);
-  return it != entries.end() ? (*it)->provider : "Other";
+  return it != entries.end() ? std::string((*it)->provider) : "Other";
 }
 
 std::string GetDohProviderIdForHistogramFromNameserver(
     const IPEndPoint& nameserver) {
   const auto entries = GetDohProviderEntriesFromNameservers({nameserver});
-  return entries.empty() ? "Other" : entries[0]->provider;
+  return entries.empty() ? "Other" : std::string(entries[0]->provider);
 }
 
 std::string SecureDnsModeToString(const SecureDnsMode secure_dns_mode) {

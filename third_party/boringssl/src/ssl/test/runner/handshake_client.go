@@ -228,11 +228,10 @@ func (c *Conn) clientHandshake() error {
 			c.writeRecord(recordTypeHandshake, helloBytes)
 		}
 	}
-	c.flushHandshake()
-
-	if err := c.simulatePacketLoss(nil); err != nil {
+	if err := c.flushHandshake(); err != nil {
 		return err
 	}
+
 	if c.config.Bugs.SendEarlyAlert {
 		c.sendAlert(alertHandshakeFailure)
 	}
@@ -257,7 +256,7 @@ func (c *Conn) clientHandshake() error {
 		earlyTrafficSecret := finishedHash.deriveSecret(earlyTrafficLabel)
 		c.earlyExporterSecret = finishedHash.deriveSecret(earlyExporterLabel)
 
-		c.useOutTrafficSecret(encryptionEarlyData, session.wireVersion, session.cipherSuite, earlyTrafficSecret)
+		c.useOutTrafficSecret(uint16(encryptionEarlyData), session.wireVersion, session.cipherSuite, earlyTrafficSecret)
 		for _, earlyData := range c.config.Bugs.SendEarlyData {
 			if _, err := c.writeRecord(recordTypeApplicationData, earlyData); err != nil {
 				return err
@@ -283,11 +282,10 @@ func (c *Conn) clientHandshake() error {
 			hs.hello.raw = nil
 			hs.hello.cookie = helloVerifyRequest.cookie
 			c.writeRecord(recordTypeHandshake, hs.hello.marshal())
-			c.flushHandshake()
-
-			if err := c.simulatePacketLoss(nil); err != nil {
+			if err := c.flushHandshake(); err != nil {
 				return err
 			}
+
 			msg, err = c.readHandshake()
 			if err != nil {
 				return err
@@ -405,20 +403,13 @@ func (c *Conn) clientHandshake() error {
 			if err := hs.sendFinished(c.firstFinished[:], isResume); err != nil {
 				return err
 			}
-			// Most retransmits are triggered by a timeout, but the final
-			// leg of the handshake is retransmited upon re-receiving a
-			// Finished.
-			if err := c.simulatePacketLoss(func() {
-				c.sendHandshakeSeq--
-				c.writeRecord(recordTypeHandshake, hs.finishedBytes)
-				c.flushHandshake()
-			}); err != nil {
-				return err
-			}
 			if err := hs.readSessionTicket(); err != nil {
 				return err
 			}
 			if err := hs.readFinished(nil); err != nil {
+				return err
+			}
+			if err := c.ackHandshake(); err != nil {
 				return err
 			}
 		}
@@ -1047,7 +1038,9 @@ func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
 		} else {
 			c.writeRecord(recordTypeHandshake, toWrite)
 		}
-		c.flushHandshake()
+		if err := c.flushHandshake(); err != nil {
+			return err
+		}
 
 		if c.config.Bugs.SendEarlyDataOnSecondClientHello {
 			c.sendFakeEarlyData(4)
@@ -1155,19 +1148,13 @@ func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
 	// traffic key.
 	clientHandshakeTrafficSecret := hs.finishedHash.deriveSecret(clientHandshakeTrafficLabel)
 	serverHandshakeTrafficSecret := hs.finishedHash.deriveSecret(serverHandshakeTrafficLabel)
-	if err := c.useInTrafficSecret(encryptionHandshake, c.wireVersion, hs.suite, serverHandshakeTrafficSecret); err != nil {
+	if err := c.useInTrafficSecret(uint16(encryptionHandshake), c.wireVersion, hs.suite, serverHandshakeTrafficSecret); err != nil {
 		return err
 	}
 
-	msg, err := c.readHandshake()
+	encryptedExtensions, err := readHandshakeType[encryptedExtensionsMsg](c)
 	if err != nil {
 		return err
-	}
-
-	encryptedExtensions, ok := msg.(*encryptedExtensionsMsg)
-	if !ok {
-		c.sendAlert(alertUnexpectedMessage)
-		return unexpectedMessageError(encryptedExtensions, msg)
 	}
 	hs.writeServerHash(encryptedExtensions.marshal())
 
@@ -1284,14 +1271,9 @@ func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
 		c.ocspResponse = certMsg.certificates[0].ocspResponse
 		c.sctList = certMsg.certificates[0].sctList
 
-		msg, err = c.readHandshake()
+		certVerifyMsg, err := readHandshakeType[certificateVerifyMsg](c)
 		if err != nil {
 			return err
-		}
-		certVerifyMsg, ok := msg.(*certificateVerifyMsg)
-		if !ok {
-			c.sendAlert(alertUnexpectedMessage)
-			return unexpectedMessageError(certVerifyMsg, msg)
 		}
 
 		c.peerSignatureAlgorithm = certVerifyMsg.signatureAlgorithm
@@ -1308,16 +1290,10 @@ func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
 		hs.writeServerHash(certVerifyMsg.marshal())
 	}
 
-	msg, err = c.readHandshake()
+	serverFinished, err := readHandshakeType[finishedMsg](c)
 	if err != nil {
 		return err
 	}
-	serverFinished, ok := msg.(*finishedMsg)
-	if !ok {
-		c.sendAlert(alertUnexpectedMessage)
-		return unexpectedMessageError(serverFinished, msg)
-	}
-
 	verify := hs.finishedHash.serverSum(serverHandshakeTrafficSecret)
 	if len(verify) != len(serverFinished.verifyData) ||
 		subtle.ConstantTimeCompare(verify, serverFinished.verifyData) != 1 {
@@ -1338,7 +1314,7 @@ func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
 
 	// Switch to application data keys on read. In particular, any alerts
 	// from the client certificate are read over these keys.
-	if err := c.useInTrafficSecret(encryptionApplication, c.wireVersion, hs.suite, serverTrafficSecret); err != nil {
+	if err := c.useInTrafficSecret(uint16(encryptionApplication), c.wireVersion, hs.suite, serverTrafficSecret); err != nil {
 		return err
 	}
 
@@ -1348,13 +1324,9 @@ func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
 		// BoringSSL will always send two tickets half-RTT when
 		// negotiating 0-RTT.
 		for i := 0; i < shimConfig.HalfRTTTickets; i++ {
-			msg, err := c.readHandshake()
+			newSessionTicket, err := readHandshakeType[newSessionTicketMsg](c)
 			if err != nil {
 				return fmt.Errorf("tls: error reading half-RTT ticket: %s", err)
-			}
-			newSessionTicket, ok := msg.(*newSessionTicketMsg)
-			if !ok {
-				return errors.New("tls: expected half-RTT ticket")
 			}
 			// Defer processing until the resumption secret is computed.
 			deferredTickets = append(deferredTickets, newSessionTicket)
@@ -1396,7 +1368,7 @@ func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
 		c.writeRecord(recordTypeChangeCipherSpec, []byte{1})
 	}
 
-	c.useOutTrafficSecret(encryptionHandshake, c.wireVersion, hs.suite, clientHandshakeTrafficSecret)
+	c.useOutTrafficSecret(uint16(encryptionHandshake), c.wireVersion, hs.suite, clientHandshakeTrafficSecret)
 
 	// The client EncryptedExtensions message is sent if some extension uses it.
 	// (Currently only ALPS does.)
@@ -1505,13 +1477,25 @@ func (hs *clientHandshakeState) doTLS13Handshake(msg any) error {
 	if c.config.Bugs.SendExtraFinished {
 		c.writeRecord(recordTypeHandshake, finished.marshal())
 	}
-	c.flushHandshake()
+	if err := c.flushHandshake(); err != nil {
+		return err
+	}
+
+	if data := c.config.Bugs.AppDataBeforeTLS13KeyChange; data != nil {
+		c.writeRecord(recordTypeApplicationData, data)
+	}
 
 	// Switch to application data keys.
-	c.useOutTrafficSecret(encryptionApplication, c.wireVersion, hs.suite, clientTrafficSecret)
+	c.useOutTrafficSecret(uint16(encryptionApplication), c.wireVersion, hs.suite, clientTrafficSecret)
 	c.resumptionSecret = hs.finishedHash.deriveSecret(resumptionLabel)
 	for _, ticket := range deferredTickets {
 		if err := c.processTLS13NewSessionTicket(ticket, hs.suite); err != nil {
+			return err
+		}
+	}
+
+	if c.isDTLS && len(c.expectedACK) != 0 {
+		if err := c.readRecord(recordTypeACK); err != nil {
 			return err
 		}
 	}
@@ -1617,15 +1601,9 @@ func (hs *clientHandshakeState) doFullHandshake() error {
 
 	var leaf *x509.Certificate
 	if hs.suite.flags&suitePSK == 0 {
-		msg, err := c.readHandshake()
+		certMsg, err := readHandshakeType[certificateMsg](c)
 		if err != nil {
 			return err
-		}
-
-		certMsg, ok := msg.(*certificateMsg)
-		if !ok {
-			c.sendAlert(alertUnexpectedMessage)
-			return unexpectedMessageError(certMsg, msg)
 		}
 		hs.writeServerHash(certMsg.marshal())
 
@@ -1636,14 +1614,9 @@ func (hs *clientHandshakeState) doFullHandshake() error {
 	}
 
 	if hs.serverHello.extensions.ocspStapling {
-		msg, err := c.readHandshake()
+		cs, err := readHandshakeType[certificateStatusMsg](c)
 		if err != nil {
 			return err
-		}
-		cs, ok := msg.(*certificateStatusMsg)
-		if !ok {
-			c.sendAlert(alertUnexpectedMessage)
-			return unexpectedMessageError(cs, msg)
 		}
 		hs.writeServerHash(cs.marshal())
 
@@ -2171,14 +2144,9 @@ func (hs *clientHandshakeState) readFinished(out []byte) error {
 		return err
 	}
 
-	msg, err := c.readHandshake()
+	serverFinished, err := readHandshakeType[finishedMsg](c)
 	if err != nil {
 		return err
-	}
-	serverFinished, ok := msg.(*finishedMsg)
-	if !ok {
-		c.sendAlert(alertUnexpectedMessage)
-		return unexpectedMessageError(serverFinished, msg)
 	}
 
 	if c.config.Bugs.EarlyChangeCipherSpec == 0 {
@@ -2228,14 +2196,13 @@ func (hs *clientHandshakeState) readSessionTicket() error {
 		return errors.New("tls: received unexpected NewSessionTicket")
 	}
 
-	msg, err := c.readHandshake()
+	sessionTicketMsg, err := readHandshakeType[newSessionTicketMsg](c)
 	if err != nil {
 		return err
 	}
-	sessionTicketMsg, ok := msg.(*newSessionTicketMsg)
-	if !ok {
-		c.sendAlert(alertUnexpectedMessage)
-		return unexpectedMessageError(sessionTicketMsg, msg)
+
+	if c.config.Bugs.ExpectNoNonEmptyNewSessionTicket && len(sessionTicketMsg.ticket) != 0 {
+		return errors.New("tls: received unexpected non-empty NewSessionTicket")
 	}
 
 	session.sessionTicket = sessionTicketMsg.ticket
@@ -2305,9 +2272,6 @@ func (hs *clientHandshakeState) sendFinished(out []byte, isResume bool) error {
 	if c.config.Bugs.FragmentAcrossChangeCipherSpec {
 		c.writeRecord(recordTypeHandshake, postCCSMsgs[0][:5])
 		postCCSMsgs[0] = postCCSMsgs[0][5:]
-	} else if c.config.Bugs.SendUnencryptedFinished {
-		c.writeRecord(recordTypeHandshake, postCCSMsgs[0])
-		postCCSMsgs = postCCSMsgs[1:]
 	}
 
 	if !c.config.Bugs.SkipChangeCipherSpec &&
@@ -2338,7 +2302,7 @@ func (hs *clientHandshakeState) sendFinished(out []byte, isResume bool) error {
 	}
 
 	if !isResume || !c.config.Bugs.PackAppDataWithHandshake {
-		c.flushHandshake()
+		return c.flushHandshake()
 	}
 	return nil
 }

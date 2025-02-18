@@ -99,14 +99,12 @@
 -components/query_parser/
 -components/segmentation_platform/
 -components/sharing_message/
--components/signin/
 -components/system_cpu/
 -components/url_formatter/
 -components/url_pattern_index/
 -components/webrtc_logging/
 -components/zucchini/
 -fuchsia_web/
--google_apis/
 -gpu/ipc/service/
 -ios/
 -ios_internal/
@@ -119,12 +117,6 @@
 -third_party/
 +third_party/blink/
 -tools/
--ui/base/clipboard/
--ui/base/ime/ash/
--ui/display/manager/
--ui/events/ash/
--ui/ozone/
-+ui/ozone/platform/wayland
 -url/third_party
 -v8/
 

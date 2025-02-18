@@ -3,23 +3,26 @@
 -- found in the LICENSE file.
 
 INCLUDE PERFETTO MODULE slices.with_context;
+INCLUDE PERFETTO MODULE chrome.android_input;
 
 -- Processing steps of the Chrome input pipeline.
 CREATE PERFETTO TABLE _chrome_input_pipeline_steps_no_input_type(
   -- Id of this Chrome input pipeline (LatencyInfo).
-  latency_id INT,
+  latency_id LONG,
   -- Slice id
-  slice_id INT,
+  slice_id LONG,
   -- The step timestamp.
-  ts INT,
+  ts TIMESTAMP,
   -- Step duration.
-  dur INT,
+  dur DURATION,
   -- Utid of the thread.
-  utid INT,
+  utid LONG,
   -- Step name (ChromeLatencyInfo.step).
   step STRING,
   -- Input type.
-  input_type STRING
+  input_type STRING,
+  -- Start time of the parent Chrome scheduler task (if any) of this step.
+  task_start_time_ts TIMESTAMP
 ) AS
 SELECT
   EXTRACT_ARG(thread_slice.arg_set_id, 'chrome_latency_info.trace_id') AS latency_id,
@@ -28,7 +31,8 @@ SELECT
   dur,
   utid,
   EXTRACT_ARG(thread_slice.arg_set_id, 'chrome_latency_info.step') AS step,
-  EXTRACT_ARG(thread_slice.arg_set_id, 'chrome_latency_info.input_type') AS input_type
+  EXTRACT_ARG(thread_slice.arg_set_id, 'chrome_latency_info.input_type') AS input_type,
+  ts - (EXTRACT_ARG(thread_slice.arg_set_id, 'current_task.event_offset_from_task_start_time_us') * 1000) AS task_start_time_ts
 FROM
   thread_slice
 WHERE
@@ -39,7 +43,7 @@ ORDER BY slice_id, ts;
 -- Each row represents one input pipeline.
 CREATE PERFETTO TABLE chrome_inputs(
   -- Id of this Chrome input pipeline (LatencyInfo).
-  latency_id INT,
+  latency_id LONG,
    -- Input type.
   input_type STRING
 ) AS
@@ -57,19 +61,21 @@ GROUP BY latency_id;
 -- populate input type for steps where it would be NULL.
 CREATE PERFETTO TABLE chrome_input_pipeline_steps(
   -- Id of this Chrome input pipeline (LatencyInfo).
-  latency_id INT,
+  latency_id LONG,
   -- Slice id
-  slice_id INT,
+  slice_id LONG,
   -- The step timestamp.
-  ts INT,
+  ts TIMESTAMP,
   -- Step duration.
-  dur INT,
+  dur DURATION,
   -- Utid of the thread.
-  utid INT,
+  utid LONG,
   -- Step name (ChromeLatencyInfo.step).
   step STRING,
   -- Input type.
-  input_type STRING
+  input_type STRING,
+  -- Start time of the parent Chrome scheduler task (if any) of this step.
+  task_start_time_ts TIMESTAMP
 ) AS
 SELECT
   latency_id,
@@ -78,7 +84,8 @@ SELECT
   dur,
   utid,
   step,
-  chrome_inputs.input_type AS input_type
+  chrome_inputs.input_type AS input_type,
+  task_start_time_ts
 FROM
   chrome_inputs
 LEFT JOIN
@@ -89,9 +96,9 @@ WHERE chrome_inputs.input_type IS NOT NULL;
 -- For each input, get the latency id of the input that it was coalesced into.
 CREATE PERFETTO TABLE chrome_coalesced_inputs(
   -- The `latency_id` of the coalesced input.
-  coalesced_latency_id INT,
+  coalesced_latency_id LONG,
   -- The `latency_id` of the input that the current input was coalesced into.
-  presented_latency_id INT
+  presented_latency_id LONG
 ) AS
 SELECT
   args.int_value AS coalesced_latency_id,
@@ -101,3 +108,43 @@ JOIN slice USING (slice_id)
 JOIN args USING (arg_set_id)
 WHERE step.step = 'STEP_RESAMPLE_SCROLL_EVENTS'
   AND args.flat_key = 'chrome_latency_info.coalesced_trace_ids';
+
+-- Slices with information about non-blocking touch move inputs
+-- that were converted into gesture scroll updates.
+CREATE PERFETTO TABLE chrome_touch_move_to_scroll_update(
+  -- Latency id of the touch move input (LatencyInfo).
+  touch_move_latency_id LONG,
+  -- Latency id of the corresponding scroll update input (LatencyInfo).
+  scroll_update_latency_id LONG
+) AS
+SELECT
+  scroll_update_step.latency_id AS scroll_update_latency_id,
+  touch_move_step.latency_id AS touch_move_latency_id
+FROM chrome_input_pipeline_steps scroll_update_step
+JOIN ancestor_slice(scroll_update_step.slice_id) AS ancestor
+JOIN chrome_input_pipeline_steps touch_move_step
+  ON ancestor.id = touch_move_step.slice_id
+WHERE scroll_update_step.step = 'STEP_SEND_INPUT_EVENT_UI'
+AND scroll_update_step.input_type = 'GESTURE_SCROLL_UPDATE_EVENT'
+AND touch_move_step.step = 'STEP_TOUCH_EVENT_HANDLED';
+
+-- Matches Android input id to the corresponding touch move event.
+CREATE PERFETTO TABLE chrome_dispatch_android_input_event_to_touch_move(
+  -- Input id (assigned by the system, used by InputReader and InputDispatcher)
+  android_input_id STRING,
+  -- Latency id.
+  touch_move_latency_id LONG
+) AS
+SELECT
+  chrome_deliver_android_input_event.android_input_id,
+  latency_id AS touch_move_latency_id
+FROM
+  chrome_deliver_android_input_event
+LEFT JOIN
+  chrome_input_pipeline_steps USING (utid)
+WHERE
+  chrome_input_pipeline_steps.input_type = 'TOUCH_MOVE_EVENT'
+  AND chrome_input_pipeline_steps.step = 'STEP_SEND_INPUT_EVENT_UI'
+  AND chrome_deliver_android_input_event.ts <= chrome_input_pipeline_steps.ts
+  AND chrome_deliver_android_input_event.ts + chrome_deliver_android_input_event.dur >=
+    chrome_input_pipeline_steps.ts + chrome_input_pipeline_steps.dur;

@@ -121,8 +121,7 @@ void SignChallengeWithKey(
   std::string header_and_payload =
       std::move(optional_header_and_payload.value());
   unexportable_key_service.SignSlowlyAsync(
-      key_id, base::as_bytes(base::make_span(header_and_payload)),
-      kTaskPriority,
+      key_id, base::as_byte_span(header_and_payload), kTaskPriority,
       base::BindOnce(&OnDataSigned, expected_algorithm.value(),
                      std::ref(unexportable_key_service),
                      std::move(header_and_payload), key_id,
@@ -295,8 +294,9 @@ class RegistrationFetcherImpl : public URLRequest::Delegate {
           ParseSessionInstructionJson(data_received_);
       if (params) {
         RunCallbackAndDeleteSelf(
-            RegistrationFetcher::RegistrationCompleteParams(
-                std::move(*params), key_id_, request_->url()));
+            std::make_optional<RegistrationFetcher::RegistrationCompleteParams>(
+                std::move(*params), key_id_, request_->url(),
+                std::move(session_identifier_)));
         return;
       }
     }
@@ -327,10 +327,28 @@ class RegistrationFetcherImpl : public URLRequest::Delegate {
   std::string data_received_;
 };
 
-std::optional<RegistrationFetcher::RegistrationCompleteParams> (
-    *g_mock_fetcher)() = nullptr;
+RegistrationFetcher::FetcherType g_mock_fetcher = nullptr;
 
 }  // namespace
+
+RegistrationFetcher::RegistrationCompleteParams::RegistrationCompleteParams(
+    SessionParams params,
+    unexportable_keys::UnexportableKeyId key_id,
+    const GURL& url,
+    std::optional<std::string> referral_session_identifier)
+    : params(std::move(params)),
+      key_id(std::move(key_id)),
+      url(url),
+      referral_session_identifier(std::move(referral_session_identifier)) {}
+
+RegistrationFetcher::RegistrationCompleteParams::RegistrationCompleteParams(
+    RegistrationFetcher::RegistrationCompleteParams&& other) noexcept = default;
+RegistrationFetcher::RegistrationCompleteParams&
+RegistrationFetcher::RegistrationCompleteParams::operator=(
+    RegistrationFetcher::RegistrationCompleteParams&& other) noexcept = default;
+
+RegistrationFetcher::RegistrationCompleteParams::~RegistrationCompleteParams() =
+    default;
 
 // static
 void RegistrationFetcher::StartCreateTokenAndFetch(

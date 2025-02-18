@@ -23,21 +23,19 @@ RAW_LICENSE_TO_FORMATTED_DETAILS = {
     "BSD-3-Clause": (
         "BSD_3_CLAUSE", LicenseType.NOTICE,
         "SPDX-license-identifier-BSD-3-Clause"),
-    "BSD or GPLv2": (
-        "BSD_3_CLAUSE", LicenseType.NOTICE,
-        "SPDX-license-identifier-BSD-3-Clause"),
     "Apache 2.0": (
         "APACHE_2_0", LicenseType.NOTICE, "SPDX-license-identifier-Apache-2.0"),
     # Different Apache 2.0 format used in Chromium.
     "Apache-2.0": (
         "APACHE_2_0", LicenseType.NOTICE, "SPDX-license-identifier-Apache-2.0"),
-    "Apache Version 2.0": (
-        "APACHE_2_0", LicenseType.NOTICE, "SPDX-license-identifier-Apache-2.0"),
     "MIT": ("MIT", LicenseType.NOTICE, "SPDX-license-identifier-MIT"),
+    "Unicode": (
+        "UNICODE", LicenseType.NOTICE,
+        "SPDX-license-identifier-Unicode-DFS-2016"),
     "Unicode-3.0": (
         "UNICODE_3_0", LicenseType.NOTICE,
         "SPDX-license-identifier-Unicode-3.0"),
-    "Unicode": (
+    "Unicode-DFS-2016": (
         "UNICODE", LicenseType.NOTICE,
         "SPDX-license-identifier-Unicode-DFS-2016"),
     "ICU": (
@@ -96,10 +94,6 @@ POST_PROCESS_OPERATION = {
         Mapper("License", [
             'Public Domain: United States Government Work under 17 U.S.C. 105'],
                ["unencumbered"])),
-    "third_party/rust/unicode_ident/v1/README.chromium": create_license_post_processing(
-          Mapper("License", [
-              'Apache 2.0 AND Unicode License Agreement - Data Files and Software (2016)'],
-                ["Apache 2.0", "Unicode"])),
 }
 
 # This is relative to the repo_directory passed in |update_license|

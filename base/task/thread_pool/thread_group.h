@@ -406,7 +406,6 @@ class BASE_EXPORT ThreadGroup {
 
     // Suggested reclaim time for workers.
     TimeDelta suggested_reclaim_time;
-    bool no_worker_reclaim = false;
 
     // Environment to be initialized per worker.
     WorkerEnvironment worker_environment = WorkerEnvironment::NONE;
@@ -423,10 +422,6 @@ class BASE_EXPORT ThreadGroup {
     // The period between calls to AdjustMaxTasks() when the thread group is at
     // capacity.
     TimeDelta blocked_workers_poll_period;
-
-    // The max number of workers that a ThreadGroupSemaphore will create in any
-    // one EnsureEnoughWorkers() call.
-    int max_num_workers_created = 2;
   } initialized_in_start_;
 
   InitializedInStart& in_start() LIFETIME_BOUND {

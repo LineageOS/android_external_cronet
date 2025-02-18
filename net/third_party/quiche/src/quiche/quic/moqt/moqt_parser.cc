@@ -52,7 +52,7 @@ uint64_t SignedVarintUnserializedForm(uint64_t value) {
 bool IsAllowedStreamType(uint64_t value) {
   constexpr std::array kAllowedStreamTypes = {
       MoqtDataStreamType::kStreamHeaderSubgroup,
-      MoqtDataStreamType::kStreamHeaderTrack, MoqtDataStreamType::kPadding};
+      MoqtDataStreamType::kStreamHeaderFetch, MoqtDataStreamType::kPadding};
   for (MoqtDataStreamType type : kAllowedStreamTypes) {
     if (static_cast<uint64_t>(type) == value) {
       return true;
@@ -63,11 +63,10 @@ bool IsAllowedStreamType(uint64_t value) {
 
 size_t ParseObjectHeader(quic::QuicDataReader& reader, MoqtObject& object,
                          MoqtDataStreamType type) {
-  if (!reader.ReadVarInt62(&object.subscribe_id) ||
-      !reader.ReadVarInt62(&object.track_alias)) {
+  if (!reader.ReadVarInt62(&object.track_alias)) {
     return 0;
   }
-  if (type != MoqtDataStreamType::kStreamHeaderTrack &&
+  if (type != MoqtDataStreamType::kStreamHeaderFetch &&
       !reader.ReadVarInt62(&object.group_id)) {
     return 0;
   }
@@ -82,7 +81,8 @@ size_t ParseObjectHeader(quic::QuicDataReader& reader, MoqtObject& object,
       !reader.ReadVarInt62(&object.object_id)) {
     return 0;
   }
-  if (!reader.ReadUInt8(&object.publisher_priority)) {
+  if (type != MoqtDataStreamType::kStreamHeaderFetch &&
+      !reader.ReadUInt8(&object.publisher_priority)) {
     return 0;
   }
   uint64_t status = static_cast<uint64_t>(MoqtObjectStatus::kNormal);
@@ -92,22 +92,34 @@ size_t ParseObjectHeader(quic::QuicDataReader& reader, MoqtObject& object,
     return 0;
   }
   object.object_status = IntegerToObjectStatus(status);
-  object.forwarding_preference = GetForwardingPreference(type);
   return reader.PreviouslyReadPayload().size();
 }
 
 size_t ParseObjectSubheader(quic::QuicDataReader& reader, MoqtObject& object,
                             MoqtDataStreamType type) {
   switch (type) {
-    case MoqtDataStreamType::kStreamHeaderTrack:
+    case MoqtDataStreamType::kStreamHeaderFetch:
       if (!reader.ReadVarInt62(&object.group_id)) {
         return 0;
+      }
+      if (type == MoqtDataStreamType::kStreamHeaderFetch) {
+        uint64_t value;
+        if (!reader.ReadVarInt62(&value)) {
+          return 0;
+        }
+        object.subgroup_id = value;
       }
       [[fallthrough]];
 
     case MoqtDataStreamType::kStreamHeaderSubgroup: {
-      if (!reader.ReadVarInt62(&object.object_id) ||
-          !reader.ReadVarInt62(&object.payload_length)) {
+      if (!reader.ReadVarInt62(&object.object_id)) {
+        return 0;
+      }
+      if (type == MoqtDataStreamType::kStreamHeaderFetch &&
+          !reader.ReadUInt8(&object.publisher_priority)) {
+        return 0;
+      }
+      if (!reader.ReadVarInt62(&object.payload_length)) {
         return 0;
       }
       uint64_t status = static_cast<uint64_t>(MoqtObjectStatus::kNormal);

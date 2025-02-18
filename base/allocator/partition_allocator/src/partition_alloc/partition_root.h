@@ -71,6 +71,7 @@
 #include "partition_alloc/partition_lock.h"
 #include "partition_alloc/partition_oom.h"
 #include "partition_alloc/partition_page.h"
+#include "partition_alloc/partition_shared_mutex.h"
 #include "partition_alloc/reservation_offset_table.h"
 #include "partition_alloc/tagging.h"
 #include "partition_alloc/thread_cache.h"
@@ -386,6 +387,12 @@ struct alignas(64) PA_COMPONENT_EXPORT(PARTITION_ALLOC) PartitionRoot {
   // Not overriding the global one to only change it for this partition.
   internal::base::TimeTicks (*now_maybe_overridden_for_testing)() =
       internal::base::TimeTicks::Now;
+
+#if PA_CONFIG(ENABLE_SHADOW_METADATA)
+  // Locks not to run EnableShadowMetadata() and PartitionDirectMap()
+  // at the same time.
+  static internal::SharedMutex g_shadow_metadata_init_mutex_;
+#endif  // PA_CONFIG(ENABLE_SHADOW_METADATA)
 
   PartitionRoot();
   explicit PartitionRoot(PartitionOptions opts);
@@ -1593,11 +1600,14 @@ PA_ALWAYS_INLINE void PartitionRoot::FreeNoHooksImmediate(
     // complete before we clear kMemoryHeldByAllocatorBit in
     // ReleaseFromAllocator(), otherwise another thread may allocate and start
     // using the slot in the middle of zapping.
+    bool was_zapped = false;
     if (!ref_count->IsAliveWithNoKnownRefs()) [[unlikely]] {
+      was_zapped = true;
       QuarantineForBrp(slot_span, object);
     }
 
     if (!(ref_count->ReleaseFromAllocator())) [[unlikely]] {
+      PA_CHECK(was_zapped);
       total_size_of_brp_quarantined_bytes.fetch_add(
           slot_span->GetSlotSizeForBookkeeping(), std::memory_order_relaxed);
       total_count_of_brp_quarantined_slots.fetch_add(1,

@@ -26,6 +26,14 @@ import (
 	"golang.org/x/crypto/cryptobyte"
 )
 
+type dtlsRecordInfo struct {
+	typ   recordType
+	epoch uint16
+	// bytesAvailable is the number of additional bytes of plaintext that could
+	// have been added to this record without exceeding the packet limit.
+	bytesAvailable int
+}
+
 // A Conn represents a secured connection.
 // It implements the net.Conn interface.
 type Conn struct {
@@ -108,10 +116,16 @@ type Conn struct {
 	// DTLS state
 	sendHandshakeSeq uint16
 	recvHandshakeSeq uint16
-	handMsg          []byte   // pending assembled handshake message
-	handMsgLen       int      // handshake message length, not including the header
-	pendingFragments [][]byte // pending outgoing handshake fragments.
-	pendingPacket    []byte   // pending outgoing packet.
+	handMsg          []byte // pending assembled handshake message
+	handMsgLen       int    // handshake message length, not including the header
+	pendingPacket    []byte // pending outgoing packet.
+	maxPacketLen     int
+
+	previousFlight        []DTLSMessage
+	receivedFlight        []DTLSMessage
+	receivedFlightRecords []DTLSRecordNumberInfo
+	nextFlight            []DTLSMessage
+	expectedACK           []DTLSRecordNumber
 
 	keyUpdateSeen      bool
 	keyUpdateRequested bool
@@ -123,6 +137,20 @@ type Conn struct {
 	// not full for ExpectPackedEncryptedHandshake. If true, no more
 	// handshake data may be received until the next flight or epoch change.
 	seenHandshakePackEnd bool
+
+	// lastRecordInFlight contains information about the previous handshake or
+	// ChangeCipherSpec record from the current flight, or nil if we are not in
+	// the middle of reading a flight from the peer.
+	lastRecordInFlight *dtlsRecordInfo
+
+	// bytesAvailableInPacket is the number of bytes that were still available
+	// in the current DTLS packet, up to a budget of maxPacketLen.
+	bytesAvailableInPacket int
+
+	// skipRecordVersionCheck, if true, causes the DTLS record layer to skip the
+	// record version check, even if the version is known. This is used when
+	// simulating retransmits.
+	skipRecordVersionCheck bool
 
 	// echAccepted indicates whether ECH was accepted for this connection.
 	echAccepted bool
@@ -137,6 +165,7 @@ func (c *Conn) init() {
 	c.out.config = c.config
 	c.in.conn = c
 	c.out.conn = c
+	c.maxPacketLen = c.config.Bugs.MaxPacketLength
 }
 
 // Access to net.Conn methods.
@@ -173,23 +202,32 @@ func (c *Conn) SetWriteDeadline(t time.Time) error {
 	return c.conn.SetWriteDeadline(t)
 }
 
+// Arbitrarily cap the number of past epochs to 4. This is far more than is
+// necessary. We set a limit only so tests can freely trigger unboundedly many
+// KeyUpdates.
+const maxEpochs = 4
+
+type epochState struct {
+	epoch                 uint16
+	cipher                any // cipher algorithm
+	recordNumberEncrypter recordNumberEncrypter
+	mac                   macFunction
+	seq                   [8]byte
+}
+
 // A halfConn represents one direction of the record layer
 // connection, either sending or receiving.
 type halfConn struct {
 	sync.Mutex
 
-	err                   error  // first permanent error
-	version               uint16 // protocol version
-	wireVersion           uint16 // wire version
-	isDTLS                bool
-	cipher                any // cipher algorithm
-	recordNumberEncrypter recordNumberEncrypter
-	mac                   macFunction
-	seq                   [8]byte // 64-bit sequence number
+	err         error  // first permanent error
+	version     uint16 // protocol version
+	wireVersion uint16 // wire version
+	isDTLS      bool
+	epoch       epochState
+	pastEpochs  []epochState
 
-	nextCipher any         // next encryption state
-	nextMac    macFunction // next MAC algorithm
-	nextSeq    [6]byte     // next epoch's starting sequence number in DTLS
+	nextEpoch epochState
 
 	// used to save allocating a new buffer for each MAC.
 	macBuf []byte
@@ -213,6 +251,38 @@ func (hc *halfConn) error() error {
 	return err
 }
 
+func (hc *halfConn) getEpoch(epochValue uint16) (*epochState, bool) {
+	if hc.epoch.epoch == epochValue {
+		return &hc.epoch, true
+	}
+	for i := range hc.pastEpochs {
+		if hc.pastEpochs[i].epoch == epochValue {
+			return &hc.pastEpochs[i], true
+		}
+	}
+	return nil, false
+}
+
+func (hc *halfConn) changeEpoch(epoch epochState) {
+	if len(hc.pastEpochs) < maxEpochs {
+		hc.pastEpochs = append(hc.pastEpochs, hc.epoch)
+	} else {
+		for i := 1; i < len(hc.pastEpochs); i++ {
+			hc.pastEpochs[i-1] = hc.pastEpochs[i]
+		}
+		hc.pastEpochs[len(hc.pastEpochs)-1] = hc.epoch
+	}
+	hc.epoch = epoch
+}
+
+func (hc *halfConn) newEpochState(epoch uint16, cipher any, mac macFunction) epochState {
+	ret := epochState{epoch: epoch, cipher: cipher, mac: mac}
+	if hc.isDTLS {
+		binary.BigEndian.PutUint16(ret.seq[:2], epoch)
+	}
+	return ret
+}
+
 // prepareCipherSpec sets the encryption and MAC states
 // that a subsequent changeCipherSpec will use.
 func (hc *halfConn) prepareCipherSpec(version uint16, cipher any, mac macFunction) {
@@ -222,76 +292,70 @@ func (hc *halfConn) prepareCipherSpec(version uint16, cipher any, mac macFunctio
 		panic("TLS: unknown version")
 	}
 	hc.version = protocolVersion
-	hc.nextCipher = cipher
-	hc.nextMac = mac
+	epoch := hc.epoch.epoch + 1
+	if epoch == 0 {
+		panic("TLS: epoch overflow")
+	}
+	hc.nextEpoch = hc.newEpochState(epoch, cipher, mac)
 }
 
 // changeCipherSpec changes the encryption and MAC states
 // to the ones previously passed to prepareCipherSpec.
 func (hc *halfConn) changeCipherSpec() error {
-	if hc.nextCipher == nil {
+	if hc.nextEpoch.cipher == nil {
 		return alertInternalError
 	}
-	hc.cipher = hc.nextCipher
-	hc.mac = hc.nextMac
-	hc.nextCipher = nil
-	hc.nextMac = nil
-	hc.incEpoch()
+	hc.changeEpoch(hc.nextEpoch)
+	hc.nextEpoch = epochState{}
 
 	if hc.config.Bugs.NullAllCiphers {
-		hc.cipher = nullCipher{}
-		hc.mac = nil
+		hc.epoch.cipher = nullCipher{}
+		hc.epoch.mac = nil
 	}
 	return nil
 }
 
 // useTrafficSecret sets the current cipher state for TLS 1.3.
-func (hc *halfConn) useTrafficSecret(version uint16, suite *cipherSuite, secret []byte, side trafficDirection, level encryptionLevel) {
+func (hc *halfConn) useTrafficSecret(version uint16, suite *cipherSuite, secret []byte, side trafficDirection, epoch uint16) {
 	hc.wireVersion = version
 	protocolVersion, ok := wireToVersion(version, hc.isDTLS)
 	if !ok {
 		panic("TLS: unknown version")
 	}
 	hc.version = protocolVersion
-	hc.cipher = deriveTrafficAEAD(version, suite, secret, side, hc.isDTLS)
+	newEpoch := hc.newEpochState(epoch, deriveTrafficAEAD(version, suite, secret, side, hc.isDTLS), nil)
 	if hc.isDTLS && !hc.config.Bugs.NullAllCiphers {
 		sn_key := hkdfExpandLabel(suite.hash(), secret, []byte("sn"), nil, suite.keyLen, hc.isDTLS)
 		switch suite.id {
 		case TLS_CHACHA20_POLY1305_SHA256:
-			hc.recordNumberEncrypter = newChachaRecordNumberEncrypter(sn_key)
+			newEpoch.recordNumberEncrypter = newChachaRecordNumberEncrypter(sn_key)
 		case TLS_AES_128_GCM_SHA256, TLS_AES_256_GCM_SHA384:
-			hc.recordNumberEncrypter = newAESRecordNumberEncrypter(sn_key)
+			newEpoch.recordNumberEncrypter = newAESRecordNumberEncrypter(sn_key)
 		default:
 			panic("Cipher suite does not support TLS 1.3")
 		}
 	}
 	if hc.config.Bugs.NullAllCiphers {
-		hc.cipher = nullCipher{}
+		newEpoch.cipher = nullCipher{}
 	}
 	hc.trafficSecret = secret
-	if hc.isDTLS {
-		// TODO(crbug.com/42290594): This will need to handle KeyUpdate.
-		hc.setEpoch(uint16(level))
-	} else {
-		hc.incEpoch()
-	}
+	hc.changeEpoch(newEpoch)
 }
 
 // resetCipher resets the cipher state back to no encryption to be able
 // to send an unencrypted ClientHello in response to HelloRetryRequest
 // after 0-RTT data was rejected.
 func (hc *halfConn) resetCipher() {
-	// In all cases, the cipher is set to nil so that second ClientHello
-	// will be sent with no encryption (instead of with early data keys).
-	hc.cipher = nil
-	// TODO(crbug.com/42290594): When handling 0-RTT rejections in DTLS, we
-	// need to reset the epoch to 0 and reset the sequence number to where
-	// it was prior to sending early data (this is different than resetting
-	// it to 0).
+	initialEpoch, ok := hc.getEpoch(0)
+	if !ok {
+		panic("tls: could not find initial epoch")
+	}
+	hc.epoch = *initialEpoch
+	hc.pastEpochs = nil
 }
 
 // incSeq increments the sequence number.
-func (hc *halfConn) incSeq() {
+func (hc *halfConn) incSeq(epoch *epochState) {
 	limit := 0
 	increment := uint64(1)
 	if hc.isDTLS {
@@ -299,8 +363,8 @@ func (hc *halfConn) incSeq() {
 		limit = 2
 	}
 	for i := 7; i >= limit; i-- {
-		increment += uint64(hc.seq[i])
-		hc.seq[i] = byte(increment)
+		increment += uint64(epoch.seq[i])
+		epoch.seq[i] = byte(increment)
 		increment >>= 8
 	}
 
@@ -312,66 +376,48 @@ func (hc *halfConn) incSeq() {
 	}
 }
 
-// incNextSeq increments the starting sequence number for the next epoch.
-func (hc *halfConn) incNextSeq() {
-	for i := len(hc.nextSeq) - 1; i >= 0; i-- {
-		hc.nextSeq[i]++
-		if hc.nextSeq[i] != 0 {
-			return
-		}
+// lastRecordNumber returns the most recent record number decrypted or encrypted
+// on a halfConn.
+//
+// TODO(crbug.com/376641666): This function is a bit hacky. It needs to rewind
+// the state back to what the last call actually used. Fix the TLS/DTLS
+// abstractions so we can return this value out directly.
+func (hc *halfConn) lastRecordNumber(epoch *epochState, isOut bool) DTLSRecordNumber {
+	seq := binary.BigEndian.Uint64(epoch.seq[:])
+	// We maintain the next record number, so undo the increment.
+	if seq&(1<<48-1) == 0 {
+		panic("tls: epoch has never been used")
 	}
-	panic("TLS: sequence number wraparound")
-}
-
-// incEpoch resets the sequence number. In DTLS, it also increments the epoch
-// half of the sequence number.
-func (hc *halfConn) incEpoch() {
+	seq--
 	if hc.isDTLS {
-		for i := 1; i >= 0; i-- {
-			hc.seq[i]++
-			if hc.seq[i] != 0 {
-				break
-			}
-			if i == 0 {
-				panic("TLS: epoch number wraparound")
-			}
+		if isOut && hc.config.Bugs.SequenceNumberMapping != nil {
+			seq = hc.config.Bugs.SequenceNumberMapping(seq)
 		}
-		copy(hc.seq[2:], hc.nextSeq[:])
-		clear(hc.nextSeq[:])
-	} else {
-		clear(hc.seq[:])
+		// Remove the embedded epoch number.
+		seq &= 1<<48 - 1
 	}
+	return DTLSRecordNumber{Epoch: uint64(epoch.epoch), Sequence: seq}
 }
 
-func (hc *halfConn) setEpoch(epoch uint16) {
-	if !hc.isDTLS {
-		panic("Internal error: called setEpoch on non-DTLS connection")
-	}
-	hc.seq[0] = byte(epoch >> 8)
-	hc.seq[1] = byte(epoch)
-	copy(hc.seq[2:], hc.nextSeq[:])
-	clear(hc.nextSeq[:])
-}
-
-func (hc *halfConn) sequenceNumberForOutput() []byte {
+func (hc *halfConn) sequenceNumberForOutput(epoch *epochState) []byte {
 	if !hc.isDTLS || hc.config.Bugs.SequenceNumberMapping == nil {
-		return hc.seq[:]
+		return epoch.seq[:]
 	}
 
 	var seq [8]byte
-	seqU64 := binary.BigEndian.Uint64(hc.seq[:])
+	seqU64 := binary.BigEndian.Uint64(epoch.seq[:])
 	seqU64 = hc.config.Bugs.SequenceNumberMapping(seqU64)
 	binary.BigEndian.PutUint64(seq[:], seqU64)
 	// The DTLS epoch cannot be changed.
-	copy(seq[:2], hc.seq[:2])
+	copy(seq[:2], epoch.seq[:2])
 	return seq[:]
 }
 
-func (hc *halfConn) explicitIVLen() int {
-	if hc.cipher == nil {
+func (hc *halfConn) explicitIVLen(epoch *epochState) int {
+	if epoch.cipher == nil {
 		return 0
 	}
-	switch c := hc.cipher.(type) {
+	switch c := epoch.cipher.(type) {
 	case cipher.Stream:
 		return 0
 	case *tlsAead:
@@ -379,7 +425,7 @@ func (hc *halfConn) explicitIVLen() int {
 			return 8
 		}
 		return 0
-	case cbcMode:
+	case *cbcMode:
 		if hc.version >= VersionTLS11 || hc.isDTLS {
 			return c.BlockSize()
 		}
@@ -391,8 +437,8 @@ func (hc *halfConn) explicitIVLen() int {
 	}
 }
 
-func (hc *halfConn) computeMAC(seq, header, data []byte) []byte {
-	hc.macBuf = hc.mac.MAC(hc.macBuf[:0], seq, header[:3], header[len(header)-2:], data)
+func (hc *halfConn) computeMAC(epoch *epochState, seq, header, data []byte) []byte {
+	hc.macBuf = epoch.mac.MAC(hc.macBuf[:0], seq, header[:3], header[len(header)-2:], data)
 	return hc.macBuf
 }
 
@@ -438,41 +484,35 @@ func roundUp(a, b int) int {
 	return a + (b-a%b)%b
 }
 
-// cbcMode is an interface for block ciphers using cipher block chaining.
-type cbcMode interface {
-	cipher.BlockMode
-	SetIV([]byte)
-}
-
 // decrypt checks and strips the mac and decrypts the data in record. Returns a
 // success boolean, the application payload, the encrypted record type (or 0
 // if there is none), and an optional alert value. Decryption occurs in-place,
 // so the contents of record will be overwritten as part of this process.
-func (hc *halfConn) decrypt(recordHeaderLen int, record []byte) (ok bool, contentType recordType, data []byte, alertValue alert) {
+func (hc *halfConn) decrypt(epoch *epochState, recordHeaderLen int, record []byte) (ok bool, contentType recordType, data []byte, alertValue alert) {
 	// pull out payload
 	payload := record[recordHeaderLen:]
 
 	macSize := 0
-	if hc.mac != nil {
-		macSize = hc.mac.Size()
+	if epoch.mac != nil {
+		macSize = epoch.mac.Size()
 	}
 
 	paddingGood := byte(255)
-	explicitIVLen := hc.explicitIVLen()
+	explicitIVLen := hc.explicitIVLen(epoch)
 
 	// decrypt
-	if hc.cipher != nil {
-		switch c := hc.cipher.(type) {
+	if epoch.cipher != nil {
+		switch c := epoch.cipher.(type) {
 		case cipher.Stream:
 			c.XORKeyStream(payload, payload)
 		case *tlsAead:
-			nonce := hc.seq[:]
+			nonce := epoch.seq[:]
 			if hc.isDTLS && hc.version >= VersionTLS13 && !hc.conn.useDTLSPlaintextHeader() {
 				// Unlike DTLS 1.2, DTLS 1.3's nonce construction does not use
 				// the epoch number. We store the epoch and nonce numbers
 				// together, so make a copy without the epoch.
 				nonce = make([]byte, 8)
-				copy(nonce[2:], hc.seq[2:])
+				copy(nonce[2:], epoch.seq[2:])
 			}
 
 			if explicitIVLen != 0 {
@@ -486,7 +526,7 @@ func (hc *halfConn) decrypt(recordHeaderLen int, record []byte) (ok bool, conten
 			var additionalData []byte
 			if hc.version < VersionTLS13 {
 				additionalData = make([]byte, 13)
-				copy(additionalData, hc.seq[:])
+				copy(additionalData, epoch.seq[:])
 				copy(additionalData[8:], record[:3])
 				n := len(payload) - c.Overhead()
 				additionalData[11] = byte(n >> 8)
@@ -499,7 +539,7 @@ func (hc *halfConn) decrypt(recordHeaderLen int, record []byte) (ok bool, conten
 			if err != nil {
 				return false, 0, nil, alertBadRecordMAC
 			}
-		case cbcMode:
+		case *cbcMode:
 			blockSize := c.BlockSize()
 			if len(payload)%blockSize != 0 || len(payload) < roundUp(explicitIVLen+macSize+1, blockSize) {
 				return false, 0, nil, alertBadRecordMAC
@@ -543,7 +583,7 @@ func (hc *halfConn) decrypt(recordHeaderLen int, record []byte) (ok bool, conten
 	}
 
 	// check, strip mac
-	if hc.mac != nil {
+	if epoch.mac != nil {
 		if len(payload) < macSize {
 			return false, 0, nil, alertBadRecordMAC
 		}
@@ -554,12 +594,12 @@ func (hc *halfConn) decrypt(recordHeaderLen int, record []byte) (ok bool, conten
 		payload = payload[:n]
 		record[recordHeaderLen-2] = byte(n >> 8)
 		record[recordHeaderLen-1] = byte(n)
-		localMAC := hc.computeMAC(hc.seq[:], record[:recordHeaderLen], payload)
+		localMAC := hc.computeMAC(epoch, epoch.seq[:], record[:recordHeaderLen], payload)
 		if subtle.ConstantTimeCompare(localMAC, remoteMAC) != 1 || paddingGood != 255 {
 			return false, 0, nil, alertBadRecordMAC
 		}
 	}
-	hc.incSeq()
+	hc.incSeq(epoch)
 
 	return true, contentType, payload, 0
 }
@@ -601,21 +641,21 @@ func appendCBCPadding(b []byte, paddingLen int, config *Config) []byte {
 	return b
 }
 
-func (hc *halfConn) maxEncryptOverhead(payloadLen int) int {
+func (hc *halfConn) maxEncryptOverhead(epoch *epochState, payloadLen int) int {
 	var macSize int
-	if hc.mac != nil {
-		macSize = hc.mac.Size()
+	if epoch.mac != nil {
+		macSize = epoch.mac.Size()
 	}
-	overhead := macSize + hc.explicitIVLen()
+	overhead := macSize + hc.explicitIVLen(epoch)
 	if hc.version >= VersionTLS13 {
 		overhead += 1 + hc.config.Bugs.RecordPadding // type + padding
 	}
-	if hc.cipher != nil {
-		switch c := hc.cipher.(type) {
+	if epoch.cipher != nil {
+		switch c := epoch.cipher.(type) {
 		case cipher.Stream, *nullCipher:
 		case *tlsAead:
 			overhead += c.Overhead()
-		case cbcMode:
+		case *cbcMode:
 			overhead += computingCBCPaddingLength(payloadLen+macSize, c.BlockSize(), hc.config)
 		case nullCipher:
 			break
@@ -635,11 +675,11 @@ func (c *Conn) useDTLSPlaintextHeader() bool {
 // (which must be in the last two bytes of the header) should be computed for
 // the unencrypted, unpadded payload. It will be updated, potentially in-place,
 // with the final length.
-func (hc *halfConn) encrypt(record, payload []byte, typ recordType, headerLen int, headerHasLength bool) ([]byte, error) {
-	seq := hc.sequenceNumberForOutput()
+func (hc *halfConn) encrypt(epoch *epochState, record, payload []byte, typ recordType, headerLen int, headerHasLength bool) ([]byte, error) {
+	seq := hc.sequenceNumberForOutput(epoch)
 	prefixLen := len(record)
 	header := record[prefixLen-headerLen:]
-	explicitIVLen := hc.explicitIVLen()
+	explicitIVLen := hc.explicitIVLen(epoch)
 
 	// Reserve some space for the explicit IV. The slice may get reallocated
 	// after this, so don't use the return value.
@@ -649,7 +689,7 @@ func (hc *halfConn) encrypt(record, payload []byte, typ recordType, headerLen in
 	// be encrypted in-place.
 	record = append(record, payload...)
 
-	if hc.version >= VersionTLS13 && hc.cipher != nil {
+	if hc.version >= VersionTLS13 && epoch.cipher != nil {
 		if hc.config.Bugs.OmitRecordContents {
 			record = record[:len(record)-len(payload)]
 		} else {
@@ -659,13 +699,13 @@ func (hc *halfConn) encrypt(record, payload []byte, typ recordType, headerLen in
 		clear(padding)
 	}
 
-	if hc.mac != nil {
-		record = append(record, hc.computeMAC(seq, header, payload)...)
+	if epoch.mac != nil {
+		record = append(record, hc.computeMAC(epoch, seq, header, payload)...)
 	}
 
 	explicitIV := record[prefixLen : prefixLen+explicitIVLen]
-	if hc.cipher != nil {
-		switch c := hc.cipher.(type) {
+	if epoch.cipher != nil {
+		switch c := epoch.cipher.(type) {
 		case cipher.Stream:
 			if explicitIVLen != 0 {
 				panic("tls: unexpected explicit IV length")
@@ -709,7 +749,7 @@ func (hc *halfConn) encrypt(record, payload []byte, typ recordType, headerLen in
 			}
 
 			record = c.Seal(record[:prefixLen+explicitIVLen], nonce, record[prefixLen+explicitIVLen:], additionalData)
-		case cbcMode:
+		case *cbcMode:
 			if explicitIVLen > 0 {
 				if _, err := io.ReadFull(hc.config.rand(), explicitIV); err != nil {
 					return nil, err
@@ -734,7 +774,7 @@ func (hc *halfConn) encrypt(record, payload []byte, typ recordType, headerLen in
 		record[prefixLen-2] = byte(n >> 8)
 		record[prefixLen-1] = byte(n)
 	}
-	hc.incSeq()
+	hc.incSeq(epoch)
 
 	return record, nil
 }
@@ -792,7 +832,7 @@ func (c *chachaRecordNumberEncrypter) generateMask(sample []byte) []byte {
 	return out
 }
 
-func (c *Conn) useInTrafficSecret(level encryptionLevel, version uint16, suite *cipherSuite, secret []byte) error {
+func (c *Conn) useInTrafficSecret(epoch uint16, version uint16, suite *cipherSuite, secret []byte) error {
 	if c.hand.Len() != 0 {
 		return c.in.setErrorLocked(errors.New("tls: buffered handshake messages on cipher change"))
 	}
@@ -801,31 +841,37 @@ func (c *Conn) useInTrafficSecret(level encryptionLevel, version uint16, suite *
 		side = clientWrite
 	}
 	if c.config.Bugs.MockQUICTransport != nil {
-		c.config.Bugs.MockQUICTransport.readLevel = level
+		if epoch > uint16(encryptionApplication) {
+			panic("tls: KeyUpdate processed in QUIC")
+		}
+		c.config.Bugs.MockQUICTransport.readLevel = encryptionLevel(epoch)
 		c.config.Bugs.MockQUICTransport.readSecret = secret
 		c.config.Bugs.MockQUICTransport.readCipherSuite = suite.id
 	}
-	c.in.useTrafficSecret(version, suite, secret, side, level)
+	c.in.useTrafficSecret(version, suite, secret, side, epoch)
 	c.seenHandshakePackEnd = false
 	return nil
 }
 
-func (c *Conn) useOutTrafficSecret(level encryptionLevel, version uint16, suite *cipherSuite, secret []byte) {
-	if c.isDTLS {
-		// We buffer fragments in DTLS to pack them. Flush the buffer
-		// before the key change.
-		c.dtlsPackHandshake()
+func (c *Conn) useOutTrafficSecret(epoch uint16, version uint16, suite *cipherSuite, secret []byte) {
+	if !c.isDTLS {
+		// The TLS logic relies on flushHandshake to write out packed handshake
+		// data on key changes. The DTLS logic handles key changes directly.
+		c.flushHandshake()
 	}
 	side := serverWrite
 	if c.isClient {
 		side = clientWrite
 	}
 	if c.config.Bugs.MockQUICTransport != nil {
-		c.config.Bugs.MockQUICTransport.writeLevel = level
+		if epoch > uint16(encryptionApplication) {
+			panic("tls: KeyUpdate processed in QUIC")
+		}
+		c.config.Bugs.MockQUICTransport.writeLevel = encryptionLevel(epoch)
 		c.config.Bugs.MockQUICTransport.writeSecret = secret
 		c.config.Bugs.MockQUICTransport.writeCipherSuite = suite.id
 	}
-	c.out.useTrafficSecret(version, suite, secret, side, level)
+	c.out.useTrafficSecret(version, suite, secret, side, epoch)
 }
 
 func (c *Conn) setSkipEarlyData() {
@@ -859,7 +905,7 @@ func (c *Conn) readRawInputUntil(n int) error {
 func (c *Conn) doReadRecord(want recordType) (recordType, []byte, error) {
 RestartReadRecord:
 	if c.isDTLS {
-		return c.dtlsDoReadRecord(want)
+		return c.dtlsDoReadRecord(&c.in.epoch, want)
 	}
 
 	recordHeaderLen := tlsRecordHeaderLen
@@ -941,7 +987,8 @@ RestartReadRecord:
 
 	// Process message.
 	b := c.rawInput.Next(recordHeaderLen + n)
-	ok, encTyp, data, alertValue := c.in.decrypt(recordHeaderLen, b)
+	epoch := &c.in.epoch
+	ok, encTyp, data, alertValue := c.in.decrypt(epoch, recordHeaderLen, b)
 	if !ok {
 		// TLS 1.3 early data uses trial decryption.
 		if c.skipEarlyData {
@@ -954,13 +1001,13 @@ RestartReadRecord:
 	// a HelloRetryRequest) and the client sends early data, there
 	// won't be a decryption failure (we will interpret the ciphertext
 	// as plaintext application data) but it still needs to be skipped.
-	if c.in.cipher == nil && typ == recordTypeApplicationData && c.skipEarlyData {
+	if epoch.cipher == nil && typ == recordTypeApplicationData && c.skipEarlyData {
 		goto RestartReadRecord
 	}
 
 	c.skipEarlyData = false
 
-	if c.vers >= VersionTLS13 && c.in.cipher != nil {
+	if c.vers >= VersionTLS13 && epoch.cipher != nil {
 		if typ != recordTypeApplicationData {
 			return 0, nil, c.in.setErrorLocked(fmt.Errorf("tls: outer record type is not application data"))
 		}
@@ -1031,7 +1078,7 @@ func (c *Conn) readRecord(want recordType) error {
 			c.sendAlert(alertInternalError)
 			return c.in.setErrorLocked(errors.New("tls: ChangeCipherSpec requested after handshake complete"))
 		}
-	case recordTypeApplicationData, recordTypeAlert, recordTypeHandshake:
+	case recordTypeApplicationData, recordTypeAlert, recordTypeHandshake, recordTypeACK:
 		break
 	}
 
@@ -1097,6 +1144,14 @@ Again:
 			c.in.setErrorLocked(errors.New("tls: buffered handshake messages on cipher change"))
 			break
 		}
+		if c.isDTLS {
+			// Track the ChangeCipherSpec record in the current flight.
+			c.receivedFlight = append(c.receivedFlight, DTLSMessage{
+				Epoch:              c.in.epoch.epoch,
+				IsChangeCipherSpec: true,
+				Data:               slices.Clone(data),
+			})
+		}
 		if err := c.in.changeCipherSpec(); err != nil {
 			c.in.setErrorLocked(c.sendAlert(err.(alert)))
 		}
@@ -1116,8 +1171,26 @@ Again:
 			return c.in.setErrorLocked(c.sendAlert(alertNoRenegotiation))
 		}
 		c.hand.Write(data)
-		if pack := c.config.Bugs.ExpectPackedEncryptedHandshake; pack > 0 && len(data) < pack && c.out.cipher != nil {
+		if pack := c.config.Bugs.ExpectPackedEncryptedHandshake; pack > 0 && len(data) < pack && c.out.epoch.cipher != nil {
 			c.seenHandshakePackEnd = true
+		}
+		if c.isDTLS {
+			record, err := c.makeDTLSRecordNumberInfo(&c.in.epoch, c.hand.Bytes())
+			if err != nil {
+				return err
+			}
+			c.receivedFlightRecords = append(c.receivedFlightRecords, record)
+		}
+
+	case recordTypeACK:
+		if typ != want || !c.isDTLS {
+			c.in.setErrorLocked(c.sendAlert(alertUnexpectedMessage))
+			break
+		}
+
+		if err := c.checkACK(data); err != nil {
+			c.in.setErrorLocked(err)
+			break
 		}
 	}
 
@@ -1175,6 +1248,9 @@ func (c *Conn) writeV2Record(data []byte) (n int, err error) {
 // c.out.Mutex <= L.
 func (c *Conn) writeRecord(typ recordType, data []byte) (n int, err error) {
 	c.seenHandshakePackEnd = false
+	if c.hand.Len() == 0 {
+		c.lastRecordInFlight = nil
+	}
 	if typ == recordTypeHandshake {
 		msgType := data[0]
 		if c.config.Bugs.SendWrongMessageType != 0 && msgType == c.config.Bugs.SendWrongMessageType {
@@ -1242,7 +1318,6 @@ func (c *Conn) writeRecord(typ recordType, data []byte) (n int, err error) {
 
 func (c *Conn) doWriteRecord(typ recordType, data []byte) (n int, err error) {
 	first := true
-	isClientHello := typ == recordTypeHandshake && len(data) > 0 && data[0] == typeClientHello
 	for len(data) > 0 || first {
 		m := len(data)
 		if m > maxPlaintext && !c.config.Bugs.SendLargeRecords {
@@ -1250,12 +1325,6 @@ func (c *Conn) doWriteRecord(typ recordType, data []byte) (n int, err error) {
 		}
 		if typ == recordTypeHandshake && c.config.Bugs.MaxHandshakeRecordLength > 0 && m > c.config.Bugs.MaxHandshakeRecordLength {
 			m = c.config.Bugs.MaxHandshakeRecordLength
-			// By default, do not fragment the client_version or
-			// server_version, which are located in the first 6
-			// bytes.
-			if first && isClientHello && !c.config.Bugs.FragmentClientVersion && m < 6 {
-				m = 6
-			}
 		}
 		first = false
 
@@ -1280,9 +1349,10 @@ func (c *Conn) doWriteRecord(typ recordType, data []byte) (n int, err error) {
 		}
 
 		// Assemble the record header.
-		record := make([]byte, tlsRecordHeaderLen, tlsRecordHeaderLen+m+c.out.maxEncryptOverhead(m))
+		epoch := &c.out.epoch
+		record := make([]byte, tlsRecordHeaderLen, tlsRecordHeaderLen+m+c.out.maxEncryptOverhead(epoch, m))
 		record[0] = byte(typ)
-		if c.vers >= VersionTLS13 && c.out.cipher != nil {
+		if c.vers >= VersionTLS13 && epoch.cipher != nil {
 			record[0] = byte(recordTypeApplicationData)
 			if outerType := c.config.Bugs.OuterRecordType; outerType != 0 {
 				record[0] = byte(outerType)
@@ -1293,7 +1363,7 @@ func (c *Conn) doWriteRecord(typ recordType, data []byte) (n int, err error) {
 		record[3] = byte(m >> 8) // encrypt will update this
 		record[4] = byte(m)
 
-		record, err = c.out.encrypt(record, data[:m], typ, tlsRecordHeaderLen, true /* header has length */)
+		record, err = c.out.encrypt(epoch, record, data[:m], typ, tlsRecordHeaderLen, true /* header has length */)
 		if err != nil {
 			return
 		}
@@ -1328,6 +1398,13 @@ func (c *Conn) flushHandshake() error {
 	}
 
 	c.pendingFlight.Reset()
+	return nil
+}
+
+func (c *Conn) ackHandshake() error {
+	if c.isDTLS {
+		return c.dtlsACKHandshake()
+	}
 	return nil
 }
 
@@ -1451,73 +1528,17 @@ func (c *Conn) readHandshake() (any, error) {
 	return m, nil
 }
 
-// skipPacket processes all the DTLS records in packet. It updates
-// sequence number expectations but otherwise ignores them.
-func (c *Conn) skipPacket(packet []byte) error {
-	for len(packet) > 0 {
-		if len(packet) < 13 {
-			return errors.New("tls: bad packet")
-		}
-		// Dropped packets are completely ignored save to update
-		// expected sequence numbers for this and the next epoch. (We
-		// don't assert on the contents of the packets both for
-		// simplicity and because a previous test with one shorter
-		// timeout schedule would have done so.)
-		epoch := packet[3:5]
-		seq := packet[5:11]
-		length := uint16(packet[11])<<8 | uint16(packet[12])
-		if bytes.Equal(c.in.seq[:2], epoch) {
-			if bytes.Compare(seq, c.in.seq[2:]) < 0 {
-				return errors.New("tls: sequence mismatch")
-			}
-			copy(c.in.seq[2:], seq)
-			c.in.incSeq()
-		} else {
-			if bytes.Compare(seq, c.in.nextSeq[:]) < 0 {
-				return errors.New("tls: sequence mismatch")
-			}
-			copy(c.in.nextSeq[:], seq)
-			c.in.incNextSeq()
-		}
-		if len(packet) < 13+int(length) {
-			return errors.New("tls: bad packet")
-		}
-		packet = packet[13+length:]
+func readHandshakeType[T any](c *Conn) (*T, error) {
+	m, err := c.readHandshake()
+	if err != nil {
+		return nil, err
 	}
-	return nil
-}
-
-// simulatePacketLoss simulates the loss of a handshake leg from the
-// peer based on the schedule in c.config.Bugs. If resendFunc is
-// non-nil, it is called after each simulated timeout to retransmit
-// handshake messages from the local end. This is used in cases where
-// the peer retransmits on a stale Finished rather than a timeout.
-func (c *Conn) simulatePacketLoss(resendFunc func()) error {
-	if len(c.config.Bugs.TimeoutSchedule) == 0 {
-		return nil
+	mType, ok := m.(*T)
+	if !ok {
+		c.sendAlert(alertUnexpectedMessage)
+		return nil, unexpectedMessageError(mType, m)
 	}
-	if !c.isDTLS {
-		return errors.New("tls: TimeoutSchedule may only be set in DTLS")
-	}
-	if c.config.Bugs.PacketAdaptor == nil {
-		return errors.New("tls: TimeoutSchedule set without PacketAdapter")
-	}
-	for _, timeout := range c.config.Bugs.TimeoutSchedule {
-		// Simulate a timeout.
-		packets, err := c.config.Bugs.PacketAdaptor.SendReadTimeout(timeout)
-		if err != nil {
-			return err
-		}
-		for _, packet := range packets {
-			if err := c.skipPacket(packet); err != nil {
-				return err
-			}
-		}
-		if resendFunc != nil {
-			resendFunc()
-		}
-	}
-	return nil
+	return mType, nil
 }
 
 func (c *Conn) SendHalfHelloRequest() error {
@@ -1578,7 +1599,7 @@ func (c *Conn) Write(b []byte) (int, error) {
 
 	var m int
 	if len(b) > 1 && c.vers <= VersionTLS10 && !c.isDTLS {
-		if _, ok := c.out.cipher.(cipher.BlockMode); ok {
+		if _, ok := c.out.epoch.cipher.(*cbcMode); ok {
 			n, err := c.writeRecord(recordTypeApplicationData, b[:1])
 			if err != nil {
 				return n, c.out.setErrorLocked(err)
@@ -1600,7 +1621,7 @@ func (c *Conn) processTLS13NewSessionTicket(newSessionTicket *newSessionTicketMs
 		return errors.New("tls: no early_data ticket extension found")
 	}
 
-	if c.config.Bugs.ExpectNoNewSessionTicket {
+	if c.config.Bugs.ExpectNoNewSessionTicket || c.config.Bugs.ExpectNoNonEmptyNewSessionTicket {
 		return errors.New("tls: received unexpected NewSessionTicket")
 	}
 
@@ -1635,7 +1656,8 @@ func (c *Conn) processTLS13NewSessionTicket(newSessionTicket *newSessionTicketMs
 	if !ok || !c.config.Bugs.UseFirstSessionTicket {
 		c.config.ClientSessionCache.Put(cacheKey, session)
 	}
-	return nil
+
+	return c.ackHandshake()
 }
 
 func (c *Conn) handlePostHandshakeMessage() error {
@@ -1672,22 +1694,26 @@ func (c *Conn) handlePostHandshakeMessage() error {
 		if c.config.Bugs.RejectUnsolicitedKeyUpdate {
 			return errors.New("tls: unexpected KeyUpdate message")
 		}
-		if err := c.useInTrafficSecret(encryptionApplication, c.in.wireVersion, c.cipherSuite, updateTrafficSecret(c.cipherSuite.hash(), c.wireVersion, c.in.trafficSecret, c.isDTLS)); err != nil {
+		epoch := c.in.epoch.epoch + 1
+		if epoch == 0 {
+			return errors.New("tls: too many KeyUpdates")
+		}
+		if err := c.useInTrafficSecret(epoch, c.in.wireVersion, c.cipherSuite, updateTrafficSecret(c.cipherSuite.hash(), c.wireVersion, c.in.trafficSecret, c.isDTLS)); err != nil {
 			return err
 		}
 		if keyUpdate.keyUpdateRequest == keyUpdateRequested {
 			c.keyUpdateRequested = true
 		}
-		return nil
+		return c.ackHandshake()
 	}
 
 	c.sendAlert(alertUnexpectedMessage)
 	return errors.New("tls: unexpected post-handshake message")
 }
 
-// Reads a KeyUpdate acknowledgment from the peer. There may not be any
-// application data records before the message.
-func (c *Conn) ReadKeyUpdateACK() error {
+// Reads a KeyUpdate from the peer, with type key_update_not_requested. There
+// may not be any application data records before the message.
+func (c *Conn) ReadKeyUpdate() error {
 	c.in.Lock()
 	defer c.in.Unlock()
 
@@ -1706,7 +1732,12 @@ func (c *Conn) ReadKeyUpdateACK() error {
 		return errors.New("tls: received invalid KeyUpdate message")
 	}
 
-	return c.useInTrafficSecret(encryptionApplication, c.in.wireVersion, c.cipherSuite, updateTrafficSecret(c.cipherSuite.hash(), c.wireVersion, c.in.trafficSecret, c.isDTLS))
+	epoch := c.in.epoch.epoch + 1
+	if epoch == 0 {
+		return errors.New("tls: too many KeyUpdates")
+	}
+
+	return c.useInTrafficSecret(epoch, c.in.wireVersion, c.cipherSuite, updateTrafficSecret(c.cipherSuite.hash(), c.wireVersion, c.in.trafficSecret, c.isDTLS))
 }
 
 func (c *Conn) Renegotiate() error {
@@ -2054,6 +2085,10 @@ func (c *Conn) sendKeyUpdateLocked(keyUpdateRequest byte) error {
 	if c.vers < VersionTLS13 {
 		return errors.New("tls: attempted to send KeyUpdate before TLS 1.3")
 	}
+	epoch := c.out.epoch.epoch + 1
+	if epoch == 0 && !c.config.Bugs.AllowEpochOverflow {
+		return errors.New("tls: too many KeyUpdates")
+	}
 
 	m := keyUpdateMsg{
 		keyUpdateRequest: keyUpdateRequest,
@@ -2061,16 +2096,12 @@ func (c *Conn) sendKeyUpdateLocked(keyUpdateRequest byte) error {
 	if _, err := c.writeRecord(recordTypeHandshake, m.marshal()); err != nil {
 		return err
 	}
-	if err := c.flushHandshake(); err != nil {
-		return err
-	}
-	if !c.isDTLS {
-		// TODO(crbug.com/42290594): Properly implement KeyUpdate. Right
-		// now we only support sending KeyUpdate to test that we drop
-		// post-HS messages on the floor (instead of erroring).
-		c.useOutTrafficSecret(encryptionApplication, c.out.wireVersion, c.cipherSuite, updateTrafficSecret(c.cipherSuite.hash(), c.wireVersion, c.out.trafficSecret, c.isDTLS))
-	}
-	return nil
+	// In DTLS 1.3, a real implementation would not install the new epoch until
+	// receiving an ACK. Our test transport is ordered and reliable, so this is
+	// not necessary. ACK effects will be simulated in tests by the WriteFlight
+	// callback.
+	c.useOutTrafficSecret(epoch, c.out.wireVersion, c.cipherSuite, updateTrafficSecret(c.cipherSuite.hash(), c.wireVersion, c.out.trafficSecret, c.isDTLS))
+	return c.flushHandshake()
 }
 
 func (c *Conn) sendFakeEarlyData(len int) error {

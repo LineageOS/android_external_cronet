@@ -208,15 +208,16 @@ QuicConnection::QuicConnection(
       bundle_retransmittable_with_pto_ack_(false),
       last_control_frame_id_(kInvalidControlFrameId),
       is_path_degrading_(false),
+      flow_label_has_changed_(false),
       processing_ack_frame_(false),
       supports_release_time_(false),
       release_time_into_future_(QuicTime::Delta::Zero()),
-      blackhole_detector_(this, &alarms_.network_blackhole_detector_alarm()),
+      blackhole_detector_(this, alarms_.network_blackhole_detector_alarm()),
       idle_network_detector_(this, clock_->ApproximateNow(),
-                             &alarms_.idle_network_detector_alarm()),
+                             alarms_.idle_network_detector_alarm()),
       path_validator_(alarm_factory_, &arena_, this, random_generator_, clock_,
                       &context_),
-      ping_manager_(perspective, this, &alarms_.ping_alarm()),
+      ping_manager_(perspective, this, alarms_.ping_alarm()),
       multi_port_probing_interval_(kDefaultMultiPortProbingInterval),
       connection_id_generator_(generator),
       received_client_addresses_cache_(kMaxReceivedClientAddressSize) {
@@ -441,7 +442,21 @@ void QuicConnection::SetFromConfig(const QuicConfig& config) {
     active_migration_disabled_ = true;
   }
 
+  // Note that SetFromConfig() can be called twice: once at initialization and
+  // once after handshake completion. This can cause ECN to be set again after
+  // failing validation during the handshake. It is legal per RFC9000 to
+  // periodically try to validate ECN after failure, and post-handshakes is as
+  // good a time as any.
   sent_packet_manager_.SetFromConfig(config);
+  // TODO(martinduke): set_ecn_codepoint() itself calls EnableECT1() and
+  // EnableECT0(). Once set_ecn_codepoint() has proven to be safe, this can
+  // just call set_ecn_codepoint(ECT0) and (ECT1) without any conditional.
+  if (sent_packet_manager_.EnableECT1()) {
+    set_ecn_codepoint(ECN_ECT1);
+  } else if (sent_packet_manager_.EnableECT0()) {
+    set_ecn_codepoint(ECN_ECT0);
+  }
+
   if (perspective_ == Perspective::IS_SERVER &&
       config.HasClientSentConnectionOption(kAFF2, perspective_)) {
     send_ack_frequency_on_handshake_completion_ = true;
@@ -3965,19 +3980,14 @@ void QuicConnection::OnPathMtuIncreased(QuicPacketLength packet_size) {
 }
 
 void QuicConnection::OnInFlightEcnPacketAcked() {
-  QUIC_BUG_IF(quic_bug_518619343_01, !GetQuicRestartFlag(quic_support_ect1))
-      << "Unexpected call to OnInFlightEcnPacketAcked()";
   // Only packets on the default path are in-flight.
   if (!default_path_.ecn_marked_packet_acked) {
     QUIC_DVLOG(1) << ENDPOINT << "First ECT packet acked on active path.";
-    QUIC_RESTART_FLAG_COUNT_N(quic_support_ect1, 2, 9);
     default_path_.ecn_marked_packet_acked = true;
   }
 }
 
 void QuicConnection::OnInvalidEcnFeedback() {
-  QUIC_BUG_IF(quic_bug_518619343_02, !GetQuicRestartFlag(quic_support_ect1))
-      << "Unexpected call to OnInvalidEcnFeedback().";
   if (disable_ecn_codepoint_validation_) {
     // In some tests, senders may send ECN marks in patterns that are not
     // in accordance with the spec, and should not fail validation as a result.
@@ -4205,6 +4215,8 @@ void QuicConnection::OnRetransmissionAlarm() {
     }
     if (enable_black_hole_avoidance_via_flow_label_) {
       GenerateNewOutgoingFlowLabel();
+      ++stats_.num_flow_label_changes;
+      flow_label_has_changed_ = true;
       expect_peer_flow_label_change_ = true;
       QUIC_CODE_COUNT(quic_generated_new_flow_label_on_pto);
     }
@@ -4713,6 +4725,10 @@ void QuicConnection::TearDownLocalConnectionState(
 void QuicConnection::CancelAllAlarms() {
   QUIC_DVLOG(1) << "Cancelling all QuicConnection alarms.";
 
+  // Only active in new multiplexer code.
+  alarms_.CancelAllAlarms();
+
+  // PermanentCancel() is a no-op in multiplexer case.
   ack_alarm().PermanentCancel();
   ping_manager_.Stop();
   retransmission_alarm().PermanentCancel();
@@ -4820,7 +4836,7 @@ void QuicConnection::MaybeSetMtuAlarm(QuicPacketNumber sent_packet_number) {
 QuicConnection::ScopedPacketFlusher::ScopedPacketFlusher(
     QuicConnection* connection)
     : connection_(connection),
-      flush_and_set_pending_retransmission_alarm_on_delete_(false),
+      active_(false),
       handshake_packet_sent_(connection != nullptr &&
                              connection->handshake_packet_sent_) {
   if (connection_ == nullptr) {
@@ -4828,8 +4844,9 @@ QuicConnection::ScopedPacketFlusher::ScopedPacketFlusher(
   }
 
   if (!connection_->packet_creator_.PacketFlusherAttached()) {
-    flush_and_set_pending_retransmission_alarm_on_delete_ = true;
+    active_ = true;
     connection->packet_creator_.AttachPacketFlusher();
+    connection_->alarms_.DeferUnderlyingAlarmScheduling();
   }
 }
 
@@ -4838,7 +4855,7 @@ QuicConnection::ScopedPacketFlusher::~ScopedPacketFlusher() {
     return;
   }
 
-  if (flush_and_set_pending_retransmission_alarm_on_delete_) {
+  if (active_) {
     const QuicTime ack_timeout =
         connection_->uber_received_packet_manager_.GetEarliestAckTimeout();
     if (ack_timeout.IsInitialized()) {
@@ -4922,8 +4939,10 @@ QuicConnection::ScopedPacketFlusher::~ScopedPacketFlusher() {
       connection_->SetRetransmissionAlarm();
       connection_->pending_retransmission_alarm_ = false;
     }
+
+    connection_->alarms_.ResumeUnderlyingAlarmScheduling();
   }
-  QUICHE_DCHECK_EQ(flush_and_set_pending_retransmission_alarm_on_delete_,
+  QUICHE_DCHECK_EQ(active_,
                    !connection_->packet_creator_.PacketFlusherAttached());
 }
 
@@ -6128,6 +6147,11 @@ void QuicConnection::OnForwardProgressMade() {
     visitor_->OnForwardProgressMadeAfterPathDegrading();
     stats_.num_forward_progress_after_path_degrading++;
     is_path_degrading_ = false;
+  }
+  if (flow_label_has_changed_) {
+    visitor_->OnForwardProgressMadeAfterFlowLabelChange();
+    stats_.num_forward_progress_after_flow_label_change++;
+    flow_label_has_changed_ = false;
   }
   if (sent_packet_manager_.HasInFlightPackets()) {
     // Restart detections if forward progress has been made.
@@ -7452,10 +7476,6 @@ void QuicConnection::set_outgoing_flow_label(uint32_t flow_label) {
 }
 
 bool QuicConnection::set_ecn_codepoint(QuicEcnCodepoint ecn_codepoint) {
-  if (!GetQuicRestartFlag(quic_support_ect1)) {
-    return false;
-  }
-  QUIC_RESTART_FLAG_COUNT_N(quic_support_ect1, 3, 9);
   if (disable_ecn_codepoint_validation_ || ecn_codepoint == ECN_NOT_ECT) {
     packet_writer_params_.ecn_codepoint = ecn_codepoint;
     return true;

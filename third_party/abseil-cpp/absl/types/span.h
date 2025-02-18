@@ -219,12 +219,14 @@ class ABSL_ATTRIBUTE_VIEW Span {
   static const size_type npos = ~(size_type(0));
 
   constexpr Span() noexcept : Span(nullptr, 0) {}
-  constexpr Span(pointer array, size_type length) noexcept
+  constexpr Span(pointer array ABSL_ATTRIBUTE_LIFETIME_BOUND,
+                 size_type length) noexcept
       : ptr_(array), len_(length) {}
 
   // Implicit conversion constructors
   template <size_t N>
-  constexpr Span(T (&a)[N]) noexcept  // NOLINT(google-explicit-constructor)
+  constexpr Span(T(  // NOLINT(google-explicit-constructor)
+      &a ABSL_ATTRIBUTE_LIFETIME_BOUND)[N]) noexcept
       : Span(a, N) {}
 
   // Explicit reference constructor for a mutable `Span<T>` type. Can be
@@ -520,157 +522,165 @@ const typename Span<T>::size_type Span<T>::npos;
 
 // operator==
 template <typename T>
-bool operator==(Span<T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator==(Span<T> a, Span<T> b) {
   return span_internal::EqualImpl<Span, const T>(a, b);
 }
 template <typename T>
-bool operator==(Span<const T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator==(Span<const T> a,
+                                                    Span<T> b) {
   return span_internal::EqualImpl<Span, const T>(a, b);
 }
 template <typename T>
-bool operator==(Span<T> a, Span<const T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator==(Span<T> a,
+                                                    Span<const T> b) {
   return span_internal::EqualImpl<Span, const T>(a, b);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator==(const U& a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator==(const U& a, Span<T> b) {
   return span_internal::EqualImpl<Span, const T>(a, b);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator==(Span<T> a, const U& b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator==(Span<T> a, const U& b) {
   return span_internal::EqualImpl<Span, const T>(a, b);
 }
 
 // operator!=
 template <typename T>
-bool operator!=(Span<T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator!=(Span<T> a, Span<T> b) {
   return !(a == b);
 }
 template <typename T>
-bool operator!=(Span<const T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator!=(Span<const T> a,
+                                                    Span<T> b) {
   return !(a == b);
 }
 template <typename T>
-bool operator!=(Span<T> a, Span<const T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator!=(Span<T> a,
+                                                    Span<const T> b) {
   return !(a == b);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator!=(const U& a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator!=(const U& a, Span<T> b) {
   return !(a == b);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator!=(Span<T> a, const U& b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator!=(Span<T> a, const U& b) {
   return !(a == b);
 }
 
 // operator<
 template <typename T>
-bool operator<(Span<T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<(Span<T> a, Span<T> b) {
   return span_internal::LessThanImpl<Span, const T>(a, b);
 }
 template <typename T>
-bool operator<(Span<const T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<(Span<const T> a, Span<T> b) {
   return span_internal::LessThanImpl<Span, const T>(a, b);
 }
 template <typename T>
-bool operator<(Span<T> a, Span<const T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<(Span<T> a, Span<const T> b) {
   return span_internal::LessThanImpl<Span, const T>(a, b);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator<(const U& a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<(const U& a, Span<T> b) {
   return span_internal::LessThanImpl<Span, const T>(a, b);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator<(Span<T> a, const U& b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<(Span<T> a, const U& b) {
   return span_internal::LessThanImpl<Span, const T>(a, b);
 }
 
 // operator>
 template <typename T>
-bool operator>(Span<T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>(Span<T> a, Span<T> b) {
   return b < a;
 }
 template <typename T>
-bool operator>(Span<const T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>(Span<const T> a, Span<T> b) {
   return b < a;
 }
 template <typename T>
-bool operator>(Span<T> a, Span<const T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>(Span<T> a, Span<const T> b) {
   return b < a;
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator>(const U& a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>(const U& a, Span<T> b) {
   return b < a;
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator>(Span<T> a, const U& b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>(Span<T> a, const U& b) {
   return b < a;
 }
 
 // operator<=
 template <typename T>
-bool operator<=(Span<T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<=(Span<T> a, Span<T> b) {
   return !(b < a);
 }
 template <typename T>
-bool operator<=(Span<const T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<=(Span<const T> a,
+                                                    Span<T> b) {
   return !(b < a);
 }
 template <typename T>
-bool operator<=(Span<T> a, Span<const T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<=(Span<T> a,
+                                                    Span<const T> b) {
   return !(b < a);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator<=(const U& a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<=(const U& a, Span<T> b) {
   return !(b < a);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator<=(Span<T> a, const U& b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator<=(Span<T> a, const U& b) {
   return !(b < a);
 }
 
 // operator>=
 template <typename T>
-bool operator>=(Span<T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>=(Span<T> a, Span<T> b) {
   return !(a < b);
 }
 template <typename T>
-bool operator>=(Span<const T> a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>=(Span<const T> a,
+                                                    Span<T> b) {
   return !(a < b);
 }
 template <typename T>
-bool operator>=(Span<T> a, Span<const T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>=(Span<T> a,
+                                                    Span<const T> b) {
   return !(a < b);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator>=(const U& a, Span<T> b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>=(const U& a, Span<T> b) {
   return !(a < b);
 }
 template <
     typename T, typename U,
     typename = span_internal::EnableIfConvertibleTo<U, absl::Span<const T>>>
-bool operator>=(Span<T> a, const U& b) {
+ABSL_INTERNAL_CONSTEXPR_SINCE_CXX20 bool operator>=(Span<T> a, const U& b) {
   return !(a < b);
 }
 

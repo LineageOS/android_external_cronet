@@ -11,6 +11,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/status/status.h"
 #include "absl/status/statusor.h"
 #include "absl/strings/string_view.h"
 #include "quiche/quic/core/quic_time.h"
@@ -76,10 +77,11 @@ class MockTrackPublisher : public MoqtTrackPublisher {
   FullTrackName track_name_;
 };
 
-class MockRemoteTrackVisitor : public RemoteTrack::Visitor {
+class MockSubscribeRemoteTrackVisitor : public SubscribeRemoteTrack::Visitor {
  public:
   MOCK_METHOD(void, OnReply,
               (const FullTrackName& full_track_name,
+               std::optional<FullSequence> largest_id,
                std::optional<absl::string_view> error_reason_phrase),
               (override));
   MOCK_METHOD(void, OnCanAckObjects, (MoqtObjectAckFunction ack_function),
@@ -87,7 +89,6 @@ class MockRemoteTrackVisitor : public RemoteTrack::Visitor {
   MOCK_METHOD(void, OnObjectFragment,
               (const FullTrackName& full_track_name, FullSequence sequence,
                MoqtPriority publisher_priority, MoqtObjectStatus status,
-               MoqtForwardingPreference forwarding_preference,
                absl::string_view object, bool end_of_message),
               (override));
 };
@@ -99,6 +100,24 @@ class MockPublishingMonitorInterface : public MoqtPublishingMonitorInterface {
               (uint64_t group_id, uint64_t object_id,
                quic::QuicTimeDelta delta_from_deadline),
               (override));
+};
+
+class MockFetchTask : public MoqtFetchTask {
+ public:
+  MOCK_METHOD(MoqtFetchTask::GetNextObjectResult, GetNextObject,
+              (PublishedObject & output), (override));
+  MOCK_METHOD(absl::Status, GetStatus, (), (override));
+  MOCK_METHOD(FullSequence, GetLargestId, (), (const, override));
+
+  void SetObjectAvailableCallback(ObjectsAvailableCallback callback) override {
+    objects_available_callback_ = std::move(callback);
+  }
+  ObjectsAvailableCallback& objects_available_callback() {
+    return objects_available_callback_;
+  };
+
+ private:
+  ObjectsAvailableCallback objects_available_callback_;
 };
 
 }  // namespace moqt::test

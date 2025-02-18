@@ -154,11 +154,7 @@ BASE_FEATURE(kPartitionConnectionsByNetworkIsolationKey,
 
 BASE_FEATURE(kPostQuantumKyber,
              "PostQuantumKyber",
-#if BUILDFLAG(IS_ANDROID) || BUILDFLAG(IS_IOS)
-             base::FEATURE_DISABLED_BY_DEFAULT);
-#else
              base::FEATURE_ENABLED_BY_DEFAULT);
-#endif
 
 BASE_FEATURE(kUseMLKEM, "UseMLKEM", base::FEATURE_ENABLED_BY_DEFAULT);
 
@@ -310,7 +306,7 @@ const base::FeatureParam<int> kAvoidEntryCreationForNoStoreCacheSize{
 // https://crbug.com/1345207
 BASE_FEATURE(kPrefetchFollowsNormalCacheSemantics,
              "PrefetchFollowsNormalCacheSemantics",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+             base::FEATURE_ENABLED_BY_DEFAULT);
 
 // A flag for new Kerberos feature, that suggests new UI
 // when Kerberos authentication in browser fails on ChromeOS.
@@ -407,6 +403,22 @@ const base::FeatureParam<base::TimeDelta> kIpPrivacyExpirationFuzz{
     &kEnableIpProtectionProxy, /*name=*/"IpPrivacyExpirationFuzz",
     /*default_value=*/base::Minutes(15)};
 
+const base::FeatureParam<base::TimeDelta>
+    kIpPrivacyTryGetAuthTokensNotEligibleBackoff{
+        &kEnableIpProtectionProxy,
+        /*name=*/"IpPrivacyTryGetAuthTokensNotEligibleBackoff",
+        /*default_value=*/base::Days(1)};
+
+const base::FeatureParam<base::TimeDelta>
+    kIpPrivacyTryGetAuthTokensTransientBackoff{
+        &kEnableIpProtectionProxy,
+        /*name=*/"IpPrivacyTryGetAuthTokensTransientBackoff",
+        /*default_value=*/base::Seconds(5)};
+
+const base::FeatureParam<base::TimeDelta> kIpPrivacyTryGetAuthTokensBugBackoff{
+    &kEnableIpProtectionProxy, /*name=*/"IpPrivacyTryGetAuthTokensBugBackoff",
+    /*default_value=*/base::Minutes(10)};
+
 const base::FeatureParam<bool> kIpPrivacyRestrictTopLevelSiteSchemes{
     &kEnableIpProtectionProxy,
     /*name=*/"IpPrivacyRestrictTopLevelSiteSchemes",
@@ -450,6 +462,11 @@ const base::FeatureParam<bool> kIpPrivacyCacheTokensByGeo{
 const base::FeatureParam<bool> kIpPrivacyAlwaysCreateCore{
     &kEnableIpProtectionProxy,
     /*name=*/"IpPrivacyAlwaysCreateCore",
+    /*default_value=*/false};
+
+const base::FeatureParam<bool> kIpPrivacyOnlyInIncognito{
+    &kEnableIpProtectionProxy,
+    /*name=*/"IpPrivacyOnlyInIncognito",
     /*default_value=*/false};
 
 // Network-change migration requires NetworkHandle support, which are currently
@@ -504,19 +521,11 @@ BASE_FEATURE(kEnableWebTransportDraft07,
              "EnableWebTransportDraft07",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
-BASE_FEATURE(kZstdContentEncoding,
-             "ZstdContentEncoding",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
 // When enabled, partitioned storage will be allowed even if third-party cookies
 // are disabled by default. Partitioned storage will not be allowed if
 // third-party cookies are disabled due to a specific rule.
 BASE_FEATURE(kThirdPartyPartitionedStorageAllowedByDefault,
              "ThirdPartyPartitionedStorageAllowedByDefault",
-             base::FEATURE_ENABLED_BY_DEFAULT);
-
-BASE_FEATURE(kPriorityHeader,
-             "PriorityHeader",
              base::FEATURE_ENABLED_BY_DEFAULT);
 
 BASE_FEATURE(kSpdyHeadersToHttpResponseUseBuilder,
@@ -549,6 +558,9 @@ BASE_FEATURE(kReduceIPAddressChangeNotification,
 
 BASE_FEATURE(kDeviceBoundSessions,
              "DeviceBoundSessions",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+BASE_FEATURE(kPersistDeviceBoundSessions,
+             "PersistDeviceBoundSessions",
              base::FEATURE_DISABLED_BY_DEFAULT);
 
 BASE_FEATURE(kStoreConnectionSubtype,
@@ -617,8 +629,31 @@ const base::FeatureParam<DiskCacheBackend> kDiskCacheBackendParam{
     &kDiskCacheBackendExperiment, "backend", DiskCacheBackend::kBlockfile,
     &kDiskCacheBackendOptions};
 
-BASE_FEATURE(kCookieDomainFieldIsValid,
-             "CookieDomainFieldIsValid",
+BASE_FEATURE(kIgnoreHSTSForLocalhost,
+             "IgnoreHSTSForLocalhost",
              base::FEATURE_ENABLED_BY_DEFAULT);
+
+BASE_FEATURE(kSimpleCachePrioritizedCaching,
+             "SimpleCachePrioritizedCaching",
+             base::FEATURE_DISABLED_BY_DEFAULT);
+
+const base::FeatureParam<int>
+    kSimpleCachePrioritizedCachingPrioritizationFactor{
+        &kSimpleCachePrioritizedCaching,
+        /*name=*/"SimpleCachePrioritizedCachingPrioritizationFactor",
+        /*default_value=*/10};
+
+const base::FeatureParam<base::TimeDelta>
+    kSimpleCachePrioritizedCachingPrioritizationPeriod{
+        &kSimpleCachePrioritizedCaching,
+        /*name=*/"SimpleCachePrioritizedCachingPrioritizationPeriod",
+        /*default_value=*/base::Days(1)};
+
+#if BUILDFLAG(USE_NSS_CERTS)
+// TODO(crbug.com/40928765): Remove this flag after a few milestones.
+BASE_FEATURE(kNewClientCertPathBuilding,
+             "NewClientCertPathBuilding",
+             base::FEATURE_ENABLED_BY_DEFAULT);
+#endif  // BUILDFLAG(USE_NSS_CERTS)
 
 }  // namespace net::features

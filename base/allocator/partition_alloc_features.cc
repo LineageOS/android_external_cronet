@@ -190,7 +190,7 @@ const base::FeatureParam<BackupRefPtrMode> kBackupRefPtrModeParam{
 
 BASE_FEATURE(kPartitionAllocMemoryTagging,
              "PartitionAllocMemoryTagging",
-#if PA_BUILDFLAG(USE_FULL_MTE)
+#if PA_BUILDFLAG(USE_FULL_MTE) || BUILDFLAG(IS_ANDROID)
              FEATURE_ENABLED_BY_DEFAULT
 #else
              FEATURE_DISABLED_BY_DEFAULT
@@ -231,7 +231,7 @@ const base::FeatureParam<MemoryTaggingEnabledProcesses>
 #if PA_BUILDFLAG(USE_FULL_MTE)
         MemoryTaggingEnabledProcesses::kAllProcesses,
 #else
-        MemoryTaggingEnabledProcesses::kBrowserOnly,
+        MemoryTaggingEnabledProcesses::kNonRenderer,
 #endif
         &kMemoryTaggingEnabledProcessesOptions};
 
@@ -439,7 +439,12 @@ BASE_FEATURE(kPartitionAllocDisableBRPInBufferPartition,
 #if PA_BUILDFLAG(USE_FREELIST_DISPATCHER)
 BASE_FEATURE(kUsePoolOffsetFreelists,
              "PartitionAllocUsePoolOffsetFreelists",
-             base::FEATURE_DISABLED_BY_DEFAULT);
+#if BUILDFLAG(IS_ANDROID)
+             base::FEATURE_DISABLED_BY_DEFAULT
+#else
+             base::FEATURE_ENABLED_BY_DEFAULT
+#endif
+);
 #endif
 
 BASE_FEATURE(kPartitionAllocAdjustSizeWhenInForeground,

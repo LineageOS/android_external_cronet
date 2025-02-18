@@ -1781,16 +1781,19 @@ TEST(CanonicalCookieTest, IncludeForRequestURLSameSite) {
       {"Common=1;SameSite=Strict", CookieSameSite::STRICT_MODE,
        CookieEffectiveSameSite::STRICT_MODE,
        SameSiteCookieContext(SameSiteCookieContext::ContextType::CROSS_SITE),
-       CookieInclusionStatus(CookieInclusionStatus::EXCLUDE_SAMESITE_STRICT)},
+       CookieInclusionStatus::MakeFromReasonsForTesting(
+           /*exclusions=*/{CookieInclusionStatus::EXCLUDE_SAMESITE_STRICT})},
       {"Common=2;SameSite=Strict", CookieSameSite::STRICT_MODE,
        CookieEffectiveSameSite::STRICT_MODE,
        SameSiteCookieContext(
            SameSiteCookieContext::ContextType::SAME_SITE_LAX_METHOD_UNSAFE),
-       CookieInclusionStatus(CookieInclusionStatus::EXCLUDE_SAMESITE_STRICT)},
+       CookieInclusionStatus::MakeFromReasonsForTesting(
+           /*exclusions=*/{CookieInclusionStatus::EXCLUDE_SAMESITE_STRICT})},
       {"Common=3;SameSite=Strict", CookieSameSite::STRICT_MODE,
        CookieEffectiveSameSite::STRICT_MODE,
        SameSiteCookieContext(SameSiteCookieContext::ContextType::SAME_SITE_LAX),
-       CookieInclusionStatus(CookieInclusionStatus::EXCLUDE_SAMESITE_STRICT)},
+       CookieInclusionStatus::MakeFromReasonsForTesting(
+           /*exclusions=*/{CookieInclusionStatus::EXCLUDE_SAMESITE_STRICT})},
       {"Common=4;SameSite=Strict", CookieSameSite::STRICT_MODE,
        CookieEffectiveSameSite::STRICT_MODE,
        SameSiteCookieContext(
@@ -1800,12 +1803,14 @@ TEST(CanonicalCookieTest, IncludeForRequestURLSameSite) {
       {"Common=5;SameSite=Lax", CookieSameSite::LAX_MODE,
        CookieEffectiveSameSite::LAX_MODE,
        SameSiteCookieContext(SameSiteCookieContext::ContextType::CROSS_SITE),
-       CookieInclusionStatus(CookieInclusionStatus::EXCLUDE_SAMESITE_LAX)},
+       CookieInclusionStatus::MakeFromReasonsForTesting(
+           /*exclusions=*/{CookieInclusionStatus::EXCLUDE_SAMESITE_LAX})},
       {"Common=6;SameSite=Lax", CookieSameSite::LAX_MODE,
        CookieEffectiveSameSite::LAX_MODE,
        SameSiteCookieContext(
            SameSiteCookieContext::ContextType::SAME_SITE_LAX_METHOD_UNSAFE),
-       CookieInclusionStatus(CookieInclusionStatus::EXCLUDE_SAMESITE_LAX)},
+       CookieInclusionStatus::MakeFromReasonsForTesting(
+           /*exclusions=*/{CookieInclusionStatus::EXCLUDE_SAMESITE_LAX})},
       {"Common=7;SameSite=Lax", CookieSameSite::LAX_MODE,
        CookieEffectiveSameSite::LAX_MODE,
        SameSiteCookieContext(SameSiteCookieContext::ContextType::SAME_SITE_LAX),
@@ -1909,9 +1914,10 @@ TEST(CanonicalCookieTest, IncludeForRequestURLSameSite) {
       {"DefaultLax=1", CookieSameSite::UNSPECIFIED,
        CookieEffectiveSameSite::LAX_MODE_ALLOW_UNSAFE,
        SameSiteCookieContext(SameSiteCookieContext::ContextType::CROSS_SITE),
-       CookieInclusionStatus(
-           CookieInclusionStatus::EXCLUDE_SAMESITE_UNSPECIFIED_TREATED_AS_LAX,
-           CookieInclusionStatus::WARN_SAMESITE_UNSPECIFIED_CROSS_SITE_CONTEXT),
+       CookieInclusionStatus::MakeFromReasonsForTesting(
+           {CookieInclusionStatus::EXCLUDE_SAMESITE_UNSPECIFIED_TREATED_AS_LAX},
+           {CookieInclusionStatus::
+                WARN_SAMESITE_UNSPECIFIED_CROSS_SITE_CONTEXT}),
        kShortAge},
       {"DefaultLax=2", CookieSameSite::UNSPECIFIED,
        CookieEffectiveSameSite::LAX_MODE_ALLOW_UNSAFE,
@@ -1934,17 +1940,19 @@ TEST(CanonicalCookieTest, IncludeForRequestURLSameSite) {
       {"DefaultLax=5", CookieSameSite::UNSPECIFIED,
        CookieEffectiveSameSite::LAX_MODE,
        SameSiteCookieContext(SameSiteCookieContext::ContextType::CROSS_SITE),
-       CookieInclusionStatus(
-           CookieInclusionStatus::EXCLUDE_SAMESITE_UNSPECIFIED_TREATED_AS_LAX,
-           CookieInclusionStatus::WARN_SAMESITE_UNSPECIFIED_CROSS_SITE_CONTEXT),
+       CookieInclusionStatus::MakeFromReasonsForTesting(
+           {CookieInclusionStatus::EXCLUDE_SAMESITE_UNSPECIFIED_TREATED_AS_LAX},
+           {CookieInclusionStatus::
+                WARN_SAMESITE_UNSPECIFIED_CROSS_SITE_CONTEXT}),
        kLongAge},
       {"DefaultLax=6", CookieSameSite::UNSPECIFIED,
        CookieEffectiveSameSite::LAX_MODE,
        SameSiteCookieContext(
            SameSiteCookieContext::ContextType::SAME_SITE_LAX_METHOD_UNSAFE),
-       CookieInclusionStatus(
-           CookieInclusionStatus::EXCLUDE_SAMESITE_UNSPECIFIED_TREATED_AS_LAX,
-           CookieInclusionStatus::WARN_SAMESITE_UNSPECIFIED_CROSS_SITE_CONTEXT),
+       CookieInclusionStatus::MakeFromReasonsForTesting(
+           {CookieInclusionStatus::EXCLUDE_SAMESITE_UNSPECIFIED_TREATED_AS_LAX},
+           {CookieInclusionStatus::
+                WARN_SAMESITE_UNSPECIFIED_CROSS_SITE_CONTEXT}),
        kLongAge},
       {"DefaultLax=7", CookieSameSite::UNSPECIFIED,
        CookieEffectiveSameSite::LAX_MODE,
@@ -4755,10 +4763,6 @@ TEST(CanonicalCookieTest, IsSetPermittedInContext) {
       "A", "2", "www.example.com", "/test", current_time, base::Time(),
       base::Time(), base::Time(), true /*secure*/, true /*httponly*/,
       CookieSameSite::NO_RESTRICTION, COOKIE_PRIORITY_DEFAULT);
-  auto cookie_tld = CanonicalCookie::CreateUnsafeCookieForTesting(
-      "A", "2", "co.uk", "/test", current_time, base::Time(), base::Time(),
-      base::Time(), true /*secure*/, false /*httponly*/,
-      CookieSameSite::NO_RESTRICTION, COOKIE_PRIORITY_DEFAULT);
 
   CookieOptions context_script;
   CookieOptions context_network;
@@ -4776,7 +4780,6 @@ TEST(CanonicalCookieTest, IsSetPermittedInContext) {
               CookieInclusionStatus::EXCLUDE_NONCOOKIEABLE_SCHEME,
               CookieInclusionStatus::EXCLUDE_SECURE_ONLY,
               CookieInclusionStatus::EXCLUDE_DOMAIN_MISMATCH,
-              CookieInclusionStatus::EXCLUDE_INVALID_DOMAIN,
           }),
           _, _, false));
 
@@ -4837,24 +4840,8 @@ TEST(CanonicalCookieTest, IsSetPermittedInContext) {
           kCookieableSchemes),
       MatchesCookieAccessResult(
           CookieInclusionStatus::MakeFromReasonsForTesting(
-              {CookieInclusionStatus::EXCLUDE_DOMAIN_MISMATCH,
-               CookieInclusionStatus::EXCLUDE_INVALID_DOMAIN}),
+              {CookieInclusionStatus::EXCLUDE_DOMAIN_MISMATCH}),
           _, _, true));
-
-  EXPECT_THAT(
-      cookie_tld->IsSetPermittedInContext(
-          GURL("co.uk/test"), context_script,
-          CookieAccessParams(CookieAccessSemantics::UNKNOWN,
-                             false /* delegate_treats_url_as_trustworthy */
-                             ),
-          kCookieableSchemes),
-      MatchesCookieAccessResult(
-          CookieInclusionStatus::MakeFromReasonsForTesting(
-              {CookieInclusionStatus::EXCLUDE_NONCOOKIEABLE_SCHEME,
-               CookieInclusionStatus::EXCLUDE_SECURE_ONLY,
-               CookieInclusionStatus::EXCLUDE_DOMAIN_MISMATCH,
-               CookieInclusionStatus::EXCLUDE_INVALID_DOMAIN}),
-          _, _, false));
 
   CookieOptions context_cross_site;
   CookieOptions context_same_site_lax;

@@ -170,7 +170,6 @@ timezoneTypes:table(nofallback){
             EST5EDT{"America/New_York"}
             Egypt{"Africa/Cairo"}
             Eire{"Europe/Dublin"}
-            Factory{"Etc/Unknown"}
             GB{"Europe/London"}
             GB-Eire{"Europe/London"}
             GMT{"Etc/GMT"}

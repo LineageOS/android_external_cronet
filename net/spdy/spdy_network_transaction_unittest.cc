@@ -104,21 +104,15 @@ using testing::Eq;
 const int32_t kBufferSize = SpdyHttpStream::kRequestBodyBufferSize;
 
 struct TestParams {
-  TestParams(bool priority_header_enabled, bool happy_eyeballs_v3_enabled)
-      : priority_header_enabled(priority_header_enabled),
-        happy_eyeballs_v3_enabled(happy_eyeballs_v3_enabled) {}
+  explicit TestParams(bool happy_eyeballs_v3_enabled)
+      : happy_eyeballs_v3_enabled(happy_eyeballs_v3_enabled) {}
 
-  bool priority_header_enabled;
   bool happy_eyeballs_v3_enabled;
 };
 
 std::vector<TestParams> GetTestParams() {
-  return {TestParams(/*priority_header_enabled=*/true,
-                     /*happy_eyeballs_v3_enabled=*/false),
-          TestParams(/*priority_header_enabled=*/false,
-                     /*happy_eyeballs_v3_enabled=*/false),
-          TestParams(/*priority_header_enabled=*/true,
-                     /*happy_eyeballs_v3_enabled=*/true)};
+  return {TestParams(/*happy_eyeballs_v3_enabled=*/false),
+          TestParams(/*happy_eyeballs_v3_enabled=*/true)};
 }
 
 }  // namespace
@@ -137,12 +131,6 @@ class SpdyNetworkTransactionTest
         spdy_util_(/*use_priority_header=*/true) {
     std::vector<base::test::FeatureRef> enabled_features;
     std::vector<base::test::FeatureRef> disabled_features;
-
-    if (PriorityHeaderEnabled()) {
-      enabled_features.emplace_back(features::kPriorityHeader);
-    } else {
-      disabled_features.emplace_back(features::kPriorityHeader);
-    }
 
     if (HappyEyeballsV3Enabled()) {
       enabled_features.emplace_back(features::kHappyEyeballsV3);
@@ -424,9 +412,10 @@ class SpdyNetworkTransactionTest
 
   void UseComplexPostRequest() {
     ASSERT_FALSE(upload_data_stream_);
-    const int kFileRangeOffset = 1;
-    const int kFileRangeLength = 3;
-    CHECK_LT(kFileRangeOffset + kFileRangeLength, kUploadDataSize);
+    static constexpr size_t kFileRangeOffset = 1;
+    static constexpr size_t kFileRangeLength = 3;
+    CHECK_LT(static_cast<int>(kFileRangeOffset + kFileRangeLength),
+             kUploadDataSize);
 
     base::FilePath file_path;
     CHECK(base::CreateTemporaryFileInDir(temp_dir_.GetPath(), &file_path));
@@ -434,14 +423,13 @@ class SpdyNetworkTransactionTest
 
     std::vector<std::unique_ptr<UploadElementReader>> element_readers;
     element_readers.push_back(std::make_unique<UploadBytesElementReader>(
-        base::byte_span_from_cstring(kUploadData)
-            .first(base::checked_cast<size_t>(kFileRangeOffset))));
+        base::byte_span_from_cstring(kUploadData).first<kFileRangeOffset>()));
     element_readers.push_back(std::make_unique<UploadFileElementReader>(
         base::SingleThreadTaskRunner::GetCurrentDefault().get(), file_path,
         kFileRangeOffset, kFileRangeLength, base::Time()));
     element_readers.push_back(std::make_unique<UploadBytesElementReader>(
         base::byte_span_from_cstring(kUploadData)
-            .subspan(kFileRangeOffset + kFileRangeLength)));
+            .subspan<kFileRangeOffset + kFileRangeLength>()));
     upload_data_stream_ = std::make_unique<ElementsUploadDataStream>(
         std::move(element_readers), 0);
 
@@ -535,10 +523,6 @@ class SpdyNetworkTransactionTest
   base::RepeatingClosure FastForwardByCallback(base::TimeDelta delta) {
     return base::BindRepeating(&SpdyNetworkTransactionTest::FastForwardBy,
                                base::Unretained(this), delta);
-  }
-
-  bool PriorityHeaderEnabled() const {
-    return GetParam().priority_header_enabled;
   }
 
   bool HappyEyeballsV3Enabled() const {
@@ -3627,7 +3611,7 @@ TEST_P(SpdyNetworkTransactionTest, PartialWrite) {
       MockRead(ASYNC, 0, kChunks + 2)  // EOF
   };
 
-  SequencedSocketData data(reads, base::make_span(writes.get(), kChunks));
+  SequencedSocketData data(reads, base::span(writes.get(), kChunks));
   NormalSpdyTransactionHelper helper(request_, DEFAULT_PRIORITY, log_, nullptr);
   helper.RunToCompletion(&data);
   TransactionHelperResult out = helper.output();
@@ -3702,11 +3686,7 @@ TEST_P(SpdyNetworkTransactionTest, NetLog) {
   ASSERT_TRUE(entries[pos].HasParams());
   auto* header_list = entries[pos].params.FindList("headers");
   ASSERT_TRUE(header_list);
-  if (base::FeatureList::IsEnabled(net::features::kPriorityHeader)) {
-    ASSERT_EQ(6u, header_list->size());
-  } else {
-    ASSERT_EQ(5u, header_list->size());
-  }
+  ASSERT_EQ(6u, header_list->size());
 
   ASSERT_TRUE((*header_list)[0].is_string());
   EXPECT_EQ(":method: GET", (*header_list)[0].GetString());
@@ -3855,7 +3835,7 @@ TEST_P(SpdyNetworkTransactionTest, BufferFull) {
     if (rv > 0) {
       content.append(buf->data(), rv);
     } else if (rv < 0) {
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
     }
   } while (rv > 0);
 
@@ -5343,8 +5323,7 @@ TEST_P(SpdyNetworkTransactionTest, VerifyRetryOnConnectionReset) {
 
   for (size_t variant = VARIANT_RST_DURING_SEND_COMPLETION;
        variant <= VARIANT_RST_DURING_READ_COMPLETION; ++variant) {
-    SequencedSocketData data1(reads,
-                              base::make_span(writes1).first(1u + variant));
+    SequencedSocketData data1(reads, base::span(writes1).first(variant + 1));
 
     SequencedSocketData data2(reads2, writes2);
 

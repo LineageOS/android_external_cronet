@@ -47,7 +47,7 @@ class HttpStreamPool::Group {
 
   Group(HttpStreamPool* pool,
         HttpStreamKey stream_key,
-        const url::SchemeHostPort& origin_destination);
+        std::optional<QuicSessionAliasKey> quic_session_alias_key);
 
   Group(const Group&) = delete;
   Group& operator=(const Group&) = delete;
@@ -78,9 +78,9 @@ class HttpStreamPool::Group {
   // properly manage the lifetime of the Job, even when StartJob() synchronously
   // calls one of the delegate's methods.
   std::unique_ptr<Job> CreateJob(Job::Delegate* delegate,
+                                 quic::ParsedQuicVersion quic_version,
                                  NextProto expected_protocol,
-                                 bool is_http1_allowed,
-                                 ProxyInfo proxy_info);
+                                 const NetLogWithSource& net_log);
 
   // Creates idle streams or sessions for `num_streams` be opened.
   // Note that this method finishes synchronously, or `callback` is called, once
@@ -123,7 +123,8 @@ class HttpStreamPool::Group {
   // Tries to process a pending request.
   void ProcessPendingRequest();
 
-  // Closes one idle stream socket. Returns true if it closed a stream.
+  // Closes one idle stream socket. Returns true if it closed a stream. Called
+  // when the pool reached the stream count limit.
   bool CloseOneIdleStreamSocket();
 
   // Returns the number of handed out streams.
@@ -145,12 +146,15 @@ class HttpStreamPool::Group {
   std::optional<RequestPriority> GetPriorityIfStalledByPoolLimit() const;
 
   // Closes all streams in this group and cancels all pending requests.
-  void FlushWithError(int error, std::string_view net_log_close_reason_utf8);
+  void FlushWithError(int error,
+                      StreamCloseReason attempt_cancel_reason,
+                      std::string_view net_log_close_reason_utf8);
 
   // Increments the generation of this group. Closes idle streams. Streams
   // handed out before this increment won't be reused. Cancels in-flight
   // connection attempts.
-  void Refresh(std::string_view net_log_close_reason_utf8);
+  void Refresh(std::string_view net_log_close_reason_utf8,
+               StreamCloseReason cancel_reason);
 
   void CloseIdleStreams(std::string_view net_log_close_reason_utf8);
 
@@ -200,6 +204,9 @@ class HttpStreamPool::Group {
                                 std::string_view net_log_close_reason_utf8);
 
   void EnsureAttemptManager();
+
+  // Returns true when `this` can be deleted.
+  bool CanComplete() const;
 
   void MaybeComplete();
 

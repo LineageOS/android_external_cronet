@@ -22,8 +22,10 @@
 #include "net/base/host_port_pair.h"
 #include "net/base/load_states.h"
 #include "net/base/net_errors.h"
+#include "net/base/network_anonymization_key.h"
 #include "net/base/network_change_notifier.h"
 #include "net/base/proxy_chain.h"
+#include "net/base/request_priority.h"
 #include "net/base/session_usage.h"
 #include "net/http/alternative_service.h"
 #include "net/http/http_network_session.h"
@@ -38,6 +40,7 @@
 #include "net/spdy/spdy_session.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_versions.h"
 #include "url/gurl.h"
+#include "url/scheme_host_port.h"
 
 namespace net {
 
@@ -122,36 +125,40 @@ void HttpStreamPool::OnShuttingDown() {
 
 std::unique_ptr<HttpStreamRequest> HttpStreamPool::RequestStream(
     HttpStreamRequest::Delegate* delegate,
-    HttpStreamPoolSwitchingInfo switching_info,
+    HttpStreamPoolRequestInfo request_info,
     RequestPriority priority,
     const std::vector<SSLConfig::CertAndStatus>& allowed_bad_certs,
     bool enable_ip_based_pooling,
     bool enable_alternative_services,
     const NetLogWithSource& net_log) {
-  auto controller = std::make_unique<JobController>(this);
+  auto controller = std::make_unique<JobController>(
+      this, std::move(request_info), priority, allowed_bad_certs,
+      enable_ip_based_pooling, enable_alternative_services);
   JobController* controller_raw_ptr = controller.get();
   // Put `controller` into `job_controllers_` before calling RequestStream() to
   // make sure `job_controllers_` always contains `controller` when
   // OnJobControllerComplete() is called.
   job_controllers_.emplace(std::move(controller));
 
-  return controller_raw_ptr->RequestStream(
-      delegate, std::move(switching_info), priority, allowed_bad_certs,
-      enable_ip_based_pooling, enable_alternative_services, net_log);
+  return controller_raw_ptr->RequestStream(delegate, net_log);
 }
 
-int HttpStreamPool::Preconnect(HttpStreamPoolSwitchingInfo switching_info,
+int HttpStreamPool::Preconnect(HttpStreamPoolRequestInfo request_info,
                                size_t num_streams,
                                CompletionOnceCallback callback) {
-  auto controller = std::make_unique<JobController>(this);
+  std::vector<SSLConfig::CertAndStatus> allowed_bad_certs;
+  auto controller = std::make_unique<JobController>(
+      this, std::move(request_info), /*priority=*/RequestPriority::IDLE,
+      std::move(allowed_bad_certs),
+      /*enable_ip_based_pooling=*/true,
+      /*enable_alternative_services=*/true);
   JobController* controller_raw_ptr = controller.get();
   // SAFETY: Using base::Unretained() is safe because `this` will own
   // `controller` when Preconnect() return ERR_IO_PENDING.
   int rv = controller_raw_ptr->Preconnect(
-      std::move(switching_info), num_streams,
-      base::BindOnce(&HttpStreamPool::OnPreconnectComplete,
-                     base::Unretained(this), controller_raw_ptr,
-                     std::move(callback)));
+      num_streams, base::BindOnce(&HttpStreamPool::OnPreconnectComplete,
+                                  base::Unretained(this), controller_raw_ptr,
+                                  std::move(callback)));
   if (rv == ERR_IO_PENDING) {
     job_controllers_.emplace(std::move(controller));
   }
@@ -191,14 +198,17 @@ void HttpStreamPool::DecrementTotalConnectingStreamCount(size_t amount) {
 void HttpStreamPool::OnIPAddressChanged() {
   CHECK(cleanup_on_ip_address_change_);
   for (const auto& group : groups_) {
-    group.second->FlushWithError(ERR_NETWORK_CHANGED, kIpAddressChanged);
+    group.second->FlushWithError(ERR_NETWORK_CHANGED,
+                                 StreamCloseReason::kIpAddressChanged,
+                                 kIpAddressChanged);
   }
 }
 
 void HttpStreamPool::OnSSLConfigChanged(
     SSLClientContext::SSLConfigChangeType change_type) {
   for (const auto& group : groups_) {
-    group.second->Refresh(kSslConfigChanged);
+    group.second->Refresh(kSslConfigChanged,
+                          StreamCloseReason::kSslConfigChanged);
   }
   ProcessPendingRequestsInGroups();
 }
@@ -209,7 +219,8 @@ void HttpStreamPool::OnSSLConfigForServersChanged(
     if (GURL::SchemeIsCryptographic(group.first.destination().scheme()) &&
         servers.contains(
             HostPortPair::FromSchemeHostPort(group.first.destination()))) {
-      group.second->Refresh(kSslConfigChanged);
+      group.second->Refresh(kSslConfigChanged,
+                            StreamCloseReason::kSslConfigChanged);
     }
   }
   ProcessPendingRequestsInGroups();
@@ -229,9 +240,11 @@ void HttpStreamPool::OnJobControllerComplete(JobController* job_controller) {
 
 void HttpStreamPool::FlushWithError(
     int error,
+    StreamCloseReason attempt_cancel_reason,
     std::string_view net_log_close_reason_utf8) {
   for (auto& group : groups_) {
-    group.second->FlushWithError(error, net_log_close_reason_utf8);
+    group.second->FlushWithError(error, attempt_cancel_reason,
+                                 net_log_close_reason_utf8);
   }
 }
 
@@ -271,32 +284,38 @@ void HttpStreamPool::ProcessPendingRequestsInGroups() {
   }
 }
 
-bool HttpStreamPool::RequiresHTTP11(const HttpStreamKey& stream_key) {
+bool HttpStreamPool::RequiresHTTP11(
+    const url::SchemeHostPort& destination,
+    const NetworkAnonymizationKey& network_anonymization_key) {
   return http_network_session()->http_server_properties()->RequiresHTTP11(
-      stream_key.destination(), stream_key.network_anonymization_key());
+      destination, network_anonymization_key);
 }
 
-bool HttpStreamPool::IsQuicBroken(const HttpStreamKey& stream_key) {
+bool HttpStreamPool::IsQuicBroken(
+    const url::SchemeHostPort& destination,
+    const NetworkAnonymizationKey& network_anonymization_key) {
   return http_network_session()
       ->http_server_properties()
       ->IsAlternativeServiceBroken(
-          AlternativeService(
-              NextProto::kProtoQUIC,
-              HostPortPair::FromSchemeHostPort(stream_key.destination())),
-          stream_key.network_anonymization_key());
+          AlternativeService(NextProto::kProtoQUIC,
+                             HostPortPair::FromSchemeHostPort(destination)),
+          network_anonymization_key);
 }
 
-bool HttpStreamPool::CanUseQuic(const HttpStreamKey& stream_key,
-                                bool enable_ip_based_pooling,
-                                bool enable_alternative_services) {
-  if (http_network_session()->ShouldForceQuic(stream_key.destination(),
-                                              ProxyInfo::Direct(),
+bool HttpStreamPool::CanUseQuic(
+    const url::SchemeHostPort& destination,
+    const NetworkAnonymizationKey& network_anonymization_key,
+    bool enable_ip_based_pooling,
+    bool enable_alternative_services) {
+  if (http_network_session()->ShouldForceQuic(destination, ProxyInfo::Direct(),
                                               /*is_websocket=*/false)) {
     return true;
   }
-  return enable_ip_based_pooling && enable_alternative_services &&
-         GURL::SchemeIsCryptographic(stream_key.destination().scheme()) &&
-         !RequiresHTTP11(stream_key) && !IsQuicBroken(stream_key);
+  return http_network_session()->IsQuicEnabled() && enable_ip_based_pooling &&
+         enable_alternative_services &&
+         GURL::SchemeIsCryptographic(destination.scheme()) &&
+         !RequiresHTTP11(destination, network_anonymization_key) &&
+         !IsQuicBroken(destination, network_anonymization_key);
 }
 
 quic::ParsedQuicVersion HttpStreamPool::SelectQuicVersion(
@@ -309,15 +328,17 @@ quic::ParsedQuicVersion HttpStreamPool::SelectQuicVersion(
 }
 
 bool HttpStreamPool::CanUseExistingQuicSession(
-    const HttpStreamKey& stream_key,
     const QuicSessionAliasKey& quic_session_alias_key,
     bool enable_ip_based_pooling,
     bool enable_alternative_services) {
-  return CanUseQuic(stream_key, enable_ip_based_pooling,
-                    enable_alternative_services) &&
+  const url::SchemeHostPort& destination = quic_session_alias_key.destination();
+  return destination.IsValid() &&
+         CanUseQuic(
+             destination,
+             quic_session_alias_key.session_key().network_anonymization_key(),
+             enable_ip_based_pooling, enable_alternative_services) &&
          http_network_session()->quic_session_pool()->CanUseExistingSession(
-             quic_session_alias_key.session_key(),
-             quic_session_alias_key.destination());
+             quic_session_alias_key.session_key(), destination);
 }
 
 void HttpStreamPool::SetDelegateForTesting(
@@ -350,18 +371,22 @@ base::Value::Dict HttpStreamPool::GetInfoAsValue() const {
 
 HttpStreamPool::Group& HttpStreamPool::GetOrCreateGroupForTesting(
     const HttpStreamKey& stream_key) {
-  return GetOrCreateGroup(stream_key, stream_key.destination());
+  return GetOrCreateGroup(stream_key);
+}
+
+HttpStreamPool::Group* HttpStreamPool::GetGroupForTesting(
+    const HttpStreamKey& stream_key) {
+  return GetGroup(stream_key);
 }
 
 HttpStreamPool::Group& HttpStreamPool::GetOrCreateGroup(
     const HttpStreamKey& stream_key,
-    const url::SchemeHostPort& origin_destination) {
+    std::optional<QuicSessionAliasKey> quic_session_alias_key) {
   auto it = groups_.find(stream_key);
   if (it == groups_.end()) {
-    SpdySessionKey spdy_session_key = stream_key.CalculateSpdySessionKey();
     it = groups_.try_emplace(
         it, stream_key,
-        std::make_unique<Group>(this, stream_key, origin_destination));
+        std::make_unique<Group>(this, stream_key, quic_session_alias_key));
   }
   return *it->second;
 }
@@ -418,7 +443,8 @@ base::WeakPtr<SpdySession> HttpStreamPool::FindAvailableSpdySession(
           spdy_session_key, enable_ip_based_pooling, /*is_websocket=*/false,
           net_log);
   if (spdy_session) {
-    if (RequiresHTTP11(stream_key)) {
+    if (RequiresHTTP11(stream_key.destination(),
+                       stream_key.network_anonymization_key())) {
       spdy_session->MakeUnavailable();
       Group* group = GetGroup(stream_key);
       if (group) {

@@ -154,8 +154,8 @@
 #include <openssl/mem.h>
 #include <openssl/rand.h>
 
-#include "internal.h"
 #include "../crypto/internal.h"
+#include "internal.h"
 
 #if defined(OPENSSL_WINDOWS)
 #include <sys/timeb.h>
@@ -213,7 +213,7 @@ void ssl_reset_error_state(SSL *ssl) {
   ERR_clear_system_error();
 }
 
-void ssl_set_read_error(SSL* ssl) {
+void ssl_set_read_error(SSL *ssl) {
   ssl->s3->read_shutdown = ssl_shutdown_error;
   ssl->s3->read_error.reset(ERR_save_state());
 }
@@ -287,7 +287,7 @@ static uint8_t hex_char_consttime(uint8_t b) {
 
 static bool cbb_add_hex_consttime(CBB *cbb, Span<const uint8_t> in) {
   uint8_t *out;
-if (!CBB_add_space(cbb, &out, in.size() * 2)) {
+  if (!CBB_add_space(cbb, &out, in.size() * 2)) {
     return false;
   }
 
@@ -364,14 +364,7 @@ void ssl_do_msg_callback(const SSL *ssl, int is_write, int content_type,
                     const_cast<SSL *>(ssl), ssl->msg_callback_arg);
 }
 
-void ssl_get_current_time(const SSL *ssl, struct OPENSSL_timeval *out_clock) {
-  // TODO(martinkr): Change callers to |ssl_ctx_get_current_time| and drop the
-  // |ssl| arg from |current_time_cb| if possible.
-  ssl_ctx_get_current_time(ssl->ctx.get(), out_clock);
-}
-
-void ssl_ctx_get_current_time(const SSL_CTX *ctx,
-                              struct OPENSSL_timeval *out_clock) {
+OPENSSL_timeval ssl_ctx_get_current_time(const SSL_CTX *ctx) {
   if (ctx->current_time_cb != NULL) {
     // TODO(davidben): Update current_time_cb to use OPENSSL_timeval. See
     // https://crbug.com/boringssl/155.
@@ -379,54 +372,47 @@ void ssl_ctx_get_current_time(const SSL_CTX *ctx,
     ctx->current_time_cb(nullptr /* ssl */, &clock);
     if (clock.tv_sec < 0) {
       assert(0);
-      out_clock->tv_sec = 0;
-      out_clock->tv_usec = 0;
+      return {0, 0};
     } else {
-      out_clock->tv_sec = (uint64_t)clock.tv_sec;
-      out_clock->tv_usec = (uint32_t)clock.tv_usec;
+      return {static_cast<uint64_t>(clock.tv_sec),
+              static_cast<uint32_t>(clock.tv_usec)};
     }
-    return;
   }
 
 #if defined(BORINGSSL_UNSAFE_DETERMINISTIC_MODE)
-  out_clock->tv_sec = 1234;
-  out_clock->tv_usec = 1234;
+  return {1234, 1234};
 #elif defined(OPENSSL_WINDOWS)
   struct _timeb time;
   _ftime(&time);
   if (time.time < 0) {
     assert(0);
-    out_clock->tv_sec = 0;
-    out_clock->tv_usec = 0;
+    return {0, 0};
   } else {
-    out_clock->tv_sec = time.time;
-    out_clock->tv_usec = time.millitm * 1000;
+    return {static_cast<uint64_t>(time.time),
+            static_cast<uint32_t>(time.millitm * 1000)};
   }
 #else
   struct timeval clock;
   gettimeofday(&clock, NULL);
   if (clock.tv_sec < 0) {
     assert(0);
-    out_clock->tv_sec = 0;
-    out_clock->tv_usec = 0;
+    return {0, 0};
   } else {
-    out_clock->tv_sec = (uint64_t)clock.tv_sec;
-    out_clock->tv_usec = (uint32_t)clock.tv_usec;
+    return {static_cast<uint64_t>(clock.tv_sec),
+            static_cast<uint32_t>(clock.tv_usec)};
   }
 #endif
 }
 
-void SSL_CTX_set_handoff_mode(SSL_CTX *ctx, bool on) {
-  ctx->handoff = on;
-}
+void SSL_CTX_set_handoff_mode(SSL_CTX *ctx, bool on) { ctx->handoff = on; }
 
 static bool ssl_can_renegotiate(const SSL *ssl) {
   if (ssl->server || SSL_is_dtls(ssl)) {
     return false;
   }
 
-  if (ssl->s3->version != 0 &&
-      ssl_protocol_version(ssl) >= TLS1_3_VERSION) {
+  if (ssl->s3->version != 0  //
+      && ssl_protocol_version(ssl) >= TLS1_3_VERSION) {
     return false;
   }
 
@@ -452,9 +438,9 @@ static bool ssl_can_renegotiate(const SSL *ssl) {
 }
 
 static void ssl_maybe_shed_handshake_config(SSL *ssl) {
-  if (ssl->s3->hs != nullptr ||
-      ssl->config == nullptr ||
-      !ssl->config->shed_handshake_config ||
+  if (ssl->s3->hs != nullptr ||               //
+      ssl->config == nullptr ||               //
+      !ssl->config->shed_handshake_config ||  //
       ssl_can_renegotiate(ssl)) {
     return;
   }
@@ -721,9 +707,7 @@ SSL_CONFIG::~SSL_CONFIG() {
   }
 }
 
-void SSL_free(SSL *ssl) {
-  Delete(ssl);
-}
+void SSL_free(SSL *ssl) { Delete(ssl); }
 
 void SSL_set_connect_state(SSL *ssl) {
   ssl->server = false;
@@ -735,13 +719,9 @@ void SSL_set_accept_state(SSL *ssl) {
   ssl->do_handshake = ssl_server_handshake;
 }
 
-void SSL_set0_rbio(SSL *ssl, BIO *rbio) {
-  ssl->rbio.reset(rbio);
-}
+void SSL_set0_rbio(SSL *ssl, BIO *rbio) { ssl->rbio.reset(rbio); }
 
-void SSL_set0_wbio(SSL *ssl, BIO *wbio) {
-  ssl->wbio.reset(wbio);
-}
+void SSL_set0_wbio(SSL *ssl, BIO *wbio) { ssl->wbio.reset(wbio); }
 
 void SSL_set_bio(SSL *ssl, BIO *rbio, BIO *wbio) {
   // For historical reasons, this function has many different cases in ownership
@@ -804,8 +784,8 @@ size_t SSL_quic_max_handshake_flight_len(const SSL *ssl,
       } else {
         // Clients may receive both Certificate message and a CertificateRequest
         // message.
-        if (2*ssl->max_cert_list > kDefaultLimit) {
-          return 2*ssl->max_cert_list;
+        if (2 * ssl->max_cert_list > kDefaultLimit) {
+          return 2 * ssl->max_cert_list;
         }
       }
       return kDefaultLimit;
@@ -820,11 +800,13 @@ size_t SSL_quic_max_handshake_flight_len(const SSL *ssl,
 }
 
 enum ssl_encryption_level_t SSL_quic_read_level(const SSL *ssl) {
-  return ssl->s3->read_level;
+  assert(ssl->quic_method != nullptr);
+  return ssl->s3->quic_read_level;
 }
 
 enum ssl_encryption_level_t SSL_quic_write_level(const SSL *ssl) {
-  return ssl->s3->write_level;
+  assert(ssl->quic_method != nullptr);
+  return ssl->s3->quic_write_level;
 }
 
 int SSL_provide_quic_data(SSL *ssl, enum ssl_encryption_level_t level,
@@ -834,7 +816,7 @@ int SSL_provide_quic_data(SSL *ssl, enum ssl_encryption_level_t level,
     return 0;
   }
 
-  if (level != ssl->s3->read_level) {
+  if (level != ssl->s3->quic_read_level) {
     OPENSSL_PUT_ERROR(SSL, SSL_R_WRONG_ENCRYPTION_LEVEL_RECEIVED);
     return 0;
   }
@@ -938,7 +920,7 @@ static int ssl_do_post_handshake(SSL *ssl, const SSLMessage &msg) {
 int SSL_process_quic_post_handshake(SSL *ssl) {
   ssl_reset_error_state(ssl);
 
-  if (SSL_in_init(ssl)) {
+  if (ssl->quic_method == nullptr || SSL_in_init(ssl)) {
     OPENSSL_PUT_ERROR(SSL, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
     return 0;
   }
@@ -1256,7 +1238,7 @@ int SSL_early_data_accepted(const SSL *ssl) {
 
 void SSL_reset_early_data_reject(SSL *ssl) {
   SSL_HANDSHAKE *hs = ssl->s3->hs.get();
-  if (hs == NULL ||
+  if (hs == NULL ||  //
       hs->wait != ssl_hs_early_data_rejected) {
     abort();
   }
@@ -1815,9 +1797,7 @@ void SSL_CTX_set_max_cert_list(SSL_CTX *ctx, size_t max_cert_list) {
   ctx->max_cert_list = (uint32_t)max_cert_list;
 }
 
-size_t SSL_get_max_cert_list(const SSL *ssl) {
-  return ssl->max_cert_list;
-}
+size_t SSL_get_max_cert_list(const SSL *ssl) { return ssl->max_cert_list; }
 
 void SSL_set_max_cert_list(SSL *ssl, size_t max_cert_list) {
   if (max_cert_list > kMaxHandshakeSize) {
@@ -1940,9 +1920,9 @@ int SSL_CTX_set_tlsext_ticket_keys(SSL_CTX *ctx, const void *in, size_t len) {
 }
 
 int SSL_CTX_set_tlsext_ticket_key_cb(
-    SSL_CTX *ctx, int (*callback)(SSL *ssl, uint8_t *key_name, uint8_t *iv,
-                                  EVP_CIPHER_CTX *ctx, HMAC_CTX *hmac_ctx,
-                                  int encrypt)) {
+    SSL_CTX *ctx,
+    int (*callback)(SSL *ssl, uint8_t *key_name, uint8_t *iv,
+                    EVP_CIPHER_CTX *ctx, HMAC_CTX *hmac_ctx, int encrypt)) {
   ctx->ticket_key_cb = callback;
   return 1;
 }
@@ -2069,13 +2049,9 @@ int SSL_get_negotiated_group(const SSL *ssl) {
   return ssl_group_id_to_nid(group_id);
 }
 
-int SSL_CTX_set_tmp_dh(SSL_CTX *ctx, const DH *dh) {
-  return 1;
-}
+int SSL_CTX_set_tmp_dh(SSL_CTX *ctx, const DH *dh) { return 1; }
 
-int SSL_set_tmp_dh(SSL *ssl, const DH *dh) {
-  return 1;
-}
+int SSL_set_tmp_dh(SSL *ssl, const DH *dh) { return 1; }
 
 STACK_OF(SSL_CIPHER) *SSL_CTX_get_ciphers(const SSL_CTX *ctx) {
   return ctx->cipher_list->ciphers.get();
@@ -2098,7 +2074,7 @@ STACK_OF(SSL_CIPHER) *SSL_get_ciphers(const SSL *ssl) {
   }
 
   return ssl->config->cipher_list ? ssl->config->cipher_list->ciphers.get()
-      : ssl->ctx->cipher_list->ciphers.get();
+                                  : ssl->ctx->cipher_list->ciphers.get();
 }
 
 const char *SSL_get_cipher_list(const SSL *ssl, int n) {
@@ -2334,10 +2310,12 @@ void SSL_CTX_set_next_protos_advertised_cb(
   ctx->next_protos_advertised_cb_arg = arg;
 }
 
-void SSL_CTX_set_next_proto_select_cb(
-    SSL_CTX *ctx, int (*cb)(SSL *ssl, uint8_t **out, uint8_t *out_len,
-                            const uint8_t *in, unsigned in_len, void *arg),
-    void *arg) {
+void SSL_CTX_set_next_proto_select_cb(SSL_CTX *ctx,
+                                      int (*cb)(SSL *ssl, uint8_t **out,
+                                                uint8_t *out_len,
+                                                const uint8_t *in,
+                                                unsigned in_len, void *arg),
+                                      void *arg) {
   ctx->next_proto_select_cb = cb;
   ctx->next_proto_select_cb_arg = arg;
 }
@@ -2471,9 +2449,8 @@ int SSL_enable_tls_channel_id(SSL *ssl) {
 
 static int is_p256_key(EVP_PKEY *private_key) {
   const EC_KEY *ec_key = EVP_PKEY_get0_EC_KEY(private_key);
-  return ec_key != NULL &&
-         EC_GROUP_get_curve_name(EC_KEY_get0_group(ec_key)) ==
-             NID_X9_62_prime256v1;
+  return ec_key != NULL && EC_GROUP_get_curve_name(EC_KEY_get0_group(ec_key)) ==
+                               NID_X9_62_prime256v1;
 }
 
 int SSL_CTX_set1_tls_channel_id(SSL_CTX *ctx, EVP_PKEY *private_key) {
@@ -2527,7 +2504,7 @@ size_t SSL_get0_peer_verify_algorithms(const SSL *ssl,
 }
 
 size_t SSL_get0_peer_delegation_algorithms(const SSL *ssl,
-                                           const uint16_t **out_sigalgs){
+                                           const uint16_t **out_sigalgs) {
   Span<const uint16_t> sigalgs;
   if (ssl->s3->hs != nullptr) {
     sigalgs = ssl->s3->hs->peer_delegated_credential_sigalgs;
@@ -2649,7 +2626,7 @@ int SSL_state(const SSL *ssl) {
   return SSL_in_init(ssl) ? SSL_ST_INIT : SSL_ST_OK;
 }
 
-void SSL_set_state(SSL *ssl, int state) { }
+void SSL_set_state(SSL *ssl, int state) {}
 
 char *SSL_get_shared_ciphers(const SSL *ssl, char *buf, int len) {
   if (len <= 0) {
@@ -2698,7 +2675,7 @@ int SSL_CTX_get_ex_new_index(long argl, void *argp, CRYPTO_EX_unused *unused,
                              CRYPTO_EX_dup *dup_unused,
                              CRYPTO_EX_free *free_func) {
   return CRYPTO_get_ex_new_index_ex(&g_ex_data_class_ssl_ctx, argl, argp,
-                                 free_func);
+                                    free_func);
 }
 
 int SSL_CTX_set_ex_data(SSL_CTX *ctx, int idx, void *data) {
@@ -2805,9 +2782,10 @@ void SSL_CTX_set_psk_client_callback(
   ctx->psk_client_callback = cb;
 }
 
-void SSL_set_psk_server_callback(
-    SSL *ssl, unsigned (*cb)(SSL *ssl, const char *identity, uint8_t *psk,
-                             unsigned max_psk_len)) {
+void SSL_set_psk_server_callback(SSL *ssl,
+                                 unsigned (*cb)(SSL *ssl, const char *identity,
+                                                uint8_t *psk,
+                                                unsigned max_psk_len)) {
   if (!ssl->config) {
     return;
   }
@@ -2815,8 +2793,8 @@ void SSL_set_psk_server_callback(
 }
 
 void SSL_CTX_set_psk_server_callback(
-    SSL_CTX *ctx, unsigned (*cb)(SSL *ssl, const char *identity,
-                                 uint8_t *psk, unsigned max_psk_len)) {
+    SSL_CTX *ctx, unsigned (*cb)(SSL *ssl, const char *identity, uint8_t *psk,
+                                 unsigned max_psk_len)) {
   ctx->psk_server_callback = cb;
 }
 
@@ -2869,9 +2847,7 @@ int SSL_can_release_private_key(const SSL *ssl) {
   return !ssl->s3->hs || ssl->s3->hs->can_release_private_key;
 }
 
-int SSL_is_init_finished(const SSL *ssl) {
-  return !SSL_in_init(ssl);
-}
+int SSL_is_init_finished(const SSL *ssl) { return !SSL_in_init(ssl); }
 
 int SSL_in_init(const SSL *ssl) {
   // This returns false once all the handshake state has been finalized, to
@@ -2888,9 +2864,7 @@ int SSL_in_false_start(const SSL *ssl) {
   return ssl->s3->hs->in_false_start;
 }
 
-int SSL_cutthrough_complete(const SSL *ssl) {
-  return SSL_in_false_start(ssl);
-}
+int SSL_cutthrough_complete(const SSL *ssl) { return SSL_in_false_start(ssl); }
 
 int SSL_is_server(const SSL *ssl) { return ssl->server; }
 
@@ -2952,21 +2926,17 @@ int SSL_get_ivs(const SSL *ssl, const uint8_t **out_read_iv,
 
 uint64_t SSL_get_read_sequence(const SSL *ssl) {
   if (SSL_is_dtls(ssl)) {
-    // TODO(crbug.com/42290608): This API needs to reworked. Right at an epoch
-    // transition, it is possible that |read_epoch| has not received any
-    // records. We will then return that sequence 0 is the highest received, but
-    // this is not quite right.
+    // TODO(crbug.com/42290608): This API needs to reworked.
     //
-    // This is mostly moot in DTLS 1.2 because, after the handshake, we will
-    // never be in this state. In DTLS 1.3, there is a key transition
-    // immediately after the handshake, and in the steady state with KeyUpdate.
-    // While not yet implemented, DTLS 1.3 will handle key changes by having two
-    // epochs live at once (current and optional next), only cycling forward
-    // when we receive a record at the new epoch.
+    // In DTLS 1.2, right at an epoch transition, |read_epoch| may not have
+    // received any records. We will then return that sequence 0 is the highest
+    // received, but it's really -1, which is not representable. This is mostly
+    // moot because, after the handshake, we will never be in the state.
     //
-    // When we implement this, this sequence 0 edge case will be gone, but
-    // replaced with a different issue: our record layer APIs have no way to
-    // report transition state. We'll likely need a new API for DTLS offload.
+    // In DTLS 1.3, epochs do not transition until the first record comes in.
+    // This avoids the DTLS 1.2 problem but introduces a different problem:
+    // during a KeyUpdate (which may occur in the steady state), both epochs are
+    // live. We'll likely need a new API for DTLS offload.
     const DTLSReadEpoch *read_epoch = &ssl->d1->read_epoch;
     return DTLSRecordNumber(read_epoch->epoch, read_epoch->bitmap.max_seq_num())
         .combined();
@@ -3181,8 +3151,8 @@ void SSL_CTX_set_ticket_aead_method(SSL_CTX *ctx,
 
 SSL_SESSION *SSL_process_tls13_new_session_ticket(SSL *ssl, const uint8_t *buf,
                                                   size_t buf_len) {
-  if (SSL_in_init(ssl) ||
-      ssl_protocol_version(ssl) != TLS1_3_VERSION ||
+  if (SSL_in_init(ssl) ||                             //
+      ssl_protocol_version(ssl) != TLS1_3_VERSION ||  //
       ssl->server) {
     // Only TLS 1.3 clients are supported.
     OPENSSL_PUT_ERROR(SSL, ERR_R_SHOULD_NOT_HAVE_BEEN_CALLED);
@@ -3192,8 +3162,8 @@ SSL_SESSION *SSL_process_tls13_new_session_ticket(SSL *ssl, const uint8_t *buf,
   CBS cbs, body;
   CBS_init(&cbs, buf, buf_len);
   uint8_t type;
-  if (!CBS_get_u8(&cbs, &type) ||
-      !CBS_get_u24_length_prefixed(&cbs, &body) ||
+  if (!CBS_get_u8(&cbs, &type) ||                   //
+      !CBS_get_u24_length_prefixed(&cbs, &body) ||  //
       CBS_len(&cbs) != 0) {
     OPENSSL_PUT_ERROR(SSL, SSL_R_DECODE_ERROR);
     return nullptr;
@@ -3228,8 +3198,8 @@ int SSL_get_tlsext_status_type(const SSL *ssl) {
   if (ssl->server) {
     SSL_HANDSHAKE *hs = ssl->s3->hs.get();
     return hs != nullptr && hs->ocsp_stapling_requested
-        ? TLSEXT_STATUSTYPE_ocsp
-        : TLSEXT_STATUSTYPE_nothing;
+               ? TLSEXT_STATUSTYPE_ocsp
+               : TLSEXT_STATUSTYPE_nothing;
   }
 
   return ssl->config != nullptr && ssl->config->ocsp_stapling_enabled
@@ -3413,12 +3383,11 @@ static int Configure(SSL_CTX *ctx) {
 }
 
 static int Configure(SSL *ssl) {
-  ssl->config->tls13_cipher_policy =
-      ssl_compliance_policy_cnsa_202407;
+  ssl->config->tls13_cipher_policy = ssl_compliance_policy_cnsa_202407;
   return 1;
 }
 
-}
+}  // namespace cnsa202407
 
 int SSL_CTX_set_compliance_policy(SSL_CTX *ctx,
                                   enum ssl_compliance_policy_t policy) {

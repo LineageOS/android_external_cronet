@@ -31,7 +31,7 @@ license {
         "LICENSE",
     ],
     license_kinds: [
-        "SPDX-license-identifier-BSD",
+        "SPDX-license-identifier-BSD-3-Clause",
     ],
 }
 
@@ -48,8 +48,8 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DNDEBUG",
@@ -59,6 +59,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
         "-D__STDC_CONSTANT_MACROS",
@@ -127,8 +128,8 @@ cc_library_static {
         "cronet_aml_cc_defaults",
     ],
     cflags: [
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DNDEBUG",
         "-DNVALGRIND",
@@ -137,6 +138,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__STDC_CONSTANT_MACROS",
         "-D__STDC_FORMAT_MACROS",
@@ -229,7 +231,6 @@ cc_library_static {
                 "-fno-unwind-tables",
                 "-msse3",
             ],
-            compile_multilib: "64",
         },
     },
 }

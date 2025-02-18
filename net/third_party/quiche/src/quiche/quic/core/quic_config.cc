@@ -430,7 +430,7 @@ QuicConfig::QuicConfig()
       connection_options_(kCOPT, PRESENCE_OPTIONAL),
       client_connection_options_(kCLOP, PRESENCE_OPTIONAL),
       max_idle_timeout_to_send_(QuicTime::Delta::Infinite()),
-      max_bidirectional_streams_(kMIBS, PRESENCE_REQUIRED),
+      max_bidirectional_streams_(kMIDS, PRESENCE_REQUIRED),
       max_unidirectional_streams_(kMIUS, PRESENCE_OPTIONAL),
       bytes_for_connection_id_(kTCID, PRESENCE_OPTIONAL),
       initial_round_trip_time_us_(kIRTT, PRESENCE_OPTIONAL),
@@ -499,6 +499,10 @@ void QuicConfig::SetGoogleHandshakeMessageToSend(std::string message) {
 const std::optional<std::string>&
 QuicConfig::GetReceivedGoogleHandshakeMessage() const {
   return received_google_handshake_message_;
+}
+
+void QuicConfig::SetDiscardLengthToSend(int32_t discard_length) {
+  discard_length_to_send_ = discard_length;
 }
 
 bool QuicConfig::HasReceivedConnectionOptions() const {
@@ -1279,6 +1283,8 @@ bool QuicConfig::FillTransportParameters(TransportParameters* params) const {
     params->google_handshake_message = google_handshake_message_to_send_;
   }
 
+  params->discard_length = discard_length_to_send_;
+
   params->reliable_stream_reset = reliable_stream_reset_;
 
   params->custom_parameters = custom_transport_parameters_to_send_;
@@ -1415,6 +1421,8 @@ QuicErrorCode QuicConfig::ProcessTransportParameters(
   }
 
   received_custom_transport_parameters_ = params.custom_parameters;
+
+  discard_length_received_ = params.discard_length;
 
   if (reliable_stream_reset_) {
     reliable_stream_reset_ = params.reliable_stream_reset;

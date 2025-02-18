@@ -57,9 +57,10 @@ rust_ffi_static {
     crate_root: "src/lib.rs",
     target: {
         host: {
+            compile_multilib: "64",
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Cmetadata=unicode_ident-1",
@@ -75,7 +76,6 @@ rust_ffi_static {
                 "-Dwarnings",
                 "-Aunused-imports",
             ],
-            compile_multilib: "64",
         },
     },
 }
@@ -101,9 +101,10 @@ rust_ffi_static {
     crate_root: "src/lib.rs",
     target: {
         host: {
+            compile_multilib: "64",
             edition: "2018",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Cmetadata=unicode_ident-1",
@@ -119,7 +120,6 @@ rust_ffi_static {
                 "-Dwarnings",
                 "-Aunused-imports",
             ],
-            compile_multilib: "64",
         },
     },
 }

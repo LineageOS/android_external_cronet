@@ -69,6 +69,19 @@ class ConnectionExpireAlarm : public QuicAlarm::DelegateWithoutContext {
   QuicBufferedPacketStore* connection_store_;
 };
 
+std::optional<QuicEcnCounts> SinglePacketEcnCount(
+    QuicEcnCodepoint ecn_codepoint) {
+  switch (ecn_codepoint) {
+    case ECN_CE:
+      return QuicEcnCounts(0, 0, 1);
+    case ECN_ECT0:
+      return QuicEcnCounts(1, 0, 0);
+    case ECN_ECT1:
+      return QuicEcnCounts(0, 1, 0);
+    default:
+      return std::nullopt;
+  }
+}
 }  // namespace
 
 BufferedPacket::BufferedPacket(std::unique_ptr<QuicReceivedPacket> packet,
@@ -300,6 +313,11 @@ void QuicBufferedPacketStore::MaybeAckInitialPacket(
   PacketCollector collector(&send_buffer_allocator);
   QuicPacketCreator creator(server_connection_id, &framer, &collector);
 
+  if (GetQuicReloadableFlag(quic_buffered_store_set_client_cid)) {
+    QUIC_RELOADABLE_FLAG_COUNT(quic_buffered_store_set_client_cid);
+    creator.SetClientConnectionId(packet_info.source_connection_id);
+  }
+
   if (!dispatcher_sent_packets.empty()) {
     // Sets the *last sent* packet number, creator will derive the next sending
     // packet number accordingly.
@@ -313,7 +331,11 @@ void QuicBufferedPacketStore::MaybeAckInitialPacket(
     initial_ack_frame.packets.Add(sent_packet.received_packet_number);
   }
   initial_ack_frame.largest_acked = initial_ack_frame.packets.Max();
-
+  if (GetQuicReloadableFlag(quic_ecn_in_first_ack)) {
+    QUIC_RELOADABLE_FLAG_COUNT(quic_ecn_in_first_ack);
+    initial_ack_frame.ecn_counters =
+        SinglePacketEcnCount(packet_info.packet.ecn_codepoint());
+  }
   if (!creator.AddFrame(QuicFrame(&initial_ack_frame), NOT_RETRANSMISSION)) {
     QUIC_BUG(quic_dispatcher_add_ack_frame_failed)
         << "Unable to add ack frame to an empty packet while acking packet "

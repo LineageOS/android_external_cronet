@@ -59,8 +59,9 @@ constexpr std::array kMessageTypes{
     MoqtMessageType::kObjectAck,
 };
 constexpr std::array kDataStreamTypes{
-    MoqtDataStreamType::kStreamHeaderTrack,
-    MoqtDataStreamType::kStreamHeaderSubgroup};
+    MoqtDataStreamType::kStreamHeaderSubgroup,
+    MoqtDataStreamType::kStreamHeaderFetch,
+};
 
 using GeneralizedMessageType =
     absl::variant<MoqtMessageType, MoqtDataStreamType>;
@@ -460,7 +461,7 @@ TEST_F(MoqtMessageSpecificTest, ThreePartObject) {
 TEST_F(MoqtMessageSpecificTest, ThreePartObjectFirstIncomplete) {
   MoqtDataParser parser(&visitor_);
   auto message = std::make_unique<StreamHeaderSubgroupMessage>();
-  EXPECT_TRUE(message->SetPayloadLength(50));
+  EXPECT_TRUE(message->SetPayloadLength(51));
 
   // first part
   parser.ProcessData(message->PacketSample().substr(0, 4), false);
@@ -474,9 +475,9 @@ TEST_F(MoqtMessageSpecificTest, ThreePartObjectFirstIncomplete) {
   EXPECT_EQ(visitor_.messages_received_, 0);
   EXPECT_TRUE(message->EqualFieldValues(*visitor_.last_message_));
   EXPECT_FALSE(visitor_.end_of_message_);
-  // The value "47" is the overall wire image size of 55 minus the non-payload
+  // The value "48" is the overall wire image size of 55 minus the non-payload
   // part of the message.
-  EXPECT_EQ(visitor_.object_payload().length(), 47);
+  EXPECT_EQ(visitor_.object_payload().length(), 48);
 
   // third part includes FIN
   parser.ProcessData("bar", true);
@@ -500,27 +501,6 @@ TEST_F(MoqtMessageSpecificTest, StreamHeaderSubgroupFollowOn) {
   // second part
   visitor_.object_payloads_.clear();
   auto message2 = std::make_unique<StreamMiddlerSubgroupMessage>();
-  parser.ProcessData(message2->PacketSample(), false);
-  EXPECT_EQ(visitor_.messages_received_, 2);
-  EXPECT_TRUE(message2->EqualFieldValues(*visitor_.last_message_));
-  EXPECT_TRUE(visitor_.end_of_message_);
-  EXPECT_EQ(visitor_.object_payload(), "bar");
-  EXPECT_FALSE(visitor_.parsing_error_.has_value());
-}
-
-TEST_F(MoqtMessageSpecificTest, StreamHeaderTrackFollowOn) {
-  MoqtDataParser parser(&visitor_);
-  // first part
-  auto message1 = std::make_unique<StreamHeaderTrackMessage>();
-  parser.ProcessData(message1->PacketSample(), false);
-  EXPECT_EQ(visitor_.messages_received_, 1);
-  EXPECT_TRUE(message1->EqualFieldValues(*visitor_.last_message_));
-  EXPECT_TRUE(visitor_.end_of_message_);
-  EXPECT_EQ(visitor_.object_payload(), "foo");
-  EXPECT_FALSE(visitor_.parsing_error_.has_value());
-  // second part
-  visitor_.object_payloads_.clear();
-  auto message2 = std::make_unique<StreamMiddlerTrackMessage>();
   parser.ProcessData(message2->PacketSample(), false);
   EXPECT_EQ(visitor_.messages_received_, 2);
   EXPECT_TRUE(message2->EqualFieldValues(*visitor_.last_message_));
@@ -890,7 +870,7 @@ TEST_F(MoqtMessageSpecificTest, FinMidPayload) {
 
 TEST_F(MoqtMessageSpecificTest, PartialPayloadThenFin) {
   MoqtDataParser parser(&visitor_);
-  auto message = std::make_unique<StreamHeaderTrackMessage>();
+  auto message = std::make_unique<StreamHeaderSubgroupMessage>();
   parser.ProcessData(
       message->PacketSample().substr(0, message->total_message_size() - 1),
       false);
@@ -912,10 +892,10 @@ TEST_F(MoqtMessageSpecificTest, DataAfterFin) {
 TEST_F(MoqtMessageSpecificTest, InvalidObjectStatus) {
   MoqtDataParser parser(&visitor_);
   char stream_header_subgroup[] = {
-      0x04,                    // type field
-      0x03, 0x04, 0x05, 0x08,  // varints
-      0x07,                    // publisher priority
-      0x06, 0x00, 0x0f,        // object middler; status = 0x0f
+      0x04,              // type field
+      0x04, 0x05, 0x08,  // varints
+      0x07,              // publisher priority
+      0x06, 0x00, 0x0f,  // object middler; status = 0x0f
   };
   parser.ProcessData(
       absl::string_view(stream_header_subgroup, sizeof(stream_header_subgroup)),

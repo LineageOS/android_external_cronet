@@ -241,7 +241,7 @@ ForwardIt cxx17_destroy_n(ForwardIt first, size_t n) {
 //
 // Note: unlike |new|, this does not support non-public constructors.
 template <typename T, typename... Args>
-T *New(Args &&... args) {
+T *New(Args &&...args) {
   void *t = OPENSSL_malloc(sizeof(T));
   if (t == nullptr) {
     return nullptr;
@@ -272,7 +272,7 @@ struct DeleterImpl<T, std::enable_if_t<T::kAllowUniquePtr>> {
 // MakeUnique behaves like |std::make_unique| but returns nullptr on allocation
 // error.
 template <typename T, typename... Args>
-UniquePtr<T> MakeUnique(Args &&... args) {
+UniquePtr<T> MakeUnique(Args &&...args) {
   return UniquePtr<T>(New<T>(std::forward<Args>(args)...));
 }
 
@@ -686,7 +686,7 @@ class MRUQueue {
   // If we ever need to make this type movable, we could. (The defaults almost
   // work except we need |start_| to be reset when moved-from.)
   MRUQueue(const MRUQueue &other) = delete;
-  MRUQueue &operator=(const MRUQueue &other)  = delete;
+  MRUQueue &operator=(const MRUQueue &other) = delete;
 
   bool empty() const { return size() == 0; }
   size_t size() const { return storage_.size(); }
@@ -832,6 +832,11 @@ bool ssl_add_supported_versions(const SSL_HANDSHAKE *hs, CBB *cbb,
 // and sets |*out_alert| to an alert to send.
 bool ssl_negotiate_version(SSL_HANDSHAKE *hs, uint8_t *out_alert,
                            uint16_t *out_version, const CBS *peer_versions);
+
+// ssl_has_final_version returns whether |ssl| has determined the final version.
+// This may be used to distinguish the predictive 0-RTT version from the final
+// one.
+bool ssl_has_final_version(const SSL *ssl);
 
 // ssl_protocol_version returns |ssl|'s protocol version. It is an error to
 // call this function before the version is determined.
@@ -1151,6 +1156,10 @@ class SSLAEADContext {
   // MaxOverhead returns the maximum overhead of calling |Seal|.
   size_t MaxOverhead() const;
 
+  // MaxSealInputLen returns the maximum length for |Seal| that can fit in
+  // |max_out| output bytes, or zero if no input may fit.
+  size_t MaxSealInputLen(size_t max_out) const;
+
   // SuffixLen calculates the suffix length written by |SealScatter| and writes
   // it to |*out_suffix_len|. It returns true on success and false on error.
   // |in_len| and |extra_in_len| should equal the argument of the same names
@@ -1290,6 +1299,12 @@ class DTLSRecordNumber {
     return DTLSRecordNumber(combined);
   }
 
+  bool operator==(DTLSRecordNumber r) const {
+    return combined() == r.combined();
+  }
+  bool operator!=(DTLSRecordNumber r) const { return !((*this) == r); }
+  bool operator<(DTLSRecordNumber r) const { return combined() < r.combined(); }
+
   uint64_t combined() const { return combined_; }
   uint16_t epoch() const { return combined_ >> 48; }
   uint64_t sequence() const { return combined_ & kMaxSequence; }
@@ -1426,6 +1441,10 @@ size_t dtls_max_seal_overhead(const SSL *ssl, uint16_t epoch);
 // front of the plaintext when sealing a record in-place.
 size_t dtls_seal_prefix_len(const SSL *ssl, uint16_t epoch);
 
+// dtls_seal_max_input_len returns the maximum number of input bytes that can
+// fit in a record of up to |max_out| bytes, or zero if none may fit.
+size_t dtls_seal_max_input_len(const SSL *ssl, uint16_t epoch, size_t max_out);
+
 // dtls_seal_record implements |tls_seal_record| for DTLS. |epoch| selects which
 // epoch's cipher state to use. Unlike |tls_seal_record|, |in| and |out| may
 // alias but, if they do, |in| must be exactly |dtls_seal_prefix_len| bytes
@@ -1505,8 +1524,7 @@ class SSLKeyShare {
   // |out_ciphertext|, and sets |*out_secret| to the shared secret. On failure,
   // it returns false and sets |*out_alert| to an alert to send to the peer.
   virtual bool Encap(CBB *out_ciphertext, Array<uint8_t> *out_secret,
-                     uint8_t *out_alert,
-                     Span<const uint8_t> peer_key) = 0;
+                     uint8_t *out_alert, Span<const uint8_t> peer_key) = 0;
 
   // Decap decapsulates the symmetric secret in |ciphertext|. On success, it
   // returns true and sets |*out_secret| to the shared secret. On failure, it
@@ -1591,12 +1609,6 @@ bool dtls_has_unprocessed_handshake_data(const SSL *ssl);
 
 // tls_flush_pending_hs_data flushes any handshake plaintext data.
 bool tls_flush_pending_hs_data(SSL *ssl);
-
-struct DTLSOutgoingMessage {
-  Array<uint8_t> data;
-  uint16_t epoch = 0;
-  bool is_ccs = false;
-};
 
 // dtls_clear_outgoing_messages releases all buffered outgoing messages.
 void dtls_clear_outgoing_messages(SSL *ssl);
@@ -1771,7 +1783,7 @@ bool ssl_add_CA_names(const SSL_HANDSHAKE *hs, CBB *cbb);
 // a server's leaf certificate for |hs|. Otherwise, it returns zero and pushes
 // an error on the error queue.
 bool ssl_check_leaf_certificate(SSL_HANDSHAKE *hs, EVP_PKEY *pkey,
-                               const CRYPTO_BUFFER *leaf);
+                                const CRYPTO_BUFFER *leaf);
 
 
 // TLS 1.3 key derivation.
@@ -2116,6 +2128,7 @@ enum ssl_hs_wait_t {
   ssl_hs_read_server_hello,
   ssl_hs_read_message,
   ssl_hs_flush,
+  ssl_hs_flush_post_handshake,
   ssl_hs_certificate_selection_pending,
   ssl_hs_handoff,
   ssl_hs_handback,
@@ -2129,6 +2142,7 @@ enum ssl_hs_wait_t {
   ssl_hs_read_change_cipher_spec,
   ssl_hs_certificate_verify,
   ssl_hs_hints_ready,
+  ssl_hs_ack,
 };
 
 enum ssl_grease_index_t {
@@ -2487,6 +2501,10 @@ struct SSL_HANDSHAKE {
   // can_early_write is true if application data may be written at this point in
   // the handshake.
   bool can_early_write : 1;
+
+  // is_early_version is true if the protocol version configured is not
+  // necessarily the final version and is just the predicted 0-RTT version.
+  bool is_early_version : 1;
 
   // next_proto_neg_seen is one of NPN was negotiated.
   bool next_proto_neg_seen : 1;
@@ -2948,8 +2966,12 @@ struct SSL_PROTOCOL_METHOD {
   // flight. It returns true on success and false on error.
   bool (*add_change_cipher_spec)(SSL *ssl);
   // flush_flight flushes the pending flight to the transport. It returns one on
-  // success and <= 0 on error.
-  int (*flush_flight)(SSL *ssl);
+  // success and <= 0 on error. If |post_handshake| is true, the flight is a
+  // post-handshake flight.
+  int (*flush_flight)(SSL *ssl, bool post_handshake);
+  // send_ack, if not NULL, sends a DTLS ACK record to the peer. It returns one
+  // on success and <= 0 on error.
+  int (*send_ack)(SSL *ssl);
   // on_handshake_complete is called when the handshake is complete.
   void (*on_handshake_complete)(SSL *ssl);
   // set_read_state sets |ssl|'s read cipher state and level to |aead_ctx| and
@@ -3161,12 +3183,13 @@ struct SSL3_STATE {
   // needs re-doing when in SSL_accept or SSL_connect
   int rwstate = SSL_ERROR_NONE;
 
-  enum ssl_encryption_level_t read_level = ssl_encryption_initial;
-  enum ssl_encryption_level_t write_level = ssl_encryption_initial;
+  enum ssl_encryption_level_t quic_read_level = ssl_encryption_initial;
+  enum ssl_encryption_level_t quic_write_level = ssl_encryption_initial;
 
   // version is the protocol version, or zero if the version has not yet been
   // set. In clients offering 0-RTT, this version will initially be set to the
-  // early version, then switched to the final version.
+  // early version, then switched to the final version. To distinguish these
+  // cases, use |ssl_has_final_version|.
   uint16_t version = 0;
 
   // early_data_skipped is the amount of early data that has been skipped by the
@@ -3353,6 +3376,7 @@ class DTLSMessageBitmap {
     size_t end = 0;
 
     bool empty() const { return start == end; }
+    size_t size() const { return end - start; }
     bool operator==(const Range &r) const {
       return start == r.start && end == r.end;
     }
@@ -3413,9 +3437,65 @@ struct DTLSIncomingMessage {
   DTLSMessageBitmap reassembly;
 };
 
+struct DTLSOutgoingMessage {
+  size_t msg_len() const {
+    assert(!is_ccs);
+    assert(data.size() >= DTLS1_HM_HEADER_LENGTH);
+    return data.size() - DTLS1_HM_HEADER_LENGTH;
+  }
+
+  bool IsFullyAcked() const {
+    // ACKs only exist in DTLS 1.3, which does not send ChangeCipherSpec.
+    return !is_ccs && acked.IsComplete();
+  }
+
+  Array<uint8_t> data;
+  uint16_t epoch = 0;
+  bool is_ccs = false;
+  // acked tracks which bits of the message have been ACKed by the peer. If
+  // |msg_len| is zero, it tracks one bit for whether the header has been
+  // received.
+  DTLSMessageBitmap acked;
+};
+
 struct OPENSSL_timeval {
   uint64_t tv_sec;
   uint32_t tv_usec;
+};
+
+struct DTLSTimer {
+ public:
+  static constexpr uint64_t kNever = UINT64_MAX;
+
+  // StartMicroseconds schedules the timer to expire the specified number of
+  // microseconds from |now|.
+  void StartMicroseconds(OPENSSL_timeval now, uint64_t microseconds);
+
+  // Stop disables the timer.
+  void Stop();
+
+  // IsExpired returns true if the timer was set and is expired at time |now|.
+  bool IsExpired(OPENSSL_timeval now) const;
+
+  // IsSet returns true if the timer is scheduled or expired, and false if it is
+  // stopped.
+  bool IsSet() const;
+
+  // MicrosecondsRemaining returns the time remaining, in microseconds, at
+  // |now|, or |kNever| if the timer is unset.
+  uint64_t MicrosecondsRemaining(OPENSSL_timeval now) const;
+
+ private:
+  // expire_time_ is the time when the timer expires, or zero if the timer is
+  // unset.
+  //
+  // TODO(crbug.com/366284846): This is an extremely inconvenient time
+  // representation. Switch libssl to something like a 64-bit count of
+  // microseconds. While it's decidedly past 1970 now, zero is a less obviously
+  // sound distinguished value for the monotonic clock, so maybe we should use a
+  // different distinguished time, like |INT64_MAX| in the microseconds
+  // representation.
+  OPENSSL_timeval expire_time_ = {0, 0};
 };
 
 // DTLS_MAX_EXTRA_WRITE_EPOCHS is the maximum number of additional write epochs
@@ -3429,6 +3509,29 @@ struct OPENSSL_timeval {
 // the client's ACKs have caught up. At that point, epochs 0 and 1 can be
 // discarded.
 #define DTLS_MAX_EXTRA_WRITE_EPOCHS 2
+
+// DTLS_MAX_ACK_BUFFER is the maximum number of records worth of data we'll keep
+// track of with DTLS 1.3 ACKs. When we exceed this value, information about
+// stale records will be dropped. This will not break the connection but may
+// cause ACKs to perform worse and retransmit unnecessary information.
+#define DTLS_MAX_ACK_BUFFER 32
+
+// A DTLSSentRecord records information about a record we sent. Each record
+// covers all bytes from |first_msg_start| (inclusive) of |first_msg| to
+// |last_msg_end| (exclusive) of |last_msg|. Messages are referenced by index
+// into |outgoing_messages|. |last_msg_end| may be |outgoing_messages.size()| if
+// |last_msg_end| is zero.
+//
+// When the message is empty, |first_msg_start| and |last_msg_end| are
+// maintained as if there is a single bit in the message representing the
+// header. See |acked| in DTLSOutgoingMessage.
+struct DTLSSentRecord {
+  DTLSRecordNumber number;
+  PackedSize<SSL_MAX_HANDSHAKE_FLIGHT> first_msg = 0;
+  PackedSize<SSL_MAX_HANDSHAKE_FLIGHT> last_msg = 0;
+  uint32_t first_msg_start = 0;
+  uint32_t last_msg_end = 0;
+};
 
 struct DTLS1_STATE {
   static constexpr bool kAllowUniquePtr = true;
@@ -3456,9 +3559,11 @@ struct DTLS1_STATE {
   uint16_t handshake_read_seq = 0;
 
   // read_epoch is the current DTLS read epoch.
-  // TODO(crbug.com/42290594): DTLS 1.3 will require that we also store the next
-  // epoch, and switch over on the first record from the new epoch.
   DTLSReadEpoch read_epoch;
+
+  // next_read_epoch is the next DTLS read epoch in DTLS 1.3. It will become
+  // current once a record is received from it.
+  UniquePtr<DTLSReadEpoch> next_read_epoch;
 
   // write_epoch is the current DTLS write epoch. Non-retransmit records will
   // generally use this epoch.
@@ -3480,6 +3585,17 @@ struct DTLS1_STATE {
   InplaceVector<DTLSOutgoingMessage, SSL_MAX_HANDSHAKE_FLIGHT>
       outgoing_messages;
 
+  // sent_records is a queue of records we sent, for processing ACKs. To save
+  // memory in the steady state, the structure is stored on the heap and dropped
+  // when empty.
+  UniquePtr<MRUQueue<DTLSSentRecord, DTLS_MAX_ACK_BUFFER>> sent_records;
+
+  // records_to_ack is a queue of received records that we should ACK. This is
+  // not stored on the heap because, in the steady state, DTLS 1.3 does not
+  // necessarily empty this list. (We probably could drop records from here once
+  // they are sufficiently old.)
+  MRUQueue<DTLSRecordNumber, DTLS_MAX_ACK_BUFFER> records_to_ack;
+
   // outgoing_written is the number of outgoing messages that have been
   // written.
   uint8_t outgoing_written = 0;
@@ -3493,12 +3609,15 @@ struct DTLS1_STATE {
   // the last time it was reset.
   unsigned num_timeouts = 0;
 
-  // Indicates when the last handshake msg or heartbeat sent will
-  // timeout.
-  struct OPENSSL_timeval next_timeout = {0, 0};
+  // retransmit_timer tracks when to schedule the next DTLS retransmit if we do
+  // not hear from the peer.
+  DTLSTimer retransmit_timer;
+
+  // ack_timer tracks when to send an ACK.
+  DTLSTimer ack_timer;
 
   // timeout_duration_ms is the timeout duration in milliseconds.
-  unsigned timeout_duration_ms = 0;
+  uint32_t timeout_duration_ms = 0;
 };
 
 // An ALPSConfig is a pair of ALPN protocol and settings value to use with ALPS.
@@ -3694,10 +3813,15 @@ bool ssl_is_key_type_supported(int key_type);
 // counterpart to |privkey|. Otherwise it returns false and pushes a helpful
 // message on the error queue.
 bool ssl_compare_public_and_private_key(const EVP_PKEY *pubkey,
-                                       const EVP_PKEY *privkey);
+                                        const EVP_PKEY *privkey);
 bool ssl_get_new_session(SSL_HANDSHAKE *hs);
+
+// ssl_encrypt_ticket encrypt a ticket for |session| and writes the result to
+// |out|. It returns true on success and false on error. If, on success, nothing
+// was written to |out|, the caller should skip sending a ticket.
 bool ssl_encrypt_ticket(SSL_HANDSHAKE *hs, CBB *out,
                         const SSL_SESSION *session);
+
 bool ssl_ctx_rotate_ticket_encryption_key(SSL_CTX *ctx);
 
 // ssl_session_new returns a newly-allocated blank |SSL_SESSION| or nullptr on
@@ -3717,6 +3841,20 @@ OPENSSL_EXPORT UniquePtr<SSL_SESSION> SSL_SESSION_parse(
 // session for Session-ID resumption. It returns true on success and false on
 // error.
 OPENSSL_EXPORT bool ssl_session_serialize(const SSL_SESSION *in, CBB *cbb);
+
+enum class SSLSessionType {
+  // The session is not resumable.
+  kNotResumable,
+  // The session uses a TLS 1.2 session ID.
+  kID,
+  // The session uses a TLS 1.2 ticket.
+  kTicket,
+  // The session uses a TLS 1.3 pre-shared key.
+  kPreSharedKey,
+};
+
+// ssl_session_get_type returns the type of |session|.
+SSLSessionType ssl_session_get_type(const SSL_SESSION *session);
 
 // ssl_session_is_context_valid returns whether |session|'s session ID context
 // matches the one set on |hs|.
@@ -3802,13 +3940,14 @@ bool tls_init_message(const SSL *ssl, CBB *cbb, CBB *body, uint8_t type);
 bool tls_finish_message(const SSL *ssl, CBB *cbb, Array<uint8_t> *out_msg);
 bool tls_add_message(SSL *ssl, Array<uint8_t> msg);
 bool tls_add_change_cipher_spec(SSL *ssl);
-int tls_flush_flight(SSL *ssl);
+int tls_flush_flight(SSL *ssl, bool post_handshake);
 
 bool dtls1_init_message(const SSL *ssl, CBB *cbb, CBB *body, uint8_t type);
 bool dtls1_finish_message(const SSL *ssl, CBB *cbb, Array<uint8_t> *out_msg);
 bool dtls1_add_message(SSL *ssl, Array<uint8_t> msg);
 bool dtls1_add_change_cipher_spec(SSL *ssl);
-int dtls1_flush_flight(SSL *ssl);
+int dtls1_flush_flight(SSL *ssl, bool post_handshake);
+int dtls1_send_ack(SSL *ssl);
 
 // ssl_add_message_cbb finishes the handshake message in |cbb| and adds it to
 // the pending flight. It returns true on success and false on error.
@@ -3818,7 +3957,9 @@ bool ssl_add_message_cbb(SSL *ssl, CBB *cbb);
 // on success and false on allocation failure.
 bool ssl_hash_message(SSL_HANDSHAKE *hs, const SSLMessage &msg);
 
-ssl_open_record_t dtls1_process_ack(SSL *ssl, uint8_t *out_alert);
+ssl_open_record_t dtls1_process_ack(SSL *ssl, uint8_t *out_alert,
+                                    DTLSRecordNumber ack_record_number,
+                                    Span<const uint8_t> data);
 ssl_open_record_t dtls1_open_app_data(SSL *ssl, Span<uint8_t> *out,
                                       size_t *out_consumed, uint8_t *out_alert,
                                       Span<uint8_t> in);
@@ -3841,14 +3982,14 @@ bool dtls1_check_timeout_num(SSL *ssl);
 
 void dtls1_start_timer(SSL *ssl);
 void dtls1_stop_timer(SSL *ssl);
-bool dtls1_is_timer_expired(SSL *ssl);
 unsigned int dtls1_min_mtu(void);
 
 bool dtls1_new(SSL *ssl);
 void dtls1_free(SSL *ssl);
 
 bool dtls1_process_handshake_fragments(SSL *ssl, uint8_t *out_alert,
-                                       Span<uint8_t> record);
+                                       DTLSRecordNumber record_number,
+                                       Span<const uint8_t> record);
 bool dtls1_get_message(const SSL *ssl, SSLMessage *out);
 ssl_open_record_t dtls1_open_handshake(SSL *ssl, size_t *out_consumed,
                                        uint8_t *out_alert, Span<uint8_t> in);
@@ -3950,9 +4091,7 @@ bool ssl_can_write(const SSL *ssl);
 // ssl_can_read returns wheter |ssl| is allowed to read.
 bool ssl_can_read(const SSL *ssl);
 
-void ssl_get_current_time(const SSL *ssl, struct OPENSSL_timeval *out_clock);
-void ssl_ctx_get_current_time(const SSL_CTX *ctx,
-                              struct OPENSSL_timeval *out_clock);
+OPENSSL_timeval ssl_ctx_get_current_time(const SSL_CTX *ctx);
 
 // ssl_reset_error_state resets state for |SSL_get_error|.
 void ssl_reset_error_state(SSL *ssl);
@@ -4336,11 +4475,9 @@ struct ssl_st {
   // session info
 
   // initial_timeout_duration_ms is the default DTLS timeout duration in
-  // milliseconds. It's used to initialize the timer any time it's restarted.
-  //
-  // RFC 6347 states that implementations SHOULD use an initial timer value of 1
-  // second.
-  unsigned initial_timeout_duration_ms = 1000;
+  // milliseconds. It's used to initialize the timer any time it's restarted. We
+  // default to RFC 9147's recommendation for real-time applications, 400ms.
+  uint32_t initial_timeout_duration_ms = 400;
 
   // session is the configured session to be offered by the client. This session
   // is immutable.

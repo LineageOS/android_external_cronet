@@ -660,7 +660,7 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
   }
 
   // The early data status is only applicable after the handshake is confirmed.
-  if (!SSL_in_early_data(ssl)) {
+  if (!SSL_in_early_data(ssl) && !SSL_is_dtls(ssl)) {
     if ((config->expect_accept_early_data && !SSL_early_data_accepted(ssl)) ||
         (config->expect_reject_early_data && SSL_early_data_accepted(ssl))) {
       fprintf(stderr,
@@ -677,6 +677,12 @@ static bool CheckHandshakeProperties(SSL *ssl, bool is_resume,
               early_data_reason, config->expect_early_data_reason.c_str());
       return false;
     }
+  }
+
+  if (SSL_is_dtls(ssl) && SSL_in_early_data(ssl)) {
+    // TODO(crbug.com/42290594): Support early data for DTLS 1.3.
+    fprintf(stderr, "DTLS unexpectedly in early data\n");
+    return false;
   }
 
   if (!config->psk.empty()) {
@@ -838,7 +844,14 @@ static bool DoConnection(bssl::UniquePtr<SSL_SESSION> *out_session,
   }
 
   if (config->is_dtls) {
-    bssl::UniquePtr<BIO> packeted = PacketedBioCreate(GetClock());
+    bssl::UniquePtr<BIO> packeted = PacketedBioCreate(
+        GetClock(),
+        [ssl_raw = ssl.get()](timeval *out) -> bool {
+          return DTLSv1_get_timeout(ssl_raw, out);
+        },
+        [ssl_raw = ssl.get()](uint32_t mtu) -> bool {
+          return SSL_set_mtu(ssl_raw, mtu);
+        });
     if (!packeted) {
       return false;
     }
@@ -1268,8 +1281,7 @@ static bool DoExchange(bssl::UniquePtr<SSL_SESSION> *out_session,
     return false;
   }
 
-  if (GetProtocolVersion(ssl) >= TLS1_3_VERSION && !SSL_is_dtls(ssl) &&
-      !config->is_server) {
+  if (GetProtocolVersion(ssl) >= TLS1_3_VERSION && !config->is_server) {
     bool expect_new_session =
         !config->expect_no_session && !config->shim_shuts_down;
     if (expect_new_session != test_state->got_new_session) {

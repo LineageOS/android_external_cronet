@@ -196,7 +196,7 @@ void HttpRequestHeaders::AddHeaderFromString(std::string_view header_line) {
   } else if (value_index == header_line.size()) {
     SetHeader(header_key, "");
   } else {
-    NOTREACHED_IN_MIGRATION();
+    NOTREACHED();
   }
 }
 
@@ -288,9 +288,8 @@ void HttpRequestHeaders::SetAcceptEncodingIfMissing(
   }
   if (!advertised_encoding_names.empty()) {
     // Tell the server what compression formats are supported.
-    SetHeader(
-        kAcceptEncoding,
-        base::JoinString(base::make_span(advertised_encoding_names), ", "));
+    SetHeader(kAcceptEncoding,
+              base::JoinString(base::span(advertised_encoding_names), ", "));
   }
 }
 

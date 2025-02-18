@@ -166,6 +166,9 @@ class QUICHE_EXPORT QuicConnectionVisitorInterface {
   // Called when forward progress made after path degrading.
   virtual void OnForwardProgressMadeAfterPathDegrading() = 0;
 
+  // Called when forward progress made after flow label change
+  virtual void OnForwardProgressMadeAfterFlowLabelChange() = 0;
+
   // Called when the connection sends ack after
   // max_consecutive_num_packets_with_no_retransmittable_frames_ consecutive not
   // retransmittable packets sent. To instigate an ack from peer, a
@@ -870,7 +873,7 @@ class QUICHE_EXPORT QuicConnection
     return default_path_.client_connection_id;
   }
   void set_client_connection_id(QuicConnectionId client_connection_id);
-  const QuicClock* clock() const { return clock_; }
+  const QuicClock* clock() const override { return clock_; }
   QuicRandom* random_generator() const { return random_generator_; }
   QuicByteCount max_packet_length() const;
   void SetMaxPacketLength(QuicByteCount length);
@@ -1015,9 +1018,10 @@ class QUICHE_EXPORT QuicConnection
 
    private:
     QuicConnection* connection_;
-    // If true, when this flusher goes out of scope, flush connection and set
-    // retransmission alarm if there is one pending.
-    bool flush_and_set_pending_retransmission_alarm_on_delete_;
+    // If true, when this flusher goes out of scope, flush connection, set
+    // retransmission alarm if there is one pending, and update the platform
+    // alarm associated with the connection.
+    bool active_;
     // Latched connection's handshake_packet_sent_ on creation of this flusher.
     const bool handshake_packet_sent_;
   };
@@ -2157,40 +2161,43 @@ class QUICHE_EXPORT QuicConnection
 
   void GenerateNewOutgoingFlowLabel();
 
-  QuicAlarm& ack_alarm() { return alarms_.ack_alarm(); }
-  const QuicAlarm& ack_alarm() const { return alarms_.ack_alarm(); }
-  QuicAlarm& retransmission_alarm() { return alarms_.retransmission_alarm(); }
-  const QuicAlarm& retransmission_alarm() const {
+  QuicAlarmProxy ack_alarm() { return alarms_.ack_alarm(); }
+  QuicAlarmProxy retransmission_alarm() {
     return alarms_.retransmission_alarm();
   }
-  QuicAlarm& send_alarm() { return alarms_.send_alarm(); }
-  const QuicAlarm& send_alarm() const { return alarms_.send_alarm(); }
-  QuicAlarm& mtu_discovery_alarm() { return alarms_.mtu_discovery_alarm(); }
-  const QuicAlarm& mtu_discovery_alarm() const {
-    return alarms_.mtu_discovery_alarm();
-  }
-  QuicAlarm& process_undecryptable_packets_alarm() {
+  QuicAlarmProxy send_alarm() { return alarms_.send_alarm(); }
+  QuicAlarmProxy mtu_discovery_alarm() { return alarms_.mtu_discovery_alarm(); }
+  QuicAlarmProxy process_undecryptable_packets_alarm() {
     return alarms_.process_undecryptable_packets_alarm();
   }
-  const QuicAlarm& process_undecryptable_packets_alarm() const {
-    return alarms_.process_undecryptable_packets_alarm();
-  }
-  QuicAlarm& discard_previous_one_rtt_keys_alarm() {
+  QuicAlarmProxy discard_previous_one_rtt_keys_alarm() {
     return alarms_.discard_previous_one_rtt_keys_alarm();
   }
-  const QuicAlarm& discard_previous_one_rtt_keys_alarm() const {
-    return alarms_.discard_previous_one_rtt_keys_alarm();
-  }
-  QuicAlarm& discard_zero_rtt_decryption_keys_alarm() {
+  QuicAlarmProxy discard_zero_rtt_decryption_keys_alarm() {
     return alarms_.discard_zero_rtt_decryption_keys_alarm();
   }
-  const QuicAlarm& discard_zero_rtt_decryption_keys_alarm() const {
-    return alarms_.discard_zero_rtt_decryption_keys_alarm();
-  }
-  QuicAlarm& multi_port_probing_alarm() {
+  QuicAlarmProxy multi_port_probing_alarm() {
     return alarms_.multi_port_probing_alarm();
   }
-  const QuicAlarm& multi_port_probing_alarm() const {
+
+  QuicConstAlarmProxy ack_alarm() const { return alarms_.ack_alarm(); }
+  QuicConstAlarmProxy retransmission_alarm() const {
+    return alarms_.retransmission_alarm();
+  }
+  QuicConstAlarmProxy send_alarm() const { return alarms_.send_alarm(); }
+  QuicConstAlarmProxy mtu_discovery_alarm() const {
+    return alarms_.mtu_discovery_alarm();
+  }
+  QuicConstAlarmProxy process_undecryptable_packets_alarm() const {
+    return alarms_.process_undecryptable_packets_alarm();
+  }
+  QuicConstAlarmProxy discard_previous_one_rtt_keys_alarm() const {
+    return alarms_.discard_previous_one_rtt_keys_alarm();
+  }
+  QuicConstAlarmProxy discard_zero_rtt_decryption_keys_alarm() const {
+    return alarms_.discard_zero_rtt_decryption_keys_alarm();
+  }
+  QuicConstAlarmProxy multi_port_probing_alarm() const {
     return alarms_.multi_port_probing_alarm();
   }
 
@@ -2405,6 +2412,9 @@ class QUICHE_EXPORT QuicConnection
 
   // True if the peer is unreachable on the current path.
   bool is_path_degrading_;
+
+  // True if the outgoing flow label has changed since the last foward progress.
+  bool flow_label_has_changed_;
 
   // True if an ack frame is being processed.
   bool processing_ack_frame_;

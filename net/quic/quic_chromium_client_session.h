@@ -47,6 +47,7 @@
 #include "net/socket/socket_performance_watcher.h"
 #include "net/spdy/http2_priority_dependencies.h"
 #include "net/spdy/multiplexed_session.h"
+#include "net/spdy/multiplexed_session_creation_initiator.h"
 #include "net/third_party/quiche/src/quiche/common/http/http_header_block.h"
 #include "net/third_party/quiche/src/quiche/quic/core/http/quic_spdy_client_session_base.h"
 #include "net/third_party/quiche/src/quiche/quic/core/quic_crypto_client_stream.h"
@@ -633,6 +634,7 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
       bool report_ecn,
       bool enable_origin_frame,
       bool allow_server_preferred_address,
+      MultiplexedSessionCreationInitiator session_creation_initiator,
       const NetLogWithSource& net_log);
 
   QuicChromiumClientSession(const QuicChromiumClientSession&) = delete;
@@ -1194,6 +1196,8 @@ class NET_EXPORT_PRIVATE QuicChromiumClientSession
   bool observed_ecn_transition_ = false;
 
   const bool allow_server_preferred_address_;
+
+  const MultiplexedSessionCreationInitiator session_creation_initiator_;
 
   base::WeakPtrFactory<QuicChromiumClientSession> weak_factory_{this};
 };

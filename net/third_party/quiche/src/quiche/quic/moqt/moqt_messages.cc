@@ -125,10 +125,10 @@ std::string MoqtDataStreamTypeToString(MoqtDataStreamType type) {
   switch (type) {
     case MoqtDataStreamType::kObjectDatagram:
       return "OBJECT_PREFER_DATAGRAM";
-    case MoqtDataStreamType::kStreamHeaderTrack:
-      return "STREAM_HEADER_TRACK";
     case MoqtDataStreamType::kStreamHeaderSubgroup:
       return "STREAM_HEADER_SUBGROUP";
+    case MoqtDataStreamType::kStreamHeaderFetch:
+      return "STREAM_HEADER_FETCH";
     case MoqtDataStreamType::kPadding:
       return "PADDING";
   }
@@ -140,8 +140,6 @@ std::string MoqtForwardingPreferenceToString(
   switch (preference) {
     case MoqtForwardingPreference::kDatagram:
       return "DATAGRAM";
-    case MoqtForwardingPreference::kTrack:
-      return "TRACK";
     case MoqtForwardingPreference::kSubgroup:
       return "SUBGROUP";
   }
@@ -154,10 +152,12 @@ MoqtForwardingPreference GetForwardingPreference(MoqtDataStreamType type) {
   switch (type) {
     case MoqtDataStreamType::kObjectDatagram:
       return MoqtForwardingPreference::kDatagram;
-    case MoqtDataStreamType::kStreamHeaderTrack:
-      return MoqtForwardingPreference::kTrack;
     case MoqtDataStreamType::kStreamHeaderSubgroup:
       return MoqtForwardingPreference::kSubgroup;
+    case MoqtDataStreamType::kStreamHeaderFetch:
+      QUIC_BUG(quic_bug_forwarding_preference_for_fetch)
+          << "Forwarding preference for fetch is not supported";
+      break;
     default:
       break;
   }
@@ -171,8 +171,6 @@ MoqtDataStreamType GetMessageTypeForForwardingPreference(
   switch (preference) {
     case MoqtForwardingPreference::kDatagram:
       return MoqtDataStreamType::kObjectDatagram;
-    case MoqtForwardingPreference::kTrack:
-      return MoqtDataStreamType::kStreamHeaderTrack;
     case MoqtForwardingPreference::kSubgroup:
       return MoqtDataStreamType::kStreamHeaderSubgroup;
   }

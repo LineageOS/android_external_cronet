@@ -72,6 +72,7 @@ ChatServer::RemoteTrackVisitor::RemoteTrackVisitor(ChatServer* server)
 
 void ChatServer::RemoteTrackVisitor::OnReply(
     const moqt::FullTrackName& full_track_name,
+    std::optional<FullSequence> /*largest_id*/,
     std::optional<absl::string_view> reason_phrase) {
   std::cout << "Subscription to user "
             << server_->strings().GetUsernameFromFullTrackName(full_track_name)
@@ -93,7 +94,6 @@ void ChatServer::RemoteTrackVisitor::OnReply(
 void ChatServer::RemoteTrackVisitor::OnObjectFragment(
     const moqt::FullTrackName& full_track_name, moqt::FullSequence sequence,
     moqt::MoqtPriority /*publisher_priority*/, moqt::MoqtObjectStatus status,
-    moqt::MoqtForwardingPreference /*forwarding_preference*/,
     absl::string_view object, bool end_of_message) {
   if (!end_of_message) {
     std::cerr << "Error: received partial message despite requesting "

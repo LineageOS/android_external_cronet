@@ -9,16 +9,6 @@ load("@builtin//struct.star", "module")
 load("./config.star", "config")
 load("./fuchsia.star", "fuchsia")
 
-# TODO: b/323091468 - Propagate fuchsia arch and version from GN,
-# and remove the hardcoded filegroups.
-fuchsia_archs = [
-    "arm64",
-    "riscv64",
-    "x64",
-]
-
-fuchsia_versions = [12, 14, 15, 16, 17, 18]
-
 def __filegroups(ctx):
     fg = {
         "third_party/rust-toolchain:toolchain": {
@@ -57,40 +47,44 @@ def __filegroups(ctx):
         },
     }
     if fuchsia.enabled(ctx):
-        for arch in fuchsia_archs:
-            group = "third_party/fuchsia-sdk/sdk/arch/%s:rustlink" % arch
-            fg[group] = {
-                "type": "glob",
-                "includes": [
-                    "lib/*",
-                    "sysroot/lib/*",
-                ],
-            }
-            for ver in fuchsia_versions:
-                group = "third_party/fuchsia-sdk/sdk/obj/%s-api-%s:rustlink" % (arch, ver)
-                fg[group] = {
-                    "type": "glob",
-                    "includes": [
-                        "lib/*",
-                        "sysroot/lib/*",
-                    ],
-                }
+        fg.update(fuchsia.filegroups(ctx))
     return fg
 
-def __rust_bin_handler(ctx, cmd):
+def __rust_link_handler(ctx, cmd):
     inputs = []
     use_android_toolchain = None
     target = None
-    for i, arg in enumerate(cmd.args):
+    args = cmd.args
+
+    # there is a case that command line sets environment variable
+    # like `TOOL_VERSION=xxxx "python3" ..`
+    if args[0] == "/bin/sh":
+        args = args[2].split(" ")
+    for i, arg in enumerate(args):
         if arg.startswith("--sysroot=../../third_party/fuchsia-sdk/sdk"):
-            # Get the corresponding sdk filegroup from --sysroot.
-            # e.g. --sysroot=../../third_party/fuchsia-sdk/sdk/obj/x64-api-16/sysroot -> third_party/fuchsia-sdk/sdk/obj/x64-api-16:rustlink
-            filegroup = "%s:rustlink" % path.dir(ctx.fs.canonpath(arg.removeprefix("--sysroot=")))
-            inputs.append(filegroup)
+            sysroot = ctx.fs.canonpath(arg.removeprefix("--sysroot="))
+            libpath = path.join(path.dir(sysroot), "lib")
+            inputs.extend([
+                sysroot + ":link",
+                libpath + ":link",
+            ])
         elif arg.startswith("--sysroot=../../third_party/android_toolchain/ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot"):
             use_android_toolchain = True
+            inputs.append("third_party/android_toolchain/ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot:headers")
+        if arg == "-isysroot":
+            sysroot = ctx.fs.canonpath(args[i + 1])
+            inputs.extend([
+                sysroot + ":link",
+            ])
         if arg.startswith("--target="):
             target = arg.removeprefix("--target=")
+        if arg.startswith("-Clinker="):
+            linker = arg.removeprefix("-Clinker=")
+            if linker.startswith("\""):
+                linker = linker[1:len(linker) - 1]
+
+            # TODO(crbug.com/380798907): expand input_deps, instead of using label?
+            inputs.append(ctx.fs.canonpath(linker) + ":link")
     if use_android_toolchain and target:
         # e.g. target=aarch64-linux-android26
         android_ver = ""
@@ -101,7 +95,6 @@ def __rust_bin_handler(ctx, cmd):
             android_arch = target.removesuffix(android_ver)
             filegroup = "third_party/android_toolchain/ndk/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/%s/%s:link" % (android_arch, android_ver)
             inputs.append(filegroup)
-
     ctx.actions.fix(inputs = cmd.inputs + inputs)
 
 def __rust_build_handler(ctx, cmd):
@@ -112,7 +105,7 @@ def __rust_build_handler(ctx, cmd):
     ctx.actions.fix(inputs = cmd.inputs + inputs)
 
 __handlers = {
-    "rust_bin_handler": __rust_bin_handler,
+    "rust_link_handler": __rust_link_handler,
     "rust_build_handler": __rust_build_handler,
 }
 
@@ -146,7 +139,7 @@ def __step_config(ctx, step_config):
             "action": "(.*_)?rust_bin",
             "inputs": rust_inputs + clang_inputs,
             "indirect_inputs": rust_indirect_inputs,
-            "handler": "rust_bin_handler",
+            "handler": "rust_link_handler",
             "deps": "none",  # disable gcc scandeps
             "remote": True,
             # "canonicalize_dir": True,  # TODO(b/300352286)
@@ -158,6 +151,7 @@ def __step_config(ctx, step_config):
             "action": "(.*_)?rust_cdylib",
             "inputs": rust_inputs + clang_inputs,
             "indirect_inputs": rust_indirect_inputs,
+            "handler": "rust_link_handler",
             "deps": "none",  # disable gcc scandeps
             "remote": True,
             # "canonicalize_dir": True,  # TODO(b/300352286)
@@ -169,6 +163,7 @@ def __step_config(ctx, step_config):
             "action": "(.*_)?rust_macro",
             "inputs": rust_inputs + clang_inputs,
             "indirect_inputs": rust_indirect_inputs,
+            "handler": "rust_link_handler",
             "deps": "none",  # disable gcc scandeps
             # "canonicalize_dir": True,  # TODO(b/300352286)
             "remote": True,

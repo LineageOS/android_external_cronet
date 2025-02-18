@@ -18,33 +18,6 @@ namespace net {
 
 CookieInclusionStatus::CookieInclusionStatus() = default;
 
-CookieInclusionStatus::CookieInclusionStatus(ExclusionReason reason) {
-  exclusion_reasons_[reason] = true;
-}
-
-CookieInclusionStatus::CookieInclusionStatus(ExclusionReason reason,
-                                             WarningReason warning) {
-  exclusion_reasons_[reason] = true;
-  warning_reasons_[warning] = true;
-}
-
-CookieInclusionStatus::CookieInclusionStatus(WarningReason warning) {
-  warning_reasons_[warning] = true;
-}
-
-CookieInclusionStatus::CookieInclusionStatus(
-    std::vector<ExclusionReason> exclusions,
-    std::vector<WarningReason> warnings,
-    ExemptionReason exemption) {
-  for (ExclusionReason reason : exclusions) {
-    exclusion_reasons_[reason] = true;
-  }
-  for (WarningReason warning : warnings) {
-    warning_reasons_[warning] = true;
-  }
-  exemption_reason_ = exemption;
-}
-
 CookieInclusionStatus::CookieInclusionStatus(
     const CookieInclusionStatus& other) = default;
 
@@ -52,16 +25,10 @@ CookieInclusionStatus& CookieInclusionStatus::operator=(
     const CookieInclusionStatus& other) = default;
 
 bool CookieInclusionStatus::operator==(
-    const CookieInclusionStatus& other) const {
-  return exclusion_reasons_ == other.exclusion_reasons_ &&
-         warning_reasons_ == other.warning_reasons_ &&
-         exemption_reason_ == other.exemption_reason_;
-}
+    const CookieInclusionStatus& other) const = default;
 
 bool CookieInclusionStatus::operator!=(
-    const CookieInclusionStatus& other) const {
-  return !operator==(other);
-}
+    const CookieInclusionStatus& other) const = default;
 
 bool CookieInclusionStatus::IsInclude() const {
   return exclusion_reasons_.none();
@@ -378,13 +345,13 @@ std::string CookieInclusionStatus::GetDebugString() const {
 }
 
 bool CookieInclusionStatus::HasExactlyExclusionReasonsForTesting(
-    std::vector<CookieInclusionStatus::ExclusionReason> reasons) const {
+    const std::vector<CookieInclusionStatus::ExclusionReason>& reasons) const {
   CookieInclusionStatus expected = MakeFromReasonsForTesting(reasons);
   return expected.exclusion_reasons_ == exclusion_reasons_;
 }
 
 bool CookieInclusionStatus::HasExactlyWarningReasonsForTesting(
-    std::vector<WarningReason> reasons) const {
+    const std::vector<WarningReason>& reasons) const {
   CookieInclusionStatus expected = MakeFromReasonsForTesting({}, reasons);
   return expected.warning_reasons_ == warning_reasons_;
 }
@@ -402,14 +369,9 @@ bool CookieInclusionStatus::ValidateExclusionAndWarningFromWire(
 }
 
 CookieInclusionStatus CookieInclusionStatus::MakeFromReasonsForTesting(
-    std::vector<ExclusionReason> exclusions,
-    std::vector<WarningReason> warnings,
-    ExemptionReason exemption,
-    bool use_literal) {
-  CookieInclusionStatus literal_status(exclusions, warnings, exemption);
-  if (use_literal) {
-    return literal_status;
-  }
+    const std::vector<ExclusionReason>& exclusions,
+    const std::vector<WarningReason>& warnings,
+    ExemptionReason exemption) {
   CookieInclusionStatus status;
   for (ExclusionReason reason : exclusions) {
     status.AddExclusionReason(reason);
@@ -419,7 +381,19 @@ CookieInclusionStatus CookieInclusionStatus::MakeFromReasonsForTesting(
   }
   status.MaybeSetExemptionReason(exemption);
 
-  CHECK_EQ(status, literal_status);
+  for (auto reason : exclusions) {
+    CHECK(status.HasExclusionReason(reason))
+        << "Exemption " << reason << " could not be applied";
+  }
+  CHECK_EQ(status.exclusion_reasons_.count(), exclusions.size());
+  for (auto reason : warnings) {
+    CHECK(status.HasWarningReason(reason))
+        << "Warning " << reason << " could not be applied";
+  }
+  CHECK_EQ(status.warning_reasons_.count(), warnings.size());
+  CHECK_EQ(status.exemption_reason(), exemption)
+      << "Exemption " << static_cast<int>(exemption) << " could not be applied";
+
   return status;
 }
 

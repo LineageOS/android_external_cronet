@@ -326,7 +326,7 @@ void BidirectionalStream::OnFailed(int status) {
 
 void BidirectionalStream::OnStreamReady(const ProxyInfo& used_proxy_info,
                                         std::unique_ptr<HttpStream> stream) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void BidirectionalStream::OnBidirectionalStreamImplReady(
@@ -367,7 +367,7 @@ void BidirectionalStream::OnBidirectionalStreamImplReady(
 void BidirectionalStream::OnWebSocketHandshakeStreamReady(
     const ProxyInfo& used_proxy_info,
     std::unique_ptr<WebSocketHandshakeStreamBase> stream) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void BidirectionalStream::OnStreamFailed(
@@ -414,7 +414,7 @@ void BidirectionalStream::OnNeedsClientAuth(SSLCertRequestInfo* cert_info) {
 void BidirectionalStream::OnQuicBroken() {}
 
 void BidirectionalStream::OnSwitchesToHttpStreamPool(
-    HttpStreamPoolSwitchingInfo switching_info) {
+    HttpStreamPoolRequestInfo request_info) {
   NOTREACHED();
 }
 

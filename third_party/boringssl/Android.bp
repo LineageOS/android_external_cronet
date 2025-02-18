@@ -294,7 +294,7 @@ cc_binary {
         "libcrypto",
     ],
     srcs: [
-        "src/util/fipstools/test_fips.c",
+        "src/util/fipstools/test_fips.cc",
     ],
     required: [
         "adb",

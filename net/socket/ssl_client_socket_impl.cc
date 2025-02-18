@@ -31,6 +31,7 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/notreached.h"
 #include "base/rand_util.h"
+#include "base/strings/string_util.h"
 #include "base/synchronization/lock.h"
 #include "base/task/sequenced_task_runner.h"
 #include "base/values.h"
@@ -121,8 +122,7 @@ base::Value::Dict NetLogSSLMessageParams(bool is_write,
                                          size_t len,
                                          NetLogCaptureMode capture_mode) {
   if (len == 0) {
-    NOTREACHED_IN_MIGRATION();
-    return base::Value::Dict();
+    NOTREACHED();
   }
 
   base::Value::Dict dict;
@@ -300,20 +300,20 @@ std::vector<uint8_t> SSLClientSocketImpl::GetECHRetryConfigs() {
   return std::vector<uint8_t>(retry_configs, retry_configs + retry_configs_len);
 }
 
-int SSLClientSocketImpl::ExportKeyingMaterial(std::string_view label,
-                                              bool has_context,
-                                              std::string_view context,
-                                              unsigned char* out,
-                                              unsigned int outlen) {
+int SSLClientSocketImpl::ExportKeyingMaterial(
+    std::string_view label,
+    std::optional<base::span<const uint8_t>> context,
+    base::span<uint8_t> out) {
+  DCHECK(base::IsStringASCII(label));
   if (!IsConnected())
     return ERR_SOCKET_NOT_CONNECTED;
 
   crypto::OpenSSLErrStackTracer err_tracer(FROM_HERE);
 
   if (!SSL_export_keying_material(
-          ssl_.get(), out, outlen, label.data(), label.size(),
-          reinterpret_cast<const unsigned char*>(context.data()),
-          context.length(), has_context ? 1 : 0)) {
+          ssl_.get(), out.data(), out.size(), label.data(), label.size(),
+          context.has_value() ? context->data() : nullptr,
+          context.has_value() ? context->size() : 0, context.has_value())) {
     LOG(ERROR) << "Failed to export keying material.";
     return ERR_FAILED;
   }
@@ -464,7 +464,7 @@ SSLClientSocketImpl::GetPeerApplicationSettings() const {
 }
 
 bool SSLClientSocketImpl::GetSSLInfo(SSLInfo* ssl_info) {
-  ssl_info->Reset();
+  *ssl_info = SSLInfo();
   if (!server_cert_)
     return false;
 
@@ -508,8 +508,7 @@ int64_t SSLClientSocketImpl::GetTotalReceivedBytes() const {
 void SSLClientSocketImpl::GetSSLCertRequestInfo(
     SSLCertRequestInfo* cert_request_info) const {
   if (!ssl_) {
-    NOTREACHED_IN_MIGRATION();
-    return;
+    NOTREACHED();
   }
 
   cert_request_info->host_and_port = host_and_port_;
@@ -1067,9 +1066,7 @@ ssl_verify_result_t SSLClientSocketImpl::VerifyCert() {
     //
     // See section 6.1.7 of draft-ietf-tls-esni-13.
     if (HostIsIPAddressNoBrackets(ech_name_override)) {
-      NOTREACHED_IN_MIGRATION();
-      OpenSSLPutNetError(FROM_HERE, ERR_INVALID_ECH_CONFIG_LIST);
-      return ssl_verify_invalid;
+      NOTREACHED();
     }
   }
 
@@ -1198,8 +1195,7 @@ int SSLClientSocketImpl::CheckCTRequirements() {
       return OK;
   }
 
-  NOTREACHED_IN_MIGRATION();
-  return OK;
+  NOTREACHED();
 }
 
 void SSLClientSocketImpl::DoConnectCallback(int rv) {
@@ -1241,9 +1237,7 @@ int SSLClientSocketImpl::DoHandshakeLoop(int last_io_result) {
         break;
       case STATE_NONE:
       default:
-        rv = ERR_UNEXPECTED;
-        NOTREACHED_IN_MIGRATION() << "unexpected state" << state;
-        break;
+        NOTREACHED() << "unexpected state" << state;
     }
   } while (rv != ERR_IO_PENDING && next_handshake_state_ != STATE_NONE);
   return rv;
@@ -1392,17 +1386,24 @@ void SSLClientSocketImpl::DoPeek() {
     // requires that the max value sentinel be named |kMaxValue|, transform the
     // max-value sentinel into a one-past-the-end ("boundary") sentinel by
     // adding 1, in order to be able to use the three-parameter macro.
+    ssl_early_data_reason_t early_data_reason =
+        SSL_get_early_data_reason(ssl_.get());
     UMA_HISTOGRAM_ENUMERATION("Net.SSLHandshakeEarlyDataReason",
-                              SSL_get_early_data_reason(ssl_.get()),
+                              early_data_reason,
                               ssl_early_data_reason_max_value + 1);
     if (IsGoogleHost(host_and_port_.host())) {
       // Most Google hosts are known to implement 0-RTT, so this gives more
       // targeted metrics as we initially roll out client support. See
       // https://crbug.com/641225.
       UMA_HISTOGRAM_ENUMERATION("Net.SSLHandshakeEarlyDataReason.Google",
-                                SSL_get_early_data_reason(ssl_.get()),
+                                early_data_reason,
                                 ssl_early_data_reason_max_value + 1);
     }
+    net_log_.AddEvent(NetLogEventType::SSL_HANDSHAKE_EARLY_DATA_REASON, [&] {
+      base::Value::Dict dict;
+      dict.Set("early_data_reason", early_data_reason);
+      return dict;
+    });
 
     // On early data reject, clear early data on any other sessions in the
     // cache, so retries do not get stuck attempting 0-RTT. See
@@ -1616,7 +1617,7 @@ ssl_private_key_result_t SSLClientSocketImpl::PrivateKeySignCallback(
 
   signature_result_ = ERR_IO_PENDING;
   client_private_key_->Sign(
-      algorithm, base::make_span(in, in_len),
+      algorithm, base::span(in, in_len),
       base::BindOnce(&SSLClientSocketImpl::OnPrivateKeyComplete,
                      weak_factory_.GetWeakPtr()));
   return ssl_private_key_retry;

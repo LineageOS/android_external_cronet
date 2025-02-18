@@ -172,6 +172,7 @@ cc_library_static {
         "file_descriptor_posix.cc",
         "file_descriptor_store.cc",
         "files/block_tests_writing_to_special_dirs.cc",
+        "files/drive_info.cc",
         "files/drive_info_posix.cc",
         "files/file.cc",
         "files/file_descriptor_watcher_posix.cc",
@@ -245,6 +246,7 @@ cc_library_static {
         "memory/unsafe_shared_memory_region.cc",
         "memory/weak_ptr.cc",
         "memory/writable_shared_memory_region.cc",
+        "message_loop/io_watcher.cc",
         "message_loop/message_pump.cc",
         "message_loop/message_pump_android.cc",
         "message_loop/message_pump_default.cc",
@@ -375,6 +377,8 @@ cc_library_static {
         "sync_socket.cc",
         "sync_socket_posix.cc",
         "synchronization/atomic_flag.cc",
+        "synchronization/cancelable_event.cc",
+        "synchronization/cancelable_event_posix.cc",
         "synchronization/condition_variable_posix.cc",
         "synchronization/lock.cc",
         "synchronization/lock_impl_posix.cc",
@@ -536,7 +540,6 @@ cc_library_static {
         "cronet_aml_base_ios_cronet_buildflags",
         "cronet_aml_base_jank_tracker_jni__action",
         "cronet_aml_base_library_loader_jni__action",
-        "cronet_aml_base_logging_buildflags",
         "cronet_aml_base_memory_jni__action",
         "cronet_aml_base_metrics_jni__action",
         "cronet_aml_base_orderfile_buildflags",
@@ -544,7 +547,6 @@ cc_library_static {
         "cronet_aml_base_process_launcher_jni__action",
         "cronet_aml_base_profiler_buildflags",
         "cronet_aml_base_protected_memory_buildflags",
-        "cronet_aml_base_rust_buildflags",
         "cronet_aml_base_rust_logger_cxx_generated_gen_header",
         "cronet_aml_base_sanitizer_buildflags",
         "cronet_aml_base_synchronization_buildflags",
@@ -582,7 +584,6 @@ cc_library_static {
         "cronet_aml_base_ios_cronet_buildflags",
         "cronet_aml_base_jank_tracker_jni__action",
         "cronet_aml_base_library_loader_jni__action",
-        "cronet_aml_base_logging_buildflags",
         "cronet_aml_base_memory_jni__action",
         "cronet_aml_base_metrics_jni__action",
         "cronet_aml_base_orderfile_buildflags",
@@ -590,7 +591,6 @@ cc_library_static {
         "cronet_aml_base_process_launcher_jni__action",
         "cronet_aml_base_profiler_buildflags",
         "cronet_aml_base_protected_memory_buildflags",
-        "cronet_aml_base_rust_buildflags",
         "cronet_aml_base_rust_logger_cxx_generated_gen_header",
         "cronet_aml_base_sanitizer_buildflags",
         "cronet_aml_base_synchronization_buildflags",
@@ -618,9 +618,9 @@ cc_library_static {
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
         "-DBASE_IMPLEMENTATION",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.129/include/cxx.h\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.130/include/cxx.h\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DICU_UTIL_DATA_IMPL=ICU_UTIL_DATA_FILE",
@@ -638,6 +638,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
         "-D__STDC_CONSTANT_MACROS",
@@ -678,8 +679,8 @@ cc_library_static {
     target: {
         android_arm: {
             srcs: [
-                "profiler/chrome_unwind_info_android.cc",
-                "profiler/chrome_unwinder_android.cc",
+                "profiler/chrome_unwind_info_android_32.cc",
+                "profiler/chrome_unwinder_android_32.cc",
                 "trace_event/cfi_backtrace_android.cc",
             ],
             cflags: [
@@ -753,6 +754,7 @@ cc_library_static {
         "file_descriptor_posix.cc",
         "file_descriptor_store.cc",
         "files/block_tests_writing_to_special_dirs.cc",
+        "files/drive_info.cc",
         "files/drive_info_posix.cc",
         "files/file.cc",
         "files/file_descriptor_watcher_posix.cc",
@@ -822,6 +824,7 @@ cc_library_static {
         "memory/unsafe_shared_memory_region.cc",
         "memory/weak_ptr.cc",
         "memory/writable_shared_memory_region.cc",
+        "message_loop/io_watcher.cc",
         "message_loop/message_pump.cc",
         "message_loop/message_pump_default.cc",
         "message_loop/message_pump_epoll.cc",
@@ -947,6 +950,8 @@ cc_library_static {
         "sync_socket.cc",
         "sync_socket_posix.cc",
         "synchronization/atomic_flag.cc",
+        "synchronization/cancelable_event.cc",
+        "synchronization/cancelable_event_posix.cc",
         "synchronization/condition_variable_posix.cc",
         "synchronization/lock.cc",
         "synchronization/lock_impl_posix.cc",
@@ -1093,12 +1098,10 @@ cc_library_static {
         "cronet_aml_base_feature_list_buildflags__testing",
         "cronet_aml_base_fuzzing_buildflags__testing",
         "cronet_aml_base_ios_cronet_buildflags__testing",
-        "cronet_aml_base_logging_buildflags__testing",
         "cronet_aml_base_orderfile_buildflags__testing",
         "cronet_aml_base_power_monitor_buildflags__testing",
         "cronet_aml_base_profiler_buildflags__testing",
         "cronet_aml_base_protected_memory_buildflags__testing",
-        "cronet_aml_base_rust_buildflags__testing",
         "cronet_aml_base_rust_logger_cxx_generated_gen__testing_header",
         "cronet_aml_base_sanitizer_buildflags__testing",
         "cronet_aml_base_synchronization_buildflags__testing",
@@ -1123,12 +1126,10 @@ cc_library_static {
         "cronet_aml_base_feature_list_buildflags__testing",
         "cronet_aml_base_fuzzing_buildflags__testing",
         "cronet_aml_base_ios_cronet_buildflags__testing",
-        "cronet_aml_base_logging_buildflags__testing",
         "cronet_aml_base_orderfile_buildflags__testing",
         "cronet_aml_base_power_monitor_buildflags__testing",
         "cronet_aml_base_profiler_buildflags__testing",
         "cronet_aml_base_protected_memory_buildflags__testing",
-        "cronet_aml_base_rust_buildflags__testing",
         "cronet_aml_base_rust_logger_cxx_generated_gen__testing_header",
         "cronet_aml_base_sanitizer_buildflags__testing",
         "cronet_aml_base_synchronization_buildflags__testing",
@@ -1146,9 +1147,9 @@ cc_library_static {
     ],
     cflags: [
         "-DBASE_IMPLEMENTATION",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.129/include/cxx.h\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.130/include/cxx.h\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DICU_UTIL_DATA_IMPL=ICU_UTIL_DATA_FILE",
         "-DIS_RAW_PTR_IMPL",
@@ -1165,6 +1166,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__STDC_CONSTANT_MACROS",
         "-D__STDC_FORMAT_MACROS",
@@ -1278,8 +1280,8 @@ cc_library_static {
                 "os_compat_android.cc",
                 "power_monitor/power_monitor_device_source_android.cc",
                 "process/process_android.cc",
-                "profiler/chrome_unwind_info_android.cc",
-                "profiler/chrome_unwinder_android.cc",
+                "profiler/chrome_unwind_info_android_32.cc",
+                "profiler/chrome_unwinder_android_32.cc",
                 "profiler/stack_sampler_android.cc",
                 "system/sys_info_android.cc",
                 "threading/platform_thread_android.cc",
@@ -1797,7 +1799,6 @@ cc_library_static {
                 "-fno-unwind-tables",
                 "-msse3",
             ],
-            compile_multilib: "64",
         },
     },
 }
@@ -2220,8 +2221,8 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DNDEBUG",
@@ -2231,6 +2232,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
         "-D__STDC_CONSTANT_MACROS",
@@ -2306,8 +2308,8 @@ cc_library_static {
         "cronet_aml_cc_defaults",
     ],
     cflags: [
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DNDEBUG",
         "-DNVALGRIND",
@@ -2316,6 +2318,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__STDC_CONSTANT_MACROS",
         "-D__STDC_FORMAT_MACROS",
@@ -2406,7 +2409,6 @@ cc_library_static {
                 "-fno-unwind-tables",
                 "-msse3",
             ],
-            compile_multilib: "64",
         },
     },
 }
@@ -2521,8 +2523,8 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DNDEBUG",
@@ -2532,6 +2534,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
         "-D__STDC_CONSTANT_MACROS",
@@ -2603,8 +2606,8 @@ cc_library_static {
         "cronet_aml_cc_defaults",
     ],
     cflags: [
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DNDEBUG",
         "-DNVALGRIND",
@@ -2613,6 +2616,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__STDC_CONSTANT_MACROS",
         "-D__STDC_FORMAT_MACROS",
@@ -2705,7 +2709,6 @@ cc_library_static {
                 "-fno-unwind-tables",
                 "-msse3",
             ],
-            compile_multilib: "64",
         },
     },
 }
@@ -2766,6 +2769,37 @@ java_library {
     jarjar_rules: ":remove_gen_jni_jarjar_rules",
 }
 
+// GN: //base:debugging_buildflags__testing
+cc_library_headers {
+    name: "cronet_aml_base_debugging_buildflags__testing_export_generated_headers",
+    host_supported: true,
+    host_cross_supported: false,
+    generated_headers: [
+        "cronet_aml_base_debugging_buildflags__testing",
+    ],
+    export_generated_headers: [
+        "cronet_aml_base_debugging_buildflags__testing",
+    ],
+    defaults: [
+        "cronet_aml_cc_defaults",
+    ],
+}
+
+// GN: //base:debugging_buildflags
+cc_library_headers {
+    name: "cronet_aml_base_debugging_buildflags_export_generated_headers",
+    host_cross_supported: false,
+    generated_headers: [
+        "cronet_aml_base_debugging_buildflags",
+    ],
+    export_generated_headers: [
+        "cronet_aml_base_debugging_buildflags",
+    ],
+    defaults: [
+        "cronet_aml_cc_defaults",
+    ],
+}
+
 // GN: //base:i18n__testing
 cc_library_static {
     name: "cronet_aml_base_i18n__testing",
@@ -2808,12 +2842,10 @@ cc_library_static {
         "cronet_aml_base_feature_list_buildflags__testing",
         "cronet_aml_base_fuzzing_buildflags__testing",
         "cronet_aml_base_ios_cronet_buildflags__testing",
-        "cronet_aml_base_logging_buildflags__testing",
         "cronet_aml_base_orderfile_buildflags__testing",
         "cronet_aml_base_power_monitor_buildflags__testing",
         "cronet_aml_base_profiler_buildflags__testing",
         "cronet_aml_base_protected_memory_buildflags__testing",
-        "cronet_aml_base_rust_buildflags__testing",
         "cronet_aml_base_rust_logger_cxx_generated_gen__testing_header",
         "cronet_aml_base_sanitizer_buildflags__testing",
         "cronet_aml_base_synchronization_buildflags__testing",
@@ -2840,12 +2872,10 @@ cc_library_static {
         "cronet_aml_base_feature_list_buildflags__testing",
         "cronet_aml_base_fuzzing_buildflags__testing",
         "cronet_aml_base_ios_cronet_buildflags__testing",
-        "cronet_aml_base_logging_buildflags__testing",
         "cronet_aml_base_orderfile_buildflags__testing",
         "cronet_aml_base_power_monitor_buildflags__testing",
         "cronet_aml_base_profiler_buildflags__testing",
         "cronet_aml_base_protected_memory_buildflags__testing",
-        "cronet_aml_base_rust_buildflags__testing",
         "cronet_aml_base_rust_logger_cxx_generated_gen__testing_header",
         "cronet_aml_base_sanitizer_buildflags__testing",
         "cronet_aml_base_synchronization_buildflags__testing",
@@ -2867,9 +2897,9 @@ cc_library_static {
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
         "-DBASE_I18N_IMPLEMENTATION",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.129/include/cxx.h\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.130/include/cxx.h\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DICU_UTIL_DATA_IMPL=ICU_UTIL_DATA_FILE",
@@ -2886,6 +2916,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
         "-D__STDC_CONSTANT_MACROS",
@@ -3197,6 +3228,9 @@ java_library {
         "com.android.tethering",
     ],
     min_sdk_version: "30",
+    libs: [
+        "androidx.annotation_annotation",
+    ],
     visibility: [
         "//external/cronet:__subpackages__",
     ],
@@ -3217,6 +3251,9 @@ java_library {
         "com.android.tethering",
     ],
     min_sdk_version: "30",
+    libs: [
+        "androidx.annotation_annotation",
+    ],
     sdk_version: "current",
     visibility: [
         "//external/cronet:__subpackages__",
@@ -3237,6 +3274,7 @@ java_library {
         "android/java/src/org/chromium/base/memory/MemoryPressureMonitor.java",
         "android/java/src/org/chromium/base/memory/MemoryPressureUma.java",
         "android/java/src/org/chromium/base/memory/MemoryPurgeManager.java",
+        "android/java/src/org/chromium/base/memory/SelfFreezeCallback.java",
     ],
     static_libs: [
         "cronet_aml_base_library_loader_java",
@@ -3277,6 +3315,7 @@ java_library {
         "android/java/src/org/chromium/base/memory/MemoryPressureMonitor.java",
         "android/java/src/org/chromium/base/memory/MemoryPressureUma.java",
         "android/java/src/org/chromium/base/memory/MemoryPurgeManager.java",
+        "android/java/src/org/chromium/base/memory/SelfFreezeCallback.java",
     ],
     static_libs: [
         "cronet_aml_base_library_loader_java__testing",
@@ -3302,6 +3341,42 @@ java_library {
     jarjar_rules: ":remove_gen_jni_jarjar_rules",
 }
 
+// GN: //base:metrics_ScopedSysTraceEvent_java
+java_library {
+    name: "cronet_aml_base_metrics_ScopedSysTraceEvent_java",
+    srcs: [
+        "android/java/src/org/chromium/base/metrics/ScopedSysTraceEvent.java",
+    ],
+    defaults: [
+        "cronet_aml_java_framework_defaults",
+    ],
+    apex_available: [
+        "com.android.tethering",
+    ],
+    min_sdk_version: "30",
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+    jarjar_rules: ":remove_gen_jni_jarjar_rules",
+}
+
+// GN: //base:metrics_ScopedSysTraceEvent_java__testing
+java_library {
+    name: "cronet_aml_base_metrics_ScopedSysTraceEvent_java__testing",
+    srcs: [
+        "android/java/src/org/chromium/base/metrics/ScopedSysTraceEvent.java",
+    ],
+    apex_available: [
+        "com.android.tethering",
+    ],
+    min_sdk_version: "30",
+    sdk_version: "current",
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+    jarjar_rules: ":remove_gen_jni_jarjar_rules",
+}
+
 // GN: //base:metrics_java
 java_library {
     name: "cronet_aml_base_metrics_java",
@@ -3314,7 +3389,6 @@ java_library {
         "android/java/src/org/chromium/base/metrics/NoopUmaRecorder.java",
         "android/java/src/org/chromium/base/metrics/RecordHistogram.java",
         "android/java/src/org/chromium/base/metrics/RecordUserAction.java",
-        "android/java/src/org/chromium/base/metrics/ScopedSysTraceEvent.java",
         "android/java/src/org/chromium/base/metrics/StatisticsRecorderAndroid.java",
         "android/java/src/org/chromium/base/metrics/TimingMetric.java",
         "android/java/src/org/chromium/base/metrics/UmaRecorder.java",
@@ -3323,6 +3397,7 @@ java_library {
     static_libs: [
         "cronet_aml_base_callback_java",
         "cronet_aml_base_log_java",
+        "cronet_aml_base_metrics_ScopedSysTraceEvent_java",
         "cronet_aml_base_time_utils_java",
         "cronet_aml_build_android_build_java",
         "cronet_aml_third_party_jni_zero_jni_zero_java",
@@ -3357,7 +3432,6 @@ java_library {
         "android/java/src/org/chromium/base/metrics/NoopUmaRecorder.java",
         "android/java/src/org/chromium/base/metrics/RecordHistogram.java",
         "android/java/src/org/chromium/base/metrics/RecordUserAction.java",
-        "android/java/src/org/chromium/base/metrics/ScopedSysTraceEvent.java",
         "android/java/src/org/chromium/base/metrics/StatisticsRecorderAndroid.java",
         "android/java/src/org/chromium/base/metrics/TimingMetric.java",
         "android/java/src/org/chromium/base/metrics/UmaRecorder.java",
@@ -3366,6 +3440,7 @@ java_library {
     static_libs: [
         "cronet_aml_base_callback_java__testing",
         "cronet_aml_base_log_java__testing",
+        "cronet_aml_base_metrics_ScopedSysTraceEvent_java__testing",
         "cronet_aml_base_time_utils_java__testing",
         "cronet_aml_build_android_build_java__testing",
         "cronet_aml_third_party_jni_zero_jni_zero_java__testing",
@@ -3503,9 +3578,9 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.129/include/cxx.h\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.130/include/cxx.h\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DNDEBUG",
@@ -3515,6 +3590,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
         "-D__STDC_CONSTANT_MACROS",
@@ -3589,9 +3665,9 @@ cc_library_static {
         "cronet_aml_cc_defaults",
     ],
     cflags: [
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.129/include/cxx.h\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_CXX_INCLUDE=\"third_party/rust/chromium_crates_io/vendor/cxx-1.0.130/include/cxx.h\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DNDEBUG",
         "-DNVALGRIND",
@@ -3600,6 +3676,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__STDC_CONSTANT_MACROS",
         "-D__STDC_FORMAT_MACROS",
@@ -3692,7 +3769,6 @@ cc_library_static {
                 "-fno-unwind-tables",
                 "-msse3",
             ],
-            compile_multilib: "64",
         },
     },
 }
@@ -4099,7 +4175,8 @@ rust_ffi_static {
     crate_name: "base_crust_ulogger",
     crate_root: "logging/rust_logger.rs",
     rustlibs: [
-        "libbase_crust_ulog_ubindgen__dce94bec1a5374ca",
+        "libbase_clogging_ulog_useverity_ubindgen__d8d88a8c21aa5348",
+        "libbase_clogging_urust_ulog_uintegration_ubindgen__9925214ab78187d9",
         "libchromium__d0e81f3f96f24133",
         "libcxx__aeec90f4db77c760",
         "liblog__06eb0adc1d40af74",
@@ -4108,7 +4185,7 @@ rust_ffi_static {
         android_arm: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4127,7 +4204,7 @@ rust_ffi_static {
         android_arm64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4146,7 +4223,7 @@ rust_ffi_static {
         android_riscv64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4165,7 +4242,7 @@ rust_ffi_static {
         android_x86: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4184,7 +4261,7 @@ rust_ffi_static {
         android_x86_64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4201,9 +4278,10 @@ rust_ffi_static {
             ],
         },
         host: {
+            compile_multilib: "64",
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4224,7 +4302,6 @@ rust_ffi_static {
                 "libsyn__61f02ce2afa67e0f",
                 "libunicode_ident__a2554af8d49a4107",
             ],
-            compile_multilib: "64",
         },
     },
 }
@@ -4246,7 +4323,8 @@ rust_ffi_static {
     crate_name: "base_crust_ulogger",
     crate_root: "logging/rust_logger.rs",
     rustlibs: [
-        "libbase_crust_ulog_ubindgen__7f6b2299b01dba94",
+        "libbase_clogging_ulog_useverity_ubindgen__78246e7bf70552a5",
+        "libbase_clogging_urust_ulog_uintegration_ubindgen__493857b05a76d610",
         "libchromium__0697b906245d8735",
         "libcxx__f74e4f6e3b71aaea",
         "liblog__b1f70bab7ed2f2ed",
@@ -4255,7 +4333,7 @@ rust_ffi_static {
         android_arm: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4274,7 +4352,7 @@ rust_ffi_static {
         android_arm64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4293,7 +4371,7 @@ rust_ffi_static {
         android_riscv64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4312,7 +4390,7 @@ rust_ffi_static {
         android_x86: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4331,7 +4409,7 @@ rust_ffi_static {
         android_x86_64: {
             edition: "2021",
             cfgs: [
-                "cr_rustc_revision=\"bca5fdebe0e539d123f33df5f2149d5976392e76-1-llvmorg-20-init-9764-gb81d8e90\"",
+                "cr_rustc_revision=\"a522d78598415cdd614ccc6d961160f192f64b5c-1-llvmorg-20-init-13894-g8cb44859\"",
             ],
             flags: [
                 "-Dunsafe_op_in_unsafe_fn",
@@ -4347,13 +4425,18 @@ rust_ffi_static {
                 "-Cdebuginfo=1",
             ],
         },
+        host: {
+            compile_multilib: "64",
+        },
     },
 }
 
-// GN: //base:rust_log_bindgen_generator
+// GN: //base:logging_log_severity_bindgen_generator
 rust_bindgen {
-    name: "libcronet_aml_base_rust_log_bindgen_generator",
+    name: "libcronet_aml_base_logging_log_severity_bindgen_generator",
+    host_cross_supported: false,
     header_libs: [
+        "cronet_aml_base_debugging_buildflags_export_generated_headers",
         "cronet_repository_root_include_dirs_anchor",
     ],
     cpp_std: "c++17",
@@ -4364,19 +4447,26 @@ rust_bindgen {
     visibility: [
         "//external/cronet:__subpackages__",
     ],
-    crate_name: "cronet_aml_base_rust_log_bindgen_generator",
+    crate_name: "cronet_aml_base_logging_log_severity_bindgen_generator",
     source_stem: "bindings",
     bindgen_flags: [
         "--enable-cxx-namespaces",
     ],
-    wrapper_src: "logging/rust_log_integration.h",
+    wrapper_src: "logging/log_severity.h",
+    target: {
+        host: {
+            compile_multilib: "64",
+        },
+    },
 }
 
-// GN: //base:rust_log_bindgen_generator__testing
+// GN: //base:logging_log_severity_bindgen_generator__testing
 rust_bindgen {
-    name: "libcronet_aml_base_rust_log_bindgen_generator__testing",
+    name: "libcronet_aml_base_logging_log_severity_bindgen_generator__testing",
     host_supported: true,
+    host_cross_supported: false,
     header_libs: [
+        "cronet_aml_base_debugging_buildflags__testing_export_generated_headers",
         "cronet_repository_root_include_dirs_anchor",
     ],
     cpp_std: "c++17",
@@ -4387,10 +4477,74 @@ rust_bindgen {
     visibility: [
         "//external/cronet:__subpackages__",
     ],
-    crate_name: "cronet_aml_base_rust_log_bindgen_generator__testing",
+    crate_name: "cronet_aml_base_logging_log_severity_bindgen_generator__testing",
+    source_stem: "bindings",
+    bindgen_flags: [
+        "--enable-cxx-namespaces",
+    ],
+    wrapper_src: "logging/log_severity.h",
+    target: {
+        host: {
+            compile_multilib: "64",
+        },
+    },
+}
+
+// GN: //base:logging_rust_log_integration_bindgen_generator
+rust_bindgen {
+    name: "libcronet_aml_base_logging_rust_log_integration_bindgen_generator",
+    host_cross_supported: false,
+    header_libs: [
+        "cronet_aml_base_debugging_buildflags_export_generated_headers",
+        "cronet_repository_root_include_dirs_anchor",
+    ],
+    cpp_std: "c++17",
+    apex_available: [
+        "com.android.tethering",
+    ],
+    min_sdk_version: "30",
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+    crate_name: "cronet_aml_base_logging_rust_log_integration_bindgen_generator",
     source_stem: "bindings",
     bindgen_flags: [
         "--enable-cxx-namespaces",
     ],
     wrapper_src: "logging/rust_log_integration.h",
+    target: {
+        host: {
+            compile_multilib: "64",
+        },
+    },
+}
+
+// GN: //base:logging_rust_log_integration_bindgen_generator__testing
+rust_bindgen {
+    name: "libcronet_aml_base_logging_rust_log_integration_bindgen_generator__testing",
+    host_supported: true,
+    host_cross_supported: false,
+    header_libs: [
+        "cronet_aml_base_debugging_buildflags__testing_export_generated_headers",
+        "cronet_repository_root_include_dirs_anchor",
+    ],
+    cpp_std: "c++17",
+    apex_available: [
+        "com.android.tethering",
+    ],
+    min_sdk_version: "30",
+    visibility: [
+        "//external/cronet:__subpackages__",
+    ],
+    crate_name: "cronet_aml_base_logging_rust_log_integration_bindgen_generator__testing",
+    source_stem: "bindings",
+    bindgen_flags: [
+        "--enable-cxx-namespaces",
+    ],
+    wrapper_src: "logging/rust_log_integration.h",
+    target: {
+        host: {
+            compile_multilib: "64",
+        },
+    },
 }

@@ -32,11 +32,11 @@ inline constexpr quic::ParsedQuicVersionVector GetMoqtSupportedQuicVersions() {
 }
 
 enum class MoqtVersion : uint64_t {
-  kDraft06 = 0xff000006,
+  kDraft07 = 0xff000007,
   kUnrecognizedVersionForTests = 0xfe0000ff,
 };
 
-inline constexpr MoqtVersion kDefaultMoqtVersion = MoqtVersion::kDraft06;
+inline constexpr MoqtVersion kDefaultMoqtVersion = MoqtVersion::kDraft07;
 inline constexpr uint64_t kDefaultInitialMaxSubscribeId = 100;
 
 struct QUICHE_EXPORT MoqtSessionParameters {
@@ -66,8 +66,8 @@ inline constexpr size_t kMaxMessageHeaderSize = 2048;
 
 enum class QUICHE_EXPORT MoqtDataStreamType : uint64_t {
   kObjectDatagram = 0x01,
-  kStreamHeaderTrack = 0x02,
   kStreamHeaderSubgroup = 0x04,
+  kStreamHeaderFetch = 0x05,
 
   // Currently QUICHE-specific.  All data on a kPadding stream is ignored.
   kPadding = 0x26d3,
@@ -304,7 +304,6 @@ struct QUICHE_EXPORT MoqtServerSetup {
 
 // These codes do not appear on the wire.
 enum class QUICHE_EXPORT MoqtForwardingPreference {
-  kTrack,
   kSubgroup,
   kDatagram,
 };
@@ -324,13 +323,11 @@ MoqtObjectStatus IntegerToObjectStatus(uint64_t integer);
 // The data contained in every Object message, although the message type
 // implies some of the values.
 struct QUICHE_EXPORT MoqtObject {
-  uint64_t subscribe_id;
-  uint64_t track_alias;
+  uint64_t track_alias;  // For FETCH, this is the subscribe ID.
   uint64_t group_id;
   uint64_t object_id;
   MoqtPriority publisher_priority;
   MoqtObjectStatus object_status;
-  MoqtForwardingPreference forwarding_preference;
   std::optional<uint64_t> subgroup_id;
   uint64_t payload_length;
 };

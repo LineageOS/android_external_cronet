@@ -56,6 +56,7 @@
 #include "net/quic/quic_server_info.h"
 #include "net/quic/quic_session_pool.h"
 #include "net/socket/datagram_client_socket.h"
+#include "net/spdy/multiplexed_session_creation_initiator.h"
 #include "net/spdy/spdy_http_utils.h"
 #include "net/spdy/spdy_log_util.h"
 #include "net/spdy/spdy_session.h"
@@ -386,6 +387,16 @@ void LogProbeResultToHistogram(MigrationCause cause, bool success) {
           histogram_name, base::HistogramBase::kUmaTargetedHistogramFlag));
 }
 
+void LogSessionCreationInitiatorToHistogram(
+    MultiplexedSessionCreationInitiator session_creation,
+    bool is_used) {
+  std::string histogram_name =
+      base::StrCat({"Net.QuicSession.GoogleSearch.SessionCreationInitiator",
+                    is_used ? ".Used" : ".Unused"});
+
+  base::UmaHistogramEnumeration(histogram_name, session_creation);
+}
+
 }  // namespace
 
 // static
@@ -700,8 +711,7 @@ int QuicChromiumClientSession::StreamRequest::DoLoop(int rv) {
         rv = DoRequestStreamComplete(rv);
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "next_state_: " << next_state_;
-        break;
+        NOTREACHED() << "next_state_: " << next_state_;
     }
   } while (next_state_ != STATE_NONE && next_state_ && rv != ERR_IO_PENDING);
 
@@ -949,6 +959,7 @@ QuicChromiumClientSession::QuicChromiumClientSession(
     bool report_ecn,
     bool enable_origin_frame,
     bool allow_server_preferred_address,
+    MultiplexedSessionCreationInitiator session_creation_initiator,
     const NetLogWithSource& net_log)
     : quic::QuicSpdyClientSessionBase(connection,
                                       /*visitor=*/nullptr,
@@ -994,7 +1005,8 @@ QuicChromiumClientSession::QuicChromiumClientSession(
       http3_logger_(std::make_unique<QuicHttp3Logger>(net_log_)),
       path_validation_writer_delegate_(this, task_runner_),
       ech_config_list_(metadata.ech_config_list),
-      allow_server_preferred_address_(allow_server_preferred_address) {
+      allow_server_preferred_address_(allow_server_preferred_address),
+      session_creation_initiator_(session_creation_initiator) {
   default_network_ = default_network;
   auto* socket_raw = socket.get();
   packet_readers_.push_back(std::make_unique<QuicChromiumPacketReader>(
@@ -1078,6 +1090,11 @@ QuicChromiumClientSession::~QuicChromiumClientSession() {
       observed_ecn_transition_ ? incoming_packets_before_ecn_transition_ : 0);
   UMA_HISTOGRAM_COUNTS_1M("Net.QuicSession.NumTotalStreams",
                           num_total_streams_);
+
+  if (IsGoogleHostWithAlpnH3(session_key_.host())) {
+    LogSessionCreationInitiatorToHistogram(session_creation_initiator_,
+                                           num_total_streams_ > 0);
+  }
 
   if (!OneRttKeysAvailable()) {
     return;
@@ -1344,8 +1361,7 @@ bool QuicChromiumClientSession::ShouldCreateOutgoingBidirectionalStream() {
 }
 
 bool QuicChromiumClientSession::ShouldCreateOutgoingUnidirectionalStream() {
-  NOTREACHED_IN_MIGRATION() << "Try to create outgoing unidirectional streams";
-  return false;
+  NOTREACHED() << "Try to create outgoing unidirectional streams";
 }
 
 bool QuicChromiumClientSession::WasConnectionEverUsed() {
@@ -1355,15 +1371,12 @@ bool QuicChromiumClientSession::WasConnectionEverUsed() {
 
 QuicChromiumClientStream*
 QuicChromiumClientSession::CreateOutgoingBidirectionalStream() {
-  NOTREACHED_IN_MIGRATION()
-      << "CreateOutgoingReliableStreamImpl should be called directly";
-  return nullptr;
+  NOTREACHED() << "CreateOutgoingReliableStreamImpl should be called directly";
 }
 
 QuicChromiumClientStream*
 QuicChromiumClientSession::CreateOutgoingUnidirectionalStream() {
-  NOTREACHED_IN_MIGRATION() << "Try to create outgoing unidirectional stream";
-  return nullptr;
+  NOTREACHED() << "Try to create outgoing unidirectional stream";
 }
 
 QuicChromiumClientStream*
@@ -1402,7 +1415,7 @@ int QuicChromiumClientSession::GetRemoteEndpoint(IPEndPoint* endpoint) {
 // TODO(rtenneti): Add unittests for GetSSLInfo which exercise the various ways
 // we learn about SSL info (sync vs async vs cached).
 bool QuicChromiumClientSession::GetSSLInfo(SSLInfo* ssl_info) const {
-  ssl_info->Reset();
+  *ssl_info = SSLInfo();
   if (!cert_verify_result_) {
     return false;
   }
@@ -1486,8 +1499,7 @@ bool QuicChromiumClientSession::CanPool(
   }
   SSLInfo ssl_info;
   if (!GetSSLInfo(&ssl_info) || !ssl_info.cert.get()) {
-    NOTREACHED_IN_MIGRATION() << "QUIC should always have certificates.";
-    return false;
+    NOTREACHED() << "QUIC should always have certificates.";
   }
 
   return SpdySession::CanPool(transport_security_state_, ssl_info,

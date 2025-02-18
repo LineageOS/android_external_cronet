@@ -46,8 +46,7 @@ public final class CronetLoggerFactory {
         }
     }
 
-    @VisibleForTesting
-    public static void setLoggerForTesting(@Nullable CronetLogger testingLogger) {
+    private static void setLoggerForTesting(@Nullable CronetLogger testingLogger) {
         synchronized (CronetLoggerFactory.class) {
             sLogger = testingLogger;
         }

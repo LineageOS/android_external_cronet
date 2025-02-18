@@ -51,6 +51,7 @@
 #include "net/cert/cert_status_flags.h"
 #include "net/cert/x509_certificate.h"
 #include "net/disk_cache/disk_cache.h"
+#include "net/disk_cache/memory_entry_data_hints.h"
 #include "net/http/http_cache.h"
 #include "net/http/http_cache_writers.h"
 #include "net/http/http_log_util.h"
@@ -631,7 +632,7 @@ void HttpCache::Transaction::SetEarlyResponseHeadersCallback(
 void HttpCache::Transaction::SetModifyRequestHeadersCallback(
     base::RepeatingCallback<void(HttpRequestHeaders*)> callback) {
   // This method should not be called for this class.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void HttpCache::Transaction::SetIsSharedDictionaryReadAllowedCallback(
@@ -1041,9 +1042,7 @@ int HttpCache::Transaction::DoLoop(int result) {
         rv = DoNetworkReadComplete(rv);
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "bad state " << state;
-        rv = ERR_FAILED;
-        break;
+        NOTREACHED() << "bad state " << state;
     }
     DCHECK(next_state_ != STATE_UNSET) << "Previous state was " << state;
 
@@ -1339,7 +1338,7 @@ int HttpCache::Transaction::DoOpenOrCreateEntryComplete(int result) {
       TransitionToState(STATE_SEND_REQUEST);
       break;
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
 
   return OK;
@@ -1560,11 +1559,8 @@ int HttpCache::Transaction::DoAddToEntryComplete(int result) {
     open_entry_last_used_ = entry_->GetEntry()->GetLastUsed();
   }
 
-  // TODO(jkarlin): We should either handle the case or DCHECK.
   if (result != OK) {
-    NOTREACHED_IN_MIGRATION();
-    TransitionToState(STATE_FINISH_HEADERS);
-    return result;
+    NOTREACHED();
   }
 
   if (mode_ == WRITE) {
@@ -1781,7 +1777,7 @@ int HttpCache::Transaction::DoCacheDispatchValidation() {
       break;
     case WRITE:
     default:
-      NOTREACHED_IN_MIGRATION();
+      NOTREACHED();
   }
   return result;
 }
@@ -2087,6 +2083,9 @@ int HttpCache::Transaction::DoUpdateCachedResponse() {
   response_.headers->Update(*new_response_->headers.get());
   response_.stale_revalidate_timeout = base::Time();
   response_.response_time = new_response_->response_time;
+  if (new_response_->headers->response_code() != net::HTTP_NOT_MODIFIED) {
+    response_.original_response_time = new_response_->response_time;
+  }
   response_.request_time = new_response_->request_time;
   response_.network_accessed = new_response_->network_accessed;
   response_.unused_since_prefetch = new_response_->unused_since_prefetch;
@@ -3471,10 +3470,15 @@ int HttpCache::Transaction::WriteResponseInfoToEntry(
   // Summarize some info on cacheability in memory. Don't do it if doomed
   // since then |entry_| isn't definitive for |cache_key_|.
   if (!entry_->IsDoomed()) {
-    cache_->GetCurrentBackend()->SetEntryInMemoryData(
-        cache_key_, ComputeUnusablePerCachingHeaders()
-                        ? HINT_UNUSABLE_PER_CACHING_HEADERS
-                        : 0);
+    uint8_t in_memory_data = 0;
+    if (ComputeUnusablePerCachingHeaders()) {
+      in_memory_data |= HINT_UNUSABLE_PER_CACHING_HEADERS;
+    }
+    if (request_->is_main_frame_navigation) {
+      in_memory_data |= HINT_HIGH_PRIORITY;
+    }
+    cache_->GetCurrentBackend()->SetEntryInMemoryData(cache_key_,
+                                                      in_memory_data);
   }
 
   BeginDiskCacheAccessTimeCount();

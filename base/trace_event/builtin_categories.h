@@ -74,6 +74,11 @@
   X("chromeos")                                                          \
   X("cma")                                                               \
   X("compositor")                                                        \
+  /* Config categories do not emit trace events, but are used */         \
+  /* to configure enabling additional information at runtime, */         \
+  /* which then is emitted in other trace events. */                     \
+  /* Controls details emitted by TaskAnnotator::EmitTaskTimingDetails */ \
+  X("config.scheduler.record_task_post_time")                            \
   X("content")                                                           \
   X("content_capture")                                                   \
   X("interactions")                                                      \
@@ -264,7 +269,7 @@
   X(TRACE_DISABLED_BY_DEFAULT("network"))                                \
   X(TRACE_DISABLED_BY_DEFAULT("paint-worklet"))                          \
   X(TRACE_DISABLED_BY_DEFAULT("power"))                                  \
-  X(TRACE_DISABLED_BY_DEFAULT("process_metrics"))                        \
+  X(TRACE_DISABLED_BY_DEFAULT("system_metrics"))                         \
   X(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler"))                     \
   X(TRACE_DISABLED_BY_DEFAULT("renderer.scheduler.debug"))               \
   X(TRACE_DISABLED_BY_DEFAULT("sequence_manager"))                       \
@@ -277,7 +282,6 @@
   X(TRACE_DISABLED_BY_DEFAULT("skottie"))                                \
   X(TRACE_DISABLED_BY_DEFAULT("SyncFileSystem"))                         \
   X(TRACE_DISABLED_BY_DEFAULT("system_power"))                           \
-  X(TRACE_DISABLED_BY_DEFAULT("system_stats"))                           \
   X(TRACE_DISABLED_BY_DEFAULT("thread_pool_diagnostics"))                \
   X(TRACE_DISABLED_BY_DEFAULT("toplevel.ipc"))                           \
   X(TRACE_DISABLED_BY_DEFAULT("user_action_samples"))                    \
@@ -330,6 +334,7 @@
   X("blink,blink.resource")                                                   \
   X("blink,blink_style")                                                      \
   X("blink,devtools.timeline")                                                \
+  X("blink,latency")                                                          \
   X("blink,loading")                                                          \
   X("blink,rail")                                                             \
   X("blink.animations,devtools.timeline,benchmark,rail")                      \
@@ -393,6 +398,7 @@
   X("startup,rail")                                                           \
   X("toplevel,graphics.pipeline")                                             \
   X("toplevel,Java")                                                          \
+  X("toplevel,latency")                                                       \
   X("toplevel,viz")                                                           \
   X("ui,input")                                                               \
   X("ui,latency")                                                             \

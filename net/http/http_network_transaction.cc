@@ -340,8 +340,7 @@ int HttpNetworkTransaction::RestartWithAuth(const AuthCredentials& credentials,
 
   HttpAuth::Target target = pending_auth_target_;
   if (target == HttpAuth::AUTH_NONE) {
-    NOTREACHED_IN_MIGRATION();
-    return ERR_UNEXPECTED;
+    NOTREACHED();
   }
   pending_auth_target_ = HttpAuth::AUTH_NONE;
 
@@ -631,7 +630,7 @@ void HttpNetworkTransaction::SetModifyRequestHeadersCallback(
 void HttpNetworkTransaction::SetIsSharedDictionaryReadAllowedCallback(
     base::RepeatingCallback<bool()> callback) {
   // This method should not be called for this class.
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 int HttpNetworkTransaction::ResumeNetworkStart() {
@@ -689,7 +688,7 @@ void HttpNetworkTransaction::OnStreamReady(const ProxyInfo& used_proxy_info,
 void HttpNetworkTransaction::OnBidirectionalStreamImplReady(
     const ProxyInfo& used_proxy_info,
     std::unique_ptr<BidirectionalStreamImpl> stream) {
-  NOTREACHED_IN_MIGRATION();
+  NOTREACHED();
 }
 
 void HttpNetworkTransaction::OnWebSocketHandshakeStreamReady(
@@ -775,13 +774,13 @@ void HttpNetworkTransaction::OnQuicBroken() {
 }
 
 void HttpNetworkTransaction::OnSwitchesToHttpStreamPool(
-    HttpStreamPoolSwitchingInfo switching_info) {
+    HttpStreamPoolRequestInfo request_info) {
   CHECK_EQ(STATE_CREATE_STREAM_COMPLETE, next_state_);
   CHECK(stream_request_);
   stream_request_.reset();
 
   stream_request_ = session_->http_stream_pool()->RequestStream(
-      this, std::move(switching_info), priority_,
+      this, std::move(request_info), priority_,
       /*allowed_bad_certs=*/observed_bad_certs_, enable_ip_based_pooling_,
       enable_alternative_services_, net_log_);
   CHECK(!stream_request_->completed());
@@ -923,9 +922,7 @@ int HttpNetworkTransaction::DoLoop(int result) {
             NetLogEventType::HTTP_TRANSACTION_DRAIN_BODY_FOR_AUTH_RESTART, rv);
         break;
       default:
-        NOTREACHED_IN_MIGRATION() << "bad state";
-        rv = ERR_FAILED;
-        break;
+        NOTREACHED() << "bad state";
     }
   } while (rv != ERR_IO_PENDING && next_state_ != STATE_NONE);
 
@@ -1976,8 +1973,7 @@ int HttpNetworkTransaction::HandleIOError(int error) {
     case RetryReason::kHttpMisdirectedRequest:
     case RetryReason::kHttp11Required:
     case RetryReason::kSslClientAuthSignatureFailed:
-      NOTREACHED_IN_MIGRATION();
-      break;
+      NOTREACHED();
   }
   return error;
 }

@@ -17,6 +17,7 @@
 #include "absl/strings/ascii.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/string_view.h"
+#include "absl/synchronization/mutex.h"
 #include "quiche/quic/core/congestion_control/loss_detection_interface.h"
 #include "quiche/quic/core/congestion_control/send_algorithm_interface.h"
 #include "quiche/quic/core/crypto/transport_parameters.h"
@@ -473,6 +474,7 @@ class MockQuicConnectionVisitor : public QuicConnectionVisitorInterface {
               (override));
   MOCK_METHOD(void, OnPathDegrading, (), (override));
   MOCK_METHOD(void, OnForwardProgressMadeAfterPathDegrading, (), (override));
+  MOCK_METHOD(void, OnForwardProgressMadeAfterFlowLabelChange, (), (override));
   MOCK_METHOD(bool, WillingAndAbleToWrite, (), (const, override));
   MOCK_METHOD(bool, ShouldKeepConnectionAlive, (), (const, override));
   MOCK_METHOD(std::string, GetStreamsInfoForLogging, (), (const, override));
@@ -568,15 +570,7 @@ class MockAlarmFactory : public QuicAlarmFactory {
 
 class TestAlarmFactory : public QuicAlarmFactory {
  public:
-  class TestAlarm : public QuicAlarm {
-   public:
-    explicit TestAlarm(QuicArenaScopedPtr<QuicAlarm::Delegate> delegate)
-        : QuicAlarm(std::move(delegate)) {}
-
-    void SetImpl() override {}
-    void CancelImpl() override {}
-    using QuicAlarm::Fire;
-  };
+  using TestAlarm = MockAlarmFactory::TestAlarm;
 
   TestAlarmFactory() {}
   TestAlarmFactory(const TestAlarmFactory&) = delete;
@@ -2089,7 +2083,7 @@ class DroppingPacketsWithSpecificDestinationWriter
                           const QuicSocketAddress& peer_address,
                           PerPacketOptions* options,
                           const QuicPacketWriterParams& params) override {
-    quiche::QuicheReaderMutexLock lock(&mutex_);
+    absl::ReaderMutexLock lock(&mutex_);
     QUIC_LOG(ERROR) << "DroppingPacketsWithSpecificDestinationWriter::"
                        "WritePacket with peer address "
                     << peer_address.ToString() << " and peer_address_to_drop_ "
@@ -2105,12 +2099,12 @@ class DroppingPacketsWithSpecificDestinationWriter
   }
 
   void set_peer_address_to_drop(const QuicSocketAddress& peer_address) {
-    quiche::QuicheWriterMutexLock lock(&mutex_);
+    absl::WriterMutexLock lock(&mutex_);
     peer_address_to_drop_ = peer_address;
   }
 
  private:
-  quiche::QuicheMutex mutex_;
+  absl::Mutex mutex_;
   QuicSocketAddress peer_address_to_drop_ ABSL_GUARDED_BY(mutex_);
 };
 

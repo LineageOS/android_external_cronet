@@ -20,7 +20,6 @@
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/path_service.h"
-#include "base/rust_buildflags.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/test/gmock_expected_support.h"
@@ -30,6 +29,7 @@
 #include "build/build_config.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "third_party/fuzztest/src/fuzztest/fuzztest.h"
 
 namespace {
 
@@ -74,15 +74,11 @@ TEST_P(JSONReaderTest, InvalidString) {
 }
 
 TEST_P(JSONReaderTest, SimpleBool) {
-#if BUILDFLAG(BUILD_RUST_JSON_READER)
   base::HistogramTester histograms;
-#endif  // BUILDFLAG(BUILD_RUST_JSON_READER)
   std::optional<Value> root = JSONReader::Read("true  ");
   ASSERT_TRUE(root);
   EXPECT_TRUE(root->is_bool());
-#if BUILDFLAG(BUILD_RUST_JSON_READER)
   histograms.ExpectTotalCount("Security.JSONParser.ParsingTime", 1);
-#endif  // BUILDFLAG(BUILD_RUST_JSON_READER)
 }
 
 TEST_P(JSONReaderTest, EmbeddedComments) {
@@ -980,6 +976,24 @@ TEST_P(JSONReaderTest, ReplaceInvalidUTF16EscapeSequence) {
   EXPECT_EQ("_\xEF\xBF\xBD_", value->GetString());
 }
 
+TEST_P(JSONReaderTest, InvalidUTF16HighSurrogatesAndEscapes) {
+  // U+dbaa is a lone high surrogate, and should be replaced with
+  // REPLACEMENT_CHARACTER and not affect interpretation of the following `\`
+  // character as a part of the escape sequence `\"`.
+  const std::string surrogate_and_dquote = R"("\udbaa\"abc")";
+  LOG(ERROR) << surrogate_and_dquote;
+  std::optional<Value> value =
+      JSONReader::Read(surrogate_and_dquote, JSON_REPLACE_INVALID_CHARACTERS);
+  ASSERT_TRUE(value);
+  ASSERT_TRUE(value->is_string());
+  EXPECT_EQ("\xEF\xBF\xBD\"abc", value->GetString());
+
+  // However, when not replacing invalid characters, the entire parse is
+  // invalid.
+  value = JSONReader::Read(surrogate_and_dquote);
+  ASSERT_FALSE(value);
+}
+
 TEST_P(JSONReaderTest, ParseNumberErrors) {
   const struct {
     const char* input;
@@ -1193,13 +1207,15 @@ TEST_P(JSONReaderTest, UsingRust) {
   ASSERT_EQ(JSONReader::UsingRust(), using_rust_);
 }
 
+static void CanParseAnythingWithoutCrashing(const std::string& input) {
+  JSONReader::Read(input, JSON_PARSE_CHROMIUM_EXTENSIONS);
+}
+
+FUZZ_TEST(JSONReaderTest, CanParseAnythingWithoutCrashing);
+
 INSTANTIATE_TEST_SUITE_P(All,
                          JSONReaderTest,
-#if BUILDFLAG(BUILD_RUST_JSON_READER)
                          testing::Bool(),
-#else   // BUILDFLAG(BUILD_RUST_JSON_READER)
-                         testing::Values(false),
-#endif  // BUILDFLAG(BUILD_RUST_JSON_READER)
                          [](const testing::TestParamInfo<bool>& info) {
                            return info.param ? "Rust" : "Cpp";
                          });

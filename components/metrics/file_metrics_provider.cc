@@ -502,7 +502,7 @@ FileMetricsProvider::AccessResult FileMetricsProvider::CheckAndMapMetricSource(
     if (amount != kTestSize)
       return ACCESS_RESULT_INVALID_CONTENTS;
 
-    char zeros[kTestSize] = {0};
+    char zeros[kTestSize] = {};
     file.Write(0, zeros, kTestSize);
     file.Flush();
 
@@ -685,10 +685,7 @@ FileMetricsProvider::AccessResult FileMetricsProvider::HandleFilterSource(
       return ACCESS_RESULT_FILTER_SKIP_FILE;
   }
 
-  // Code never gets here but some compilers don't realize that and so complain
-  // that "not all control paths return a value".
-  NOTREACHED_IN_MIGRATION();
-  return ACCESS_RESULT_SUCCESS;
+  NOTREACHED();
 }
 
 /* static */

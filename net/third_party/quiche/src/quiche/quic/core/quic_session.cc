@@ -174,11 +174,9 @@ void QuicSession::Initialize() {
   connection_->SetUnackedMapInitialCapacity();
   if (perspective_ == Perspective::IS_CLIENT) {
     if (config_.HasClientSentConnectionOption(kCHP1, perspective_)) {
-      config_.SetGoogleHandshakeMessageToSend(
-          std::string(kDefaultMaxPacketSize, '0'));
+      config_.SetDiscardLengthToSend(kDefaultMaxPacketSize);
     } else if (config_.HasClientSentConnectionOption(kCHP2, perspective_)) {
-      config_.SetGoogleHandshakeMessageToSend(
-          std::string(kDefaultMaxPacketSize * 2, '0'));
+      config_.SetDiscardLengthToSend(kDefaultMaxPacketSize * 2);
     }
   }
   connection_->SetFromConfig(config_);
@@ -644,6 +642,8 @@ void QuicSession::OnPathDegrading() {
 }
 
 void QuicSession::OnForwardProgressMadeAfterPathDegrading() {}
+
+void QuicSession::OnForwardProgressMadeAfterFlowLabelChange() {}
 
 bool QuicSession::AllowSelfAddressChange() const { return false; }
 
@@ -1422,7 +1422,7 @@ void QuicSession::OnConfigNegotiated() {
       if (ContainsQuicTag(config_.ReceivedConnectionOptions(), kIFW9)) {
         AdjustInitialFlowControlWindows(512 * 1024);
       }
-      if (ContainsQuicTag(config_.ReceivedConnectionOptions(), kIFWA)) {
+      if (ContainsQuicTag(config_.ReceivedConnectionOptions(), kIFWa)) {
         AdjustInitialFlowControlWindows(1024 * 1024);
       }
     }
@@ -1870,11 +1870,6 @@ void QuicSession::OnTlsHandshakeComplete() {
     if (connection()->version().HasIetfQuicFrames()) {
       MaybeSendAddressToken();
     }
-  }
-  if (perspective_ == Perspective::IS_CLIENT &&
-      (config_.HasClientSentConnectionOption(kCHP1, perspective_) ||
-       config_.HasClientSentConnectionOption(kCHP2, perspective_))) {
-    config_.ClearGoogleHandshakeMessage();
   }
 }
 

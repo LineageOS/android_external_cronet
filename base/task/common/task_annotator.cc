@@ -36,7 +36,7 @@ TaskAnnotator::ObserverForTesting* g_task_annotator_observer = nullptr;
 // The PendingTask currently in progress on each thread. Used to allow creating
 // a breadcrumb of program counters on the stack to help identify a task's
 // origin in crashes.
-constinit thread_local PendingTask* current_pending_task = nullptr;
+constinit thread_local const PendingTask* current_pending_task = nullptr;
 
 // Scoped IPC-related data (IPC hash and/or IPC interface name). IPC hash or
 // interface name can be known before the associated task object is created;
@@ -93,6 +93,12 @@ const PendingTask* TaskAnnotator::CurrentTaskForThread() {
   MSAN_UNPOISON(&current_pending_task, sizeof(PendingTask*));
 
   return current_pending_task;
+}
+
+void TaskAnnotator::SetCurrentTaskForThread(
+    PassKey<sequence_manager::internal::WorkQueue>,
+    const PendingTask* pending_task) {
+  current_pending_task = pending_task;
 }
 
 void TaskAnnotator::OnIPCReceived(const char* interface_name,
@@ -193,8 +199,8 @@ void TaskAnnotator::RunTaskImpl(PendingTask& pending_task) {
   base::debug::Alias(&task_time);
 
   {
-    const AutoReset<PendingTask*> resetter(&current_pending_task,
-                                           &pending_task);
+    const AutoReset<const PendingTask*> resetter(&current_pending_task,
+                                                 &pending_task);
 
     if (g_task_annotator_observer) {
       g_task_annotator_observer->BeforeRunTask(&pending_task);
@@ -252,14 +258,32 @@ void TaskAnnotator::MaybeEmitIncomingTaskFlow(perfetto::EventContext& ctx,
 
 // static
 void TaskAnnotator::EmitTaskTimingDetails(perfetto::EventContext& ctx) {
+  auto* const pending_task = CurrentTaskForThread();
+  if (!pending_task) {
+    return;
+  }
+
+  base::TimeTicks event_start_time = base::TimeTicks::Now();
+  const base::TimeTicks queue_time = pending_task->queue_time;
+
+  perfetto::protos::pbzero::CurrentTask* current_task = nullptr;
+
+  if (!queue_time.is_null()) {
+    current_task = ctx.event<perfetto::protos::pbzero::ChromeTrackEvent>()
+                       ->set_current_task();
+    current_task->set_task_queueing_time_us(static_cast<uint64_t>(
+        (event_start_time - queue_time).InMicroseconds()));
+    current_task->set_task_queued_time_us(
+        static_cast<uint64_t>(queue_time.since_origin().InMicroseconds()));
+  }
+
   auto* const tracker = GetCurrentLongTaskTracker();
   if (tracker) {
-    base::TimeTicks event_start_time = base::TimeTicks::Now();
-    base::TimeTicks task_start_time = tracker->GetTaskStartTime();
-
-    perfetto::protos::pbzero::CurrentTask* current_task =
-        ctx.event<perfetto::protos::pbzero::ChromeTrackEvent>()
-            ->set_current_task();
+    const base::TimeTicks task_start_time = tracker->GetTaskStartTime();
+    if (!current_task) {
+      current_task = ctx.event<perfetto::protos::pbzero::ChromeTrackEvent>()
+                         ->set_current_task();
+    }
     current_task->set_event_offset_from_task_start_time_us(
         static_cast<uint64_t>(
             (event_start_time - task_start_time).InMicroseconds()));

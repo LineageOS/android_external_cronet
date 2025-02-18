@@ -443,6 +443,25 @@ NET_EXPORT extern const base::FeatureParam<bool>
 NET_EXPORT extern const base::FeatureParam<base::TimeDelta>
     kIpPrivacyExpirationFuzz;
 
+// Backoff time applied when fetching tokens from the IP Protection auth
+// token server encounters an error indicating that the primary account is not
+// eligible (e.g., user is signed in but not eligible for IP protection) or
+// a 403 (FORBIDDEN) status code (e.g., quota exceeded).
+NET_EXPORT extern const base::FeatureParam<base::TimeDelta>
+    kIpPrivacyTryGetAuthTokensNotEligibleBackoff;
+
+// Backoff time applied when fetching tokens from the IP Protection auth
+// token server encounters a transient error, such as a failure to fetch
+// an OAuth token for a primary account or a network issue.
+NET_EXPORT extern const base::FeatureParam<base::TimeDelta>
+    kIpPrivacyTryGetAuthTokensTransientBackoff;
+
+// Backoff time applied when fetching tokens from the IP Protection auth
+// token server encounters a 400 (BAD REQUEST) or 401 (UNAUTHORIZED) status code
+// which suggests a bug.
+NET_EXPORT extern const base::FeatureParam<base::TimeDelta>
+    kIpPrivacyTryGetAuthTokensBugBackoff;
+
 // If true, only proxy traffic when the top-level site uses the http:// or
 // https:// schemes. This prevents attempts to proxy from top-level sites with
 // chrome://, chrome-extension://, or other non-standard schemes, in addition to
@@ -492,6 +511,11 @@ NET_EXPORT extern const base::FeatureParam<bool> kIpPrivacyCacheTokensByGeo;
 // protection.
 NET_EXPORT extern const base::FeatureParam<bool> kIpPrivacyAlwaysCreateCore;
 
+// Enables IP protection incognito mode. The default value of this feature is
+// false which maintains existing behavior by default. When set to true, the
+// main profile Network Context won't proxy traffic using IP Protection.
+NET_EXPORT extern const base::FeatureParam<bool> kIpPrivacyOnlyInIncognito;
+
 // Whether QuicParams::migrate_sessions_on_network_change_v2 defaults to true or
 // false. This is needed as a workaround to set this value to true on Android
 // but not on WebView (until crbug.com/1430082 has been fixed).
@@ -528,14 +552,7 @@ NET_EXPORT BASE_DECLARE_FEATURE(kEnableEarlyHintsOnHttp11);
 // Enables draft-07 version of WebTransport over HTTP/3.
 NET_EXPORT BASE_DECLARE_FEATURE(kEnableWebTransportDraft07);
 
-// Enables Zstandard Content-Encoding support.
-NET_EXPORT BASE_DECLARE_FEATURE(kZstdContentEncoding);
-
 NET_EXPORT BASE_DECLARE_FEATURE(kThirdPartyPartitionedStorageAllowedByDefault);
-
-// Enables the HTTP extensible priorities "priority" header.
-// RFC 9218
-NET_EXPORT BASE_DECLARE_FEATURE(kPriorityHeader);
 
 // Enables a more efficient implementation of SpdyHeadersToHttpResponse().
 NET_EXPORT BASE_DECLARE_FEATURE(kSpdyHeadersToHttpResponseUseBuilder);
@@ -570,6 +587,10 @@ NET_EXPORT BASE_DECLARE_FEATURE(kReduceIPAddressChangeNotification);
 // This feature will enable the Device Bound Session Credentials protocol to let
 // the server assert sessions (and cookies) are bound to a specific device.
 NET_EXPORT BASE_DECLARE_FEATURE(kDeviceBoundSessions);
+// This feature will enable the browser to persist Device Bound Session data
+// across restarts. This feature is only valid if `kDeviceBoundSessions` is
+// enabled.
+NET_EXPORT BASE_DECLARE_FEATURE(kPersistDeviceBoundSessions);
 
 // Enables storing connection subtype in NetworkChangeNotifierDelegateAndroid to
 // save the cost of the JNI call for future access.
@@ -638,9 +659,26 @@ NET_EXPORT BASE_DECLARE_FEATURE(kDiskCacheBackendExperiment);
 NET_EXPORT extern const base::FeatureParam<DiskCacheBackend>
     kDiskCacheBackendParam;
 
-// If enabled, make sure a cookie isn't being incorrectly set on a TLD or
-// public suffix.
-NET_EXPORT BASE_DECLARE_FEATURE(kCookieDomainFieldIsValid);
+// If enabled, ignore Strict-Transport-Security for [*.]localhost hosts.
+NET_EXPORT BASE_DECLARE_FEATURE(kIgnoreHSTSForLocalhost);
+
+// If enabled, main frame navigation resources will be prioritized in Simple
+// Cache. So they will be less likely to be evicted.
+NET_EXPORT BASE_DECLARE_FEATURE(kSimpleCachePrioritizedCaching);
+// This is a factor by which we divide the size of an entry that has the
+// HINT_HIGH_PRIORITY flag set to prioritize it for eviction to be less likely
+// evicted.
+NET_EXPORT extern const base::FeatureParam<int>
+    kSimpleCachePrioritizedCachingPrioritizationFactor;
+// The period of time that the entry with HINT_HIGH_PRIORITY flag is considered
+// prioritized.
+NET_EXPORT extern const base::FeatureParam<base::TimeDelta>
+    kSimpleCachePrioritizedCachingPrioritizationPeriod;
+
+#if BUILDFLAG(USE_NSS_CERTS)
+// If enabled, use new implementation of client cert path building.
+NET_EXPORT BASE_DECLARE_FEATURE(kNewClientCertPathBuilding);
+#endif  // BUILDFLAG(USE_NSS_CERTS)
 
 }  // namespace net::features
 

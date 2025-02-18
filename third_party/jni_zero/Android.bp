@@ -31,7 +31,7 @@ license {
         "LICENSE",
     ],
     license_kinds: [
-        "SPDX-license-identifier-BSD",
+        "SPDX-license-identifier-BSD-3-Clause",
     ],
 }
 
@@ -41,6 +41,7 @@ java_library {
     srcs: [
         "java/src/org/jni_zero/CheckDiscard.java",
         "java/src/org/jni_zero/JniStaticTestMocker.java",
+        "java/src/org/jni_zero/JniTestInstanceHolder.java",
         "java/src/org/jni_zero/NativeLibraryLoadedStatus.java",
     ],
     defaults: [
@@ -62,6 +63,7 @@ java_library {
     srcs: [
         "java/src/org/jni_zero/CheckDiscard.java",
         "java/src/org/jni_zero/JniStaticTestMocker.java",
+        "java/src/org/jni_zero/JniTestInstanceHolder.java",
         "java/src/org/jni_zero/NativeLibraryLoadedStatus.java",
     ],
     apex_available: [
@@ -145,8 +147,8 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DNDEBUG",
@@ -156,6 +158,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
         "-D__STDC_CONSTANT_MACROS",
@@ -240,8 +243,8 @@ cc_library_static {
     cflags: [
         "-DANDROID",
         "-DANDROID_NDK_VERSION_ROLL=r27_1",
-        "-DCR_CLANG_REVISION=\"llvmorg-20-init-9764-gb81d8e90-5\"",
-        "-DCR_LIBCXX_REVISION=8e31ad42561900383e10dbefc1d3e8f38cedfbe9",
+        "-DCR_CLANG_REVISION=\"llvmorg-20-init-13894-g8cb44859-1\"",
+        "-DCR_LIBCXX_REVISION=6a91009985a46122b061d36bb27f2c94f99126df",
         "-DDYNAMIC_ANNOTATIONS_ENABLED=0",
         "-DHAVE_SYS_UIO_H",
         "-DNDEBUG",
@@ -251,6 +254,7 @@ cc_library_static {
         "-D_GNU_SOURCE",
         "-D_LIBCPP_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D_LIBCPP_HARDENING_MODE=_LIBCPP_HARDENING_MODE_EXTENSIVE",
+        "-D_LIBCPP_INSTRUMENTED_WITH_ASAN=0",
         "-D_LIBCXXABI_DISABLE_VISIBILITY_ANNOTATIONS",
         "-D__ANDROID_UNAVAILABLE_SYMBOLS_ARE_WEAK__",
         "-D__STDC_CONSTANT_MACROS",
@@ -317,6 +321,7 @@ java_library {
         "java/src/org/jni_zero/CalledByNativeUnchecked.java",
         "java/src/org/jni_zero/JNINamespace.java",
         "java/src/org/jni_zero/JniInit.java",
+        "java/src/org/jni_zero/JniTestInstancesSnapshot.java",
         "java/src/org/jni_zero/JniType.java",
         "java/src/org/jni_zero/JniUtil.java",
         "java/src/org/jni_zero/NativeClassQualifiedName.java",
@@ -350,6 +355,7 @@ java_library {
         "java/src/org/jni_zero/CalledByNativeUnchecked.java",
         "java/src/org/jni_zero/JNINamespace.java",
         "java/src/org/jni_zero/JniInit.java",
+        "java/src/org/jni_zero/JniTestInstancesSnapshot.java",
         "java/src/org/jni_zero/JniType.java",
         "java/src/org/jni_zero/JniUtil.java",
         "java/src/org/jni_zero/NativeClassQualifiedName.java",

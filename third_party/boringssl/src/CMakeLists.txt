@@ -123,7 +123,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CLANG)
   endif()
 
   if(CLANG)
-    set(C_CXX_FLAGS "${C_CXX_FLAGS} -Wnewline-eof -fcolor-diagnostics")
+    set(C_CXX_FLAGS "${C_CXX_FLAGS} -Wnewline-eof -Wextra-semi -fcolor-diagnostics")
   else()
     # GCC (at least 4.8.4) has a bug where it'll find unreachable free() calls
     # and declare that the code is trying to free a stack pointer.
@@ -449,7 +449,10 @@ if(USE_CUSTOM_LIBCXX)
     libcxx PRIVATE
     -D_LIBCPP_BUILDING_LIBRARY
     -DLIBCXX_BUILDING_LIBCXXABI
+    -DLIBC_NAMESPACE=bssl_llvm_libc
   )
+  # LLVM libc++ depends on some shared headers from LLVM libc.
+  target_include_directories(libcxx PRIVATE util/bot/llvm-libc)
   set_target_properties(
     libcxx libcxxabi PROPERTIES
     COMPILE_FLAGS "-Wno-missing-prototypes -Wno-implicit-fallthrough"
@@ -504,21 +507,25 @@ if(FIPS_DELOCATE AND FIPS_SHARED)
   message(FATAL_ERROR "Can't set both delocate and shared mode for FIPS build")
 endif()
 
+# OSS-Fuzz relies on BORINGSSL_ALLOW_CXX_RUNTIME because -fno-rtti and
+# -fsanitize=vptr are incompatible.
+set(NO_CXX_RUNTIME_FLAGS)
+if(NOT MSVC AND NOT BORINGSSL_ALLOW_CXX_RUNTIME)
+  # Without -fno-exceptions, use of std::unique_ptr emits a call to
+  # std::terminate.
+  set(NO_CXX_RUNTIME_FLAGS -fno-exceptions -fno-rtti)
+endif()
+
 if(FIPS_DELOCATE)
   add_library(bcm_c_generated_asm STATIC ${BCM_SOURCES})
-  if(NOT MSVC)
-    # The C++ code in libcrypto shouldn't depend on libstdc++. This requires
-    # -fno-exceptions otherwise use of std::unique_ptr emits a call to
-    # std::terminate.
-    target_compile_options(bcm_c_generated_asm PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-  endif()
+  # The C++ code in libcrypto shouldn't depend on libstdc++.
+  target_compile_options(bcm_c_generated_asm PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${NO_CXX_RUNTIME_FLAGS}> "-S")
   add_dependencies(bcm_c_generated_asm boringssl_prefix_symbols)
   target_include_directories(bcm_c_generated_asm PRIVATE ${PROJECT_SOURCE_DIR}/include)
-  set_target_properties(bcm_c_generated_asm PROPERTIES COMPILE_OPTIONS "-S")
   set_target_properties(bcm_c_generated_asm PROPERTIES POSITION_INDEPENDENT_CODE ON)
   if(CLANG)
     # Clang warns when passing both -c (from CMake) and -S.
-    set_property(TARGET bcm_c_generated_asm APPEND PROPERTY COMPILE_OPTIONS "-Wno-unused-command-line-argument")
+    target_compile_options(bcm_c_generated_asm PRIVATE "-Wno-unused-command-line-argument")
   endif()
 
   set(TARGET_FLAG "")
@@ -562,12 +569,8 @@ elseif(FIPS_SHARED)
   endif()
 
   add_library(bcm_library STATIC ${BCM_SOURCES} ${BCM_SOURCES_ASM_USED})
-  if(NOT MSVC)
-    # The C++ code in libcrypto shouldn't depend on libstdc++. This requires
-    # -fno-exceptions otherwise use of std::unique_ptr emits a call to
-    # std::terminate.
-    target_compile_options(bcm_library PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-  endif()
+  # The C++ code in libcrypto shouldn't depend on libstdc++.
+  target_compile_options(bcm_library PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${NO_CXX_RUNTIME_FLAGS}>)
   add_dependencies(bcm_library boringssl_prefix_symbols)
   target_include_directories(bcm_library PRIVATE ${PROJECT_SOURCE_DIR}/include)
 
@@ -580,24 +583,16 @@ elseif(FIPS_SHARED)
   set(CRYPTO_FIPS_OBJECTS bcm.o)
 else()
   add_library(fipsmodule OBJECT ${BCM_SOURCES} ${BCM_SOURCES_ASM_USED})
-  if(NOT MSVC)
-    # The C++ code in libcrypto shouldn't depend on libstdc++. This requires
-    # -fno-exceptions otherwise use of std::unique_ptr emits a call to
-    # std::terminate.
-    target_compile_options(fipsmodule PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-  endif()
+  # The C++ code in libcrypto shouldn't depend on libstdc++.
+  target_compile_options(fipsmodule PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${NO_CXX_RUNTIME_FLAGS}>)
   add_dependencies(fipsmodule boringssl_prefix_symbols)
   target_include_directories(fipsmodule PRIVATE ${PROJECT_SOURCE_DIR}/include)
   set(CRYPTO_FIPS_OBJECTS $<TARGET_OBJECTS:fipsmodule>)
 endif()
 
 add_library(crypto ${CRYPTO_SOURCES} ${CRYPTO_FIPS_OBJECTS} ${CRYPTO_SOURCES_ASM_USED})
-if(NOT MSVC)
-    # The C++ code in libcrypto shouldn't depend on libstdc++. This requires
-    # -fno-exceptions otherwise use of std::unique_ptr emits a call to
-    # std::terminate.
-  target_compile_options(crypto PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions -fno-rtti>)
-endif()
+  # The C++ code in libcrypto shouldn't depend on libstdc++.
+target_compile_options(crypto PRIVATE $<$<COMPILE_LANGUAGE:CXX>:${NO_CXX_RUNTIME_FLAGS}>)
 target_include_directories(crypto PUBLIC
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include>
   $<INSTALL_INTERFACE:include>
@@ -694,7 +689,8 @@ add_executable(pki_test ${PKI_TEST_SOURCES})
 target_link_libraries(pki_test test_support_lib boringssl_gtest pki crypto)
 add_dependencies(all_tests pki_test)
 
-# The PKI library requires C++17.
+# The PKI library requires C++17, but we haven't required this everywhere yet.
+# TODO(crbug.com/42290600): Remove the C++17 bits.
 set_target_properties(
   pki pki_test
   PROPERTIES
@@ -719,7 +715,14 @@ if(FUZZ)
     add_library(Fuzzer STATIC ${LIBFUZZER_SOURCES})
     # libFuzzer does not pass our aggressive warnings. It also must be built
     # without -fsanitize-coverage options or clang crashes.
-    set_target_properties(Fuzzer PROPERTIES COMPILE_FLAGS "-Wno-shadow -Wno-format-nonliteral -Wno-missing-prototypes -fsanitize-coverage=0")
+    set_target_properties(
+      Fuzzer PROPERTIES
+      COMPILE_FLAGS "-Wno-shadow -Wno-format-nonliteral -Wno-missing-prototypes -fsanitize-coverage=0"
+      # libFuzzer requires C++17, but we haven't required this everywhere yet.
+      # TODO(crbug.com/42290600): Remove this.
+      CXX_STANDARD 17
+      CXX_STANDARD_REQUIRED TRUE
+    )
   endif()
 
   add_subdirectory(fuzz)

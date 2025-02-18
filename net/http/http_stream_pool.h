@@ -17,10 +17,11 @@
 #include "base/values.h"
 #include "net/base/completion_once_callback.h"
 #include "net/base/net_export.h"
+#include "net/base/network_anonymization_key.h"
 #include "net/base/network_change_notifier.h"
 #include "net/base/request_priority.h"
 #include "net/http/alternative_service.h"
-#include "net/http/http_stream_pool_switching_info.h"
+#include "net/http/http_stream_pool_request_info.h"
 #include "net/http/http_stream_request.h"
 #include "net/socket/next_proto.h"
 #include "net/socket/ssl_client_socket.h"
@@ -48,6 +49,23 @@ class NET_EXPORT_PRIVATE HttpStreamPool
     kRespect,
     kIgnore,
   };
+
+  // Represents why a stream socket is closed.
+  // These values are persisted to logs. Entries should not be renumbered and
+  // numeric values should never be reused.
+  //
+  // LINT.IfChange(StreamCloseReason)
+  enum class StreamCloseReason {
+    kUnspecified = 0,
+    kCloseAllConnections = 1,
+    kIpAddressChanged = 2,
+    kSslConfigChanged = 3,
+    kCannotUseTcpBasedProtocols = 4,
+    kSpdySessionCreated = 5,
+    kQuicSessionCreated = 6,
+    kMaxValue = kQuicSessionCreated,
+  };
+  // LINT.ThenChange(//tools/metrics/histograms/metadata/net/enums.xml:StreamCloseReason)
 
   // Observes events on the HttpStreamPool and may intercept preconnects. Used
   // only for tests.
@@ -80,6 +98,8 @@ class NET_EXPORT_PRIVATE HttpStreamPool
       "Connection was closed when it was returned to the pool";
   static constexpr std::string_view kSocketGenerationOutOfDate =
       "Socket generation out of date";
+  static constexpr std::string_view kExceededSocketLimits =
+      "Exceed socket pool/group limits";
 
   // The default maximum number of sockets per pool. The same as
   // ClientSocketPoolManager::max_sockets_per_pool().
@@ -124,7 +144,7 @@ class NET_EXPORT_PRIVATE HttpStreamPool
   // Requests an HttpStream.
   std::unique_ptr<HttpStreamRequest> RequestStream(
       HttpStreamRequest::Delegate* delegate,
-      HttpStreamPoolSwitchingInfo switching_info,
+      HttpStreamPoolRequestInfo request_info,
       RequestPriority priority,
       const std::vector<SSLConfig::CertAndStatus>& allowed_bad_certs,
       bool enable_ip_based_pooling,
@@ -133,7 +153,7 @@ class NET_EXPORT_PRIVATE HttpStreamPool
 
   // Requests that enough connections/sessions for `num_streams` be opened.
   // `callback` is only invoked when the return value is `ERR_IO_PENDING`.
-  int Preconnect(HttpStreamPoolSwitchingInfo switching_info,
+  int Preconnect(HttpStreamPoolRequestInfo request_info,
                  size_t num_streams,
                  CompletionOnceCallback callback);
 
@@ -162,7 +182,9 @@ class NET_EXPORT_PRIVATE HttpStreamPool
   }
 
   // Closes all streams in this pool and cancels all pending requests.
-  void FlushWithError(int error, std::string_view net_log_close_reason_utf8);
+  void FlushWithError(int error,
+                      StreamCloseReason attempt_cancel_reason,
+                      std::string_view net_log_close_reason_utf8);
 
   void CloseIdleStreams(std::string_view net_log_close_reason_utf8);
 
@@ -193,14 +215,17 @@ class NET_EXPORT_PRIVATE HttpStreamPool
   // streams before processing pending requests.
   void ProcessPendingRequestsInGroups();
 
-  // Returns true when HTTP/1.1 is required for `stream_key`.
-  bool RequiresHTTP11(const HttpStreamKey& stream_key);
+  // Returns true when HTTP/1.1 is required for `destination`.
+  bool RequiresHTTP11(const url::SchemeHostPort& destination,
+                      const NetworkAnonymizationKey& network_anonymization_key);
 
-  // Returns true when QUIC is broken for `stream_key`.
-  bool IsQuicBroken(const HttpStreamKey& stream_key);
+  // Returns true when QUIC is broken for `destination`.
+  bool IsQuicBroken(const url::SchemeHostPort& destination,
+                    const NetworkAnonymizationKey& network_anonymization_key);
 
-  // Returns true when QUIC can be used for `stream_key`.
-  bool CanUseQuic(const HttpStreamKey& stream_key,
+  // Returns true when QUIC can be used for `destination`.
+  bool CanUseQuic(const url::SchemeHostPort& destination,
+                  const NetworkAnonymizationKey& network_anonymization_key,
                   bool enable_ip_based_pooling,
                   bool enable_alternative_services);
 
@@ -212,10 +237,8 @@ class NET_EXPORT_PRIVATE HttpStreamPool
   quic::ParsedQuicVersion SelectQuicVersion(
       const AlternativeServiceInfo& alternative_service_info);
 
-  // Returns true when there is an existing QUIC session for `stream_key` and
-  // `quic_session_key`.
+  // Returns true when there is an existing QUIC session for `quic_session_key`.
   bool CanUseExistingQuicSession(
-      const HttpStreamKey& stream_key,
       const QuicSessionAliasKey& quic_session_alias_key,
       bool enable_ip_based_pooling,
       bool enable_alternative_services);
@@ -226,6 +249,8 @@ class NET_EXPORT_PRIVATE HttpStreamPool
   void SetDelegateForTesting(std::unique_ptr<TestDelegate> observer);
 
   Group& GetOrCreateGroupForTesting(const HttpStreamKey& stream_key);
+
+  Group* GetGroupForTesting(const HttpStreamKey& stream_key);
 
   HttpNetworkSession* http_network_session() const {
     return http_network_session_;
@@ -253,14 +278,15 @@ class NET_EXPORT_PRIVATE HttpStreamPool
     max_stream_sockets_per_group_ = max_stream_sockets_per_group;
   }
 
-  Group& GetOrCreateGroup(const HttpStreamKey& stream_key,
-                          const url::SchemeHostPort& origin_destination);
-
   size_t JobControllerCountForTesting() const {
     return job_controllers_.size();
   }
 
  private:
+  Group& GetOrCreateGroup(
+      const HttpStreamKey& stream_key,
+      std::optional<QuicSessionAliasKey> quic_session_alias_key = std::nullopt);
+
   Group* GetGroup(const HttpStreamKey& stream_key);
 
   // Searches for a group that has the highest priority pending request and
