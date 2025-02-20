@@ -75,7 +75,6 @@ java_library {
     ],
     static_libs: [
         "com.android.net.http.flags-aconfig-java",
-        "modules-utils-expresslog",
     ],
     sdk_version: "module_current",
     visibility: [

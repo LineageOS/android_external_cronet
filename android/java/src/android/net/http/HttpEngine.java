@@ -17,7 +17,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.modules.expresslog.Counter;
 
 import org.chromium.base.metrics.ScopedSysTraceEvent;
 import org.chromium.net.ApiVersion;
@@ -62,7 +61,6 @@ public abstract class HttpEngine {
     @SystemApi(client=MODULE_LIBRARIES)
     @FlaggedApi(Flags.FLAG_PRELOAD_HTTPENGINE_IN_ZYGOTE)
     public static void preload() {
-        Counter.logIncrement("core_networking.value_httpengine_preload_attempt_count");
         if (sPreloaded) {
             throw new IllegalStateException("HttpEngine already preloaded");
         }
