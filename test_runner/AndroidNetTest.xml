@@ -41,6 +41,19 @@
     <test class="com.android.tradefed.testtype.HostTest">
         <option name="jar" value="net_unittests_tester.jar"/>
         <option name="set-option" value="library-to-load:net_unittests__library"/>
+        <!-- Use exclude-filter once (b/342355769) has been fixed -->
+        <option name="set-option" value="exclude-filter:HttpAuthNegotiateAndroidTest.GenerateAuthToken"/>
+        <option name="set-option" value="exclude-filter:MerkleAuditProofDeathTest.DiesIfLeafIndexIsGreaterThanOrEqualToTreeSize"/>
+        <option name="set-option" value="exclude-filter:CertNetFetcherURLRequestTest.ParallelFetchDuplicates"/>
+        <option name="set-option" value="exclude-filter:DiskCacheBackendTest.SimpleDoomRecent"/>
+        <option name="set-option" value="exclude-filter:HttpAuthHandlerNegotiateTest.DisableCname"/>
+        <option name="set-option" value="exclude-filter:HttpAuthHandlerNegotiateTest.DisableCnameStandardPort"/>
+        <option name="set-option" value="exclude-filter:HttpAuthHandlerNegotiateTest.DisableCnameNonstandardPort"/>
+        <option name="set-option" value="exclude-filter:HttpAuthHandlerNegotiateTest.CnameSync"/>
+        <option name="set-option" value="exclude-filter:HttpAuthHandlerNegotiateTest.CnameAsync"/>
+        <option name="set-option" value="exclude-filter:HttpAuthHandlerNegotiateTest.ServerNotInKerberosDatabase"/>
+        <option name="set-option" value="exclude-filter:HttpAuthHandlerNegotiateTest.NoKerberosCredentials"/>
+        <option name="set-option" value="exclude-filter:EmbeddedTestServerTestInstantiation/EmbeddedTestServerTest#ConnectionListenerComplete/*"/>
         <option name="enable-pretty-logs" value="false" />
     </test>
 </configuration>

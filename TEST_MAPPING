@@ -21,46 +21,7 @@
   ],
   "presubmit": [
     {
-      "name": "net_unittests_tester",
-      "options": [
-        // Use exclude-filter once (b/342355769) has been fixed
-        {
-          "set-option": "exclude-filter:HttpAuthNegotiateAndroidTest.GenerateAuthToken"
-        },
-        {
-          "set-option": "exclude-filter:MerkleAuditProofDeathTest.DiesIfLeafIndexIsGreaterThanOrEqualToTreeSize"
-        },
-        {
-          "set-option": "exclude-filter:CertNetFetcherURLRequestTest.ParallelFetchDuplicates"
-        },
-        {
-          "set-option": "exclude-filter:DiskCacheBackendTest.SimpleDoomRecent"
-        },
-        {
-          "set-option": "exclude-filter:HttpAuthHandlerNegotiateTest.DisableCname"
-        },
-        {
-          "set-option": "exclude-filter:HttpAuthHandlerNegotiateTest.DisableCnameStandardPort"
-        },
-        {
-          "set-option": "exclude-filter:HttpAuthHandlerNegotiateTest.DisableCnameNonstandardPort"
-        },
-        {
-          "set-option": "exclude-filter:HttpAuthHandlerNegotiateTest.CnameSync"
-        },
-        {
-          "set-option": "exclude-filter:HttpAuthHandlerNegotiateTest.CnameAsync"
-        },
-        {
-          "set-option": "exclude-filter:HttpAuthHandlerNegotiateTest.ServerNotInKerberosDatabase"
-        },
-        {
-          "set-option": "exclude-filter:HttpAuthHandlerNegotiateTest.NoKerberosCredentials"
-        },
-        {
-          "set-option": "exclude-filter:EmbeddedTestServerTestInstantiation/EmbeddedTestServerTest#ConnectionListenerComplete/*"
-        }
-      ]
+      "name": "net_unittests_tester"
     },
     {
       "name": "cronet_unittests_tester"
