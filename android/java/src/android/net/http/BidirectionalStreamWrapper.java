@@ -17,13 +17,49 @@
 package android.net.http;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 public class BidirectionalStreamWrapper extends android.net.http.BidirectionalStream {
 
     private final org.chromium.net.BidirectionalStream backend;
+    private String mHttpMethod;
+    private boolean mHasTrafficStatsTag;
+    private int mTrafficStatsTag;
+    private boolean mHasTrafficStatsUid;
+    private int mTrafficStatsUid;
+    private int mPriority = android.net.http.BidirectionalStream.STREAM_PRIORITY_MEDIUM;
+    private boolean mDelayRequestHeadersUntilFirstFlush;
+    private final List<Map.Entry<String, String>> mHeadersList;
+    private android.net.http.HeaderBlock mHeaders;
 
     BidirectionalStreamWrapper(org.chromium.net.BidirectionalStream backend) {
         this.backend = backend;
+        this.mHeadersList = new ArrayList<>();
+        this.mHeaders = new HeaderBlockImpl(mHeadersList);
+    }
+
+    BidirectionalStreamWrapper(
+            org.chromium.net.BidirectionalStream backend,
+            String httpMethod,
+            boolean hasTrafficStatsTag,
+            int trafficStatsTag,
+            boolean hasTrafficStatsUid,
+            int trafficStatsUid,
+            int priority,
+            android.net.http.HeaderBlock headers,
+            boolean delayRequestHeadersUntilFirstFlush) {
+        this(backend);
+        this.mHasTrafficStatsTag = hasTrafficStatsTag;
+        this.mHasTrafficStatsUid = hasTrafficStatsUid;
+        this.mHttpMethod = httpMethod;
+        this.mTrafficStatsTag = trafficStatsTag;
+        this.mTrafficStatsUid = trafficStatsUid;
+        this.mPriority = priority;
+        this.mHeaders = headers;
+        this.mDelayRequestHeadersUntilFirstFlush = delayRequestHeadersUntilFirstFlush;
     }
 
     @Override
@@ -58,41 +94,74 @@ public class BidirectionalStreamWrapper extends android.net.http.BidirectionalSt
 
     @Override
     public boolean isDelayRequestHeadersUntilFirstFlushEnabled() {
-        return backend.isDelayRequestHeadersUntilFirstFlushEnabled();
+        return mDelayRequestHeadersUntilFirstFlush;
     }
 
     @Override
     public int getPriority() {
-        return backend.getPriority();
+        return mPriority;
     }
 
     @Override
     public String getHttpMethod() {
-        return backend.getHttpMethod();
+        return mHttpMethod;
     }
 
     @Override
     public boolean hasTrafficStatsTag() {
-        return backend.hasTrafficStatsTag();
+        return mHasTrafficStatsTag;
     }
 
     @Override
     public int getTrafficStatsTag() {
-        return backend.getTrafficStatsTag();
+        if (!hasTrafficStatsTag()) {
+            throw new IllegalStateException("TrafficStatsTag is not set");
+        }
+        return mTrafficStatsTag;
     }
 
     @Override
     public boolean hasTrafficStatsUid() {
-        return backend.hasTrafficStatsUid();
+        return mHasTrafficStatsUid;
     }
 
     @Override
     public int getTrafficStatsUid() {
-        return backend.getTrafficStatsUid();
+        if (!hasTrafficStatsUid()) {
+            throw new IllegalStateException("TrafficStatsUid is not set");
+        }
+        return mTrafficStatsUid;
     }
 
     @Override
     public android.net.http.HeaderBlock getHeaders() {
-        return new HeaderBlockWrapper(backend.getHeaders());
+        return mHeaders;
+    }
+
+    void setHttpMethod(String httpMethod) {
+        mHttpMethod = httpMethod;
+    }
+
+    void setTrafficStatsTag(int trafficStatsTag) {
+        mHasTrafficStatsTag = true;
+        mTrafficStatsTag = trafficStatsTag;
+    }
+
+    void setTrafficStatsUid(int trafficStatsUid) {
+        mHasTrafficStatsUid = true;
+        mTrafficStatsUid = trafficStatsUid;
+    }
+
+    void setPriority(int priority) {
+        mPriority = priority;
+    }
+
+    void setDelayRequestHeadersUntilFirstFlushEnabled(
+            boolean delayRequestHeadersUntilFirstFlushEnabled) {
+        mDelayRequestHeadersUntilFirstFlush = delayRequestHeadersUntilFirstFlushEnabled;
+    }
+
+    void addHeader(String header, String value) {
+        mHeadersList.add(new AbstractMap.SimpleImmutableEntry<>(header, value));
     }
 }

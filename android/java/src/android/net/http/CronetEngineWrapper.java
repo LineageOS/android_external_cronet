@@ -62,17 +62,12 @@ class CronetEngineWrapper extends HttpEngine {
     @Override
     public android.net.http.BidirectionalStream.Builder newBidirectionalStreamBuilder(
             String url, Executor executor, android.net.http.BidirectionalStream.Callback callback) {
-        BidirectionalStreamCallbackWrapper wrappedCallback =
-                new BidirectionalStreamCallbackWrapper(callback);
-        return new BidirectionalStreamBuilderWrapper(
-                backend.newBidirectionalStreamBuilder(url, wrappedCallback, executor));
+        return new BidirectionalStreamBuilderWrapper(backend, url, executor, callback);
     }
 
     @Override
     public android.net.http.UrlRequest.Builder newUrlRequestBuilder(
             String url, Executor executor, android.net.http.UrlRequest.Callback callback) {
-        UrlRequestCallbackWrapper wrappedCallback = new UrlRequestCallbackWrapper(callback);
-        return new UrlRequestBuilderWrapper(
-                backend.newUrlRequestBuilder(url, wrappedCallback, executor));
+        return new UrlRequestBuilderWrapper(backend, url, executor, callback);
     }
 }
