@@ -18,164 +18,95 @@ package android.net.http;
 
 import android.net.Network;
 
-import androidx.annotation.NonNull;
+import org.chromium.net.ExperimentalCronetEngine;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.function.Consumer;
 
 public class UrlRequestBuilderWrapper extends android.net.http.UrlRequest.Builder {
-    private boolean mCacheDisabled;
-    private boolean mDirectExecutorAllowed;
 
-    private Consumer<org.chromium.net.ExperimentalUrlRequest.Builder> mBuilderMutator =
-            builder -> {};
-    private Consumer<android.net.http.UrlRequestWrapper> mWrapperMutator = wrapper -> {};
-    private UrlRequestCallbackWrapper mCallbackWrapper;
-    private org.chromium.net.ExperimentalUrlRequest.Builder mBackend;
-    private List<Map.Entry<String, String>> mHeaders;
-    private android.net.http.HeaderBlock mHeaderBlock;
-    private final org.chromium.net.ExperimentalCronetEngine mCronetEngine;
-    private final String mUrl;
-    private final Executor mExecutor;
-    private final android.net.http.UrlRequest.Callback mCallback;
+    private final org.chromium.net.ExperimentalUrlRequest.Builder backend;
+    private boolean isCacheDisabled;
+    private boolean isDirectExecutorAllowed;
 
-    public UrlRequestBuilderWrapper(
-            org.chromium.net.ExperimentalCronetEngine cronetEngine,
-            String url,
-            Executor executor,
-            android.net.http.UrlRequest.Callback callback) {
-        this.mCronetEngine = cronetEngine;
-        this.mUrl = url;
-        this.mExecutor = executor;
-        this.mCallback = callback;
-        this.mHeaders = new ArrayList<>();
-        this.mCallbackWrapper = new UrlRequestCallbackWrapper(mCallback);
-        this.mBackend = mCronetEngine.newUrlRequestBuilder(mUrl, mCallbackWrapper, mExecutor);
-    }
-
-    private void maybeCreateBackendAndApplyMutator() {
-        if (mBackend != null) {
-            return;
-        }
-        mCallbackWrapper = new UrlRequestCallbackWrapper(mCallback);
-        mBackend = mCronetEngine.newUrlRequestBuilder(mUrl, mCallbackWrapper, mExecutor);
-        mBuilderMutator.accept(mBackend);
-    }
-
-    private void mutate(
-            Consumer<org.chromium.net.ExperimentalUrlRequest.Builder> builderMutator,
-            Consumer<android.net.http.UrlRequestWrapper> wrapperMutator) {
-        maybeCreateBackendAndApplyMutator();
-        mBuilderMutator = mBuilderMutator.andThen(builderMutator);
-        builderMutator.accept(mBackend);
-        if (wrapperMutator != null) {
-            mWrapperMutator = mWrapperMutator.andThen(wrapperMutator);
-        }
+    public UrlRequestBuilderWrapper(org.chromium.net.ExperimentalUrlRequest.Builder backend) {
+        this.backend = backend;
     }
 
     @Override
     public android.net.http.UrlRequest.Builder setHttpMethod(String method) {
-        mutate(builder -> builder.setHttpMethod(method), wrapper -> wrapper.setHttpMethod(method));
+        backend.setHttpMethod(method);
         return this;
     }
 
     @Override
     public android.net.http.UrlRequest.Builder addHeader(String header, String value) {
-        mutate(
-                builder -> builder.addHeader(header, value),
-                wrapper -> wrapper.addHeader(header, value));
+        backend.addHeader(header, value);
         return this;
     }
 
     @Override
     public android.net.http.UrlRequest.Builder setCacheDisabled(boolean disableCache) {
-        mCacheDisabled = disableCache;
+        isCacheDisabled = disableCache;
         return this;
     }
 
     @Override
     public android.net.http.UrlRequest.Builder setPriority(int priority) {
-        mutate(builder -> builder.setPriority(priority), wrapper -> wrapper.setPriority(priority));
+        backend.setPriority(priority);
         return this;
     }
 
-    @NonNull
     @Override
     public android.net.http.UrlRequest.Builder setUploadDataProvider(
-            @NonNull android.net.http.UploadDataProvider provider, @NonNull Executor executor) {
-        mutate(
-                builder ->
-                        builder.setUploadDataProvider(
-                                new UploadDataProviderWrapper(provider), executor),
-                null);
+            android.net.http.UploadDataProvider provider, Executor executor) {
+        UploadDataProviderWrapper wrappedProvider = new UploadDataProviderWrapper(provider);
+        backend.setUploadDataProvider(wrappedProvider, executor);
         return this;
     }
 
-    @NonNull
     @Override
     public android.net.http.UrlRequest.Builder setDirectExecutorAllowed(
             boolean allowDirectExecutor) {
-        mDirectExecutorAllowed = allowDirectExecutor;
+        isDirectExecutorAllowed = allowDirectExecutor;
         return this;
     }
 
-    @NonNull
     @Override
     public android.net.http.UrlRequest.Builder bindToNetwork(Network network) {
-        mutate(
-                builder ->
-                        builder.bindToNetwork(
-                                network != null
-                                        ? network.getNetworkHandle()
-                                        : org.chromium.net.ExperimentalCronetEngine
-                                                .UNBIND_NETWORK_HANDLE),
-                null);
+        long networkHandle = ExperimentalCronetEngine.UNBIND_NETWORK_HANDLE;
+        if (network != null) {
+            networkHandle = network.getNetworkHandle();
+        }
+        backend.bindToNetwork(networkHandle);
         return this;
     }
 
-    @NonNull
     @Override
     public android.net.http.UrlRequest.Builder setTrafficStatsUid(int uid) {
-        mutate(
-                builder -> builder.setTrafficStatsUid(uid),
-                wrapper -> wrapper.setTrafficStatsUid(uid));
+        backend.setTrafficStatsUid(uid);
         return this;
     }
 
-    @NonNull
     @Override
     public android.net.http.UrlRequest.Builder setTrafficStatsTag(int tag) {
-        mutate(
-                builder -> builder.setTrafficStatsTag(tag),
-                wrapper -> wrapper.setTrafficStatsTag(tag));
+        backend.setTrafficStatsTag(tag);
         return this;
     }
 
     @Override
     public android.net.http.UrlRequest build() {
-        // We're doing late initialization here because it's required that each
-        // UrlRequestWrapper maps to exactly one UrlRequestCallbackWrapper so we can
-        // maintain the information that we can't fetch from CronetUrlRequest inside
-        // the UrlRequestWrapper and passing that wrapper to the callback. So now there's
-        // a 1:1 relationship between each UrlRequestWrapper and UrlRequestCallbackWrapper.
-        // The drawback here is that the user does not save any performance when they re-use the
-        // builders as we have to store the data and copy it over during build().
-        maybeCreateBackendAndApplyMutator();
-        if (mCacheDisabled) {
-            mBackend.disableCache();
+        // Cronet API is not equal to HttpEngine's API which is why
+        // we have to delay the calling of the methods below until
+        // we are sure that there will be no more changes.
+        // Note that this implementation has a subtle edge case that
+        // is not handled correctly if the caller interleaves `setCacheDisabled(false)`
+        // or setDirectExecutorAllowed(false) with `build`.
+        if (isCacheDisabled) {
+            backend.disableCache();
         }
-        if (mDirectExecutorAllowed) {
-            mBackend.allowDirectExecutor();
+        if (isDirectExecutorAllowed) {
+            backend.allowDirectExecutor();
         }
-        mHeaderBlock = new HeaderBlockImpl(mHeaders);
-        mBuilderMutator.accept(mBackend);
-        var requestWrapper =
-                new UrlRequestWrapper(mBackend.build(), mCacheDisabled, mDirectExecutorAllowed);
-        mWrapperMutator.accept(requestWrapper);
-        mCallbackWrapper.setOriginalRequestWrapper(requestWrapper);
-        return requestWrapper;
+        return new UrlRequestWrapper(backend.build());
     }
 }

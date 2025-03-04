@@ -4,6 +4,8 @@
 
 package org.chromium.net.impl;
 
+import androidx.annotation.NonNull;
+
 import static org.chromium.net.impl.HttpEngineNativeProvider.EXT_API_LEVEL;
 import static org.chromium.net.impl.HttpEngineNativeProvider.EXT_VERSION;
 
@@ -13,6 +15,7 @@ import org.chromium.net.CronetEngine;
 import org.chromium.net.CronetException;
 import org.chromium.net.RequestFinishedInfo;
 import org.chromium.net.RequestFinishedInfo.Listener;
+import org.chromium.net.UrlResponseInfo;
 
 import java.nio.ByteBuffer;
 import java.util.Collection;
@@ -97,5 +100,47 @@ class AndroidBidirectionalStreamWrapper extends org.chromium.net.ExperimentalBid
             CronetException exception) {
         AndroidRequestFinishedInfoWrapper.reportFinished(
                 mEngine, mInitialUrl, mAnnotations, null, finishedReason, responseInfo, exception);
+    }
+
+    @Override
+    public boolean isDelayRequestHeadersUntilFirstFlushEnabled() {
+        return mBackend.isDelayRequestHeadersUntilFirstFlushEnabled();
+    }
+
+    @Override
+    public int getPriority() {
+        return mBackend.getPriority();
+    }
+
+    @NonNull
+    @Override
+    public UrlResponseInfo.HeaderBlock getHeaders() {
+        return new AndroidHeaderBlockWrapper(mBackend.getHeaders());
+    }
+
+    @Override
+    public int getTrafficStatsUid() {
+        return mBackend.getTrafficStatsUid();
+    }
+
+    @Override
+    public int getTrafficStatsTag() {
+        return mBackend.getTrafficStatsTag();
+    }
+
+    @Override
+    public boolean hasTrafficStatsUid() {
+        return mBackend.hasTrafficStatsUid();
+    }
+
+    @Override
+    public boolean hasTrafficStatsTag() {
+        return mBackend.hasTrafficStatsTag();
+    }
+
+    @NonNull
+    @Override
+    public String getHttpMethod() {
+        return mBackend.getHttpMethod();
     }
 }

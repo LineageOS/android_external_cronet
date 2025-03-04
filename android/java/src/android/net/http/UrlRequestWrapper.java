@@ -17,55 +17,13 @@
 package android.net.http;
 
 import java.nio.ByteBuffer;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 class UrlRequestWrapper extends android.net.http.UrlRequest {
 
     private final org.chromium.net.UrlRequest backend;
-    private String mHttpMethod;
-    private boolean mHasTrafficStatsTag;
-    private int mTrafficStatsTag;
-    private boolean mHasTrafficStatsUid;
-    private int mTrafficStatsUid;
-    private int mPriority = android.net.http.UrlRequest.REQUEST_PRIORITY_MEDIUM;
-    private final boolean mCacheDisabled;
-    private final boolean mDirectExecutorAllowed;
-    private final List<Map.Entry<String, String>> mHeadersList;
-    private android.net.http.HeaderBlock mHeaders;
 
-    public UrlRequestWrapper(
-            org.chromium.net.UrlRequest backend,
-            boolean cacheDisabled,
-            boolean directExecutorAllowed) {
+    public UrlRequestWrapper(org.chromium.net.UrlRequest backend) {
         this.backend = backend;
-        this.mCacheDisabled = cacheDisabled;
-        this.mDirectExecutorAllowed = directExecutorAllowed;
-        this.mHeadersList = new ArrayList<>();
-        this.mHeaders = new HeaderBlockImpl(mHeadersList);
-    }
-
-    public UrlRequestWrapper(
-            org.chromium.net.UrlRequest backend,
-            String httpMethod,
-            boolean hasTrafficStatsTag,
-            int trafficStatsTag,
-            boolean hasTrafficStatsUid,
-            int trafficStatsUid,
-            int priority,
-            HeaderBlock headerBlock,
-            boolean cacheDisabled,
-            boolean directExecutorAllowed) {
-        this(backend, cacheDisabled, directExecutorAllowed);
-        this.mHttpMethod = httpMethod;
-        this.mHasTrafficStatsTag = hasTrafficStatsTag;
-        this.mHasTrafficStatsUid = hasTrafficStatsUid;
-        this.mTrafficStatsTag = trafficStatsTag;
-        this.mTrafficStatsUid = trafficStatsUid;
-        this.mHeaders = headerBlock;
-        this.mPriority = priority;
     }
 
     @Override
@@ -100,74 +58,47 @@ class UrlRequestWrapper extends android.net.http.UrlRequest {
 
     @Override
     public String getHttpMethod() {
-        return mHttpMethod;
+        return backend.getHttpMethod();
     }
 
     @Override
     public android.net.http.HeaderBlock getHeaders() {
-        return mHeaders;
+        org.chromium.net.UrlResponseInfo.HeaderBlock headers = backend.getHeaders();
+        return new HeaderBlockWrapper(headers);
     }
 
     @Override
     public boolean isCacheDisabled() {
-        return mCacheDisabled;
+        return backend.isCacheDisabled();
     }
 
     @Override
     public boolean isDirectExecutorAllowed() {
-        return mDirectExecutorAllowed;
+        return backend.isDirectExecutorAllowed();
     }
 
     @Override
     public int getPriority() {
-        return mPriority;
+        return backend.getPriority();
     }
 
     @Override
     public boolean hasTrafficStatsTag() {
-        return mHasTrafficStatsTag;
+        return backend.hasTrafficStatsTag();
     }
 
     @Override
     public int getTrafficStatsTag() {
-        if (!hasTrafficStatsTag()) {
-            throw new IllegalStateException("TrafficStatsTag is not set");
-        }
-        return mTrafficStatsTag;
+        return backend.getTrafficStatsTag();
     }
 
     @Override
     public boolean hasTrafficStatsUid() {
-        return mHasTrafficStatsUid;
+        return backend.hasTrafficStatsUid();
     }
 
     @Override
     public int getTrafficStatsUid() {
-        if (!hasTrafficStatsUid()) {
-            throw new IllegalStateException("TrafficStatsUid is not set");
-        }
-        return mTrafficStatsUid;
-    }
-
-    void setHttpMethod(String httpMethod) {
-        mHttpMethod = httpMethod;
-    }
-
-    void setPriority(int priority) {
-        mPriority = priority;
-    }
-
-    void setTrafficStatsTag(int trafficStatsTag) {
-        mHasTrafficStatsTag = true;
-        mTrafficStatsTag = trafficStatsTag;
-    }
-
-    void setTrafficStatsUid(int trafficStatsUid) {
-        mHasTrafficStatsUid = true;
-        mTrafficStatsUid = trafficStatsUid;
-    }
-
-    void addHeader(String header, String value) {
-        mHeadersList.add(new AbstractMap.SimpleImmutableEntry<>(header, value));
+        return backend.getTrafficStatsUid();
     }
 }

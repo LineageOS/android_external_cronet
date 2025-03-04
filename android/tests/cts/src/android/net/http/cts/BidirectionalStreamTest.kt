@@ -29,7 +29,6 @@ import com.android.testutils.DevSdkIgnoreRule
 import com.android.testutils.DevSdkIgnoreRunner
 import com.android.testutils.SkipPresubmit
 import com.google.common.truth.Truth.assertThat
-import java.util.AbstractMap
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import org.hamcrest.MatcherAssert
@@ -150,9 +149,9 @@ class BidirectionalStreamTest {
     fun testBidirectionalStream_getHeaders_asList() {
         val builder = createBidirectionalStreamBuilder(URL)
         val expectedHeaders = mapOf(
-            "Authorization" to "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
-            "Max-Forwards" to "10",
-            "X-Client-Data" to "random custom header content").entries.toList()
+          "Authorization" to "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==",
+          "Max-Forwards" to "10",
+          "X-Client-Data" to "random custom header content").entries.toList()
 
         for (header in expectedHeaders) {
             builder.addHeader(header.key, header.value)
@@ -167,9 +166,9 @@ class BidirectionalStreamTest {
     fun testBidirectionalStream_getHeaders_asMap() {
         val builder = createBidirectionalStreamBuilder(URL)
         val expectedHeaders = mapOf(
-            "Authorization" to listOf("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="),
-            "Max-Forwards" to listOf("10"),
-            "X-Client-Data" to listOf("random custom header content"))
+          "Authorization" to listOf("Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ=="),
+          "Max-Forwards" to listOf("10"),
+          "X-Client-Data" to listOf("random custom header content"))
 
         for (header in expectedHeaders) {
             builder.addHeader(header.key, header.value.get(0))
@@ -188,50 +187,6 @@ class BidirectionalStreamTest {
         builder.setPriority(priority)
         stream = builder.build()
         assertThat(stream!!.getPriority()).isEqualTo(priority)
-    }
-
-    @Test
-    @Throws(Exception::class)
-    fun testBidirectionalStream_testPriorityWhenReusingBuilder() {
-        val builder = createBidirectionalStreamBuilder(URL)
-        val priority1 = BidirectionalStream.STREAM_PRIORITY_LOW
-        val priority2 = BidirectionalStream.STREAM_PRIORITY_MEDIUM
-
-        builder.setPriority(priority1)
-        stream = builder.build()
-        builder.setPriority(priority2)
-        val stream2: BidirectionalStream = builder.build()
-        assertThat(stream!!.getPriority()).isEqualTo(priority1)
-        assertThat(stream2.getPriority()).isEqualTo(priority2)
-    }
-
-    @Test
-    @Throws(Exception::class)
-    fun testBidirectionalStream_testHeadersWhenReusingBuilder() {
-        val builder = createBidirectionalStreamBuilder(URL)
-
-        builder.addHeader("1", "1")
-        stream = builder.build()
-        builder.addHeader("2", "2")
-        val stream2: BidirectionalStream = builder.build()
-        assertThat(
-            stream!!.getHeaders()
-                .getAsList()
-        ).containsExactly(AbstractMap.SimpleImmutableEntry("1", "1"))
-        assertThat(
-            stream2.getHeaders()
-                .getAsList()
-        ).containsExactly(
-            AbstractMap.SimpleImmutableEntry("1", "1"),
-            AbstractMap.SimpleImmutableEntry("2", "2")
-        )
-    }
-
-    @Test
-    @Throws(Exception::class)
-    fun testBidirectionalStream_defaultPriorityIsMedium() {
-        stream = createBidirectionalStreamBuilder(URL).build()
-        assertThat(stream!!.getPriority()).isEqualTo(BidirectionalStream.STREAM_PRIORITY_MEDIUM)
     }
 
     @Test

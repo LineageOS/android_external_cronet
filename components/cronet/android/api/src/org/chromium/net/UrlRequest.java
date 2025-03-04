@@ -9,6 +9,9 @@ import androidx.annotation.RequiresOptIn;
 import java.nio.ByteBuffer;
 import java.util.concurrent.Executor;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 /**
  * Controls an HTTP request (GET, PUT, POST etc). Created by {@link UrlRequest.Builder}, which can
  * be obtained by calling {@link CronetEngine#newUrlRequestBuilder}. Note: All methods must be
@@ -445,6 +448,53 @@ public abstract class UrlRequest {
          */
         public abstract void onStatus(int status);
     }
+
+    /**
+     * See {@link UrlRequest.Builder#setHttpMethod(String)}.
+     */
+    @Nullable
+    public abstract String getHttpMethod();
+
+    /**
+     * See {@link UrlRequest.Builder#addHeader(String, String)}
+     */
+    @NonNull
+    public abstract UrlResponseInfo.HeaderBlock getHeaders();
+
+    /**
+     * See {@link Builder#setCacheDisabled(boolean)}
+     */
+    public abstract boolean isCacheDisabled();
+
+    /**
+     * See {@link UrlRequest.Builder#setDirectExecutorAllowed(boolean)}
+     */
+    public abstract boolean isDirectExecutorAllowed();
+
+    /**
+     * See {@link Builder#setPriority(int)}
+     */
+    public abstract int getPriority();
+
+    /**
+     * See {@link Builder#setTrafficStatsTag(int)}
+     */
+    public abstract boolean hasTrafficStatsTag();
+
+    /**
+     * See {@link Builder#setTrafficStatsTag(int)}
+     */
+    public abstract int getTrafficStatsTag();
+
+    /**
+     * See {@link Builder#setTrafficStatsUid(int)}
+     */
+    public abstract boolean hasTrafficStatsUid();
+
+    /**
+     * See {@link Builder#setTrafficStatsUid(int)}
+     */
+    public abstract int getTrafficStatsUid();
 
     /**
      * Starts the request, all callbacks go to {@link Callback}. May only be called once. May not be
