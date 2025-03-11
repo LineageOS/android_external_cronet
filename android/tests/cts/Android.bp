@@ -46,6 +46,7 @@ android_library {
     libs: [
         "android.test.base.stubs.test",
         "androidx.annotation_annotation",
+        "framework-sdkextensions.stubs.module_lib",
         "framework-connectivity.stubs.module_lib",
         "framework-connectivity.stubs.system",
         "httpclient_impl",

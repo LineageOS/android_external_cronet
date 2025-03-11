@@ -38,6 +38,7 @@ import android.net.http.cts.util.HttpCtsTestServer;
 import android.net.http.cts.util.TestStatusListener;
 import android.net.http.cts.util.TestUrlRequestCallback;
 import android.net.http.cts.util.TestUrlRequestCallback.ResponseStep;
+import android.net.http.cts.util.UploadDataProviders;
 import android.os.Build;
 import android.webkit.cts.CtsTestServer;
 
@@ -48,15 +49,13 @@ import androidx.test.core.app.ApplicationProvider;
 import com.android.testutils.DevSdkIgnoreRule;
 import com.android.testutils.DevSdkIgnoreRunner;
 
-import com.google.common.base.Strings;
-
 import org.junit.After;
-import org.junit.Assume;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
 import java.nio.ByteBuffer;
+import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -281,6 +280,36 @@ public class UrlRequestTest {
     }
 
     @Test
+    public void testUrlRequest_testPriorityWhenReusingBuilder() throws Exception {
+        UrlRequest.Builder builder = createUrlRequestBuilder(mTestServer.getSuccessUrl());
+        int priority1 = UrlRequest.REQUEST_PRIORITY_LOW;
+        int priority2 = UrlRequest.REQUEST_PRIORITY_LOWEST;
+
+        builder.setPriority(priority1);
+        UrlRequest request1 = builder.build();
+        builder.setPriority(priority2);
+        UrlRequest request2 = builder.build();
+        assertThat(request1.getPriority()).isEqualTo(priority1);
+        assertThat(request2.getPriority()).isEqualTo(priority2);
+    }
+
+    @Test
+    public void testUrlRequest_testHeadersWhenReusingBuilder() throws Exception {
+        UrlRequest.Builder builder = createUrlRequestBuilder(mTestServer.getSuccessUrl());
+
+        builder.addHeader("1", "1");
+        UrlRequest request1 = builder.build();
+        builder.addHeader("2", "2");
+        UrlRequest request2 = builder.build();
+        assertThat(request1.getHeaders().getAsList())
+                .containsExactly(new AbstractMap.SimpleImmutableEntry<>("1", "1"));
+        assertThat(request2.getHeaders().getAsList())
+                .containsExactly(
+                        new AbstractMap.SimpleImmutableEntry<>("1", "1"),
+                        new AbstractMap.SimpleImmutableEntry<>("2", "2"));
+    }
+
+    @Test
     public void testUrlRequest_getHeaders_asMap() throws Exception {
         UrlRequest.Builder builder = createUrlRequestBuilder(mTestServer.getSuccessUrl());
         final Map<String, List<String>> expectedHeaders = Map.of(
@@ -344,6 +373,42 @@ public class UrlRequestTest {
         builder.setPriority(priority);
         UrlRequest request = builder.build();
         assertThat(request.getPriority()).isEqualTo(priority);
+    }
+
+    @Test
+    public void testUrlRequest_defaultPriorityIsMedium() throws Exception {
+        UrlRequest request = createUrlRequestBuilder(mTestServer.getSuccessUrl()).build();
+        assertThat(request.getPriority()).isEqualTo(UrlRequest.REQUEST_PRIORITY_MEDIUM);
+    }
+
+    @Test
+    public void testUrlRequest_defaultHttpMethodIsGET() throws Exception {
+        UrlRequest request = createUrlRequestBuilder(mTestServer.getSuccessUrl()).build();
+        assertThat(request.getHttpMethod()).isEqualTo("GET");
+    }
+
+    @Test
+    public void testUrlRequest_settingDataProviderShouldChangeDefaultHttpMethodToPost()
+            throws Exception {
+        UrlRequest request =
+                createUrlRequestBuilder(mTestServer.getSuccessUrl())
+                        .setUploadDataProvider(
+                                UploadDataProviders.create(""), mCallback.getExecutor())
+                        .build();
+        assertThat(request.getHttpMethod()).isEqualTo("POST");
+    }
+
+    @Test
+    public void testUrlRequest_settingDataProviderShouldNotChangeSetHttpMethod() throws Exception {
+        UrlRequest request =
+                createUrlRequestBuilder(mTestServer.getSuccessUrl())
+                        // The setHttpMethod must come before setUploadDataProvider to
+                        // ensure that we don't override the value set.
+                        .setHttpMethod("PUT")
+                        .setUploadDataProvider(
+                                UploadDataProviders.create(""), mCallback.getExecutor())
+                        .build();
+        assertThat(request.getHttpMethod()).isEqualTo("PUT");
     }
 
     @Test

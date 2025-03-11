@@ -24,9 +24,35 @@ import java.nio.ByteBuffer;
 class UrlRequestCallbackWrapper extends org.chromium.net.UrlRequest.Callback {
 
     private final android.net.http.UrlRequest.Callback backend;
+    private UrlRequestWrapper mOriginalWrapper;
 
     public UrlRequestCallbackWrapper(android.net.http.UrlRequest.Callback backend) {
         this.backend = backend;
+    }
+
+    public void setOriginalRequestWrapper(UrlRequestWrapper wrapper) {
+        mOriginalWrapper = wrapper;
+    }
+
+    // Note: one could argue that this is unnecessary, and we could simply pass
+    // mOriginalStreamWrapper to the user callbacks - this would make the code simpler and more
+    // efficient. However, that would also create a subtle change in behavior: indeed it would mean
+    // that the user callback always receives the same object on every call,
+    // whereas currently it is a different object on every call. This introduces the risk that a
+    // user may rely on the object always being the same (e.g. using it as a key in a map),
+    // which may prevent their code from running correctly against older versions of HttpEngine.
+    private UrlRequestWrapper createWrapperFromRequest(org.chromium.net.UrlRequest request) {
+        return new UrlRequestWrapper(
+                request,
+                mOriginalWrapper.getHttpMethod(),
+                mOriginalWrapper.hasTrafficStatsTag(),
+                mOriginalWrapper.hasTrafficStatsTag() ? mOriginalWrapper.getTrafficStatsTag() : 0,
+                mOriginalWrapper.hasTrafficStatsUid(),
+                mOriginalWrapper.hasTrafficStatsUid() ? mOriginalWrapper.getTrafficStatsUid() : 0,
+                mOriginalWrapper.getPriority(),
+                mOriginalWrapper.getHeaders(),
+                mOriginalWrapper.isCacheDisabled(),
+                mOriginalWrapper.isDirectExecutorAllowed());
     }
 
     @Override
@@ -35,7 +61,7 @@ class UrlRequestCallbackWrapper extends org.chromium.net.UrlRequest.Callback {
             org.chromium.net.UrlResponseInfo info,
             String newLocationUrl)
             throws Exception {
-        UrlRequestWrapper wrappedRequest = new UrlRequestWrapper(request);
+        UrlRequestWrapper wrappedRequest = createWrapperFromRequest(request);
         UrlResponseInfoWrapper wrappedInfo = new UrlResponseInfoWrapper(info);
         backend.onRedirectReceived(wrappedRequest, wrappedInfo, newLocationUrl);
     }
@@ -44,7 +70,7 @@ class UrlRequestCallbackWrapper extends org.chromium.net.UrlRequest.Callback {
     public void onResponseStarted(
             org.chromium.net.UrlRequest request, org.chromium.net.UrlResponseInfo info)
             throws Exception {
-        UrlRequestWrapper wrappedRequest = new UrlRequestWrapper(request);
+        UrlRequestWrapper wrappedRequest = createWrapperFromRequest(request);
         UrlResponseInfoWrapper wrappedInfo = new UrlResponseInfoWrapper(info);
         backend.onResponseStarted(wrappedRequest, wrappedInfo);
     }
@@ -55,7 +81,7 @@ class UrlRequestCallbackWrapper extends org.chromium.net.UrlRequest.Callback {
             org.chromium.net.UrlResponseInfo info,
             ByteBuffer buffer)
             throws Exception {
-        UrlRequestWrapper wrappedRequest = new UrlRequestWrapper(request);
+        UrlRequestWrapper wrappedRequest = createWrapperFromRequest(request);
         UrlResponseInfoWrapper wrappedInfo = new UrlResponseInfoWrapper(info);
         backend.onReadCompleted(wrappedRequest, wrappedInfo, buffer);
     }
@@ -63,7 +89,7 @@ class UrlRequestCallbackWrapper extends org.chromium.net.UrlRequest.Callback {
     @Override
     public void onSucceeded(
             org.chromium.net.UrlRequest request, org.chromium.net.UrlResponseInfo info) {
-        UrlRequestWrapper wrappedRequest = new UrlRequestWrapper(request);
+        UrlRequestWrapper wrappedRequest = createWrapperFromRequest(request);
         UrlResponseInfoWrapper wrappedInfo = new UrlResponseInfoWrapper(info);
         backend.onSucceeded(wrappedRequest, wrappedInfo);
     }
@@ -73,7 +99,7 @@ class UrlRequestCallbackWrapper extends org.chromium.net.UrlRequest.Callback {
             org.chromium.net.UrlRequest request,
             org.chromium.net.UrlResponseInfo info,
             CronetException e) {
-        UrlRequestWrapper wrappedRequest = new UrlRequestWrapper(request);
+        UrlRequestWrapper wrappedRequest = createWrapperFromRequest(request);
         UrlResponseInfoWrapper wrappedInfo = new UrlResponseInfoWrapper(info);
         HttpException translatedException = CronetExceptionTranslationUtils.translateException(e);
         backend.onFailed(wrappedRequest, wrappedInfo, translatedException);
@@ -82,7 +108,7 @@ class UrlRequestCallbackWrapper extends org.chromium.net.UrlRequest.Callback {
     @Override
     public void onCanceled(
             org.chromium.net.UrlRequest request, org.chromium.net.UrlResponseInfo info) {
-        UrlRequestWrapper wrappedRequest = new UrlRequestWrapper(request);
+        UrlRequestWrapper wrappedRequest = createWrapperFromRequest(request);
         UrlResponseInfoWrapper wrappedInfo = new UrlResponseInfoWrapper(info);
         backend.onCanceled(wrappedRequest, wrappedInfo);
     }
