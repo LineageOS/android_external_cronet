@@ -16,3 +16,24 @@ org\.chromium\.base\.TraceEvent\$LooperMonitorHolder
 # android/net/connectivity/org/chromium/base/jank_tracker/JankReportingScheduler$LazyHolder;
 # failed initialization: java.lang.InternalError: Cannot create threads in zygote
 org\.chromium\.base\.jank_tracker\.JankReportingScheduler\$LazyHolder
+
+# Don't preload the classes that we would normally exclude from Cronet jars, as
+# they are guaranteed to be dead code. This list is copy-pasted from Chromium:
+# see _jar_excluded_patterns in //components/cronet/android/BUILD.gn.
+#
+# This is not just an optimization - some of the classes will fail to preload,
+# for example `org.chromium.base.library_loader.LibraryLoader` cannot be
+# preloaded because it depends on `org.chromium.build.NativeLibraries` which is
+# stripped from the build.
+#
+# TODO: if these classes are dead code, we should not be shipping them in the
+# first place. See also b/380356540. Also, this list is painful to maintain.
+.*\.library_loader\..*
+.*\.multidex\..*
+.*\.process_launcher\..*
+.*\.SysUtils.*
+org\.chromium\.base\.Feature.*
+org\.chromium\.base\.PowerMonitor.*
+org\.chromium\.base\.jank_tracker\..*
+org\.chromium\.base\.memory\.MemoryPurgeManager.*
+org\.chromium\.base\.memory\.MemoryPressureMonitor.*

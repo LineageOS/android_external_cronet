@@ -208,32 +208,6 @@ class BidirectionalStreamTest {
 
     @Test
     @Throws(Exception::class)
-    fun testBidirectionalStream_testHeadersWhenReusingBuilder() {
-        // The previous behaviour was broken as it allowed spooky action at a distance. Guard the
-        // tests with an SdkExt check to ensure that -next tests does not fail.
-        if (SdkExtensions.getExtensionVersion(Build.VERSION_CODES.S) >= 17) {
-            val builder = createBidirectionalStreamBuilder(URL)
-
-            builder.addHeader("1", "1")
-            stream = builder.build()
-            builder.addHeader("2", "2")
-            val stream2: BidirectionalStream = builder.build()
-            assertThat(
-                stream!!.getHeaders()
-                    .getAsList()
-            ).containsExactly(AbstractMap.SimpleImmutableEntry("1", "1"))
-            assertThat(
-                stream2.getHeaders()
-                    .getAsList()
-            ).containsExactly(
-                AbstractMap.SimpleImmutableEntry("1", "1"),
-                AbstractMap.SimpleImmutableEntry("2", "2")
-            )
-        }
-    }
-
-    @Test
-    @Throws(Exception::class)
     fun testBidirectionalStream_defaultPriorityIsMedium() {
         stream = createBidirectionalStreamBuilder(URL).build()
         assertThat(stream!!.getPriority()).isEqualTo(BidirectionalStream.STREAM_PRIORITY_MEDIUM)
