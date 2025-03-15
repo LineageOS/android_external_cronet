@@ -30,19 +30,47 @@ android_test {
         "general-tests",
         "mts-tethering",
     ],
+    defaults: [
+        "cronet_java_tests",
+    ],
     static_libs: [
         "modules-utils-native-coverage-listener",
         "CtsNetHttpTestsLib",
         "cronet_aml_api_java",
         "cronet_aml_java__testing",
-        "cronet_java_tests",
     ],
     compile_multilib: "both", // Include both the 32 and 64 bit versions
     jni_libs: [
-        "cronet_aml_components_cronet_android_cronet_tests__testing",
-        "cronet_aml_components_cronet_android_cronet__testing",
-        "cronet_aml_third_party_netty_tcnative_netty_tcnative_so__testing",
         "libnativecoverage",
     ],
-    data: [":cronet_javatests_resources"],
+}
+
+// This is required to keep testing Cronet Stable. TH does not support, trivially, presubmit
+// testing of non-trunk_staging targets. In trunk_staging, Cronet ToT is "selected", while
+// Stable is selected everywhere else. To circumvent that, we expose a targets which are
+// always backed by Cronet Stable (hence the stable_ prefix).
+android_test {
+    name: "StableNetHttpCoverageTests",
+    enforce_default_target_sdk_version: true,
+    min_sdk_version: "30",
+    test_suites: [
+        "general-tests",
+        "mts-tethering",
+    ],
+    static_libs: [
+        "modules-utils-native-coverage-listener",
+        "CtsNetHttpTestsLib",
+        "stable_cronet_java_tests",
+        "stable_cronet_api_java",
+        "stable_cronet_java__testing",
+    ],
+    data: [":stable_cronet_javatests_resources"],
+    compile_multilib: "both", // Include both the 32 and 64 bit versions
+    jni_libs: [
+        "libnativecoverage",
+        "stable_cronet_components_cronet_android_cronet_tests__testing",
+        "stable_cronet_components_cronet_android_cronet__testing",
+        "stable_cronet_third_party_netty_tcnative_netty_tcnative_so__testing",
+    ],
+    test_config: "StableAndroidTest.xml",
 }

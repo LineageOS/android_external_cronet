@@ -30,11 +30,44 @@ java_test_host {
         "tradefed",
         "framework-annotations-lib",
     ],
-    data: [
-        ":net_unittests_data",
+    defaults: [
+        "net_unittests_data",
     ],
     device_common_data: [
         ":cronet_net_tester_app",
+    ],
+    test_suites: [
+        "general-tests",
+        "mts-tethering",
+    ],
+    // This build fails on windows targets with "windows_common" depends on some disabled modules
+    // that are used by this test. Thus, disable this on target windows.
+    // TODO(aymanm): Remove this when b/201754360 is fixed.
+    target: {
+        windows: {
+            enabled: false,
+        },
+    },
+}
+
+// This is required to keep testing Cronet Stable. TH does not support, trivially, presubmit
+// testing of non-trunk_staging targets. In trunk_staging, Cronet ToT is "selected", while
+// Stable is selected everywhere else. To circumvent that, we expose a targets which are
+// always backed by Cronet Stable (hence the stable_ prefix).
+java_test_host {
+    name: "stable_net_unittests_tester",
+    srcs: ["src/**/*.java"],
+    auto_gen_config: false,
+    test_config: "StableAndroidNetTest.xml",
+    libs: [
+        "tradefed",
+        "framework-annotations-lib",
+    ],
+    data: [
+        ":stable_cronet_net_unittests_data",
+    ],
+    device_common_data: [
+        ":stable_cronet_net_tester_app",
     ],
     test_suites: [
         "general-tests",
@@ -73,5 +106,35 @@ java_test_host {
     },
     device_common_data: [
         ":cronet_tester_app",
+    ],
+}
+
+// This is required to keep testing Cronet Stable. TH does not support, trivially, presubmit
+// testing of non-trunk_staging targets. In trunk_staging, Cronet ToT is "selected", while
+// Stable is selected everywhere else. To circumvent that, we expose a targets which are
+// always backed by Cronet Stable (hence the stable_ prefix).
+java_test_host {
+    name: "stable_cronet_unittests_tester",
+    srcs: ["src/**/*.java"],
+    auto_gen_config: false,
+    test_config: "StableAndroidTest.xml",
+    libs: [
+        "tradefed",
+        "framework-annotations-lib",
+    ],
+    test_suites: [
+        "general-tests",
+        "mts-tethering",
+    ],
+    // This build fails on windows targets with "windows_common" depends on some disabled modules
+    // that are used by this test. Thus, disable this on target windows.
+    // TODO(aymanm): Remove this when b/201754360 is fixed.
+    target: {
+        windows: {
+            enabled: false,
+        },
+    },
+    device_common_data: [
+        ":stable_cronet_tester_app",
     ],
 }

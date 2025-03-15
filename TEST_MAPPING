@@ -1,13 +1,19 @@
 {
-  "imports": [
-    {
-      "path": "packages/modules/Connectivity"
-    }
-  ],
   "captiveportal-networkstack-resolve-tethering-mainline-presubmit": [
-    // Runs both NetHttpTests and CtsNetHttpTestCases
     {
      "name": "NetHttpCoverageTests",
+     "options": [
+       {
+         "exclude-annotation": "com.android.testutils.SkipPresubmit"
+       },
+       {
+         // These sometimes take longer than 1 min which is the presubmit timeout
+         "exclude-annotation": "androidx.test.filters.LargeTest"
+       }
+     ]
+    },
+    {
+     "name": "StableNetHttpCoverageTests",
      "options": [
        {
          "exclude-annotation": "com.android.testutils.SkipPresubmit"
@@ -24,9 +30,14 @@
       "name": "net_unittests_tester"
     },
     {
+      "name": "stable_net_unittests_tester"
+    },
+    {
       "name": "cronet_unittests_tester"
     },
-    // Runs both NetHttpTests and CtsNetHttpTestCases
+    {
+      "name": "stable_cronet_unittests_tester"
+    },
     {
      "name": "NetHttpCoverageTests",
      "options": [
@@ -38,14 +49,18 @@
          "exclude-annotation": "androidx.test.filters.LargeTest"
        }
      ]
-    }
-  ],
-  "postsubmit": [
-    {
-      "name": "NetHttpCoverageTests"
     },
     {
-      "name": "net_unittests_tester"
+     "name": "StableNetHttpCoverageTests",
+     "options": [
+       {
+         "exclude-annotation": "com.android.testutils.SkipPresubmit"
+       },
+       {
+         // These sometimes take longer than 1 min which is the presubmit timeout
+         "exclude-annotation": "androidx.test.filters.LargeTest"
+       }
+     ]
     }
   ]
 }
